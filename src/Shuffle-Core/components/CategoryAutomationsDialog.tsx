@@ -1769,6 +1769,8 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
             {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </Box>
+        </>
+        )}
       </DialogActions>
 
       <AppSearchDrawer

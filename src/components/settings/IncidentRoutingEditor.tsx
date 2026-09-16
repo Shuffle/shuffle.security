@@ -460,8 +460,8 @@ export const IncidentRoutingEditor = ({
               credentials: 'include',
               headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                label: 'Incident Routing Rules',
-                category: 'cases',
+                label: `${entityPluralCap} Routing Rules`,
+                category: generateCategory,
               }),
             });
             window.dispatchEvent(new CustomEvent('shuffle-workflow-toggled', {

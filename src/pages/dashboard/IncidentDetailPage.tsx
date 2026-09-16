@@ -16807,7 +16807,7 @@ const IncidentDetailPage = () => {
                     }
                     expandedTaskIds={simpleExpandedTaskIds}
                     onToggleTaskExpanded={toggleSimpleTaskExpanded}
-                    readOnly={!hasPermission("cases:update")}
+                    readOnly={isPublicView}
                   />
                 );
 

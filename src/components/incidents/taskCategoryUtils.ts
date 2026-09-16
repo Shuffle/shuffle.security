@@ -32,7 +32,7 @@ export function groupTasksByCategory(
   // Map known categories
   const categoryMap = new Map<string, { label: string; color: string }>();
   for (const cat of taskCategories) {
-    categoryMap.set(cat.key.toLowerCase(), {
+    categoryMap.set(cat.value.toLowerCase(), {
       label: cat.label,
       color: cat.color,
     });
@@ -54,12 +54,12 @@ export function groupTasksByCategory(
 
   // 1. Standard categories in predefined lifecycle order
   for (const cat of taskCategories) {
-    const catKey = cat.key.toLowerCase();
+    const catKey = cat.value.toLowerCase();
     const catTasks = taskBuckets.get(catKey);
     if (catTasks && catTasks.length > 0) {
       const completedCount = catTasks.filter((t) => t.completed).length;
       groups.push({
-        categoryKey: cat.key,
+        categoryKey: cat.value,
         label: cat.label,
         color: cat.color,
         tasks: catTasks,

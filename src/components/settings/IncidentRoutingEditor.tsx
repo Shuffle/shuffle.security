@@ -550,6 +550,7 @@ export const IncidentRoutingEditor = ({
       matchMode: rule.matchMode,
       conditions: rule.conditions.map((c) => ({ ...c })),
       actions: rule.actions.map((a) => ({ ...a })),
+      entityCategory,
     });
     setDrafts((prev) => ({ ...prev, [copy.id]: copy }));
     setLocalOnlyIds((prev) => new Set(prev).add(copy.id));

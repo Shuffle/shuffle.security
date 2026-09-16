@@ -40,6 +40,7 @@ import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import { navigateToShuffleCore, isShuffleCoreUrl } from '@/lib/authHandoff';
 import { fetchWorkflowsCached, fetchOrgCached } from '../views/appsFetchCache';
 import { SegmentedControl } from './ui/segmented-control';
+import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
 
 export const NOTIFICATIONS_OPEN_EVENT = 'notifications:open';
 
@@ -365,6 +366,7 @@ const NotificationsDrawer = ({
   const drawerWidth = `min(${width}px, 100vw)`;
   const drawerMinWidth = `min(${minWidth}px, 100vw)`;
   const drawerMaxWidth = `min(${maxWidth}px, 100vw)`;
+  const drawerZIndex = useDrawerLayer(open);
 
   return (
     <Drawer
@@ -372,6 +374,7 @@ const NotificationsDrawer = ({
       open={open}
       onClose={onClose}
       sx={{
+        zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
           width: { xs: '100vw', sm: drawerWidth },

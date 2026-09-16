@@ -57,6 +57,7 @@ export interface MarkdownDescriptionEditorProps {
   incidentId?: string;
   taskId?: string;
   compact?: boolean;
+  rawButtonTop?: number | string;
 }
 
 type BarAction = {
@@ -365,7 +366,9 @@ export const MarkdownDescriptionEditor = ({
   incidentId,
   taskId,
   compact = false,
+  rawButtonTop,
 }: MarkdownDescriptionEditorProps) => {
+  const buttonTop = rawButtonTop !== undefined ? rawButtonTop : (compact ? -4 : -44);
   const [raw, setRaw] = useState(false);
   const [rawDraft, setRawDraft] = useState(value);
   const [bar, setBar] = useState<{ top: number; left: number; placement: 'above' | 'below' } | null>(null);
@@ -643,7 +646,7 @@ export const MarkdownDescriptionEditor = ({
         position: 'relative',
         cursor: readOnly ? 'default' : 'text',
         minHeight: readOnly ? 'auto' : compact ? minRows * 20 : minRows * 28,
-        '&:hover .raw-toggle-btn': { opacity: 0.8 },
+        '&:hover .raw-toggle-btn': { opacity: raw ? 1 : 0.85 },
       }}
     >
       {!readOnly && (
@@ -651,30 +654,48 @@ export const MarkdownDescriptionEditor = ({
           component="button"
           type="button"
           className="raw-toggle-btn"
+          aria-label={raw ? 'Switch to rich text' : 'Edit raw markdown'}
+          title={raw ? 'Switch to rich text' : 'Edit raw markdown'}
           onMouseDown={(event) => event.preventDefault()}
           onClick={toggleRaw}
           sx={{
             position: 'absolute',
-            top: -4,
+            top: buttonTop,
             right: 0,
             zIndex: 5,
-            border: 0,
-            background: 'transparent',
+            border: raw
+              ? '1px solid hsla(var(--primary) / 0.32)'
+              : '1px solid transparent',
+            background: raw
+              ? 'hsla(var(--primary) / 0.12)'
+              : 'transparent',
             cursor: 'pointer',
-            px: 0.75,
+            px: 0.85,
             py: 0.25,
             borderRadius: 1,
-            fontSize: '0.7rem',
-            fontWeight: 600,
+            fontSize: '0.68rem',
+            fontWeight: 700,
             letterSpacing: '0.04em',
             textTransform: 'uppercase',
             color: raw ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-            opacity: raw ? 1 : 0.35,
-            transition: 'opacity 0.15s ease',
-            '&:hover': { bgcolor: 'hsl(var(--muted))', opacity: 1 },
+            opacity: raw ? 1 : 0.45,
+            boxShadow: raw ? '0 0 6px hsla(var(--primary) / 0.12)' : 'none',
+            transition: 'all 0.15s ease',
+            '&:hover': {
+              bgcolor: raw
+                ? 'hsla(var(--primary) / 0.18)'
+                : 'hsl(var(--muted))',
+              borderColor: raw
+                ? 'hsla(var(--primary) / 0.45)'
+                : 'hsl(var(--border))',
+              color: raw
+                ? 'hsl(var(--primary))'
+                : 'hsl(var(--foreground))',
+              opacity: 1,
+            },
           }}
         >
-          {raw ? 'WYSIWYG' : 'Raw'}
+          RAW
         </Box>
       )}
 

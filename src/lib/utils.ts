@@ -368,6 +368,27 @@ export async function backfillAppImages(dedupedApps: DeduplicatedApp[]): Promise
 }
 
 /**
+ * Ensures that every task in the array has a non-empty, unique ID.
+ * If a task lacks an ID or collides with another task's ID, a stable unique ID is generated.
+ */
+export function ensureTaskIds<T extends { id?: string; createdAt?: number }>(tasks: T[]): T[] {
+  if (!Array.isArray(tasks)) return [];
+  const seenIds = new Set<string>();
+  return tasks.map((task, index) => {
+    if (!task || typeof task !== 'object') return task;
+    let id = task.id ? String(task.id).trim() : '';
+    if (!id || seenIds.has(id)) {
+      id = `task-${task.createdAt || Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+    }
+    seenIds.add(id);
+    return {
+      ...task,
+      id,
+    };
+  });
+}
+
+/**
  * Deduplicate tasks by exact match on title + category + description.
  * Keeps the first occurrence (preserving order and IDs).
  */

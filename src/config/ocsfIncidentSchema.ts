@@ -92,6 +92,11 @@ export interface IncidentTask {
     at: number;
     by?: string;
   }>;
+  aiStatus?: 'pending' | 'running' | 'completed' | 'failed';
+  aiPrompt?: string;
+  aiRunAt?: number;
+  aiOutput?: string;
+  aiRunId?: string;
 }
 
 // Task categories for organization

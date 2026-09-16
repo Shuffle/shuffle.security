@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react';
 import { Box, Typography, Chip, IconButton, TextField, Button, CircularProgress } from '@mui/material';
 import { IncidentTask, taskCategories } from '@/config/ocsfIncidentSchema';
 import { isAIAssignee } from '@/lib/utils';
+import { openAgentDrawer } from '@/lib/agentDrawer';
 import { useTaskStatuses } from '@/hooks/useEntityLabel';
 import { TaskAssigneeChip } from './TaskAssigneeChip';
 import { TaskEditDialog } from './TaskEditDialog';
@@ -103,7 +104,7 @@ interface TaskKanbanBoardProps {
   /** Task id to briefly flash, e.g. when the user clicked it in the timeline. */
   highlightTaskId?: string | null;
   onDeleteTask?: (taskId: string) => void;
-  onAssignAi?: (task: IncidentTask) => void;
+  onAssignAi?: (task: IncidentTask, reRun?: boolean) => void;
   assigningTaskIds?: Record<string, boolean>;
 }
 
@@ -135,19 +136,20 @@ export const TaskKanbanBoard = ({
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [localAssigningIds, setLocalAssigningIds] = useState<Record<string, boolean>>({});
 
-  const handleAssignAi = (task: IncidentTask) => {
-    if (!onAssignAi) return;
+  const handleAssignAi = (task: IncidentTask, reRun: boolean = false) => {
+    if (!onAssignAi || !task || !task.id) return;
+    const taskId = String(task.id);
     if (!assigningTaskIds) {
-      setLocalAssigningIds((prev) => ({ ...prev, [task.id]: true }));
+      setLocalAssigningIds((prev) => ({ ...prev, [taskId]: true }));
       setTimeout(() => {
         setLocalAssigningIds((prev) => {
           const next = { ...prev };
-          delete next[task.id];
+          delete next[taskId];
           return next;
         });
       }, 8000);
     }
-    onAssignAi(task);
+    onAssignAi(task, reRun);
   };
 
   // ---------------------------------------------------------------- handlers
@@ -447,7 +449,12 @@ export const TaskKanbanBoard = ({
                           </Typography>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
                             {onAssignAi && (() => {
-                              const isAssigning = !!(assigningTaskIds ? assigningTaskIds[task.id] : localAssigningIds[task.id]);
+                              const isAssigning = Boolean(
+                                task.id &&
+                                  (assigningTaskIds
+                                    ? assigningTaskIds[task.id]
+                                    : localAssigningIds[task.id]),
+                              );
                               const isAssigned = isAIAssignee(task.assignee);
                               return (
                                 <Button
@@ -456,9 +463,22 @@ export const TaskKanbanBoard = ({
                                   disabled={isAssigning}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleAssignAi(task);
+                                    if (isAssigned) {
+                                      openAgentDrawer('run', {
+                                        defaultInput: task.aiPrompt,
+                                        taskId: task.id,
+                                        incidentId,
+                                      });
+                                    } else {
+                                      handleAssignAi(task);
+                                    }
                                   }}
-                                  aria-label="Assign AI"
+                                  title={
+                                    isAssigned
+                                      ? 'Assigned to AI Agent. Click to view run in Agent Drawer.'
+                                      : 'Assign to AI Agent'
+                                  }
+                                  aria-label={isAssigned ? 'Assigned AI' : 'Assign AI'}
                                   sx={{
                                     fontSize: '0.68rem',
                                     fontWeight: 600,

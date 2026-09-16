@@ -17,6 +17,8 @@ import {
   Divider,
 } from '@mui/material';
 import { IncidentTask, taskCategories } from '@/config/ocsfIncidentSchema';
+import { isAIAssignee } from '@/lib/utils';
+import { openAgentDrawer } from '@/lib/agentDrawer';
 import { TaskAssigneeChip } from './TaskAssigneeChip';
 import { TaskDateTimePicker } from './TaskDateTimePicker';
 import { FileAttachments } from './FileAttachments';
@@ -534,6 +536,128 @@ export const TaskEditDialog = ({
         </Box>
 
         <Divider />
+
+        {/* ---- AI AGENT EXECUTION ---- */}
+        {(isAIAssignee(task.assignee) || task.aiPrompt) && (
+          <>
+            <Box sx={{ px: 3, py: 2, bgcolor: 'hsl(var(--muted) / 0.15)' }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  mb: 1,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <FieldLabel>AI Agent Execution</FieldLabel>
+                  <Typography
+                    sx={{
+                      fontSize: '0.65rem',
+                      px: 0.75,
+                      py: 0.15,
+                      borderRadius: 0.5,
+                      border: '1px solid hsl(var(--border))',
+                      bgcolor: 'hsl(var(--background))',
+                      color: 'hsl(var(--muted-foreground))',
+                      fontWeight: 500,
+                      mb: 0.75,
+                    }}
+                  >
+                    {task.aiStatus === 'running' ? 'Running' : 'Assigned'}
+                  </Typography>
+                </Box>
+                {task.aiRunAt ? (
+                  <Typography
+                    sx={{
+                      fontSize: '0.7rem',
+                      color: 'hsl(var(--muted-foreground))',
+                      mb: 0.75,
+                    }}
+                  >
+                    Run{' '}
+                    {new Date(task.aiRunAt).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Typography>
+                ) : null}
+              </Box>
+
+              {task.aiPrompt && (
+                <Box sx={{ mb: 1.5 }}>
+                  <Typography
+                    sx={{
+                      fontSize: '0.72rem',
+                      color: 'hsl(var(--muted-foreground))',
+                      mb: 0.5,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Instructions sent to agent:
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: '0.75rem',
+                      fontFamily: 'monospace',
+                      p: 1.25,
+                      borderRadius: 1,
+                      bgcolor: 'hsl(var(--background))',
+                      border: '1px solid hsl(var(--border))',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      maxHeight: 140,
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {task.aiPrompt}
+                  </Typography>
+                </Box>
+              )}
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => {
+                    openAgentDrawer('run', {
+                      defaultInput: task.aiPrompt,
+                      taskId: task.id,
+                      incidentId,
+                    });
+                  }}
+                  sx={{
+                    fontSize: '0.72rem',
+                    height: 28,
+                    textTransform: 'none',
+                    borderRadius: 1,
+                  }}
+                >
+                  View in Agent Drawer
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => {
+                    update({ assignee: '', aiWorking: false });
+                  }}
+                  sx={{
+                    fontSize: '0.72rem',
+                    height: 28,
+                    textTransform: 'none',
+                    borderRadius: 1,
+                    color: 'hsl(var(--muted-foreground))',
+                  }}
+                >
+                  Unassign AI
+                </Button>
+              </Box>
+            </Box>
+            <Divider />
+          </>
+        )}
 
         {/* ---- ATTACHMENTS ---- */}
         <Box sx={{ px: 3, py: 2.5 }}>

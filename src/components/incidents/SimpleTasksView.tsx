@@ -17,6 +17,7 @@ import { MarkdownDescriptionEditor } from "./MarkdownDescriptionEditor";
 import { TaskAssigneeChip } from "./TaskAssigneeChip";
 import { taskCategories, type IncidentTask } from "@/config/ocsfIncidentSchema";
 import { isAIAssignee } from "@/lib/utils";
+import { openAgentDrawer } from "@/lib/agentDrawer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,7 +49,7 @@ export interface SimpleTasksViewProps {
   expandedTaskIds?: string[];
   onToggleTaskExpanded?: (taskId: string) => void;
   readOnly?: boolean;
-  onAssignAi?: (task: IncidentTask) => void;
+  onAssignAi?: (task: IncidentTask, reRun?: boolean) => void;
   assigningTaskIds?: Record<string, boolean>;
   highlightTaskId?: string | null;
   incidentId?: string;
@@ -117,19 +118,20 @@ export const SimpleTasksView = ({
     setInlineTitles((prev) => ({ ...prev, [catKey]: "" }));
   };
 
-  const handleAssignAi = (task: IncidentTask) => {
-    if (!onAssignAi) return;
+  const handleAssignAi = (task: IncidentTask, reRun: boolean = false) => {
+    if (!onAssignAi || !task || !task.id) return;
+    const taskId = String(task.id);
     if (!assigningTaskIds) {
-      setLocalAssigningIds((prev) => ({ ...prev, [task.id]: true }));
+      setLocalAssigningIds((prev) => ({ ...prev, [taskId]: true }));
       setTimeout(() => {
         setLocalAssigningIds((prev) => {
           const next = { ...prev };
-          delete next[task.id];
+          delete next[taskId];
           return next;
         });
       }, 8000);
     }
-    onAssignAi(task);
+    onAssignAi(task, reRun);
   };
 
   const allCategoryOptions = [
@@ -331,7 +333,12 @@ export const SimpleTasksView = ({
 
                       {/* Assign AI Button */}
                       {!readOnly && onAssignAi && (() => {
-                        const isAssigning = !!(assigningTaskIds ? assigningTaskIds[task.id] : localAssigningIds[task.id]);
+                        const isAssigning = Boolean(
+                          task.id &&
+                            (assigningTaskIds
+                              ? assigningTaskIds[task.id]
+                              : localAssigningIds[task.id]),
+                        );
                         const isAssigned = isAIAssignee(task.assignee);
                         return (
                           <Button
@@ -340,9 +347,22 @@ export const SimpleTasksView = ({
                             disabled={isAssigning}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleAssignAi(task);
+                              if (isAssigned) {
+                                openAgentDrawer("run", {
+                                  defaultInput: task.aiPrompt,
+                                  taskId: task.id,
+                                  incidentId,
+                                });
+                              } else {
+                                handleAssignAi(task);
+                              }
                             }}
-                            aria-label="Assign AI"
+                            title={
+                              isAssigned
+                                ? "Assigned to AI Agent. Click to view run in Agent Drawer."
+                                : "Assign to AI Agent"
+                            }
+                            aria-label={isAssigned ? "Assigned AI" : "Assign AI"}
                             className="task-hover-actions"
                             sx={{
                               fontSize: "0.7rem",
@@ -445,6 +465,193 @@ export const SimpleTasksView = ({
                           gap: 1,
                         }}
                       >
+                        {/* AI Agent Execution Panel */}
+                        {isAIAssignee(task.assignee) && (
+                          <Box
+                            sx={{
+                              p: 1.25,
+                              borderRadius: 1,
+                              border: "1px solid hsl(var(--border))",
+                              bgcolor: "hsl(var(--muted) / 0.25)",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 0.75,
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 1,
+                                }}
+                              >
+                                <Typography
+                                  sx={{
+                                    fontSize: "0.72rem",
+                                    fontWeight: 600,
+                                    color: "hsl(var(--foreground))",
+                                  }}
+                                >
+                                  AI Agent Execution
+                                </Typography>
+                                <Typography
+                                  sx={{
+                                    fontSize: "0.65rem",
+                                    px: 0.75,
+                                    py: 0.15,
+                                    borderRadius: 0.5,
+                                    border: "1px solid hsl(var(--border))",
+                                    bgcolor: "hsl(var(--background))",
+                                    color: "hsl(var(--muted-foreground))",
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  {task.aiStatus === "running"
+                                    ? "Running"
+                                    : "Assigned"}
+                                </Typography>
+                              </Box>
+                              {task.aiRunAt ? (
+                                <Typography
+                                  sx={{
+                                    fontSize: "0.68rem",
+                                    color: "hsl(var(--muted-foreground))",
+                                  }}
+                                >
+                                  Run{" "}
+                                  {new Date(task.aiRunAt).toLocaleDateString(
+                                    undefined,
+                                    {
+                                      month: "short",
+                                      day: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    },
+                                  )}
+                                </Typography>
+                              ) : null}
+                            </Box>
+
+                            {task.aiPrompt && (
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 0.25,
+                                }}
+                              >
+                                <Typography
+                                  sx={{
+                                    fontSize: "0.68rem",
+                                    color: "hsl(var(--muted-foreground))",
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  Instructions sent to agent:
+                                </Typography>
+                                <Typography
+                                  sx={{
+                                    fontSize: "0.7rem",
+                                    fontFamily: "monospace",
+                                    p: 1,
+                                    borderRadius: 0.5,
+                                    bgcolor: "hsl(var(--background))",
+                                    border: "1px solid hsl(var(--border))",
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word",
+                                    maxHeight: 120,
+                                    overflowY: "auto",
+                                  }}
+                                >
+                                  {task.aiPrompt}
+                                </Typography>
+                              </Box>
+                            )}
+
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                                pt: 0.25,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() =>
+                                  openAgentDrawer("run", {
+                                    defaultInput: task.aiPrompt,
+                                    taskId: task.id,
+                                    incidentId,
+                                  })
+                                }
+                                sx={{
+                                  fontSize: "0.68rem",
+                                  height: 24,
+                                  minHeight: 24,
+                                  px: 1,
+                                  borderRadius: 1,
+                                  textTransform: "none",
+                                }}
+                              >
+                                View in Agent Drawer
+                              </Button>
+                              {!readOnly && onAssignAi && (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => handleAssignAi(task, true)}
+                                  disabled={Boolean(
+                                    task.id &&
+                                      (assigningTaskIds
+                                        ? assigningTaskIds[task.id]
+                                        : localAssigningIds[task.id]),
+                                  )}
+                                  sx={{
+                                    fontSize: "0.68rem",
+                                    height: 24,
+                                    minHeight: 24,
+                                    px: 1,
+                                    borderRadius: 1,
+                                    textTransform: "none",
+                                  }}
+                                >
+                                  Re-run with AI
+                                </Button>
+                              )}
+                              {!readOnly && onUpdateTaskAssignee && (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() =>
+                                    onUpdateTaskAssignee(task.id, "")
+                                  }
+                                  sx={{
+                                    fontSize: "0.68rem",
+                                    height: 24,
+                                    minHeight: 24,
+                                    px: 1,
+                                    borderRadius: 1,
+                                    textTransform: "none",
+                                    color: "hsl(var(--muted-foreground))",
+                                  }}
+                                >
+                                  Unassign AI
+                                </Button>
+                              )}
+                            </Box>
+                          </Box>
+                        )}
+
                         <MarkdownDescriptionEditor
                           key={task.id}
                           value={task.description || ""}
@@ -584,6 +791,26 @@ export const SimpleTasksView = ({
               value={globalCategory}
               onChange={(e) => setGlobalCategory(e.target.value)}
               disableUnderline
+              renderValue={(val) => {
+                const cat = allCategoryOptions.find((c) => c.value === val);
+                if (!cat) return val;
+                return (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                    <Box
+                      component="span"
+                      sx={{
+                        width: 3,
+                        height: 12,
+                        borderRadius: "1px",
+                        bgcolor: cat.color,
+                        flexShrink: 0,
+                        display: "inline-block",
+                      }}
+                    />
+                    <span>{cat.label}</span>
+                  </Box>
+                );
+              }}
               sx={{
                 fontSize: "0.75rem",
                 fontWeight: 600,
@@ -594,7 +821,12 @@ export const SimpleTasksView = ({
                 borderRadius: 1,
                 px: 1,
                 py: 0.25,
-                "& .MuiSelect-select": { py: 0, pr: 2 },
+                "& .MuiSelect-select": {
+                  display: "flex",
+                  alignItems: "center",
+                  py: 0,
+                  pr: "20px !important",
+                },
               }}
               MenuProps={{
                 PaperProps: {
@@ -609,15 +841,23 @@ export const SimpleTasksView = ({
                 <MenuItem
                   key={cat.value}
                   value={cat.value}
-                  sx={{ fontSize: "0.78rem", color: cat.color, gap: 1 }}
+                  sx={{
+                    fontSize: "0.78rem",
+                    color: cat.color,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.75,
+                  }}
                 >
                   <Box
+                    component="span"
                     sx={{
                       width: 3,
                       height: 12,
                       borderRadius: "1px",
                       bgcolor: cat.color,
                       flexShrink: 0,
+                      display: "inline-block",
                     }}
                   />
                   {cat.label}

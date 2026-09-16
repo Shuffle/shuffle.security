@@ -636,7 +636,7 @@ const RunFinishedSummary: React.FC<RunFinishedSummaryProps> = ({
         </Typography>
       )}
 
-      {bottomContent}
+      {status !== 'FINISHED' && status !== 'SUCCESS' && bottomContent}
     </>
   );
 };
@@ -4742,14 +4742,21 @@ const AgentUI: React.FC<AgentUIProps> = ({
   }, [onChooseLLM]);
 
   const isAiAuthIssue = useMemo(() => {
+    // If the run finished cleanly, it cannot be an AI model authentication failure.
+    const status = (execution?.status || agentData?.status || '').toUpperCase();
+    const isFinished = status === 'FINISHED' || status === 'SUCCESS';
+    if (isFinished && !isAiAuthText(error)) {
+      return false;
+    }
+
     // If the agent completed with a valid final answer that is NOT an AI auth error,
     // it did not fail AI authentication.
     if (finishAnswer && finishAnswer.trim().length > 0 && !isAiAuthText(finishAnswer)) {
-      const diagnosable = execution?.results?.length ? execution : (agentData as any);
-      if (!isAiAuthFailure(diagnosable, error || '')) return false;
+      return false;
     }
+
     const diagnosable = execution?.results?.length ? execution : (agentData as any);
-    return isAiAuthFailure(diagnosable, error || finishAnswer || '');
+    return isAiAuthFailure(diagnosable, error || '');
   }, [execution, agentData, finishAnswer, error]);
 
   const aiAuthSuggestionNode = isAiAuthIssue ? (

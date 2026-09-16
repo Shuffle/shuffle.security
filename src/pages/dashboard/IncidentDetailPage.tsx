@@ -211,6 +211,7 @@ import { toast } from "@/lib/toast";
 import {
   isAIAssignee,
   deduplicateTasks,
+  ensureTaskIds,
   htmlToPlainText,
   decodeHtmlEntities,
   decodeIfBase64,
@@ -851,7 +852,7 @@ const parseIncidentFromDatastore = (item: {
       const topLevelActivity = (data as any).activity;
       const metadataTasks = customAttrs?.tasks;
       const metadataActivity = (customAttrs as any)?.activity;
-      const tasks = topLevelTasks || metadataTasks || [];
+      const tasks = ensureTaskIds(topLevelTasks || metadataTasks || []);
       const activity = topLevelActivity || metadataActivity || [];
 
       // Convert comments to activity for display (legacy format support)
@@ -921,7 +922,7 @@ const parseIncidentFromDatastore = (item: {
       const customAttrs = legacyData.metadata?.extensions?.custom_attributes;
       const tlp = customAttrs?.tlp || legacyData.tlp;
       const pap = customAttrs?.pap || legacyData.pap;
-      const tasks = customAttrs?.tasks || legacyData.tasks;
+      const tasks = ensureTaskIds(customAttrs?.tasks || legacyData.tasks || []);
       const activity = customAttrs?.activity || legacyData.activity;
       const customFields =
         customAttrs?.customFields ||
@@ -997,7 +998,7 @@ const parseIncidentFromDatastore = (item: {
       customFields: data.customFields || {},
       relatedFindings: data.relatedFindings || [],
       activity: data.activity || [],
-      tasks: data.tasks || [],
+      tasks: ensureTaskIds(data.tasks || []),
       rawOCSF: data,
     };
   } catch (err) {
@@ -5560,7 +5561,8 @@ const IncidentDetailPage = () => {
 
     const stampTasks = (list: any[]): any[] => {
       let prev = incident.createdTs || fallbackTs;
-      return list.map((task) => {
+      const normalizedList = ensureTaskIds(list);
+      return normalizedList.map((task) => {
         if (!task || typeof task !== "object") return task;
         if (!isMissing(task.createdAt)) {
           const parsed = normalizeToMs(task.createdAt);
@@ -5623,9 +5625,10 @@ const IncidentDetailPage = () => {
 
     setIncident((prev) => (prev ? { ...prev, rawOCSF: nextRaw } : prev));
     if (Array.isArray(nextRaw.tasks)) {
-      setTasks(nextRaw.tasks as IncidentTask[]);
+      const safeTasks = ensureTaskIds(nextRaw.tasks as IncidentTask[]);
+      setTasks(safeTasks);
       if (initialValuesRef.current) {
-        initialValuesRef.current.tasks = JSON.stringify(nextRaw.tasks);
+        initialValuesRef.current.tasks = JSON.stringify(safeTasks);
       }
     }
     if (Array.isArray(nextRaw.activity)) setActivity(nextRaw.activity as any);
@@ -7963,7 +7966,17 @@ const IncidentDetailPage = () => {
 
   const handleUpdateTaskAssignee = (taskId: string, assignee: string) => {
     setTasks(
-      tasks.map((task) => (task.id === taskId ? { ...task, assignee } : task)),
+      tasks.map((task) => {
+        if (task.id === taskId) {
+          const isAi = isAIAssignee(assignee);
+          return {
+            ...task,
+            assignee,
+            aiWorking: isAi ? task.aiWorking : false,
+          };
+        }
+        return task;
+      }),
     );
   };
 
@@ -8037,29 +8050,46 @@ const IncidentDetailPage = () => {
     setActivity((prev) => [...prev, deleteActivity]);
   };
 
-  const handleAssignAi = (task: IncidentTask) => {
+  const handleAssignAi = (task: IncidentTask, reRun: boolean = false) => {
+    if (!task) return;
+    const targetTaskId = String(task.id || "").trim();
+    if (!targetTaskId) return;
+
     autoProgressStatus();
     const actor = currentUsername || "You";
     const now = Date.now();
 
     // 1. Enter loading state (disabled and unclickable for 8s)
-    setAssigningTaskIds((prev) => ({ ...prev, [task.id]: true }));
+    setAssigningTaskIds((prev) => ({ ...prev, [targetTaskId]: true }));
     setTimeout(() => {
       setAssigningTaskIds((prev) => {
         const next = { ...prev };
-        delete next[task.id];
+        delete next[targetTaskId];
         return next;
       });
     }, 8000);
 
-    // 2. Assign task to AI Agent and record assignment history
+    // Formulate prompt
+    const incidentRef = incident?.id ? `#${incident.id}` : "";
+    const incidentTitle = incident?.title || editedTitle || "Incident";
+    const taskTitle = task.title || "Untitled task";
+    const taskDesc = task.description ? `\n\nTask details: ${task.description}` : "";
+    const prompt =
+      task.aiPrompt && !reRun
+        ? task.aiPrompt
+        : `Please automatically handle and resolve the following task for incident ${incidentRef} ("${incidentTitle}"):\n\nTask: ${taskTitle}${taskDesc}\n\nPlease investigate, take any necessary actions, and report the results.`;
+
+    // 2. Assign task to AI Agent and record assignment history & execution state
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === task.id
+        t.id && String(t.id) === targetTaskId
           ? {
               ...t,
               assignee: "AI Agent",
               aiWorking: true,
+              aiStatus: "running",
+              aiRunAt: now,
+              aiPrompt: prompt,
               assignHistory: [
                 ...(t.assignHistory || []),
                 { assignee: "AI Agent", at: now, by: actor },
@@ -8071,42 +8101,41 @@ const IncidentDetailPage = () => {
 
     // 3. Add timeline activity item
     const assignActivity: ActivityItem = {
-      id: `task-assign-ai-${now}-${task.id}`,
+      id: `task-assign-ai-${now}-${targetTaskId}`,
       type: "assignment",
       user: actor,
       timestamp: now,
-      content: `Assigned task "${task.title || "Untitled task"}" to AI Agent`,
+      content: reRun
+        ? `Re-ran task "${taskTitle}" with AI Agent`
+        : `Assigned task "${taskTitle}" to AI Agent`,
       details: {
-        taskId: task.id,
+        taskId: targetTaskId,
         taskTitle: task.title,
         requestedBy: actor,
         assignee: "AI Agent",
-        action: "assign_ai",
+        action: reRun ? "rerun_ai" : "assign_ai",
       },
       attachments: [],
     };
     setActivity((prev) => [...prev, assignActivity]);
 
     // 4. Open Ask AI / Agent Drawer with incident context and instructions
-    const incidentRef = incident?.id ? `#${incident.id}` : "";
-    const incidentTitle = incident?.title || editedTitle || "Incident";
-    const taskTitle = task.title || "Untitled task";
-    const taskDesc = task.description ? `\n\nTask details: ${task.description}` : "";
-    const prompt = `Please automatically handle and resolve the following task for incident ${incidentRef} ("${incidentTitle}"):\n\nTask: ${taskTitle}${taskDesc}\n\nPlease investigate, take any necessary actions, and report the results.`;
-
     openAgentDrawer("run", {
       defaultInput: prompt,
       source: "task-auto-assign",
       autoSubmit: true,
+      taskId: targetTaskId,
+      incidentId: incident?.id,
     });
   };
 
   const handleApplyTemplate = async (template: CaseTemplate) => {
     autoProgressStatus();
-    const newTasks: IncidentTask[] = template.tasks.map((t, index) => ({
-      id: `task-${Date.now()}-${index}`,
-      title: t.title,
-      description: t.description || "",
+    const newTasks: IncidentTask[] = ensureTaskIds(
+      template.tasks.map((t, index) => ({
+        id: `task-${Date.now()}-${index}`,
+        title: t.title,
+        description: t.description || "",
       category: t.category || "",
       completed: false,
       completedAt: 0,
@@ -8116,7 +8145,7 @@ const IncidentDetailPage = () => {
       createdAt: Date.now(),
       createdBy: currentUsername,
       attachments: [],
-    }));
+    })));
     setTasks([...tasks, ...newTasks]);
     setShowTemplateMenu(false);
     await trackTemplateUsage(template.id);

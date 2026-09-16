@@ -466,7 +466,7 @@ export const IncidentRoutingEditor = ({
               }),
             });
             window.dispatchEvent(new CustomEvent('shuffle-workflow-toggled', {
-              detail: { label: 'Incident Routing Rules', enabled: true },
+              detail: { label: `${entityPluralCap} Routing Rules`, enabled: true },
             }));
             window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
           } catch (e) {

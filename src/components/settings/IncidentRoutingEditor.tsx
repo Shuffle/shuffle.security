@@ -307,6 +307,7 @@ export const IncidentRoutingEditor = ({
   entityLabel = { singular: 'incident', plural: 'incidents' },
   generateCategory = 'cases',
 }: IncidentRoutingEditorProps) => {
+  const entityPluralCap = entityLabel.plural.charAt(0).toUpperCase() + entityLabel.plural.slice(1);
   const { userInfo } = useAuth();
   const currentOrgId = userInfo?.active_org?.id;
   const { subOrgs, isParentOrg } = useSubOrgs(currentOrgId);

@@ -278,15 +278,35 @@ const summarizeAction = (a: RoutingAction, orgName?: string): string => {
   }
 };
 
+export const DEFAULT_ROUTING_ENTITY_CATEGORY = 'shuffle-security_incidents';
+
 interface IncidentRoutingEditorProps {
   /**
    * When true, render even if no sub-orgs exist. The component will warn
    * inline that rules need a target tenant. Useful for previewing.
    */
   forceShow?: boolean;
+  /**
+   * Datastore category the rules apply to. Rules are stamped with it and
+   * the list is filtered by it, so the same editor serves incidents,
+   * vulnerabilities, assets and so on.
+   */
+  entityCategory?: string;
+  /** Entity naming used in copy. Defaults to incident/incidents. */
+  entityLabel?: { singular: string; plural: string };
+  /**
+   * Category passed to POST /api/v2/workflows/generate when the backing
+   * routing workflow is auto-created. Defaults to "cases".
+   */
+  generateCategory?: string;
 }
 
-export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEditorProps) => {
+export const IncidentRoutingEditor = ({
+  forceShow = false,
+  entityCategory = DEFAULT_ROUTING_ENTITY_CATEGORY,
+  entityLabel = { singular: 'incident', plural: 'incidents' },
+  generateCategory = 'cases',
+}: IncidentRoutingEditorProps) => {
   const { userInfo } = useAuth();
   const currentOrgId = userInfo?.active_org?.id;
   const { subOrgs, isParentOrg } = useSubOrgs(currentOrgId);

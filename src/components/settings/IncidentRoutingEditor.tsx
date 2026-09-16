@@ -257,6 +257,7 @@ const parseRule = (key: string, value: string): RoutingRule | null => {
       updatedTs: parsed.updatedTs,
       lastMatchedTs: parsed.lastMatchedTs,
       matchCount: Number.isFinite(parsed.matchCount) ? parsed.matchCount : 0,
+      entityCategory: typeof parsed.entityCategory === 'string' ? parsed.entityCategory : undefined,
     };
   } catch {
     return null;

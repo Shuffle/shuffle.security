@@ -5,8 +5,7 @@ import {
   TextField,
   Button,
   Popover,
-  Select,
-  MenuItem,
+  IconButton,
   type SxProps,
   type Theme,
 } from '@mui/material';
@@ -273,18 +272,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
     return getDefaultPresets(mode);
   }, [presets, mode]);
 
-  // Year choices for quick selection
-  const yearOptions = useMemo(() => {
-    const curYear = dayjs().year();
-    const list: number[] = [];
-    for (let y = curYear - 10; y <= curYear + 10; y++) {
-      list.push(y);
-    }
-    return list;
-  }, []);
-
   const inputSize = slotProps?.textField?.size || size;
   const inputSx = slotProps?.textField?.sx || sx;
+  const textFieldSlot = slotProps?.textField || {};
 
   return (
     <>
@@ -310,56 +300,40 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
           helperText={helperText}
           InputProps={{
             readOnly,
-            endAdornment: (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                {textInput && !disabled && !readOnly && (
-                  <Button
-                    size="small"
-                    onClick={handleClear}
-                    sx={{
-                      minWidth: 0,
-                      px: 0.8,
-                      py: 0.2,
-                      fontSize: '0.7rem',
-                      textTransform: 'none',
-                      color: 'text.secondary',
-                      '&:hover': { color: 'text.primary' },
-                    }}
-                  >
-                    Clear
-                  </Button>
-                )}
-                <Button
-                  size="small"
-                  onClick={handleOpenPopover}
-                  disabled={disabled}
-                  sx={{
-                    minWidth: 0,
-                    px: 0.8,
-                    py: 0.2,
-                    fontSize: '0.7rem',
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    bgcolor: open ? 'action.selected' : 'action.hover',
-                    color: 'text.primary',
-                    borderRadius: 1,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    '&:hover': { bgcolor: 'action.selected', borderColor: 'primary.main' },
-                  }}
-                >
-                  {mode === 'time' ? 'Time' : 'Date'}
-                </Button>
-              </Box>
-            ),
+            endAdornment: textInput && !disabled && !readOnly ? (
+              <IconButton
+                size="small"
+                onClick={handleClear}
+                title="Clear date"
+                sx={{
+                  p: 0.4,
+                  mr: -0.5,
+                  color: 'text.secondary',
+                  fontSize: '0.85rem',
+                  lineHeight: 1,
+                  '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
+                }}
+              >
+                ×
+              </IconButton>
+            ) : null,
+            ...(textFieldSlot.InputProps || {}),
           }}
-          InputLabelProps={{ shrink: true }}
+          InputLabelProps={{ shrink: true, ...(textFieldSlot.InputLabelProps || {}) }}
           sx={{
-            minWidth: 180,
-            '& .MuiInputBase-root': { cursor: 'pointer' },
+            minWidth: mode === 'time' ? 140 : mode === 'date' ? 170 : 210,
+            '& .MuiInputBase-root': {
+              cursor: 'pointer',
+              fontSize: '0.82rem',
+              fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+            },
+            '& .MuiInputBase-input': {
+              cursor: 'pointer',
+              py: inputSize === 'small' ? '8.5px' : '12px',
+            },
             ...inputSx,
           }}
-          {...slotProps?.textField}
+          {...textFieldSlot}
         />
       )}
 
@@ -372,14 +346,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
         sx={{ zIndex: 10025 }}
         PaperProps={{
           sx: {
-            p: 1.5,
-            width: mode === 'time' ? 240 : 310,
+            p: 2.5,
+            width: mode === 'time' ? 260 : 340,
             bgcolor: 'background.paper',
             backgroundImage: 'none',
             border: '1px solid',
             borderColor: 'divider',
-            borderRadius: '8px',
-            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.35)',
+            borderRadius: '10px',
+            boxShadow: '0 16px 40px rgba(0, 0, 0, 0.45)',
             ...popoverSx,
           },
         }}
@@ -390,9 +364,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
             sx={{
               display: 'flex',
               flexWrap: 'wrap',
-              gap: 0.5,
-              mb: 1.5,
-              pb: 1,
+              gap: 0.8,
+              mb: 2,
+              pb: 1.5,
               borderBottom: '1px solid',
               borderColor: 'divider',
             }}
@@ -404,15 +378,18 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                 variant="outlined"
                 onClick={() => handlePresetSelect(p)}
                 sx={{
-                  py: 0.2,
-                  px: 0.8,
-                  fontSize: '0.7rem',
+                  py: 0.35,
+                  px: 1.2,
+                  fontSize: '0.72rem',
+                  fontWeight: 500,
                   textTransform: 'none',
-                  borderRadius: 1,
+                  borderRadius: '6px',
                   borderColor: 'divider',
-                  color: 'text.primary',
+                  color: 'text.secondary',
+                  bgcolor: 'transparent',
                   '&:hover': {
                     borderColor: 'primary.main',
+                    color: 'text.primary',
                     bgcolor: 'action.hover',
                   },
                 }}
@@ -426,85 +403,104 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
         {/* Calendar View (for datetime and date modes) */}
         {mode !== 'time' && (
           <Box>
-            {/* Header: Month and Year selector + Prev/Next buttons */}
+            {/* Header: Month and Year navigation */}
             <Box
               sx={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                mb: 1,
-                gap: 1,
+                mb: 1.8,
+                px: 0.5,
               }}
             >
-              <Button
-                size="small"
-                onClick={() => setViewDate(viewDate.subtract(1, 'month'))}
-                sx={{
-                  minWidth: 28,
-                  height: 28,
-                  p: 0,
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                }}
-              >
-                &lt;
-              </Button>
-
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Select
+                <IconButton
                   size="small"
-                  value={viewDate.month()}
-                  onChange={(e) => setViewDate(viewDate.month(Number(e.target.value)))}
-                  MenuProps={{ sx: { zIndex: 10035 } }}
+                  onClick={() => setViewDate(viewDate.subtract(1, 'year'))}
+                  title="Previous Year"
                   sx={{
-                    fontSize: '0.75rem',
+                    width: 28,
                     height: 28,
-                    '& .MuiSelect-select': { py: 0.4, px: 1 },
+                    borderRadius: '6px',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    color: 'text.secondary',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    '&:hover': { color: 'text.primary', borderColor: 'primary.main', bgcolor: 'action.hover' },
                   }}
                 >
-                  {MONTH_NAMES.map((m, idx) => (
-                    <MenuItem key={m} value={idx} sx={{ fontSize: '0.75rem' }}>
-                      {m}
-                    </MenuItem>
-                  ))}
-                </Select>
-
-                <Select
+                  «
+                </IconButton>
+                <IconButton
                   size="small"
-                  value={viewDate.year()}
-                  onChange={(e) => setViewDate(viewDate.year(Number(e.target.value)))}
-                  MenuProps={{ sx: { zIndex: 10035 } }}
+                  onClick={() => setViewDate(viewDate.subtract(1, 'month'))}
+                  title="Previous Month"
                   sx={{
-                    fontSize: '0.75rem',
+                    width: 28,
                     height: 28,
-                    '& .MuiSelect-select': { py: 0.4, px: 1 },
+                    borderRadius: '6px',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    color: 'text.secondary',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    '&:hover': { color: 'text.primary', borderColor: 'primary.main', bgcolor: 'action.hover' },
                   }}
                 >
-                  {yearOptions.map((y) => (
-                    <MenuItem key={y} value={y} sx={{ fontSize: '0.75rem' }}>
-                      {y}
-                    </MenuItem>
-                  ))}
-                </Select>
+                  ‹
+                </IconButton>
               </Box>
 
-              <Button
-                size="small"
-                onClick={() => setViewDate(viewDate.add(1, 'month'))}
+              <Typography
                 sx={{
-                  minWidth: 28,
-                  height: 28,
-                  p: 0,
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  border: '1px solid',
-                  borderColor: 'divider',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  color: 'text.primary',
+                  letterSpacing: '0.01em',
                 }}
               >
-                &gt;
-              </Button>
+                {MONTH_NAMES[viewDate.month()]} {viewDate.year()}
+              </Typography>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <IconButton
+                  size="small"
+                  onClick={() => setViewDate(viewDate.add(1, 'month'))}
+                  title="Next Month"
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '6px',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    color: 'text.secondary',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    '&:hover': { color: 'text.primary', borderColor: 'primary.main', bgcolor: 'action.hover' },
+                  }}
+                >
+                  ›
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={() => setViewDate(viewDate.add(1, 'year'))}
+                  title="Next Year"
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '6px',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    color: 'text.secondary',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    '&:hover': { color: 'text.primary', borderColor: 'primary.main', bgcolor: 'action.hover' },
+                  }}
+                >
+                  »
+                </IconButton>
+              </Box>
             </Box>
 
             {/* Weekday headers */}
@@ -513,7 +509,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                 display: 'grid',
                 gridTemplateColumns: 'repeat(7, 1fr)',
                 textAlign: 'center',
-                mb: 0.5,
+                mb: 1,
               }}
             >
               {WEEK_DAYS.map((wd) => (
@@ -521,7 +517,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                   key={wd}
                   variant="caption"
                   sx={{
-                    fontSize: '0.68rem',
+                    fontSize: '0.72rem',
                     fontWeight: 600,
                     color: 'text.secondary',
                     py: 0.3,
@@ -537,7 +533,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
               sx={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(7, 1fr)',
-                gap: 0.3,
+                rowGap: '6px',
+                columnGap: '4px',
               }}
             >
               {/* Previous month trailing days */}
@@ -545,11 +542,15 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                 <Box
                   key={`prev-${day}`}
                   sx={{
-                    textAlign: 'center',
-                    py: 0.6,
-                    fontSize: '0.72rem',
+                    width: 34,
+                    height: 34,
+                    margin: '0 auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
                     color: 'text.disabled',
-                    borderRadius: 1,
+                    opacity: 0.35,
                   }}
                 >
                   {day}
@@ -575,22 +576,28 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                     key={`cur-${day}`}
                     onClick={() => !disabledCell && handleSelectDay(day)}
                     sx={{
-                      textAlign: 'center',
-                      py: 0.6,
-                      fontSize: '0.72rem',
-                      fontWeight: isSelected || isToday ? 700 : 400,
+                      width: 34,
+                      height: 34,
+                      margin: '0 auto',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.78rem',
+                      fontWeight: isSelected || isToday ? 700 : 500,
                       cursor: disabledCell ? 'not-allowed' : 'pointer',
-                      borderRadius: 1,
-                      border: isToday && !isSelected ? '1px solid' : 'none',
+                      borderRadius: '8px',
+                      border: isToday && !isSelected ? '1.5px solid' : 'none',
                       borderColor: 'primary.main',
-                      bgcolor: isSelected
-                        ? 'primary.main'
-                        : 'transparent',
+                      bgcolor: isSelected ? 'primary.main' : 'transparent',
                       color: isSelected
-                        ? 'primary.contrastText'
+                        ? '#FFFFFF'
+                        : isToday
+                        ? 'primary.main'
                         : disabledCell
                         ? 'text.disabled'
                         : 'text.primary',
+                      boxShadow: isSelected ? '0 2px 8px rgba(255, 87, 34, 0.4)' : 'none',
+                      transition: 'all 0.15s ease',
                       '&:hover': {
                         bgcolor: isSelected
                           ? 'primary.dark'
@@ -610,11 +617,15 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                 <Box
                   key={`next-${day}`}
                   sx={{
-                    textAlign: 'center',
-                    py: 0.6,
-                    fontSize: '0.72rem',
+                    width: 34,
+                    height: 34,
+                    margin: '0 auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
                     color: 'text.disabled',
-                    borderRadius: 1,
+                    opacity: 0.35,
                   }}
                 >
                   {day}
@@ -628,14 +639,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
         {mode !== 'date' && (
           <Box
             sx={{
-              mt: mode === 'datetime' ? 1.5 : 0,
-              pt: mode === 'datetime' ? 1 : 0,
+              mt: mode === 'datetime' ? 2 : 0,
+              pt: mode === 'datetime' ? 1.5 : 0,
               borderTop: mode === 'datetime' ? '1px solid' : 'none',
               borderColor: 'divider',
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.8 }}>
-              <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600, color: 'text.secondary' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Time (24h)
               </Typography>
               <Button
@@ -647,91 +658,127 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                   handleTimePartChange('second', now.second());
                 }}
                 sx={{
-                  py: 0.1,
-                  px: 0.6,
-                  fontSize: '0.68rem',
+                  py: 0.2,
+                  px: 0.8,
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
                   textTransform: 'none',
+                  color: 'primary.main',
+                  '&:hover': { bgcolor: 'action.hover' },
                 }}
               >
                 Set to Now
               </Button>
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <TextField
-                size="small"
-                type="number"
-                label="HH"
-                value={parsedValue ? String(parsedValue.hour()).padStart(2, '0') : '00'}
-                onChange={(e) => {
-                  let v = parseInt(e.target.value, 10);
-                  if (isNaN(v)) v = 0;
-                  if (v < 0) v = 0;
-                  if (v > 23) v = 23;
-                  handleTimePartChange('hour', v);
-                }}
-                inputProps={{ min: 0, max: 23 }}
-                InputLabelProps={{ shrink: true }}
-                sx={{
-                  width: 62,
-                  '& input': {
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 1,
+                py: 1,
+                px: 1.5,
+                borderRadius: '8px',
+                bgcolor: (theme) =>
+                  theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.04)',
+                border: '1px solid',
+                borderColor: 'divider',
+              }}
+            >
+              <Box sx={{ textAlign: 'center' }}>
+                <input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={parsedValue ? String(parsedValue.hour()).padStart(2, '0') : '00'}
+                  onChange={(e) => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v)) v = 0;
+                    if (v < 0) v = 0;
+                    if (v > 23) v = 23;
+                    handleTimePartChange('hour', v);
+                  }}
+                  style={{
+                    width: 46,
+                    height: 32,
                     textAlign: 'center',
-                    py: 0.6,
-                    fontSize: '0.75rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
                     fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
-                  },
-                }}
-              />
-              <Typography variant="caption" sx={{ fontWeight: 700 }}>:</Typography>
-              <TextField
-                size="small"
-                type="number"
-                label="MM"
-                value={parsedValue ? String(parsedValue.minute()).padStart(2, '0') : '00'}
-                onChange={(e) => {
-                  let v = parseInt(e.target.value, 10);
-                  if (isNaN(v)) v = 0;
-                  if (v < 0) v = 0;
-                  if (v > 59) v = 59;
-                  handleTimePartChange('minute', v);
-                }}
-                inputProps={{ min: 0, max: 59 }}
-                InputLabelProps={{ shrink: true }}
-                sx={{
-                  width: 62,
-                  '& input': {
+                    borderRadius: 6,
+                    border: '1px solid rgba(128, 128, 128, 0.25)',
+                    background: 'transparent',
+                    color: 'inherit',
+                    outline: 'none',
+                  }}
+                />
+                <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', mt: 0.3 }}>HH</Typography>
+              </Box>
+
+              <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: 'text.secondary', pb: 1.8 }}>:</Typography>
+
+              <Box sx={{ textAlign: 'center' }}>
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={parsedValue ? String(parsedValue.minute()).padStart(2, '0') : '00'}
+                  onChange={(e) => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v)) v = 0;
+                    if (v < 0) v = 0;
+                    if (v > 59) v = 59;
+                    handleTimePartChange('minute', v);
+                  }}
+                  style={{
+                    width: 46,
+                    height: 32,
                     textAlign: 'center',
-                    py: 0.6,
-                    fontSize: '0.75rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
                     fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
-                  },
-                }}
-              />
-              <Typography variant="caption" sx={{ fontWeight: 700 }}>:</Typography>
-              <TextField
-                size="small"
-                type="number"
-                label="SS"
-                value={parsedValue ? String(parsedValue.second()).padStart(2, '0') : '00'}
-                onChange={(e) => {
-                  let v = parseInt(e.target.value, 10);
-                  if (isNaN(v)) v = 0;
-                  if (v < 0) v = 0;
-                  if (v > 59) v = 59;
-                  handleTimePartChange('second', v);
-                }}
-                inputProps={{ min: 0, max: 59 }}
-                InputLabelProps={{ shrink: true }}
-                sx={{
-                  width: 62,
-                  '& input': {
+                    borderRadius: 6,
+                    border: '1px solid rgba(128, 128, 128, 0.25)',
+                    background: 'transparent',
+                    color: 'inherit',
+                    outline: 'none',
+                  }}
+                />
+                <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', mt: 0.3 }}>MM</Typography>
+              </Box>
+
+              <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: 'text.secondary', pb: 1.8 }}>:</Typography>
+
+              <Box sx={{ textAlign: 'center' }}>
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={parsedValue ? String(parsedValue.second()).padStart(2, '0') : '00'}
+                  onChange={(e) => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v)) v = 0;
+                    if (v < 0) v = 0;
+                    if (v > 59) v = 59;
+                    handleTimePartChange('second', v);
+                  }}
+                  style={{
+                    width: 46,
+                    height: 32,
                     textAlign: 'center',
-                    py: 0.6,
-                    fontSize: '0.75rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
                     fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
-                  },
-                }}
-              />
+                    borderRadius: 6,
+                    border: '1px solid rgba(128, 128, 128, 0.25)',
+                    background: 'transparent',
+                    color: 'inherit',
+                    outline: 'none',
+                  }}
+                />
+                <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', mt: 0.3 }}>SS</Typography>
+              </Box>
             </Box>
           </Box>
         )}
@@ -742,8 +789,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            mt: 1.5,
-            pt: 1,
+            mt: 2,
+            pt: 1.5,
             borderTop: '1px solid',
             borderColor: 'divider',
           }}
@@ -752,12 +799,12 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
             size="small"
             onClick={handleClear}
             sx={{
-              py: 0.2,
-              px: 1,
-              fontSize: '0.72rem',
+              py: 0.35,
+              px: 1.2,
+              fontSize: '0.75rem',
               textTransform: 'none',
               color: 'text.secondary',
-              '&:hover': { color: 'text.primary' },
+              '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
             }}
           >
             Clear
@@ -768,18 +815,18 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
             variant="contained"
             onClick={handleClosePopover}
             sx={{
-              py: 0.3,
-              px: 1.5,
-              fontSize: '0.72rem',
+              py: 0.45,
+              px: 2,
+              fontSize: '0.75rem',
               fontWeight: 600,
               textTransform: 'none',
-              borderRadius: 1,
+              borderRadius: '6px',
               bgcolor: 'primary.main',
               color: '#FFFFFF',
-              boxShadow: (theme) => `0 2px 8px ${theme.palette.primary.main}40`,
+              boxShadow: 'none',
               '&:hover': {
-                bgcolor: 'primary.main',
-                opacity: 0.9,
+                bgcolor: 'primary.dark',
+                boxShadow: 'none',
               },
             }}
           >

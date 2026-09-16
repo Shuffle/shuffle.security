@@ -2127,8 +2127,11 @@ function useUsecasesLite() {
 // ============================================================================
 // Helpers
 // ============================================================================
-const categoryLabel = (id: string) =>
-  TOOL_CATEGORIES.find((c) => c.id === id)?.label || id;
+const categoryLabel = (id: any): string => {
+  if (!id) return '';
+  if (typeof id === 'object') return id.label || id.name || id.id || '';
+  return TOOL_CATEGORIES.find((c) => c.id === id)?.label || id;
+};
 
 const phaseIcon = (phase: FlowPhase) => {
   if (phase === 'ingest') return <Download size={14} />;
@@ -2136,8 +2139,9 @@ const phaseIcon = (phase: FlowPhase) => {
   return <Activity size={14} />;
 };
 
-const getToolCategoryMeta = (categoryId: string): { color: string; icon: React.ReactNode; label: string } | null => {
-  const cat = TOOL_CATEGORIES.find((c) => c.id === categoryId);
+const getToolCategoryMeta = (categoryId: any): { color: string; icon: React.ReactNode; label: string } | null => {
+  const cid = typeof categoryId === 'object' ? categoryId?.id || categoryId?.label : categoryId;
+  const cat = TOOL_CATEGORIES.find((c) => c.id === cid);
   if (!cat) return null;
   return { color: cat.color, icon: cat.icon, label: cat.label };
 };
@@ -4217,6 +4221,8 @@ function UsecaseDetailContent({
 
   const sourceCat = getToolCategoryMeta(flow.source);
   const targetCat = getToolCategoryMeta(flow.target);
+  const sourceCatLabel = sourceCat?.label || categoryLabel(flow.source) || 'source';
+  const targetCatLabel = targetCat?.label || categoryLabel(flow.target) || 'destination';
   const phaseInfo = FLOW_PHASES.find((phase) => phase.id === flow.phase) || FLOW_PHASES[0];
   const sourceDetails = TOOL_CATEGORIES.find((item) => item.id === flow.source);
   const targetDetails = TOOL_CATEGORIES.find((item) => item.id === flow.target);
@@ -4446,7 +4452,7 @@ function UsecaseDetailContent({
                     detailIsBlocked
                       ? `${detailHealth.primaryProblem?.title || 'Execution blocked'}: ${detailHealth.primaryProblem?.description || 'Runtime location is offline.'} Click to view details / fix.`
                       : !effectiveEnabled && !hasValidatedSource && !isShuffleSourcedFlow
-                        ? `No active ${sourceCat} integration is connected. Activating will not do anything until a ${sourceCat} tool is authenticated — the workflow will be disabled again automatically.`
+                        ? `No active ${sourceCatLabel} integration is connected. Activating will not do anything until a ${sourceCatLabel} tool is authenticated — the workflow will be disabled again automatically.`
                         : !effectiveEnabled && (flow.id === 'case_management_cases_forward_1' || flow.id === 'case_management_communication_1')
                           ? 'Click to activate (choose a destination tool)'
                           : effectiveEnabled
@@ -6981,9 +6987,9 @@ function UsecaseCard({
    *  still happens inline (no need for context). */
   onEnable?: () => void;
 }) {
-  const sourceCat = categoryLabel(flow.source);
+  const sourceCat = categoryLabel(flow.source) || 'source';
   const isComingSoon = !ACTIVE_USECASE_IDS.includes(flow.id);
-  const targetCat = categoryLabel(flow.target);
+  const targetCat = categoryLabel(flow.target) || 'destination';
   const [toggling, setToggling] = useState(false);
   const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
   const effectiveEnabled = optimisticEnabled !== null ? optimisticEnabled : isEnabled;

@@ -133,9 +133,10 @@ export const IngestionSourcesRow = ({
       // Connectivity loss: never overwrite what is already on screen with an
       // empty list, and allow the next attempt to load normally again.
       if (!workflowsResponse || !workflowsResponse.ok) {
-        loadedOnceRef.current = false;
+        loadFailed = true;
         return;
       }
+
 
       let workflowAppNames: Set<string> | undefined;
       if (workflowsResponse.ok) {

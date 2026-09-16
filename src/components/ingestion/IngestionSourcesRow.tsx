@@ -201,10 +201,13 @@ export const IngestionSourcesRow = ({
 
       setIngestionApps(results);
     } catch (error) {
+      loadFailed = true;
       console.error('Failed to fetch ingestion apps:', error);
     } finally {
       setIngestionLoading(false);
-      loadedOnceRef.current = true;
+      // Only remember a successful load; a failed one must be retried from a
+      // clean state instead of leaving the row permanently empty.
+      loadedOnceRef.current = loadedOnceRef.current || !loadFailed;
     }
   }, [workflowLabel, webhookWorkflowName, currentOrgId]);
 
@@ -213,11 +216,17 @@ export const IngestionSourcesRow = ({
     const handleIntegrationsChanged = () => {
       fetchIngestionApps();
     };
+    const handleBackOnline = () => {
+      fetchIngestionApps();
+    };
     window.addEventListener('integrations-changed', handleIntegrationsChanged);
+    window.addEventListener('online', handleBackOnline);
     return () => {
       window.removeEventListener('integrations-changed', handleIntegrationsChanged);
+      window.removeEventListener('online', handleBackOnline);
     };
   }, [fetchIngestionApps]);
+
 
   const triggerSync = useCallback(async (overrideWorkflowId?: string) => {
     const wfId = overrideWorkflowId || ingestWorkflowId;

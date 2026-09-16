@@ -1185,11 +1185,12 @@ export const AutomationConfig = ({
                           checked={option.id === 'threat_intel' ? enrichmentStatus.active : (state.enabled && !isDisabled)}
                           onChange={() => {
                             if (option.id === 'threat_intel') {
-                              if (!enrichmentStatus.active) {
-                                enrichmentStatus.enable();
-                              } else {
-                                enrichmentStatus.disable();
-                              }
+                               const run = !enrichmentStatus.active
+                                 ? enrichmentStatus.enable()
+                                 : enrichmentStatus.disable();
+                               void Promise.resolve(run).catch((err) => {
+                                 console.error('[enrichment] toggle failed', err);
+                               });
                             } else {
                               toggleOption(option.id);
                             }

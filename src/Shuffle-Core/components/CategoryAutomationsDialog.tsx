@@ -1066,6 +1066,21 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
       </DialogTitle>
 
       <DialogContent sx={{ px: 4, pb: 3 }}>
+        {currentView === 'routing' ? (
+          <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.8rem' }}>
+              Rules are evaluated when a {entitySingular} is created or edited. Conditions are
+              generic field checks, so the same mechanism works for every category.
+            </Typography>
+            <IncidentRoutingEditor
+              forceShow
+              entityCategory={activeCategory}
+              entityLabel={{ singular: entitySingular, plural: entityPlural }}
+              generateCategory={routingGenerateCategory}
+            />
+          </Box>
+        ) : (
+        <>
         {/* Trigger Section */}
         <Box sx={{ mb: 4 }}>
           <Typography

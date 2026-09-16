@@ -5644,10 +5644,12 @@ const IncidentDetailPage = () => {
     };
 
     await writeIncidentSafe(incident.id, resolvedData, crossOrgId || undefined);
+    setActivity(updatedActivity);
     setIsSaving(false);
     setShowResolveDialog(false);
     toast.success(t('Incident resolved'));
-    navigate('/incidents');
+    // Stay on the incident after resolving — the resolution shows up in the
+    // timeline and the Overview rail instead of bouncing back to the list.
   };
 
   const handleCustomFieldChange = (field: CustomField, value: string | number | boolean) => {
@@ -12150,6 +12152,22 @@ const IncidentDetailPage = () => {
               observableCount={visibleObservablesCount}
               correlationCount={visibleCorrelations.length}
               relatedIncidents={relatedIncidents.linked}
+              resolution={(() => {
+                const statusDetail = String((incident.rawOCSF as any)?.status_detail || '').trim();
+                const isResolved = (editedStatus || incident.status || '').toLowerCase() === 'resolved';
+                if (!isResolved || !statusDetail) return undefined;
+                const sepIndex = statusDetail.indexOf(':');
+                const rawReason = sepIndex >= 0 ? statusDetail.slice(0, sepIndex).trim() : statusDetail;
+                const notes = sepIndex >= 0 ? statusDetail.slice(sepIndex + 1).trim() : '';
+                const reasonLabel = RESOLUTION_REASONS.find(r => r.value === rawReason)?.label || rawReason;
+                const statusEvent = [...activity].reverse().find(a => a.type === 'status');
+                return {
+                  reasonLabel,
+                  notes: notes || undefined,
+                  resolvedBy: statusEvent?.user || undefined,
+                  resolvedAt: statusEvent?.timestamp || undefined,
+                };
+              })()}
             />
             {simpleShareItem && (
               <ShareAccessModal

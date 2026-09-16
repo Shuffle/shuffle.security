@@ -32,6 +32,13 @@ interface SimpleCaseLayoutProps {
   correlationCount: number;
   /** Incidents merged into this one, shown at the bottom of the Overview rail. */
   relatedIncidents?: LinkedIncidentSummary[];
+  /** Closure details shown in the Overview rail once the case is resolved. */
+  resolution?: {
+    reasonLabel: string;
+    notes?: string;
+    resolvedBy?: string;
+    resolvedAt?: number;
+  };
 }
 
 const SECTIONS = ['emailThread', 'narrative', 'tasks', 'customFields', 'observables', 'correlations'] as const;
@@ -78,6 +85,7 @@ export const SimpleCaseLayout = ({
   observableCount,
   correlationCount,
   relatedIncidents,
+  resolution,
 }: SimpleCaseLayoutProps) => {
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -547,6 +555,31 @@ export const SimpleCaseLayout = ({
             );
           })}
         </Box>
+        {resolution && (
+          <Box sx={{ mt: 3 }}>
+            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', mb: 0.75 }}>
+              Resolution
+            </Typography>
+            <Box sx={{ px: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Typography sx={{ fontSize: '0.76rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+                {resolution.reasonLabel}
+              </Typography>
+              {resolution.notes && (
+                <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))', whiteSpace: 'pre-wrap' }}>
+                  {resolution.notes}
+                </Typography>
+              )}
+              {(resolution.resolvedBy || resolution.resolvedAt) && (
+                <Typography sx={{ fontSize: '0.66rem', color: 'hsl(var(--muted-foreground))' }}>
+                  {[
+                    resolution.resolvedBy || null,
+                    resolution.resolvedAt ? new Date(resolution.resolvedAt).toLocaleString() : null,
+                  ].filter(Boolean).join(' · ')}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        )}
         {openTasks.length > 0 && (
           <Box sx={{ mt: 3 }}>
             <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', mb: 0.75 }}>

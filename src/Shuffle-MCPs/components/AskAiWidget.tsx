@@ -25,6 +25,11 @@ export interface AgentDrawerOpenDetail {
   tab?: 'run' | 'permissions' | 'localLLM';
   source?: string;
   defaultInput?: string;
+  autoSubmit?: boolean;
+  taskId?: string;
+  incidentId?: string;
+  executionId?: string | null;
+  resetExecution?: boolean;
 }
 
 export interface AskAiWidgetProps extends Omit<AskAiSidePanelProps, 'open' | 'onClose'> {

@@ -69,7 +69,9 @@ export const IngestionSourceButton = ({
             ? `Click to enable ${displayName}`
             : isBlocked
               ? `${displayName} (Blocked - runtime offline)`
-              : displayName
+              : isEnabled
+                ? `${displayName} (${app.validated ? 'Connected' : 'Pending verification'})`
+                : `${displayName} (Disabled - click to enable)`
         }
         placement="bottom"
       >
@@ -85,7 +87,7 @@ export const IngestionSourceButton = ({
               : highlighted
                 ? 'hsl(var(--primary) / 0.5)'
                 : isEnabled
-                  ? (app.validated ? 'hsl(var(--severity-low) / 0.20)' : 'hsl(var(--severity-medium) / 0.25)')
+                  ? (app.validated ? 'hsl(var(--severity-low) / 0.20)' : 'hsl(var(--severity-medium) / 0.35)')
                   : 'transparent',
             bgcolor: isBlocked
               ? 'hsla(var(--destructive) / 0.15)'
@@ -105,14 +107,14 @@ export const IngestionSourceButton = ({
                 : highlighted
                   ? 'hsl(var(--primary) / 0.7)'
                   : isEnabled
-                    ? (app.validated ? 'hsl(var(--severity-low) / 0.30)' : 'hsl(var(--severity-medium) / 0.35)')
+                    ? (app.validated ? 'hsl(var(--severity-low) / 0.30)' : 'hsl(var(--severity-medium) / 0.50)')
                     : 'transparent',
               bgcolor: isBlocked
                 ? 'hsla(var(--destructive) / 0.25)'
                 : highlighted
                   ? 'hsl(var(--primary) / 0.14)'
                   : isEnabled
-                    ? (app.validated ? 'hsl(var(--severity-low) / 0.18)' : 'hsl(var(--severity-medium) / 0.20)')
+                    ? (app.validated ? 'hsl(var(--severity-low) / 0.18)' : 'hsl(var(--severity-medium) / 0.22)')
                     : 'rgba(255,255,255,0.1)',
               opacity: 1,
               filter: 'none',
@@ -214,6 +216,8 @@ export const IngestionSourceButton = ({
             <Chip label="Blocked" size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem', bgcolor: 'hsla(var(--destructive) / 0.15)', color: 'hsl(var(--destructive))', border: '1px solid hsla(var(--destructive) / 0.3)' }} />
           ) : !isEnabled ? (
             <Chip label={variant === 'forward' ? 'Not Forwarding' : 'Not Ingesting'} size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem', bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }} />
+          ) : !app.validated ? (
+            <Chip label="Pending" size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem', bgcolor: 'hsla(38, 92%, 50%, 0.15)', color: 'hsl(var(--severity-medium))', border: '1px solid hsla(38, 92%, 50%, 0.3)' }} />
           ) : null}
         </Typography>
         {variant === 'ingest' && (

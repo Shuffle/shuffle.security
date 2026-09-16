@@ -187,6 +187,7 @@ export interface AuthAppEntry {
   validation?: {
     valid: boolean;
     error?: string;
+    last_valid?: number;
   };
   label?: string;
   id?: string;
@@ -197,6 +198,16 @@ export interface DeduplicatedApp {
   hasValidAuth: boolean;
   bestImage: string;
   instances: { label: string; isValidated: boolean }[];
+}
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function isValidationFresh(validation?: { valid?: boolean; last_valid?: number; error?: string } | null): boolean {
+  if (validation?.valid !== true) return false;
+  if (!validation.last_valid) return true;
+  const cutoff = Date.now() - THIRTY_DAYS_MS;
+  const lastValidMs = validation.last_valid > 1e12 ? validation.last_valid : validation.last_valid * 1000;
+  return lastValidMs >= cutoff;
 }
 
 /**
@@ -210,12 +221,13 @@ export function deduplicateAuthApps(apps: AuthAppEntry[]): DeduplicatedApp[] {
   const appMap = new Map<string, DeduplicatedApp>();
 
   apps.forEach(auth => {
-    if (!auth.active && !auth.validation?.valid) return; // Skip inactive/unvalidated
+    if (!auth.app?.name) return;
+    if (!auth.active && !isValidationFresh(auth.validation)) return; // Skip inactive/unvalidated
     
     // Normalize: lowercase, trim, replace spaces/underscores/hyphens for deduplication
     const normalizedName = auth.app.name.toLowerCase().trim().replace(/[\s_\-]+/g, '_');
     const existing = appMap.get(normalizedName);
-    const isValidated = auth.validation?.valid === true;
+    const isValidated = isValidationFresh(auth.validation);
     const entryImage = auth.app.large_image || '';
     const instance = {
       label: auth.label || auth.id || 'Default',

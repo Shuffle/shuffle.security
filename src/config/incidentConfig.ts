@@ -122,9 +122,20 @@ export const isKnownStatus = (status: string): boolean => {
 export const severityColors: Record<string, string> = {
   critical: '#ef4444',
   high: '#ea3815',
-  medium: '#eab308',
+  medium: '#d97706',
   low: '#22c55e',
   informational: '#3b82f6',
+};
+
+/**
+ * Returns a theme-aware CSS color for a given severity level.
+ * Uses --severity-* CSS variables defined in styles.css for optimal contrast
+ * in both light and dark mode.
+ */
+export const getSeverityColor = (severity: string): string => {
+  const normalized = (severity || 'medium').toLowerCase();
+  const key = normalized === 'informational' ? 'info' : normalized;
+  return `hsl(var(--severity-${key}, var(--severity-medium)))`;
 };
 
 export const severityOrder: Record<string, number> = {

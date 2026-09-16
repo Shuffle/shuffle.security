@@ -13,7 +13,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { statusConfig, severityColors, normalizeStatus } from '@/config/incidentConfig';
+import { statusConfig, severityColors, normalizeStatus, getSeverityColor } from '@/config/incidentConfig';
 import { isAIAssignee } from '@/lib/utils';
 import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
 import { useUsers } from '@/hooks/useUsers';
@@ -34,7 +34,7 @@ export const TimelineSeverityDropdown: React.FC<TimelineSeverityDropdownProps> =
   disabled = false,
 }) => {
   const normalized = (value || 'medium').toLowerCase();
-  const color = severityColors[normalized] || severityColors.medium;
+  const color = getSeverityColor(normalized);
   const isReadOnly = disabled || !onChange;
 
   return (
@@ -51,30 +51,21 @@ export const TimelineSeverityDropdown: React.FC<TimelineSeverityDropdownProps> =
         disabled={isReadOnly}
         disableUnderline
         sx={{
-          fontSize: '0.7rem',
+          fontSize: '0.78rem',
           fontWeight: 600,
-          bgcolor: `${color}20`,
           color: color,
-          borderRadius: 1,
-          px: 1,
-          py: 0.2,
-          height: 22,
           textTransform: 'capitalize',
-          border: `1px solid ${color}40`,
           cursor: isReadOnly ? 'default' : 'pointer',
           '& .MuiSelect-select': {
-            py: 0,
+            py: 0.25,
             pr: isReadOnly ? 1 : 2.5,
             display: 'flex',
             alignItems: 'center',
           },
           '& .MuiSvgIcon-root': {
             color: color,
-            fontSize: 14,
+            fontSize: 16,
             display: isReadOnly ? 'none' : 'block',
-          },
-          '&:hover': {
-            bgcolor: isReadOnly ? `${color}20` : `${color}30`,
           },
         }}
         MenuProps={{
@@ -87,11 +78,11 @@ export const TimelineSeverityDropdown: React.FC<TimelineSeverityDropdownProps> =
           },
         }}
       >
-        <MenuItem value="critical" sx={{ fontSize: '0.75rem', fontWeight: 600, color: severityColors.critical }}>Critical</MenuItem>
-        <MenuItem value="high" sx={{ fontSize: '0.75rem', fontWeight: 600, color: severityColors.high }}>High</MenuItem>
-        <MenuItem value="medium" sx={{ fontSize: '0.75rem', fontWeight: 600, color: severityColors.medium }}>Medium</MenuItem>
-        <MenuItem value="low" sx={{ fontSize: '0.75rem', fontWeight: 600, color: severityColors.low }}>Low</MenuItem>
-        <MenuItem value="informational" sx={{ fontSize: '0.75rem', fontWeight: 600, color: severityColors.informational }}>Informational</MenuItem>
+        <MenuItem value="critical" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('critical') }}>Critical</MenuItem>
+        <MenuItem value="high" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('high') }}>High</MenuItem>
+        <MenuItem value="medium" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('medium') }}>Medium</MenuItem>
+        <MenuItem value="low" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('low') }}>Low</MenuItem>
+        <MenuItem value="informational" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('informational') }}>Informational</MenuItem>
       </Select>
     </FormControl>
   );
@@ -113,8 +104,6 @@ export const TimelineStatusDropdown: React.FC<TimelineStatusDropdownProps> = ({
   value,
   onChange,
   onResolveRequest,
-  resolutionReason,
-  resolutionNotes,
   disabled = false,
 }) => {
   const canonical = normalizeStatus(value);
@@ -122,123 +111,82 @@ export const TimelineStatusDropdown: React.FC<TimelineStatusDropdownProps> = ({
   const isReadOnly = disabled || !onChange;
 
   return (
-    <Box
-      sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}
+    <FormControl
+      size="small"
+      variant="standard"
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
+      sx={{ display: 'inline-flex', verticalAlign: 'middle' }}
     >
-      <FormControl
-        size="small"
-        variant="standard"
-        sx={{ display: 'inline-flex', verticalAlign: 'middle' }}
-      >
-        <Select
-          value={canonical}
-          onChange={(e) => {
-            const next = e.target.value;
-            if (next === 'resolved' && onResolveRequest) {
-              onResolveRequest();
-              return;
-            }
-            onChange?.(next);
-          }}
-          disabled={isReadOnly}
-          disableUnderline
-          sx={{
-            fontSize: '0.7rem',
-            fontWeight: 600,
+      <Select
+        value={canonical}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (next === 'resolved' && onResolveRequest) {
+            onResolveRequest();
+            return;
+          }
+          onChange?.(next);
+        }}
+        disabled={isReadOnly}
+        disableUnderline
+        sx={{
+          fontSize: '0.78rem',
+          fontWeight: 600,
+          color: cfg.color,
+          cursor: isReadOnly ? 'default' : 'pointer',
+          '& .MuiSelect-select': {
+            py: 0.25,
+            pr: isReadOnly ? 1 : 2.5,
+            display: 'flex',
+            alignItems: 'center',
+          },
+          '& .MuiSelect-icon, & .MuiSvgIcon-root': {
             color: cfg.color,
-            cursor: isReadOnly ? 'default' : 'pointer',
-            '& .MuiSelect-select': {
-              py: 0.2,
-              px: 1,
-              borderRadius: 3,
-              bgcolor: cfg.bg,
-              border: `1px solid ${cfg.color}35`,
-              height: 22,
-              display: 'flex',
-              alignItems: 'center',
-              pr: isReadOnly ? 1 : 2.5,
+            fontSize: 16,
+            display: isReadOnly ? 'none' : 'block',
+          },
+        }}
+        renderValue={(val) => {
+          const currentCfg = statusConfig[val];
+          return currentCfg ? currentCfg.label : String(val).replace(/_/g, ' ');
+        }}
+        MenuProps={{
+          PaperProps: {
+            sx: {
+              bgcolor: 'hsl(var(--card))',
+              border: '1px solid hsl(var(--border))',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
             },
-            '& .MuiSelect-icon': {
-              color: cfg.color,
-              fontSize: 14,
-              display: isReadOnly ? 'none' : 'block',
-            },
-          }}
-          renderValue={(val) => {
-            const currentCfg = statusConfig[val];
-            return currentCfg ? currentCfg.label : String(val).replace(/_/g, ' ');
-          }}
-          MenuProps={{
-            PaperProps: {
-              sx: {
-                bgcolor: 'hsl(var(--card))',
-                border: '1px solid hsl(var(--border))',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-              },
-            },
-          }}
-        >
-          {Object.entries(statusConfig)
-            .filter(([key]) => key !== 'merged')
-            .map(([key, itemCfg]) => {
-              const isDisabled = key === 'on_hold' || key === 'escalated';
-              return (
-                <MenuItem
-                  key={key}
-                  value={key}
-                  disabled={isDisabled}
-                  sx={{ fontSize: '0.75rem', gap: 1, opacity: isDisabled ? 0.4 : 1 }}
-                >
-                  <Typography component="span" sx={{ fontSize: '0.75rem', fontWeight: 500, color: itemCfg.color }}>
-                    {itemCfg.label}
+          },
+        }}
+      >
+        {Object.entries(statusConfig)
+          .filter(([key]) => key !== 'merged')
+          .map(([key, itemCfg]) => {
+            const isDisabled = key === 'on_hold' || key === 'escalated';
+            const Icon = itemCfg.icon;
+            return (
+              <MenuItem
+                key={key}
+                value={key}
+                disabled={isDisabled}
+                sx={{ fontSize: '0.75rem', gap: 1, opacity: isDisabled ? 0.4 : 1 }}
+              >
+                {Icon && <Icon size={14} color={itemCfg.color} />}
+                <Typography component="span" sx={{ fontSize: '0.75rem', fontWeight: 500, color: itemCfg.color }}>
+                  {itemCfg.label}
+                </Typography>
+                {isDisabled && (
+                  <Typography component="span" sx={{ fontSize: '0.65rem', color: 'hsl(var(--muted-foreground))', ml: 'auto' }}>
+                    Soon
                   </Typography>
-                  {isDisabled && (
-                    <Typography component="span" sx={{ fontSize: '0.65rem', color: 'hsl(var(--muted-foreground))', ml: 'auto' }}>
-                      Soon
-                    </Typography>
-                  )}
-                </MenuItem>
-              );
-            })}
-        </Select>
-      </FormControl>
-
-      {/* Resolution details (Reason badge + Notes) when resolved */}
-      {canonical === 'resolved' && resolutionReason && (
-        <Chip
-          label={resolutionReason}
-          size="small"
-          variant="outlined"
-          sx={{
-            height: 20,
-            fontSize: '0.65rem',
-            fontWeight: 600,
-            bgcolor: 'rgba(34, 197, 94, 0.08)',
-            borderColor: 'rgba(34, 197, 94, 0.4)',
-            color: '#22c55e',
-            '& .MuiChip-label': { px: 0.75 },
-          }}
-        />
-      )}
-      {canonical === 'resolved' && resolutionNotes && (
-        <Typography
-          sx={{
-            fontSize: '0.68rem',
-            color: 'text.secondary',
-            fontStyle: 'italic',
-            maxWidth: 320,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-          title={resolutionNotes}
-        >
-          {resolutionNotes}
-        </Typography>
-      )}
-    </Box>
+                )}
+              </MenuItem>
+            );
+          })}
+      </Select>
+    </FormControl>
   );
 };
 
@@ -260,23 +208,11 @@ export const TimelineAssigneeDropdown: React.FC<TimelineAssigneeDropdownProps> =
   const isAgent = isAIAssignee(value);
   const isReadOnly = disabled || !onChange || usersLoading;
 
-  const bg = isAgent
-    ? 'rgba(34, 197, 94, 0.15)'
-    : value
-      ? 'rgba(251, 146, 60, 0.15)'
-      : 'rgba(148, 163, 184, 0.1)';
-
   const color = isAgent
     ? '#22c55e'
     : value
-      ? '#fb923c'
+      ? 'hsl(var(--foreground))'
       : 'hsl(var(--muted-foreground))';
-
-  const borderColor = isAgent
-    ? 'rgba(34, 197, 94, 0.35)'
-    : value
-      ? 'rgba(251, 146, 60, 0.35)'
-      : 'hsl(var(--border-subtle))';
 
   return (
     <FormControl
@@ -293,18 +229,12 @@ export const TimelineAssigneeDropdown: React.FC<TimelineAssigneeDropdownProps> =
         disabled={isReadOnly}
         disableUnderline
         sx={{
-          fontSize: '0.7rem',
+          fontSize: '0.78rem',
           fontWeight: 600,
-          bgcolor: bg,
           color: color,
-          border: `1px solid ${borderColor}`,
-          borderRadius: 1,
-          px: 1,
-          py: 0.2,
-          height: 22,
           cursor: isReadOnly ? 'default' : 'pointer',
           '& .MuiSelect-select': {
-            py: 0,
+            py: 0.25,
             pr: isReadOnly ? 1 : 2.5,
             display: 'flex',
             alignItems: 'center',
@@ -314,12 +244,9 @@ export const TimelineAssigneeDropdown: React.FC<TimelineAssigneeDropdownProps> =
             whiteSpace: 'nowrap',
           },
           '& .MuiSvgIcon-root': {
-            color: color,
-            fontSize: 14,
+            color: 'hsl(var(--muted-foreground))',
+            fontSize: 16,
             display: isReadOnly ? 'none' : 'block',
-          },
-          '&:hover': {
-            bgcolor: isReadOnly ? bg : (isAgent ? 'rgba(34, 197, 94, 0.22)' : 'rgba(251, 146, 60, 0.22)'),
           },
         }}
         renderValue={(val) => {

@@ -1,4 +1,4 @@
-import { Rocket as RocketLaunchIcon, RotateCcw as RestoreIcon, X as CloseIcon, Network as AccountTreeIcon, Webhook as WebhookIcon, Lock as EnhancedEncryptionIcon, Trash2 as DeleteSweepIcon, Shield as SecurityIcon, ChevronDown as ExpandMoreIcon, Download as DownloadIcon, Plus as AddIcon, Settings as SettingsIcon } from 'lucide-react';
+import { Rocket as RocketLaunchIcon, RotateCcw as RestoreIcon, X as CloseIcon, Network as AccountTreeIcon, Route as RouteIcon, Webhook as WebhookIcon, Lock as EnhancedEncryptionIcon, Trash2 as DeleteSweepIcon, Shield as SecurityIcon, ChevronDown as ExpandMoreIcon, Download as DownloadIcon, Plus as AddIcon, Settings as SettingsIcon } from 'lucide-react';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from '@/lib/router-compat';
 import {
@@ -39,6 +39,7 @@ import { ShareAccessModal } from '@/components/common/ShareAccessModal';
 import { IncidentRoutingEditor } from '@/components/settings/IncidentRoutingEditor';
 import { useIsSupport } from '@/hooks/useIsSupport';
 import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
+import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
 import { fetchAppsCached, fetchWorkflowsCached } from '../views/appsFetchCache';
 
 // API format for automations
@@ -508,19 +509,14 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
 
   const fetchIngestionApps = async () => {
     try {
-      const [authResponse, wfList] = await Promise.all([
-        fetchAppsCached(getApiUrl('/api/v1/apps/authentication'), {
-          credentials: 'include',
-          headers: { ...getAuthHeader() },
-        }),
+      const [authApps, wfList] = await Promise.all([
+        fetchAuthenticatedApps().catch(() => []),
         fetchWorkflowsCached(getApiUrl('/api/v1/workflows'), {
           credentials: 'include',
           headers: { ...getAuthHeader() },
         }),
       ]);
-      if (authResponse.ok) {
-        const result = await authResponse.json();
-        const authApps = Array.isArray(result) ? result : (result.data || []);
+      if (Array.isArray(authApps)) {
         let workflowAppNames: Set<string> | undefined;
         const ingestWf = findIngestTicketsWorkflow(wfList);
         if (ingestWf) {
@@ -1019,7 +1015,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
           {currentView === 'automations' ? (
             <RocketLaunchIcon size={26} style={{ color: enabledCount > 0 ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground))' }} />
           ) : currentView === 'routing' ? (
-            <AccountTreeIcon size={26} style={{ color: 'hsl(var(--foreground))' }} />
+            <RouteIcon size={26} style={{ color: 'hsl(var(--foreground))' }} />
           ) : (
             <SettingsIcon size={26} style={{ color: 'hsl(var(--foreground))' }} />
           )}
@@ -1048,58 +1044,23 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {isSupportUser && (
-            <>
-              <Tooltip
-                title="Routing rules are a support-only preview and are not visible to regular users yet."
-                arrow
-              >
-                <Button
-                  size="small"
-                  onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
-                  sx={{
-                    textTransform: 'none',
-                    fontSize: '0.75rem',
-                    color: 'text.secondary',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: 1.5,
-                    px: 1.25,
-                    '&:hover': { color: 'text.primary', borderColor: 'hsl(var(--primary))' },
-                  }}
-                >
-                  {currentView === 'routing' ? 'Back to automations' : 'Routing rules'}
-                </Button>
-              </Tooltip>
-              <Chip
-                label="Support only"
-                size="small"
-                sx={{
-                  height: 20,
-                  fontSize: '0.65rem',
-                  fontWeight: 500,
-                  color: 'hsl(var(--muted-foreground))',
-                  bgcolor: 'hsl(var(--muted) / 0.5)',
-                  border: '1px solid hsl(var(--border))',
-                  '& .MuiChip-label': { px: 1 },
-                }}
-              />
-            </>
-          )}
-          {showViewToggle && currentView !== 'routing' && (
             <Tooltip
               title={
-                currentView === 'automations'
-                  ? `Switch to Settings for ${entityPluralCap}`
-                  : `Switch to Automation for ${entityPluralCap}`
+                currentView === 'routing'
+                  ? `Switch to Automation for ${entityPluralCap}`
+                  : 'Routing rules are a support-only preview and are not visible to regular users yet.'
               }
             >
               <IconButton
                 size="small"
-                onClick={() => setCurrentView(currentView === 'automations' ? 'settings' : 'automations')}
+                onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
                 sx={{
-                  color: 'text.secondary',
+                  color: currentView === 'routing' ? 'hsl(var(--primary))' : 'text.secondary',
                   border: '1px solid hsl(var(--border))',
+                  borderColor: currentView === 'routing' ? 'hsl(var(--primary))' : 'hsl(var(--border))',
                   borderRadius: 1.5,
                   p: 0.75,
+                  bgcolor: currentView === 'routing' ? 'hsl(var(--muted) / 0.5)' : 'transparent',
                   '&:hover': {
                     color: 'text.primary',
                     bgcolor: 'hsl(var(--muted) / 0.5)',
@@ -1107,10 +1068,39 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                   },
                 }}
               >
-                {currentView === 'automations' ? (
-                  <SettingsIcon size={18} />
-                ) : (
+                <RouteIcon size={18} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {showViewToggle && (
+            <Tooltip
+              title={
+                currentView === 'settings'
+                  ? `Switch to Automation for ${entityPluralCap}`
+                  : `Switch to Settings for ${entityPluralCap}`
+              }
+            >
+              <IconButton
+                size="small"
+                onClick={() => setCurrentView(currentView === 'settings' ? 'automations' : 'settings')}
+                sx={{
+                  color: currentView === 'settings' ? 'hsl(var(--primary))' : 'text.secondary',
+                  border: '1px solid hsl(var(--border))',
+                  borderColor: currentView === 'settings' ? 'hsl(var(--primary))' : 'hsl(var(--border))',
+                  borderRadius: 1.5,
+                  p: 0.75,
+                  bgcolor: currentView === 'settings' ? 'hsl(var(--muted) / 0.5)' : 'transparent',
+                  '&:hover': {
+                    color: 'text.primary',
+                    bgcolor: 'hsl(var(--muted) / 0.5)',
+                    borderColor: 'hsl(var(--primary))',
+                  },
+                }}
+              >
+                {currentView === 'settings' ? (
                   <RocketLaunchIcon size={18} />
+                ) : (
+                  <SettingsIcon size={18} />
                 )}
               </IconButton>
             </Tooltip>

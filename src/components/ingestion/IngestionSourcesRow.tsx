@@ -3,6 +3,7 @@ import { Box, Typography, IconButton, Tooltip, CircularProgress } from '@mui/mat
 import { Plus as AddIcon, Play as PlayArrowIcon } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
 import {
   extractValidatedIngestionApps,
   extractWorkflowAppNames,
@@ -117,20 +118,15 @@ export const IngestionSourcesRow = ({
   const fetchIngestionApps = useCallback(async () => {
     if (!loadedOnceRef.current) setIngestionLoading(true);
     try {
-      const [authResponse, workflowsResponse] = await Promise.all([
-        fetch(getApiUrl('/api/v1/apps/authentication'), {
-          credentials: 'include',
-          headers: { ...getAuthHeader() },
-        }),
+      const [authApps, workflowsResponse] = await Promise.all([
+        fetchAuthenticatedApps(currentOrgId).catch(() => []),
         fetch(getApiUrl('/api/v1/workflows'), {
           credentials: 'include',
           headers: { ...getAuthHeader() },
         }),
       ]);
 
-      if (!authResponse.ok) return;
-      const result = await authResponse.json();
-      const authApps = Array.isArray(result) ? result : (result.data || []);
+      if (!Array.isArray(authApps)) return;
 
       let workflowAppNames: Set<string> | undefined;
       if (workflowsResponse.ok) {
@@ -185,7 +181,7 @@ export const IngestionSourcesRow = ({
       // Backfill missing images the same way IncidentsPage does.
       try {
         const { backfillAppImages, deduplicateAuthApps } = await import('@/lib/utils');
-        const deduped = deduplicateAuthApps(authApps.filter((a: any) => a.active || a.validation?.valid));
+        const deduped = deduplicateAuthApps(authApps.filter((a: any) => a.active || a.validation?.valid) as any);
         await backfillAppImages(deduped);
         const imgMap = new Map<string, string>();
         deduped.forEach((d: any) => { if (d.bestImage) imgMap.set(normalizeAppName(d.app.name), d.bestImage); });
@@ -201,7 +197,16 @@ export const IngestionSourcesRow = ({
     }
   }, [workflowLabel, webhookWorkflowName, currentOrgId]);
 
-  useEffect(() => { fetchIngestionApps(); }, [fetchIngestionApps]);
+  useEffect(() => {
+    fetchIngestionApps();
+    const handleIntegrationsChanged = () => {
+      fetchIngestionApps();
+    };
+    window.addEventListener('integrations-changed', handleIntegrationsChanged);
+    return () => {
+      window.removeEventListener('integrations-changed', handleIntegrationsChanged);
+    };
+  }, [fetchIngestionApps]);
 
   const triggerSync = useCallback(async (overrideWorkflowId?: string) => {
     const wfId = overrideWorkflowId || ingestWorkflowId;

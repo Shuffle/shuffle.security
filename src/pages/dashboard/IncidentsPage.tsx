@@ -48,6 +48,7 @@ import { autoCorrectTranslatedString } from '@/lib/translationFallback';
 import { ResolveIncidentDialog, ResolutionData, RESOLUTION_REASONS } from '@/components/incidents/ResolveIncidentDialog';
 import { CategoryAutomationsDialog } from '@shuffleio/shuffle-core';
 import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, findForwardTicketsWorkflow, extractWorkflowAppNames, normalizeAppName, isWorkflowScheduleStopped } from '@/Shuffle-MCPs/ingestionDetection';
+import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
 import { API_CONFIG, getApiUrl, getAuthHeader, isDevEnvironment, mapCloudRegionUrl } from '@/Shuffle-MCPs/api';
 import { IncidentCardView } from '@/components/incidents/IncidentCardView';
 import { useBackgroundThreadContinuation } from '@/hooks/useBackgroundThreadContinuation';
@@ -1006,20 +1007,15 @@ const IncidentsPage = () => {
       setIngestionLoading(true);
     }
     try {
-      const [authResponse, workflowsResponse] = await Promise.all([
-        fetch(getApiUrl('/api/v1/apps/authentication'), {
-          credentials: 'include',
-          headers: { ...getAuthHeader() },
-        }),
+      const [authApps, workflowsResponse] = await Promise.all([
+        fetchAuthenticatedApps(currentOrgId).catch(() => []),
         fetch(getApiUrl('/api/v1/workflows'), {
           credentials: 'include',
           headers: { ...getAuthHeader() },
         }),
       ]);
 
-      if (authResponse.ok) {
-        const result = await authResponse.json();
-        const authApps = Array.isArray(result) ? result : (result.data || []);
+      if (Array.isArray(authApps)) {
 
         // Derive enabled apps from the Ingest Tickets workflow actions
         let workflowAppNames: Set<string> | undefined;
@@ -1096,7 +1092,7 @@ const IncidentsPage = () => {
         const ingestionResults = extractValidatedIngestionApps(authApps, workflowAppNames);
         // Backfill missing images: 1) module cache + Algolia, 2) /api/v1/apps as last resort
         const { backfillAppImages, deduplicateAuthApps, seedImageCache } = await import('@/lib/utils');
-        const deduped = deduplicateAuthApps(authApps.filter((a: any) => a.active || a.validation?.valid));
+        const deduped = deduplicateAuthApps(authApps.filter((a: any) => a.active || a.validation?.valid) as any);
         await backfillAppImages(deduped);
         const imgMap = new Map<string, string>();
         deduped.forEach(d => { if (d.bestImage) imgMap.set(normalizeAppName(d.app.name), d.bestImage); });
@@ -1151,6 +1147,13 @@ const IncidentsPage = () => {
   useEffect(() => {
     fetchIngestionApps();
     // Re-runs when fetchIngestionApps identity changes (e.g. when currentOrgId resolves)
+    const handleIntegrationsChanged = () => {
+      fetchIngestionApps();
+    };
+    window.addEventListener('integrations-changed', handleIntegrationsChanged);
+    return () => {
+      window.removeEventListener('integrations-changed', handleIntegrationsChanged);
+    };
   }, [fetchIngestionApps]);
 
   // Debounced handler: collects app toggles for 3s then fires one generate call

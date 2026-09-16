@@ -394,6 +394,7 @@ interface IncidentListFallbackState {
 import {
   statusConfig,
   severityColors,
+  getSeverityColor,
   getOCSFStatus,
 } from "@/config/incidentConfig";
 import { usePageMeta } from "@/hooks/usePageMeta";
@@ -12532,18 +12533,42 @@ const IncidentDetailPage = () => {
         Math.ceil((5 * 60 * 1000 - messageAge) / 60000),
       );
 
+      const isAgentAct =
+        (actItem as any).is_agent === true || isAIAssignee(actItem.user);
+      const avatarNode = (() => {
+        const avatarInfo = resolveUserAvatar(
+          actItem.user,
+          users,
+          isAgentAct,
+        );
+        return (
+          <Avatar
+            src={!isDeleted && avatarInfo.src ? avatarInfo.src : undefined}
+            sx={{
+              width: isSimple ? 20 : 24,
+              height: isSimple ? 20 : 24,
+              flexShrink: 0,
+              bgcolor: isDeleted
+                ? "hsl(var(--border-subtle))"
+                : isSimple
+                  ? "hsl(var(--muted) / 0.6)"
+                  : actItem.type === "comment"
+                    ? "rgba(255, 102, 0, 0.2)"
+                    : "rgba(255,255,255,0.08)",
+            }}
+          >
+            {avatarInfo.src
+              ? null
+              : isStatusActivity
+                ? <CheckCircleIcon size={14} />
+                : getActivityIcon(actItem.type)}
+          </Avatar>
+        );
+      })();
+
       // Status activities are system-generated resolution events.
       // Rendered with native resolution status dropdown and details.
       if (isStatusActivity) {
-        const currentSeverity = (
-          editedSeverity ||
-          incident?.severity ||
-          "medium"
-        ).toLowerCase();
-        const sevColor =
-          severityColors[currentSeverity] ||
-          `hsl(var(--severity-${currentSeverity}, var(--severity-medium)))`;
-
         const contentRaw = decodeHtmlEntities(actItem.content || "");
         let resReason: string | undefined;
         let resNotes: string | undefined;
@@ -12582,8 +12607,8 @@ const IncidentDetailPage = () => {
                 gap: 0.5,
                 px: isHighlighted ? 0.75 : 0,
                 py: 1,
-                mt: 3,
-                mb: 3,
+                mt: 1.5,
+                mb: 1.5,
                 borderRadius: isHighlighted ? 1.5 : 0,
                 bgcolor: isHighlighted
                   ? "hsl(var(--primary) / 0.12)"
@@ -12611,73 +12636,98 @@ const IncidentDetailPage = () => {
                   },
               }}
             >
+              {/* Header: User avatar + UserHoverCard + "resolved incident" + timestamp */}
               <Box
                 sx={{
                   display: "flex",
                   alignItems: "center",
                   gap: 0.75,
-                  flexWrap: "wrap",
                   width: "100%",
+                  minWidth: 0,
                 }}
               >
-                <CheckCircleIcon
-                  size={14}
-                  style={{ color: sevColor, flexShrink: 0 }}
-                />
+                {avatarNode}
+                {actItem.user && (
+                  <UserHoverCard
+                    username={actItem.user}
+                    isAgent={isAgentAct}
+                    maxChars={14}
+                  />
+                )}
                 <Typography
                   sx={{
-                    fontSize: "0.73rem",
-                    fontWeight: 600,
-                    color: "hsl(var(--foreground))",
-                    letterSpacing: 0.3,
-                    textTransform: "uppercase",
+                    fontSize: "0.72rem",
+                    fontWeight: 500,
+                    color: "text.secondary",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  Incident resolution
+                  resolved incident
                 </Typography>
                 {previewBadge}
-                <Chip
-                  label="System event"
-                  size="small"
+                <Typography
                   sx={{
-                    height: 16,
-                    fontSize: "0.58rem",
-                    fontWeight: 600,
-                    bgcolor: "transparent",
-                    border: "1px solid hsl(var(--border-subtle))",
-                    color: "text.secondary",
-                    "& .MuiChip-label": { px: 0.6 },
-                  }}
-                />
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 0.5,
+                    fontSize: "0.6rem",
+                    color: "text.disabled",
                     ml: "auto",
+                    flexShrink: 0,
                   }}
                 >
-                  {actItem.user && (
-                    <UserHoverCard username={actItem.user} maxChars={12} />
-                  )}
-                  <Typography
-                    sx={{ fontSize: "0.6rem", color: "text.disabled" }}
-                  >
-                    {formatCompactTime(actItem.timestamp)}
-                  </Typography>
-                  {replyButtonCompact}
-                </Box>
+                  {formatCompactTime(actItem.timestamp)}
+                </Typography>
+                {replyButtonCompact}
               </Box>
-              <Box sx={{ mt: 0.5, pl: 0 }}>
+
+              {/* Status dropdown & Reason badge */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  flexWrap: "wrap",
+                  mt: 0.5,
+                }}
+              >
                 <TimelineStatusDropdown
                   value="resolved"
                   onChange={(newStatus) => setEditedStatus(newStatus)}
                   onResolveRequest={() => setShowResolveDialog(true)}
-                  resolutionReason={resReason}
-                  resolutionNotes={resNotes}
                   disabled={isPublicView}
                 />
+                {resReason && (
+                  <Chip
+                    label={resReason}
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                      height: 20,
+                      fontSize: "0.68rem",
+                      fontWeight: 500,
+                      bgcolor: "rgba(34, 197, 94, 0.08)",
+                      borderColor: "rgba(34, 197, 94, 0.35)",
+                      color: "#22c55e",
+                      "& .MuiChip-label": { px: 0.75 },
+                    }}
+                  />
+                )}
               </Box>
+
+              {/* Resolution Notes as normal readable body text */}
+              {resNotes && (
+                <Box sx={{ mt: 0.5 }}>
+                  <Typography
+                    sx={{
+                      fontSize: "0.8rem",
+                      color: "hsl(var(--foreground))",
+                      lineHeight: 1.5,
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {resNotes}
+                  </Typography>
+                </Box>
+              )}
             </Box>
           );
         }
@@ -12702,10 +12752,10 @@ const IncidentDetailPage = () => {
               .join(" ")}
             sx={{
               display: "flex",
-              alignItems: "center",
-              gap: 1.25,
+              flexDirection: "column",
+              gap: 0.5,
               px: 1.5,
-              py: 1,
+              py: 1.25,
               borderRadius: 1.5,
               bgcolor: isHighlighted
                 ? "hsl(var(--primary) / 0.12)"
@@ -12735,80 +12785,99 @@ const IncidentDetailPage = () => {
                 },
             }}
           >
-            <Avatar
+            {/* Header: User avatar + UserHoverCard + "resolved incident" + timestamp */}
+            <Box
               sx={{
-                width: 22,
-                height: 22,
-                bgcolor: "hsl(var(--muted) / 0.6)",
-                color: sevColor,
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                width: "100%",
+                minWidth: 0,
               }}
             >
-              <CheckCircleIcon size={14} style={{ color: sevColor }} />
-            </Avatar>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Box
+              {avatarNode}
+              {actItem.user && (
+                <UserHoverCard
+                  username={actItem.user}
+                  isAgent={isAgentAct}
+                  maxChars={24}
+                />
+              )}
+              <Typography
                 sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 0.75,
-                  flexWrap: "wrap",
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                  color: "text.secondary",
+                  whiteSpace: "nowrap",
                 }}
               >
+                resolved incident
+              </Typography>
+              {previewBadge}
+              <Typography
+                sx={{
+                  fontSize: "0.65rem",
+                  color: "text.disabled",
+                  ml: "auto",
+                  flexShrink: 0,
+                }}
+              >
+                {formatRelativeTime(actItem.timestamp)}
+              </Typography>
+              {replyButtonCompact}
+            </Box>
+
+            {/* Status dropdown & Reason badge */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                flexWrap: "wrap",
+                mt: 0.5,
+                pl: 4,
+              }}
+            >
+              <TimelineStatusDropdown
+                value="resolved"
+                onChange={(newStatus) => setEditedStatus(newStatus)}
+                onResolveRequest={() => setShowResolveDialog(true)}
+                disabled={isPublicView}
+              />
+              {resReason && (
+                <Chip
+                  label={resReason}
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    height: 22,
+                    fontSize: "0.7rem",
+                    fontWeight: 500,
+                    bgcolor: "rgba(34, 197, 94, 0.08)",
+                    borderColor: "rgba(34, 197, 94, 0.35)",
+                    color: "#22c55e",
+                    "& .MuiChip-label": { px: 1 },
+                  }}
+                />
+              )}
+            </Box>
+
+            {/* Resolution Notes as normal readable body text */}
+            {resNotes && (
+              <Box sx={{ mt: 0.75, pl: 4 }}>
                 <Typography
                   sx={{
-                    fontSize: "0.73rem",
-                    fontWeight: 600,
+                    fontSize: "0.8rem",
                     color: "hsl(var(--foreground))",
-                    letterSpacing: 0.3,
-                    textTransform: "uppercase",
+                    lineHeight: 1.5,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
                   }}
                 >
-                  Incident resolution
+                  {resNotes}
                 </Typography>
-                {previewBadge}
-                <Chip
-                  label="System event"
-                  size="small"
-                  sx={{
-                    height: 16,
-                    fontSize: "0.58rem",
-                    fontWeight: 600,
-                    bgcolor: "transparent",
-                    border: "1px solid hsl(var(--border-subtle))",
-                    color: "text.secondary",
-                    "& .MuiChip-label": { px: 0.6 },
-                  }}
-                />
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 0.5,
-                    ml: "auto",
-                  }}
-                >
-                  {actItem.user && (
-                    <UserHoverCard username={actItem.user} maxChars={24} />
-                  )}
-                  <Typography
-                    sx={{ fontSize: "0.65rem", color: "text.disabled" }}
-                  >
-                    {formatRelativeTime(actItem.timestamp)}
-                  </Typography>
-                  {replyButtonCompact}
-                </Box>
               </Box>
-              <Box sx={{ mt: 0.5 }}>
-                <TimelineStatusDropdown
-                  value="resolved"
-                  onChange={(newStatus) => setEditedStatus(newStatus)}
-                  onResolveRequest={() => setShowResolveDialog(true)}
-                  resolutionReason={resReason}
-                  resolutionNotes={resNotes}
-                  disabled={isPublicView}
-                />
-              </Box>
-            </Box>
+            )}
           </Box>
         );
       }
@@ -12826,35 +12895,6 @@ const IncidentDetailPage = () => {
         (actItem.type as string) === "system" &&
         typeof actItem.id === "string" &&
         (actItem.id.startsWith("merge-in-") || actItem.id.startsWith("merge-"));
-      // In the narrow simple timeline the avatar sits on the header row and
-      // the message text uses the full column width underneath it, instead of
-      // being squeezed into a column beside the avatar.
-      const avatarNode = (() => {
-        const avatarInfo = resolveUserAvatar(
-          actItem.user,
-          users,
-          (actItem as any).is_agent === true,
-        );
-        return (
-          <Avatar
-            src={!isDeleted && avatarInfo.src ? avatarInfo.src : undefined}
-            sx={{
-              width: isSimple ? 20 : 24,
-              height: isSimple ? 20 : 24,
-              flexShrink: 0,
-              bgcolor: isDeleted
-                ? "hsl(var(--border-subtle))"
-                : isSimple
-                  ? "hsl(var(--muted) / 0.6)"
-                  : actItem.type === "comment"
-                    ? "rgba(255, 102, 0, 0.2)"
-                    : "rgba(255,255,255,0.08)",
-            }}
-          >
-            {getActivityIcon(actItem.type)}
-          </Avatar>
-        );
-      })();
 
       return (
         <Box
@@ -16612,7 +16652,7 @@ const IncidentDetailPage = () => {
                         ) : (
                           <TaskAltIcon
                             size={24}
-                            style={{ color: severityColors[editedSeverity] }}
+                            style={{ color: getSeverityColor(editedSeverity) }}
                           />
                         )}
                       </Box>
@@ -16641,11 +16681,11 @@ const IncidentDetailPage = () => {
                           sx={{
                             fontSize: "0.78rem",
                             fontWeight: 600,
-                            color: severityColors[editedSeverity],
+                            color: getSeverityColor(editedSeverity),
                             textTransform: "capitalize",
                             "& .MuiSelect-select": { py: 0.25, pr: 3 },
                             "& .MuiSvgIcon-root": {
-                              color: severityColors[editedSeverity],
+                              color: getSeverityColor(editedSeverity),
                               fontSize: 16,
                             },
                           }}
@@ -16658,11 +16698,11 @@ const IncidentDetailPage = () => {
                             },
                           }}
                         >
-                          <MenuItem value="critical">Critical</MenuItem>
-                          <MenuItem value="high">High</MenuItem>
-                          <MenuItem value="medium">Medium</MenuItem>
-                          <MenuItem value="low">Low</MenuItem>
-                          <MenuItem value="informational">
+                          <MenuItem value="critical" sx={{ color: getSeverityColor("critical") }}>Critical</MenuItem>
+                          <MenuItem value="high" sx={{ color: getSeverityColor("high") }}>High</MenuItem>
+                          <MenuItem value="medium" sx={{ color: getSeverityColor("medium") }}>Medium</MenuItem>
+                          <MenuItem value="low" sx={{ color: getSeverityColor("low") }}>Low</MenuItem>
+                          <MenuItem value="informational" sx={{ color: getSeverityColor("informational") }}>
                             Informational
                           </MenuItem>
                         </Select>
@@ -16807,7 +16847,7 @@ const IncidentDetailPage = () => {
                     }
                     expandedTaskIds={simpleExpandedTaskIds}
                     onToggleTaskExpanded={toggleSimpleTaskExpanded}
-                    readOnly={!hasPermission("cases:update")}
+                    readOnly={isPublicView}
                   />
                 );
 

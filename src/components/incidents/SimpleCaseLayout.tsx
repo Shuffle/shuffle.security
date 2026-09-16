@@ -281,11 +281,90 @@ export const SimpleCaseLayout = ({
     };
   }, []);
 
+  // Background refreshes can briefly shrink the page (a section re-renders or a
+  // block unmounts), and the browser then clamps the scroll position back to
+  // the top — the reading position is lost for no reason the user caused.
+  // Watch for that: if the scroll position snaps to the top without any recent
+  // user input or intentional in-app jump, put it back where it was.
+  const allowJumpUntil = useRef(0);
+  const allowScrollJump = (ms = 1500) => {
+    allowJumpUntil.current = Date.now() + ms;
+  };
+
+  useEffect(() => {
+    const scroller = getScrollContainer(rootRef.current);
+    const readTop = () =>
+      scroller
+        ? scroller.scrollTop
+        : window.scrollY ||
+          window.pageYOffset ||
+          document.documentElement.scrollTop ||
+          0;
+    const writeTop = (top: number) => {
+      if (scroller) scroller.scrollTop = top;
+      else window.scrollTo({ top, behavior: "auto" });
+    };
+
+    let lastTop = readTop();
+    let restoring = false;
+
+    const onIntent = () => allowScrollJump(1200);
+
+    const onScroll = () => {
+      if (restoring) return;
+      const top = readTop();
+      if (
+        top <= 4 &&
+        lastTop > 200 &&
+        Date.now() > allowJumpUntil.current &&
+        !document.hidden
+      ) {
+        const restoreTo = lastTop;
+        restoring = true;
+        requestAnimationFrame(() => {
+          writeTop(restoreTo);
+          lastTop = restoreTo;
+          restoring = false;
+        });
+        return;
+      }
+      lastTop = top;
+    };
+
+    const intentEvents: Array<keyof WindowEventMap> = [
+      "wheel",
+      "touchstart",
+      "touchmove",
+      "keydown",
+      "pointerdown",
+      "click",
+    ];
+    intentEvents.forEach((evt) =>
+      window.addEventListener(evt, onIntent, { passive: true, capture: true }),
+    );
+    if (scroller) {
+      scroller.addEventListener("scroll", onScroll, { passive: true });
+    }
+    window.addEventListener("scroll", onScroll, {
+      passive: true,
+      capture: true,
+    });
+
+    return () => {
+      intentEvents.forEach((evt) =>
+        window.removeEventListener(evt, onIntent, true),
+      );
+      if (scroller) scroller.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, []);
+
   const scrollTo = (key: SectionKey, taskId?: string) => {
     const target = taskId
       ? document.querySelector(`[data-simple-task-id="${CSS.escape(taskId)}"]`)
       : refs.current[key];
     focusSection(key, 1500);
+    allowScrollJump();
     if (key === "tasks" && !taskId && categoryGroups.length > 0) {
       setActiveCategory(categoryGroups[0].categoryKey);
     }

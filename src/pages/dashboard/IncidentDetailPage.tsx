@@ -852,7 +852,7 @@ const parseIncidentFromDatastore = (item: {
       const topLevelActivity = (data as any).activity;
       const metadataTasks = customAttrs?.tasks;
       const metadataActivity = (customAttrs as any)?.activity;
-      const tasks = ensureTaskIds(topLevelTasks || metadataTasks || []);
+      const tasks = ensureTaskIds<IncidentTask>(topLevelTasks || metadataTasks || []);
       const activity = topLevelActivity || metadataActivity || [];
 
       // Convert comments to activity for display (legacy format support)
@@ -922,7 +922,7 @@ const parseIncidentFromDatastore = (item: {
       const customAttrs = legacyData.metadata?.extensions?.custom_attributes;
       const tlp = customAttrs?.tlp || legacyData.tlp;
       const pap = customAttrs?.pap || legacyData.pap;
-      const tasks = ensureTaskIds(customAttrs?.tasks || legacyData.tasks || []);
+      const tasks = ensureTaskIds<IncidentTask>(customAttrs?.tasks || legacyData.tasks || []);
       const activity = customAttrs?.activity || legacyData.activity;
       const customFields =
         customAttrs?.customFields ||

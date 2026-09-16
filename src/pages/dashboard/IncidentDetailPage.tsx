@@ -6405,7 +6405,7 @@ const IncidentDetailPage = () => {
                 multiline
                 minRows={2}
                 maxRows={15}
-                placeholder={replyingTo ? `Reply to ${replyingTo.label}…` : 'Add a comment... (Enter to send, Shift+Enter for new line)'}
+                placeholder={replyingTo ? `Reply to ${replyingTo.label}…` : 'Add comment... (@ to tag)'}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     bgcolor: 'hsl(var(--input))',

@@ -1,6 +1,6 @@
 import { readTenantStamp, isTenantGhost, type TenantStamp } from '@/utils/tenantAuthority';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Search as SearchIcon, X as CloseIcon, Plus as AddIcon, RefreshCw as RefreshIcon, Play as PlayArrowIcon, Rocket as RocketLaunchIcon, EyeOff as VisibilityOffIcon, AlertTriangle as WarningAmberIcon, Download as DownloadIcon, Calendar as CalendarTodayIcon, MoreVertical as MoreVerticalIcon, Users as UsersIcon } from 'lucide-react';
-import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore, useDeferredValue } from 'react';
 import { useSearchParams, useNavigate } from '@/lib/router-compat';
 import { useEntityLabel, useShowAutomation, useEntityText } from '@/hooks/useEntityLabel';
 import { AppSearchDrawer } from '@/Shuffle-MCPs';
@@ -71,6 +71,12 @@ import { toast } from '@/lib/toast';
 import { resyncState } from '@/lib/resyncState';
 import { trackPredefinedEvent, GA_EVENTS } from '@/lib/analytics';
 import { ensureDefaultsInitialized } from '@/lib/initDefaults';
+import {
+  matchIncidentSearchText,
+  queryIncidentCorrelations,
+  fetchMissingCorrelatedIncidents,
+  toRawIncidentKey,
+} from '@/lib/incidentSearch';
 
 // Legacy categories for migration
 const LEGACY_ALERTS_CATEGORY = 'shuffle-alerts';
@@ -85,12 +91,6 @@ const INCIDENT_FILTERS_TTL_MS = 24 * 60 * 60 * 1000;
  */
 const incidentFiltersKey = (orgId: string | null | undefined) =>
   `${INCIDENT_FILTERS_STORAGE_KEY_BASE}::${orgId || 'anon'}`;
-
-const toRawIncidentKey = (key: string): string => {
-  if (!key?.includes('::')) return key;
-  const parts = key.split('::').filter(Boolean);
-  return parts.length > 0 ? parts[parts.length - 1] : key;
-};
 
 const migrateToIncidents = async (): Promise<number> => {
   if (localStorage.getItem(MIGRATION_KEY)) return 0;
@@ -152,6 +152,7 @@ interface DisplayIncident {
   taskCount?: number;
   tasks?: TaskItem[];
   labels?: string[];
+  correlationCount?: number;
   orgId?: string;
   orgName?: string;
   orgImage?: string;
@@ -827,6 +828,12 @@ const IncidentsPage = () => {
    }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const [correlationsLoading, setCorrelationsLoading] = useState(false);
+  const [correlatedIncidentIds, setCorrelatedIncidentIds] = useState<Set<string>>(new Set());
+  const [extraCorrelatedIncidents, setExtraCorrelatedIncidents] = useState<DisplayIncident[]>([]);
+  const correlationAbortControllerRef = useRef<AbortController | null>(null);
+  const incidentsRef = useRef<DisplayIncident[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkResolveDialogOpen, setBulkResolveDialogOpen] = useState(false);
   const [isBulkResolving, setIsBulkResolving] = useState(false);
@@ -1413,6 +1420,80 @@ const IncidentsPage = () => {
     // auth resolves stay tagged with orgId='' and the org filter drops them all.
   }, [datastoreItems, validUsernames, subOrgItems, currentOrgId, currentOrgName, userInfo?.active_org?.image]);
 
+  // Keep incidentsRef synced with latest incidents for async correlation queries
+  useEffect(() => {
+    incidentsRef.current = incidents;
+  }, [incidents]);
+
+  // Debounced correlations lookup when the user is done typing (400ms pause)
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+
+    // Cancel in-flight correlation request
+    if (correlationAbortControllerRef.current) {
+      correlationAbortControllerRef.current.abort();
+      correlationAbortControllerRef.current = null;
+    }
+
+    if (!trimmed || trimmed.length < 2) {
+      setCorrelatedIncidentIds(new Set());
+      setExtraCorrelatedIncidents([]);
+      setCorrelationsLoading(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      const controller = new AbortController();
+      correlationAbortControllerRef.current = controller;
+      setCorrelationsLoading(true);
+
+      try {
+        const ids = await queryIncidentCorrelations(trimmed, currentOrgId, controller.signal);
+        if (controller.signal.aborted) return;
+
+        const idSet = new Set(ids);
+        setCorrelatedIncidentIds(idSet);
+
+        // If correlations returned IDs, check for missing records in the local dataset
+        if (ids.length > 0) {
+          const loadedIds = new Set(incidentsRef.current.map(i => toRawIncidentKey(i.id)));
+          const missingIds = ids.filter(id => !loadedIds.has(toRawIncidentKey(id)));
+
+          if (missingIds.length > 0) {
+            const extra = await fetchMissingCorrelatedIncidents(missingIds, (item) => {
+              const parsed = parseIncidentFromDatastore(item);
+              if (!parsed) return null;
+              return {
+                ...parsed,
+                orgId: currentOrgId || '',
+                orgName: currentOrgName,
+              };
+            });
+
+            if (!controller.signal.aborted && extra.length > 0) {
+              setExtraCorrelatedIncidents(extra);
+            }
+          }
+        }
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          console.warn('[Incidents] Correlation search failed:', err);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setCorrelationsLoading(false);
+        }
+      }
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+      if (correlationAbortControllerRef.current) {
+        correlationAbortControllerRef.current.abort();
+      }
+    };
+  }, [searchQuery, currentOrgId, currentOrgName]);
+
   // Count incidents per source for current org only (used by ingestion source buttons)
   const incidentCountsBySource = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1667,15 +1748,33 @@ const IncidentsPage = () => {
       result = result.filter(i => orgFilter.includes(i.orgId || ''));
     }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(i => 
-        (i.title || '').toLowerCase().includes(q) ||
-        i.id.toLowerCase().includes(q) ||
-        (i.source || '').toLowerCase().includes(q) ||
-        (i.assignee && i.assignee.toLowerCase().includes(q)) ||
-        (i.labels && i.labels.some(l => l.toLowerCase().includes(q)))
-      );
+    // Merge any extra incidents loaded via remote correlations
+    if (extraCorrelatedIncidents.length > 0) {
+      const existingIds = new Set(result.map(i => toRawIncidentKey(i.id)));
+      for (const extra of extraCorrelatedIncidents) {
+        if (!existingIds.has(toRawIncidentKey(extra.id))) {
+          result = [...result, extra];
+          existingIds.add(toRawIncidentKey(extra.id));
+        }
+      }
+    }
+
+    if (deferredSearchQuery.trim()) {
+      const tokens = deferredSearchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      result = result.filter(i => {
+        // Fast path: multi-token check across the memoized search blob
+        if (matchIncidentSearchText(i, tokens)) return true;
+
+        // Correlation match: check if the platform correlation API identified this incident
+        if (correlatedIncidentIds.size > 0) {
+          const rawId = toRawIncidentKey(i.id);
+          if (correlatedIncidentIds.has(i.id) || correlatedIncidentIds.has(rawId)) {
+            return true;
+          }
+        }
+
+        return false;
+      });
     }
 
     // Date range filter
@@ -1690,12 +1789,12 @@ const IncidentsPage = () => {
     }
 
     return result;
-  }, [filteredByAssignee, filters, negatedFilters, searchQuery, dateFrom, dateTo]);
+  }, [filteredByAssignee, filters, negatedFilters, deferredSearchQuery, correlatedIncidentIds, extraCorrelatedIncidents, dateFrom, dateTo]);
 
   // Reset to page 1 when filters or search change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters, negatedFilters, searchQuery, showIrrelevant, dateFrom, dateTo]);
+  }, [filters, negatedFilters, deferredSearchQuery, showIrrelevant, dateFrom, dateTo]);
 
   // Sort incidents
   const sortedIncidents = useMemo(() => {
@@ -1754,8 +1853,20 @@ const IncidentsPage = () => {
       return deduped;
     }
 
+    if (correlatedIncidentIds.size > 0) {
+      return sorted.map(i => {
+        if (correlatedIncidentIds.has(i.id) || correlatedIncidentIds.has(toRawIncidentKey(i.id))) {
+          return {
+            ...i,
+            correlationCount: Math.max(i.correlationCount || 0, 1),
+          };
+        }
+        return i;
+      });
+    }
+
     return sorted;
-  }, [filteredIncidents, sortBy, sortDirection, demoActive]);
+  }, [filteredIncidents, sortBy, sortDirection, demoActive, correlatedIncidentIds]);
 
   // Determine if all selected incidents are already resolved
   const selectedIncidentsList = useMemo(() => incidents.filter(i => selectedIds.has(i.id)), [incidents, selectedIds]);
@@ -1872,6 +1983,8 @@ const IncidentsPage = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
     setSearchQuery('');
+    setCorrelatedIncidentIds(new Set());
+    setExtraCorrelatedIncidents([]);
     setSelectedIds(new Set());
   };
 
@@ -3017,7 +3130,7 @@ const IncidentsPage = () => {
 
             <TextField
               size="small"
-              placeholder="Filter"
+              placeholder="Filter incidents..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
@@ -3026,9 +3139,61 @@ const IncidentsPage = () => {
                     <SearchIcon style={{ color: 'text.secondary', fontSize: '1rem' }} />
                   </InputAdornment>
                 ),
-                sx: { height: 36 },
+                endAdornment: (
+                  <InputAdornment position="end" sx={{ gap: 0.5 }}>
+                    {correlationsLoading && (
+                      <Tooltip title="Searching platform correlations...">
+                        <CircularProgress size={14} sx={{ color: 'text.secondary' }} />
+                      </Tooltip>
+                    )}
+                    {!correlationsLoading && correlatedIncidentIds.size > 0 && (
+                      <Tooltip title={`${correlatedIncidentIds.size} correlated incident${correlatedIncidentIds.size === 1 ? '' : 's'} found by platform`}>
+                        <Box
+                          component="span"
+                          sx={{
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            px: 0.6,
+                            py: 0.15,
+                            borderRadius: '4px',
+                            bgcolor: 'action.selected',
+                            color: 'text.secondary',
+                            cursor: 'default',
+                            userSelect: 'none',
+                          }}
+                        >
+                          {correlatedIncidentIds.size} corr
+                        </Box>
+                      </Tooltip>
+                    )}
+                    {searchQuery && (
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setCorrelatedIncidentIds(new Set());
+                          setExtraCorrelatedIncidents([]);
+                        }}
+                        aria-label="Clear filter"
+                        sx={{ p: 0.25, color: 'text.secondary', '&:hover': { color: 'text.primary' } }}
+                      >
+                        <CloseIcon style={{ width: 14, height: 14 }} />
+                      </IconButton>
+                    )}
+                  </InputAdornment>
+                ),
+                sx: { height: 36, fontSize: '0.8125rem' },
               }}
-              sx={{ width: { xs: 'auto', sm: 140 }, flex: { xs: '1 1 auto', sm: '0 0 auto' }, minWidth: 0, flexShrink: 1 }}
+              sx={{
+                width: { xs: 'auto', sm: 180, md: 240 },
+                flex: { xs: '1 1 auto', sm: '0 0 auto' },
+                minWidth: 0,
+                flexShrink: 1,
+                transition: 'width 0.2s ease',
+                '&:focus-within': {
+                  width: { xs: 'auto', sm: 220, md: 300 },
+                },
+              }}
             />
 
             <Tooltip title="Menu">
@@ -3325,6 +3490,8 @@ const IncidentsPage = () => {
               setDateFrom(undefined);
               setDateTo(undefined);
               setSearchQuery('');
+              setCorrelatedIncidentIds(new Set());
+              setExtraCorrelatedIncidents([]);
               setShowIrrelevant(true);
             }}
 

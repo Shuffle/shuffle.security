@@ -396,6 +396,10 @@ export const MonitorHostTable = withTheme<MonitorHostTableProps>(
   "MonitorHostTable",
 );
 export type { MonitorHostTableProps } from "./views/monitors/MonitorHostTable";
+export const HostMonitor = MonitorHostTable;
+export const LocationHostMonitors = MonitorHostTable;
+export type HostMonitorProps = MonitorHostTableProps;
+export type LocationHostMonitorsProps = MonitorHostTableProps;
 
 import {
   AddHostDialog as AddHostDialogRaw,

@@ -339,11 +339,16 @@ export const IncidentRoutingEditor = ({
       }
       for (const it of items) {
         const rule = parseRule(it.key, typeof it.value === 'string' ? it.value : JSON.stringify(it.value));
-        if (rule) next[rule.id] = rule;
+        if (!rule) continue;
+        // Only show rules belonging to the entity this editor is scoped to.
+        // Rules saved before `entityCategory` existed are incident rules.
+        const cat = rule.entityCategory || DEFAULT_ROUTING_ENTITY_CATEGORY;
+        if (cat !== entityCategory) continue;
+        next[rule.id] = rule;
       }
       return next;
     });
-  }, [items, localOnlyIds]);
+  }, [items, localOnlyIds, entityCategory]);
 
   const sortedRules = useMemo(
     () =>

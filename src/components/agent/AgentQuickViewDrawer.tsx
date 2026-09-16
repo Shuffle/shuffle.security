@@ -283,6 +283,8 @@ const AgentQuickViewDrawer = ({ open, onClose, item, entityBasePath, onApprove, 
     ? buildFromNotification(item.notification, entityBasePath)
     : buildFromRun(item.run, entityBasePath);
 
+  const drawerZIndex = useDrawerLayer(open);
+
   const handleClose = () => {
     setIsConfiguring(false);
     setModifiedAction('');

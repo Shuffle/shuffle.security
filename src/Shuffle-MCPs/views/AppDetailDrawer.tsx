@@ -67,6 +67,7 @@ export default function AppDetailDrawer({
   const drawerWidth = `min(${width}px, 100vw)`;
   const drawerMinWidth = `min(${minWidth}px, 100vw)`;
   const drawerMaxWidth = `min(${maxWidth}px, 100vw)`;
+  const drawerZIndex = useDrawerLayer(open);
 
   const handleClose = () => {
     onRefresh?.();

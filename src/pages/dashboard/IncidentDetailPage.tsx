@@ -782,6 +782,7 @@ const SimpleIncidentTitle = ({ title, onCommit, readOnly = false }: SimpleIncide
         color: title ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
         cursor: readOnly ? 'default' : 'text',
         borderRadius: 1,
+        pt: '5px',
         transition: 'background-color 0.15s ease',
         '&:hover': {
           bgcolor: readOnly ? 'transparent' : 'rgba(255, 255, 255, 0.04)',
@@ -6499,7 +6500,7 @@ const IncidentDetailPage = () => {
                 multiline
                 minRows={2}
                 maxRows={15}
-                placeholder={replyingTo ? `Reply to ${replyingTo.label}…` : 'Add a comment... (Enter to send, Shift+Enter for new line)'}
+                placeholder={replyingTo ? `Reply to ${replyingTo.label}…` : 'Add comment... (@ to tag)'}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     bgcolor: 'hsl(var(--input))',

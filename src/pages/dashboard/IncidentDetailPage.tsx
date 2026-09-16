@@ -5644,10 +5644,12 @@ const IncidentDetailPage = () => {
     };
 
     await writeIncidentSafe(incident.id, resolvedData, crossOrgId || undefined);
+    setActivity(updatedActivity);
     setIsSaving(false);
     setShowResolveDialog(false);
     toast.success(t('Incident resolved'));
-    navigate('/incidents');
+    // Stay on the incident after resolving — the resolution shows up in the
+    // timeline and the Overview rail instead of bouncing back to the list.
   };
 
   const handleCustomFieldChange = (field: CustomField, value: string | number | boolean) => {

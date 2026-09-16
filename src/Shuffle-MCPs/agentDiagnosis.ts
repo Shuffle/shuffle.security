@@ -298,8 +298,23 @@ const TOKEN_LIMIT_PATTERN = /\b(ai[\s-]*token[\s-]*limit[\s-]*(is[\s-]*)?reach(e
 /** Values that are just booleans/numbers can never be an error sentence. */
 const isSentenceLike = (v: string) => /[a-z]/i.test(v) && v.trim().split(/\s+/).length > 1;
 
+/**
+ * A model-authentication failure happens before the model can emit an agent
+ * decision. Once at least one real decision exists, any 401 text belongs to
+ * an integration action, stale execution metadata, or content returned by a
+ * tool — it must never be relabelled as an AI-provider authentication error.
+ */
+const hasProducedDecisions = (run: DiagnosableRun, parsed?: any): boolean => {
+  const parsedDecisions = parsed && typeof parsed === 'object' ? parsed.decisions : null;
+  if (Array.isArray(parsedDecisions) && parsedDecisions.length > 0) return true;
+
+  const directDecisions = (run as any)?.decisions;
+  return Array.isArray(directDecisions) && directDecisions.length > 0;
+};
+
 export const diagnoseOutputWarning = (run: DiagnosableRun): OutputDiagnosis | null => {
   const { parsed, raw } = parseRunResult(run);
+  const producedDecisions = hasProducedDecisions(run, parsed);
 
   // Token-limit detection runs FIRST and against the FULL payload (raw +
   // parsed), not the narrow decision-only scope — the message can appear in
@@ -359,6 +374,8 @@ export const diagnoseOutputWarning = (run: DiagnosableRun): OutputDiagnosis | nu
   })();
 
   const aiAuthMatch = (() => {
+    if (producedDecisions) return null;
+
     // If the run reached finished status without an explicit fatal error,
     // the AI model provider credentials were valid and succeeded.
     if (isFinished && (!parsed?.error && parsed?.success !== false)) return null;
@@ -518,7 +535,7 @@ export const diagnoseOutputWarning = (run: DiagnosableRun): OutputDiagnosis | nu
     return [statusEvidence, ...dedup].slice(0, 3);
   };
 
-  if (!isFinished && (isAiAuthText(errorHaystackLower) || isAiAuthText(raw))) {
+  if (!producedDecisions && !isFinished && (isAiAuthText(errorHaystackLower) || isAiAuthText(raw))) {
     const ev = findEvidenceByRegex(
       /unauthori[sz]ed|invalid[_\s-]*(api[_\s-]*key|token|credentials?)|authentication[_\s-]*(failed|required)|missing[_\s-]*(api[_\s-]*key|token|authorization)|bearer[_\s-]*token|expired[_\s-]*token|failed\s+to\s+start\s+ai\s+agent|incorrect\s+api\s+key\s+provided|\b401\b/
     );
@@ -713,8 +730,11 @@ export const isAiAuthFailure = (
   run?: DiagnosableRun | null,
   extraText?: string | null,
 ): boolean => {
+  if (!run) return isAiAuthText(extraText);
+
+  const { parsed } = parseRunResult(run);
+  if (hasProducedDecisions(run, parsed)) return false;
   if (isAiAuthText(extraText)) return true;
-  if (!run) return false;
 
   const status = (run.status || '').toUpperCase();
   const isFinished = status === 'FINISHED' || status === 'SUCCESS';

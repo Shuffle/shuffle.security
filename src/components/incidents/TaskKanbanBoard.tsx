@@ -127,6 +127,7 @@ export const TaskKanbanBoard = ({
   onDeleteTask,
   onAssignAi,
   assigningTaskIds,
+  readOnly = false,
 }: TaskKanbanBoardProps) => {
   const taskStatuses = useTaskStatuses();
   const laneKeys = useMemo(() => taskStatuses.map((s) => s.key), [taskStatuses]);

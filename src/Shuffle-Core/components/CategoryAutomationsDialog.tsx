@@ -36,6 +36,8 @@ import { useAuthenticatedApps } from '../useAuthenticatedApps';
 
 import { CategoryAutomation, DATASTORE_CATEGORIES, getDatastoreByCategory, RBACConfig } from '@/Shuffle-MCPs/datastore';
 import { ShareAccessModal } from '@/components/common/ShareAccessModal';
+import { IncidentRoutingEditor } from '@/components/settings/IncidentRoutingEditor';
+import { useIsSupport } from '@/hooks/useIsSupport';
 import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
 import { fetchAppsCached, fetchWorkflowsCached } from '../views/appsFetchCache';
 
@@ -263,7 +265,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
   showViewToggle = true,
 }) => {
   // Which view is active: 'automations' or 'settings'
-  const [currentView, setCurrentView] = useState<'automations' | 'settings'>(initialView);
+  const [currentView, setCurrentView] = useState<'automations' | 'settings' | 'routing'>(initialView);
 
   // Sync view when dialog opens or initialView changes
   useEffect(() => {
@@ -297,6 +299,11 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
     (activeCategory === category ? entityLabel?.plural : undefined) || activeOption?.plural || 'incidents';
   const entitySingularCap = entitySingular.charAt(0).toUpperCase() + entitySingular.slice(1);
   const entityPluralCap = entityPlural.charAt(0).toUpperCase() + entityPlural.slice(1);
+  // Support-only: routing rules view. Category the backing routing workflow
+  // is generated for — incidents use the legacy "cases" category.
+  const isSupportUser = useIsSupport();
+  const routingGenerateCategory =
+    activeCategory === DATASTORE_CATEGORIES.INCIDENTS ? 'cases' : entityPlural;
   const navigate = useNavigate();
   const [automations, setAutomations] = useState<CategoryAutomation[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -1011,17 +1018,38 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {currentView === 'automations' ? (
             <RocketLaunchIcon size={26} style={{ color: enabledCount > 0 ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground))' }} />
+          ) : currentView === 'routing' ? (
+            <AccountTreeIcon size={26} style={{ color: 'hsl(var(--foreground))' }} />
           ) : (
             <SettingsIcon size={26} style={{ color: 'hsl(var(--foreground))' }} />
           )}
           <Typography variant="h6" sx={{ fontSize: '1.1rem', fontWeight: 600 }}>
             {currentView === 'automations'
               ? `Automation for ${entityPluralCap}`
-              : `Settings for ${entityPluralCap}`}
+              : currentView === 'routing'
+                ? `Routing for ${entityPluralCap}`
+                : `Settings for ${entityPluralCap}`}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {showViewToggle && (
+          {isSupportUser && (
+            <Button
+              size="small"
+              onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
+              sx={{
+                textTransform: 'none',
+                fontSize: '0.75rem',
+                color: 'text.secondary',
+                border: '1px solid hsl(var(--border))',
+                borderRadius: 1.5,
+                px: 1.25,
+                '&:hover': { color: 'text.primary', borderColor: 'hsl(var(--primary))' },
+              }}
+            >
+              {currentView === 'routing' ? 'Back to automations' : 'Routing rules'}
+            </Button>
+          )}
+          {showViewToggle && currentView !== 'routing' && (
             <Tooltip
               title={
                 currentView === 'automations'
@@ -1066,6 +1094,21 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
       </DialogTitle>
 
       <DialogContent sx={{ px: 4, pb: 3 }}>
+        {currentView === 'routing' ? (
+          <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.8rem' }}>
+              Rules are evaluated when a {entitySingular} is created or edited. Conditions are
+              generic field checks, so the same mechanism works for every category.
+            </Typography>
+            <IncidentRoutingEditor
+              forceShow
+              entityCategory={activeCategory}
+              entityLabel={{ singular: entitySingular, plural: entityPlural }}
+              generateCategory={routingGenerateCategory}
+            />
+          </Box>
+        ) : (
+        <>
         {/* Trigger Section */}
         <Box sx={{ mb: 4 }}>
           <Typography
@@ -1668,11 +1711,17 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
             </Box>
           </Box>
         )}
+        </>
+        )}
       </DialogContent>
 
       <Divider sx={{ borderColor: 'hsl(var(--border))' }} />
 
-      <DialogActions sx={{ px: 4, py: 2.5, justifyContent: 'space-between' }}>
+      <DialogActions sx={{ px: 4, py: 2.5, justifyContent: currentView === 'routing' ? 'flex-end' : 'space-between' }}>
+        {currentView === 'routing' ? (
+          <Button onClick={onClose}>Close</Button>
+        ) : (
+        <>
         <Button
           size="small"
           startIcon={<RestoreIcon />}
@@ -1720,6 +1769,8 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
             {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </Box>
+        </>
+        )}
       </DialogActions>
 
       <AppSearchDrawer

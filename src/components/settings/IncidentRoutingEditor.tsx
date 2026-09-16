@@ -139,6 +139,12 @@ export interface RoutingRule {
   updatedTs?: number;
   lastMatchedTs?: number;
   matchCount?: number;
+  /**
+   * Datastore category this rule applies to (e.g.
+   * `shuffle-security_incidents`, `shuffle-security_vulns`). Rules saved
+   * before this field existed are treated as incident rules.
+   */
+  entityCategory?: string;
 }
 
 const FIELD_SUGGESTIONS = ROUTING_FIELD_SUGGESTIONS;
@@ -251,6 +257,7 @@ const parseRule = (key: string, value: string): RoutingRule | null => {
       updatedTs: parsed.updatedTs,
       lastMatchedTs: parsed.lastMatchedTs,
       matchCount: Number.isFinite(parsed.matchCount) ? parsed.matchCount : 0,
+      entityCategory: typeof parsed.entityCategory === 'string' ? parsed.entityCategory : undefined,
     };
   } catch {
     return null;
@@ -271,15 +278,36 @@ const summarizeAction = (a: RoutingAction, orgName?: string): string => {
   }
 };
 
+export const DEFAULT_ROUTING_ENTITY_CATEGORY = 'shuffle-security_incidents';
+
 interface IncidentRoutingEditorProps {
   /**
    * When true, render even if no sub-orgs exist. The component will warn
    * inline that rules need a target tenant. Useful for previewing.
    */
   forceShow?: boolean;
+  /**
+   * Datastore category the rules apply to. Rules are stamped with it and
+   * the list is filtered by it, so the same editor serves incidents,
+   * vulnerabilities, assets and so on.
+   */
+  entityCategory?: string;
+  /** Entity naming used in copy. Defaults to incident/incidents. */
+  entityLabel?: { singular: string; plural: string };
+  /**
+   * Category passed to POST /api/v2/workflows/generate when the backing
+   * routing workflow is auto-created. Defaults to "cases".
+   */
+  generateCategory?: string;
 }
 
-export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEditorProps) => {
+export const IncidentRoutingEditor = ({
+  forceShow = false,
+  entityCategory = DEFAULT_ROUTING_ENTITY_CATEGORY,
+  entityLabel = { singular: 'incident', plural: 'incidents' },
+  generateCategory = 'cases',
+}: IncidentRoutingEditorProps) => {
+  const entityPluralCap = entityLabel.plural.charAt(0).toUpperCase() + entityLabel.plural.slice(1);
   const { userInfo } = useAuth();
   const currentOrgId = userInfo?.active_org?.id;
   const { subOrgs, isParentOrg } = useSubOrgs(currentOrgId);
@@ -312,11 +340,16 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
       }
       for (const it of items) {
         const rule = parseRule(it.key, typeof it.value === 'string' ? it.value : JSON.stringify(it.value));
-        if (rule) next[rule.id] = rule;
+        if (!rule) continue;
+        // Only show rules belonging to the entity this editor is scoped to.
+        // Rules saved before `entityCategory` existed are incident rules.
+        const cat = rule.entityCategory || DEFAULT_ROUTING_ENTITY_CATEGORY;
+        if (cat !== entityCategory) continue;
+        next[rule.id] = rule;
       }
       return next;
     });
-  }, [items, localOnlyIds]);
+  }, [items, localOnlyIds, entityCategory]);
 
   const sortedRules = useMemo(
     () =>
@@ -413,6 +446,7 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
         createdBy: rule.createdBy || userInfo?.username || userInfo?.id,
         createdTs: rule.createdTs || Date.now(),
         updatedTs: Date.now(),
+        entityCategory,
       };
       // Pass skipRefresh=false so `items` includes the new rule before we
       // remove it from `localOnlyIds` — otherwise the drafts-rebuild effect
@@ -427,12 +461,12 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
               credentials: 'include',
               headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                label: 'Incident Routing Rules',
-                category: 'cases',
+                label: `${entityPluralCap} Routing Rules`,
+                category: generateCategory,
               }),
             });
             window.dispatchEvent(new CustomEvent('shuffle-workflow-toggled', {
-              detail: { label: 'Incident Routing Rules', enabled: true },
+              detail: { label: `${entityPluralCap} Routing Rules`, enabled: true },
             }));
             window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
           } catch (e) {
@@ -516,6 +550,7 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
       matchMode: rule.matchMode,
       conditions: rule.conditions.map((c) => ({ ...c })),
       actions: rule.actions.map((a) => ({ ...a })),
+      entityCategory,
     });
     setDrafts((prev) => ({ ...prev, [copy.id]: copy }));
     setLocalOnlyIds((prev) => new Set(prev).add(copy.id));
@@ -525,6 +560,7 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
   const handleAdd = () => {
     const fresh = emptyRule({
       actions: [{ type: 'suggest_move', targetOrgId: subOrgs[0]?.id || '', reason: '' }],
+      entityCategory,
     });
     setDrafts((prev) => ({ ...prev, [fresh.id]: fresh }));
     setLocalOnlyIds((prev) => new Set(prev).add(fresh.id));
@@ -586,7 +622,7 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
   if (!isParentOrg && !forceShow) {
     return (
       <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
-        Incident Routing Rules are only available when you have one or more child tenants.
+        {entityPluralCap} Routing Rules are only available when you have one or more child tenants.
       </Typography>
     );
   }

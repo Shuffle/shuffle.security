@@ -85,6 +85,7 @@ export const SimpleCaseLayout = ({
   observableCount,
   correlationCount,
   relatedIncidents,
+  resolution,
 }: SimpleCaseLayoutProps) => {
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement | null>(null);

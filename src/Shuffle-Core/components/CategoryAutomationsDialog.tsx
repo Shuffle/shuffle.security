@@ -297,6 +297,11 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
     (activeCategory === category ? entityLabel?.plural : undefined) || activeOption?.plural || 'incidents';
   const entitySingularCap = entitySingular.charAt(0).toUpperCase() + entitySingular.slice(1);
   const entityPluralCap = entityPlural.charAt(0).toUpperCase() + entityPlural.slice(1);
+  // Support-only: routing rules view. Category the backing routing workflow
+  // is generated for — incidents use the legacy "cases" category.
+  const isSupportUser = useIsSupport();
+  const routingGenerateCategory =
+    activeCategory === DATASTORE_CATEGORIES.INCIDENTS ? 'cases' : entityPlural;
   const navigate = useNavigate();
   const [automations, setAutomations] = useState<CategoryAutomation[]>([]);
   const [isSaving, setIsSaving] = useState(false);

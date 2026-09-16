@@ -117,7 +117,9 @@ export const IngestionSourcesRow = ({
 
   const fetchIngestionApps = useCallback(async () => {
     if (!loadedOnceRef.current) setIngestionLoading(true);
+    let loadFailed = false;
     try {
+
       const [authApps, workflowsResponse] = await Promise.all([
         fetchAuthenticatedApps(currentOrgId).catch(() => []),
         fetch(getApiUrl('/api/v1/workflows'), {

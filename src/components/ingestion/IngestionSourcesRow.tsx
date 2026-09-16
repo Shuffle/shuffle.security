@@ -123,13 +123,21 @@ export const IngestionSourcesRow = ({
         fetch(getApiUrl('/api/v1/workflows'), {
           credentials: 'include',
           headers: { ...getAuthHeader() },
-        }),
+        }).catch(() => null),
       ]);
 
       if (!Array.isArray(authApps)) return;
 
+      // Connectivity loss: never overwrite what is already on screen with an
+      // empty list, and allow the next attempt to load normally again.
+      if (!workflowsResponse || !workflowsResponse.ok) {
+        loadedOnceRef.current = false;
+        return;
+      }
+
       let workflowAppNames: Set<string> | undefined;
       if (workflowsResponse.ok) {
+
         const workflows = await workflowsResponse.json();
         const workflowList = Array.isArray(workflows) ? workflows : (workflows.workflows || []);
 

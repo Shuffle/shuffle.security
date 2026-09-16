@@ -445,6 +445,7 @@ export const IncidentRoutingEditor = ({
         createdBy: rule.createdBy || userInfo?.username || userInfo?.id,
         createdTs: rule.createdTs || Date.now(),
         updatedTs: Date.now(),
+        entityCategory,
       };
       // Pass skipRefresh=false so `items` includes the new rule before we
       // remove it from `localOnlyIds` — otherwise the drafts-rebuild effect

@@ -107,6 +107,8 @@ interface TaskKanbanBoardProps {
   onDeleteTask?: (taskId: string) => void;
   onAssignAi?: (task: IncidentTask, reRun?: boolean) => void;
   assigningTaskIds?: Record<string, boolean>;
+  /** Disables mutating controls (public/read-only incident views). */
+  readOnly?: boolean;
 }
 
 /**
@@ -125,6 +127,7 @@ export const TaskKanbanBoard = ({
   onDeleteTask,
   onAssignAi,
   assigningTaskIds,
+  readOnly = false,
 }: TaskKanbanBoardProps) => {
   const taskStatuses = useTaskStatuses();
   const laneKeys = useMemo(() => taskStatuses.map((s) => s.key), [taskStatuses]);

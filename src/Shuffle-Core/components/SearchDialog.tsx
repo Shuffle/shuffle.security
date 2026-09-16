@@ -211,7 +211,7 @@ const NOISE_KEYS = new Set([
 const docLabel = (name: string) =>
   name.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
-interface AlgoliaDocHit {
+export interface AlgoliaDocHit {
   objectID: string;
   title?: string;
   filename?: string;
@@ -222,7 +222,7 @@ interface AlgoliaDocHit {
   };
 }
 
-const algoliaDocToItem = (hit: AlgoliaDocHit): DocItem | null => {
+export const algoliaDocToItem = (hit: AlgoliaDocHit): DocItem | null => {
   const rawPath = typeof hit.urlpath === 'string' ? hit.urlpath.trim() : '';
   const pathWithoutHash = rawPath.split('#')[0];
   const filename = typeof hit.filename === 'string' ? hit.filename.trim() : '';
@@ -255,7 +255,7 @@ const algoliaDocToItem = (hit: AlgoliaDocHit): DocItem | null => {
   };
 };
 
-const BASE_NAV_ITEMS: NavResult[] = [
+export const BASE_NAV_ITEMS: NavResult[] = [
   // Top Pages
   {
     type: 'nav',

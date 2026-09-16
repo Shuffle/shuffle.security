@@ -31,6 +31,7 @@ import { hostUrlSegment } from '@/utils/hostUrlSegment';
 import { ActionOutputView } from './ActionOutputView';
 import { HostNameDisplay } from '@/components/monitors/HostNameDisplay';
 import { AddHostDialog, MonitoringGroupLike } from './AddHostDialog';
+import { fetchHostSupplements, mergeHosts } from '@/lib/mergeMonitorHosts';
 
 
 // ── Helpers (identical to the originals on VulnAssetsPage) ─────────────────
@@ -183,6 +184,33 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
     };
   }, [expandedHosts, hosts]);
 
+  const [supplementedHosts, setSupplementedHosts] = useState<MonitorHost[]>(hosts);
+
+  useEffect(() => {
+    // If hosts are empty or already have detailed software/posture fields, keep them
+    const needsSupplement = hosts.some(h =>
+      h.hd_encrypted === undefined &&
+      h.automatic_screen_lock_enabled === undefined &&
+      (!h.installed_software || (Array.isArray(h.installed_software) && h.installed_software.length === 0))
+    );
+
+    if (!needsSupplement || hosts.length === 0) {
+      setSupplementedHosts(hosts);
+      return;
+    }
+
+    let isMounted = true;
+    fetchHostSupplements().then(supplements => {
+      if (!isMounted) return;
+      const merged = mergeHosts(hosts as any[], supplements);
+      setSupplementedHosts(merged as MonitorHost[]);
+    }).catch(err => {
+      console.warn('[MonitorHostTable] Failed to load supplements:', err);
+      if (isMounted) setSupplementedHosts(hosts);
+    });
+
+    return () => { isMounted = false; };
+  }, [hosts]);
 
   const toggleSort = (col: string) => {
     if (sortCol === col) {
@@ -197,7 +225,7 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
     if (cb !== ca) return cb - ca;
     return (a.hostname || '').localeCompare(b.hostname || '');
   };
-  const allHosts = !sortCol ? [...hosts].sort(defaultSort) : [...hosts].sort((a, b) => {
+  const allHosts = !sortCol ? [...supplementedHosts].sort(defaultSort) : [...supplementedHosts].sort((a, b) => {
     let cmp = 0;
     switch (sortCol) {
       case 'os': cmp = (a.os || '').localeCompare(b.os || ''); break;
@@ -486,10 +514,28 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="border border-border rounded-lg overflow-hidden bg-card">
+      <div
+        className="border border-border rounded-lg overflow-hidden bg-card"
+        style={{
+          border: '1px solid hsl(var(--border))',
+          borderRadius: 8,
+          overflow: 'hidden',
+          backgroundColor: 'hsl(var(--card))',
+        }}
+      >
         {(showAddHost || group) && (
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/20">
-            <div className="flex items-center gap-2">
+          <div
+            className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/20"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 20px',
+              borderBottom: '1px solid hsl(var(--border))',
+              backgroundColor: 'hsla(var(--muted), 0.2)',
+            }}
+          >
+            <div className="flex items-center gap-2" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="text-sm font-semibold text-foreground">
                 {group?.name || group?.Name || 'Monitored Hosts'}
               </span>
@@ -581,18 +627,35 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
               return next;
             });
           };
+          const getDotColorStyle = (s?: 'on' | 'off' | 'empty', isOn?: boolean, customColor?: string) => {
+            if (s === 'off') return 'hsl(var(--severity-critical, 0 84% 60%))';
+            if (!isOn) return 'rgba(140, 140, 140, 0.3)';
+            if (customColor === 'medium' || customColor?.includes('medium')) return 'hsl(var(--severity-medium, 45 93% 47%))';
+            if (customColor === 'high' || customColor?.includes('high')) return 'hsl(var(--severity-high, 12 92% 52%))';
+            return 'hsl(var(--severity-low, 142 71% 45%))';
+          };
           const CheckDot = ({ on, tip, color, state }: { on: boolean; tip: string; color?: string; state?: 'on' | 'off' | 'empty' }) => {
             const dotColor = state === 'off'
               ? 'bg-[hsl(var(--severity-critical))]'
               : on
                 ? (color || 'bg-[hsl(var(--severity-low))]')
                 : 'bg-muted-foreground/30';
+            const dotBg = getDotColorStyle(state, on, color);
             return (
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="flex justify-center">
-                      <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
+                    <span className="flex justify-center" style={{ display: 'flex', justifyContent: 'center' }}>
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full ${dotColor}`}
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: '50%',
+                          backgroundColor: dotBg,
+                          flexShrink: 0,
+                        }}
+                      />
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>{tip}</TooltipContent>
@@ -656,7 +719,16 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div className="flex items-center gap-1.5 cursor-help">
-                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRecent ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRecent ? 'bg-green-500' : 'bg-muted-foreground/40'}`}
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            backgroundColor: isRecent ? '#22c55e' : 'rgba(150, 150, 150, 0.4)',
+                            flexShrink: 0,
+                          }}
+                        />
                         <span className="text-xs text-muted-foreground">
                           {checkinDate ? checkinDate.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                         </span>

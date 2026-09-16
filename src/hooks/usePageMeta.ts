@@ -8,6 +8,7 @@ interface PageMeta {
   type?: string;
   rawTitle?: boolean;
   baseTitle?: string;
+  noindex?: boolean;
   /** Optional JSON-LD structured data. Accepts a single object or an array of objects. */
   jsonLd?: Record<string, any> | Record<string, any>[];
 }
@@ -28,7 +29,7 @@ function setMetaTag(property: string, content: string, isOg = false) {
   el.setAttribute('content', content);
 }
 
-export function usePageMeta({ title, description, image, url, type = 'website', rawTitle, baseTitle, jsonLd }: PageMeta) {
+export function usePageMeta({ title, description, image, url, type = 'website', rawTitle, baseTitle, jsonLd, noindex }: PageMeta) {
   useEffect(() => {
     const effectiveBase = baseTitle || BASE_TITLE;
     const fullTitle = rawTitle || title === effectiveBase || title.includes(effectiveBase) ? title : `${title} | ${effectiveBase}`;
@@ -40,6 +41,9 @@ export function usePageMeta({ title, description, image, url, type = 'website', 
 
     // Standard meta
     setMetaTag('description', description);
+    if (noindex) {
+      setMetaTag('robots', 'noindex, nofollow');
+    }
 
     // Open Graph
     setMetaTag('og:title', fullTitle, true);
@@ -105,9 +109,13 @@ export function usePageMeta({ title, description, image, url, type = 'website', 
     return () => {
       // Reset to defaults on unmount
       document.title = `${BASE_TITLE} - Open Source Alert & Case Management`;
+      if (noindex) {
+        const robotsEl = document.querySelector('meta[name="robots"]');
+        if (robotsEl) robotsEl.remove();
+      }
       document
         .querySelectorAll(`script[data-managed="${MANAGED_JSONLD_ID}"]`)
         .forEach((n) => n.remove());
     };
-  }, [title, description, image, url, type, JSON.stringify(jsonLd ?? null)]);
+  }, [title, description, image, url, type, noindex, JSON.stringify(jsonLd ?? null)]);
 }

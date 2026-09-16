@@ -758,9 +758,15 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
         <Box
           sx={{
             flexGrow: 1,
-            overflowY: "auto",
+            overflowY: visuallyCollapsed ? "hidden" : "auto",
             overflowX: "hidden",
             minHeight: 0,
+            ...(visuallyCollapsed
+              ? {
+                  scrollbarWidth: "none",
+                  "&::-webkit-scrollbar": { display: "none" },
+                }
+              : {}),
           }}
         >
           <List sx={{ px: 1, py: 2 }}>

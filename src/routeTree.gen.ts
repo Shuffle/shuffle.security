@@ -23,6 +23,7 @@ import { Route as ShuffleCoreRouteImport } from './routes/shuffle-core'
 import { Route as ShuffleCoreDemoRouteImport } from './routes/shuffle-core-demo'
 import { Route as ShuffleMcpDemoRouteImport } from './routes/shuffle-mcp-demo'
 import { Route as ShuffleMcpsRouteImport } from './routes/shuffle-mcps'
+import { Route as CondSearchRouteImport } from './routes/_cond.search'
 import { Route as DashAgentRouteImport } from './routes/_dash.agent'
 import { Route as DashDashboardRouteImport } from './routes/_dash.dashboard'
 import { Route as DashDashboardViewRouteImport } from './routes/_dash.dashboard-view'
@@ -169,6 +170,11 @@ const ShuffleMcpsRoute = ShuffleMcpsRouteImport.update({
   id: '/shuffle-mcps',
   path: '/shuffle-mcps',
   getParentRoute: () => rootRouteImport,
+} as any)
+const CondSearchRoute = CondSearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => CondRoute,
 } as any)
 const DashAgentRoute = DashAgentRouteImport.update({
   id: '/agent',
@@ -595,6 +601,7 @@ export interface FileRoutesByFullPath {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/search': typeof CondSearchRoute
   '/agent': typeof DashAgentRoute
   '/dashboard': typeof DashDashboardRoute
   '/dashboard-view': typeof DashDashboardViewRoute
@@ -687,6 +694,7 @@ export interface FileRoutesByTo {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/search': typeof CondSearchRoute
   '/agent': typeof DashAgentRoute
   '/dashboard': typeof DashDashboardRoute
   '/dashboard-view': typeof DashDashboardViewRoute
@@ -783,6 +791,7 @@ export interface FileRoutesById {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/_cond/search': typeof CondSearchRoute
   '/_dash/agent': typeof DashAgentRoute
   '/_dash/dashboard': typeof DashDashboardRoute
   '/_dash/dashboard-view': typeof DashDashboardViewRoute
@@ -877,6 +886,7 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/search'
     | '/agent'
     | '/dashboard'
     | '/dashboard-view'
@@ -969,6 +979,7 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/search'
     | '/agent'
     | '/dashboard'
     | '/dashboard-view'
@@ -1064,6 +1075,7 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/_cond/search'
     | '/_dash/agent'
     | '/_dash/dashboard'
     | '/_dash/dashboard-view'
@@ -1271,6 +1283,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/shuffle-mcps'
       preLoaderRoute: typeof ShuffleMcpsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_cond/search': {
+      id: '/_cond/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof CondSearchRouteImport
+      parentRoute: typeof CondRoute
     }
     '/_dash/agent': {
       id: '/_dash/agent'
@@ -1829,6 +1848,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface CondRouteChildren {
+  CondSearchRoute: typeof CondSearchRoute
   CondAppsAppnameRoute: typeof CondAppsAppnameRoute
   CondFormsIdRoute: typeof CondFormsIdRoute
   CondVulnerabilitiesSplatRoute: typeof CondVulnerabilitiesSplatRoute
@@ -1840,6 +1860,7 @@ interface CondRouteChildren {
 }
 
 const CondRouteChildren: CondRouteChildren = {
+  CondSearchRoute: CondSearchRoute,
   CondAppsAppnameRoute: CondAppsAppnameRoute,
   CondFormsIdRoute: CondFormsIdRoute,
   CondVulnerabilitiesSplatRoute: CondVulnerabilitiesSplatRoute,

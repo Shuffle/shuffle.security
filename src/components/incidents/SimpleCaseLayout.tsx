@@ -41,6 +41,20 @@ const SECTION_ICONS: Record<SectionKey, typeof FileText> = {
   correlations: Network,
 };
 
+const getScrollContainer = (el: HTMLElement | null): HTMLElement | null => {
+  let parent = el?.parentElement;
+  while (parent && parent !== document.body && parent !== document.documentElement) {
+    const style = window.getComputedStyle(parent);
+    if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+  const main = el?.closest('main');
+  if (main instanceof HTMLElement) return main;
+  return null;
+};
+
 export const SimpleCaseLayout = ({
   narrativeLabel,
   overview,
@@ -61,7 +75,8 @@ export const SimpleCaseLayout = ({
   relatedIncidents,
 }: SimpleCaseLayoutProps) => {
   const navigate = useNavigate();
-  const [activeSection, setActiveSection] = useState<SectionKey>('narrative');
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [activeSection, setActiveSection] = useState<SectionKey>(() => (emailThread ? 'emailThread' : 'narrative'));
   const refs = useRef<Record<SectionKey, HTMLElement | null>>({
     emailThread: null,
     narrative: null,
@@ -70,6 +85,12 @@ export const SimpleCaseLayout = ({
     observables: null,
     correlations: null,
   });
+
+  useEffect(() => {
+    if (!emailThread && activeSection === 'emailThread') {
+      setActiveSection('narrative');
+    }
+  }, [emailThread, activeSection]);
 
   // A short case fits entirely on one screen, so scroll position alone cannot
   // tell which section the user cares about — clicking "Tasks" would instantly
@@ -98,26 +119,31 @@ export const SimpleCaseLayout = ({
       }
       if (sections.length === 0) return;
 
-      // If the document is not scrollable, maintain current selection
-      const isScrollable = document.documentElement.scrollHeight > window.innerHeight + 60;
+      const scroller = getScrollContainer(rootRef.current);
+      const scrollTop = scroller ? scroller.scrollTop : (window.scrollY || window.pageYOffset || document.documentElement.scrollTop);
+      const scrollHeight = scroller ? scroller.scrollHeight : document.documentElement.scrollHeight;
+      const clientHeight = scroller ? scroller.clientHeight : window.innerHeight;
+
+      // If the container is not scrollable, maintain current selection
+      const isScrollable = scrollHeight > clientHeight + 60;
       if (!isScrollable) return;
 
-      // Top of document: lock to first section
-      if (window.scrollY <= 10) {
+      // Top of container: lock to first section
+      if (scrollTop <= 10) {
         setActiveSection(sections[0].key);
         return;
       }
 
-      // Bottom of document: lock to last section
-      const scrollBottom = window.innerHeight + window.scrollY;
-      const docHeight = document.documentElement.scrollHeight;
-      if (scrollBottom >= docHeight - 30) {
+      // Bottom of container: lock to last section
+      const scrollBottom = clientHeight + scrollTop;
+      if (scrollBottom >= scrollHeight - 30) {
         setActiveSection(sections[sections.length - 1].key);
         return;
       }
 
       // Reading trigger line: comfortably below sticky overview header
-      const triggerLine = Math.min(240, Math.max(140, window.innerHeight * 0.25));
+      const containerTop = scroller ? scroller.getBoundingClientRect().top : 0;
+      const triggerLine = containerTop + Math.min(240, Math.max(140, clientHeight * 0.25));
 
       let currentKey = sections[0].key;
       for (let i = 0; i < sections.length; i++) {
@@ -141,12 +167,26 @@ export const SimpleCaseLayout = ({
 
     computeActiveSection();
 
+    const scroller = getScrollContainer(rootRef.current);
+    if (scroller) {
+      scroller.addEventListener('scroll', onScroll, { passive: true });
+    }
     window.addEventListener('scroll', onScroll, { passive: true, capture: true });
     window.addEventListener('resize', onScroll, { passive: true });
 
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && scroller) {
+      resizeObserver = new ResizeObserver(onScroll);
+      resizeObserver.observe(scroller);
+    }
+
     return () => {
+      if (scroller) {
+        scroller.removeEventListener('scroll', onScroll);
+      }
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', onScroll);
+      resizeObserver?.disconnect();
     };
   }, []);
 
@@ -203,9 +243,16 @@ export const SimpleCaseLayout = ({
       });
     };
     update();
+    const scroller = getScrollContainer(rootRef.current);
+    if (scroller) {
+      scroller.addEventListener('scroll', update, { passive: true });
+    }
     window.addEventListener('scroll', update, true);
     window.addEventListener('resize', update);
     return () => {
+      if (scroller) {
+        scroller.removeEventListener('scroll', update);
+      }
       window.removeEventListener('scroll', update, true);
       window.removeEventListener('resize', update);
     };
@@ -237,7 +284,7 @@ export const SimpleCaseLayout = ({
   } as const;
 
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(180px, 220px) minmax(0, 1fr)', lg: 'minmax(220px, 260px) minmax(0, 1fr) minmax(180px, 220px)' }, gap: { xs: 3, md: 3.625 }, alignItems: 'start' }}>
+    <Box ref={rootRef} sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(180px, 220px) minmax(0, 1fr)', lg: 'minmax(220px, 260px) minmax(0, 1fr) minmax(180px, 220px)' }, gap: { xs: 3, md: 3.625 }, alignItems: 'start' }}>
       <Box ref={timelineColRef} sx={{ order: { xs: 2, md: 1 }, position: { md: 'sticky' }, top: { md: 24 }, minWidth: 0, height: { xs: 'auto', md: timelineHeight ? `${timelineHeight}px` : 'calc(100vh - 48px)' }, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexShrink: 0 }}>
           <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>

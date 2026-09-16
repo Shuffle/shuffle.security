@@ -270,7 +270,13 @@ export const SearchDialog = withTheme(
   SearchDialogRaw,
   "SearchDialog",
 );
-export { SEARCH_OPEN_EVENT } from "./components/SearchDialog";
+export {
+  SEARCH_OPEN_EVENT,
+  BASE_NAV_ITEMS,
+  SYNONYM_MAP,
+  getSynonymsForQuery,
+  algoliaDocToItem,
+} from "./components/SearchDialog";
 export type {
   SearchDialogProps,
   SearchResult,
@@ -280,6 +286,10 @@ export type {
   AppResult,
   DocResult,
   CorrelationResult,
+  AlgoliaDocHit,
+  AlgoliaSearchApp,
+  DocItem,
+  CorrelationItem,
 } from "./components/SearchDialog";
 
 // Notification settings (device push, critical pager, agent requests, general

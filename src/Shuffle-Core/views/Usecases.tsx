@@ -4450,7 +4450,7 @@ function UsecaseDetailContent({
                 <Tooltip
                   title={
                     detailIsBlocked
-                      ? `${detailHealth.primaryProblem?.title || 'Execution blocked'}: ${detailHealth.primaryProblem?.description || 'Runtime location is offline.'} Click to view details / fix.`
+                      ? `${detailHealth.primaryProblem?.title || 'Execution blocked'}: ${detailHealth.primaryProblem?.description || 'Runtime location is offline.'} Click to disable.`
                       : !effectiveEnabled && !hasValidatedSource && !isShuffleSourcedFlow
                         ? `No active ${sourceCatLabel} integration is connected. Activating will not do anything until a ${sourceCatLabel} tool is authenticated — the workflow will be disabled again automatically.`
                         : !effectiveEnabled && (flow.id === 'case_management_cases_forward_1' || flow.id === 'case_management_communication_1')
@@ -4466,7 +4466,7 @@ function UsecaseDetailContent({
                     <Button
                       size="small"
                       disableElevation
-                      onClick={detailIsBlocked && detailHealth.primaryProblem?.actionUrl ? () => navigate(detailHealth.primaryProblem!.actionUrl!) : handleToggle}
+                      onClick={handleToggle}
                       disabled={toggling}
                       startIcon={
                         toggling ? (
@@ -7307,7 +7307,7 @@ function UsecaseCard({
               <Tooltip
                 title={
                   isBlocked
-                    ? `${usecaseHealth.primaryProblem?.title || 'Execution blocked'}: ${usecaseHealth.primaryProblem?.description || 'Runtime location is offline.'} Click to fix.`
+                    ? `${usecaseHealth.primaryProblem?.title || 'Execution blocked'}: ${usecaseHealth.primaryProblem?.description || 'Runtime location is offline.'} Click to disable.`
                     : isMonitorsFlow
                       ? 'Host Monitoring is active on endpoints · Managed in Monitors view'
                       : canDisable
@@ -7322,24 +7322,15 @@ function UsecaseCard({
                   type="button"
                   disabled={toggling}
                   onClick={
-                    isBlocked
+                    isMonitorsFlow
                       ? (e: React.MouseEvent) => {
                           e.stopPropagation();
-                          if (usecaseHealth.primaryProblem?.actionUrl) {
-                            navigate(usecaseHealth.primaryProblem.actionUrl);
-                          } else {
-                            onClick();
-                          }
+                          e.preventDefault();
+                          navigate('/monitors');
                         }
-                      : isMonitorsFlow
-                        ? (e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            navigate('/monitors');
-                          }
-                        : canDisable
-                          ? handleToggle
-                          : undefined
+                      : canDisable
+                        ? handleToggle
+                        : undefined
                   }
                   sx={{
                     display: 'inline-flex',
@@ -7362,12 +7353,12 @@ function UsecaseCard({
                     fontWeight: 700,
                     letterSpacing: '0.02em',
                     lineHeight: 1,
-                    cursor: (isBlocked || isMonitorsFlow) ? 'pointer' : canDisable ? (toggling ? 'default' : 'pointer') : 'default',
+                    cursor: isMonitorsFlow ? 'pointer' : canDisable ? (toggling ? 'default' : 'pointer') : 'default',
                     outline: 'none',
                     boxShadow: 'none',
                     flexShrink: 0,
                     transition: 'all 0.15s ease',
-                    '&:hover': (isBlocked || isMonitorsFlow || canDisable) ? {
+                    '&:hover': (isMonitorsFlow || canDisable) ? {
                       bgcolor: isBlocked
                         ? 'hsl(var(--destructive) / 0.22)'
                         : 'hsl(var(--severity-low) / 0.22)',

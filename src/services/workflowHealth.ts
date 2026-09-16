@@ -54,17 +54,37 @@ export function getWorkflowRuntimeLocation(
   isOnline: boolean;
   environment?: EnvironmentItem;
 } {
-  const defaultEnv = environments.find((e) => e.default);
   const actionEnv = workflow.actions?.find((a) => a?.environment)?.environment;
   const triggerEnv = workflow.triggers?.find((t) => t?.environment)?.environment;
   const explicitEnv = workflow.environment || actionEnv || triggerEnv;
 
+  if (!environments || environments.length === 0) {
+    const targetName = explicitEnv || "Cloud";
+    return {
+      envName: targetName,
+      isExplicit: Boolean(explicitEnv),
+      isOnline: true,
+      environment: undefined,
+    };
+  }
+
+  const defaultEnv = environments.find((e) => e.default);
   const targetName = explicitEnv || defaultEnv?.Name || "Cloud";
+  const normalizedTarget = targetName.trim().toLowerCase();
+
   const matchedEnv = environments.find(
-    (e) => e.Name.toLowerCase() === targetName.toLowerCase(),
+    (e) =>
+      (e.Name && e.Name.trim().toLowerCase() === normalizedTarget) ||
+      (e.id && e.id === targetName) ||
+      (normalizedTarget === "default" && e.default),
   );
 
-  const isOnline = matchedEnv ? isRunning(matchedEnv) : targetName.toLowerCase() === "cloud";
+  const isCloud =
+    normalizedTarget === "cloud" ||
+    normalizedTarget === "shuffle cloud" ||
+    (normalizedTarget === "default" && (!defaultEnv || defaultEnv.Type === "cloud"));
+
+  const isOnline = matchedEnv ? isRunning(matchedEnv) : isCloud;
 
   return {
     envName: targetName,

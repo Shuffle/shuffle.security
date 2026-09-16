@@ -40,6 +40,7 @@ import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import { navigateToShuffleCore, isShuffleCoreUrl } from '@/lib/authHandoff';
 import { fetchWorkflowsCached, fetchOrgCached } from '../views/appsFetchCache';
 import { SegmentedControl } from './ui/segmented-control';
+import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
 
 export const NOTIFICATIONS_OPEN_EVENT = 'notifications:open';
 

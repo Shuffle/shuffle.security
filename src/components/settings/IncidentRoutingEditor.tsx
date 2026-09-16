@@ -139,6 +139,12 @@ export interface RoutingRule {
   updatedTs?: number;
   lastMatchedTs?: number;
   matchCount?: number;
+  /**
+   * Datastore category this rule applies to (e.g.
+   * `shuffle-security_incidents`, `shuffle-security_vulns`). Rules saved
+   * before this field existed are treated as incident rules.
+   */
+  entityCategory?: string;
 }
 
 const FIELD_SUGGESTIONS = ROUTING_FIELD_SUGGESTIONS;

@@ -35,23 +35,39 @@ import { fetchHostSupplements, mergeHosts } from '@/lib/mergeMonitorHosts';
 
 
 // ── Helpers (identical to the originals on VulnAssetsPage) ─────────────────
-const OsIcon = ({ os, size = 14, className = '' }: { os?: string; size?: number; className?: string }) => {
-  const lower = (os || '').toLowerCase();
-  if (lower.includes('darwin') || lower.includes('mac') || lower.includes('ios')) {
+const TABLE_GRID_TEMPLATE = '2rem minmax(130px, 1.3fr) 3.5rem 3.5rem 4.5rem 4rem 4rem 5rem minmax(70px, 0.7fr) minmax(110px, 0.9fr) 68px';
+
+const OsIcon = ({
+  os,
+  platform,
+  kernel,
+  hostname,
+  size = 14,
+  className = '',
+}: {
+  os?: string;
+  platform?: string;
+  kernel?: string;
+  hostname?: string;
+  size?: number;
+  className?: string;
+}) => {
+  const text = `${os || ''} ${platform || ''} ${kernel || ''} ${hostname || ''}`.toLowerCase();
+  if (text.includes('darwin') || text.includes('mac') || text.includes('ios') || text.includes('apple') || text.includes('osx')) {
     return (
       <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="currentColor">
         <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
       </svg>
     );
   }
-  if (lower.includes('windows') || lower.includes('win')) {
+  if (text.includes('windows') || text.includes('win') || text.includes('microsoft')) {
     return (
       <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="currentColor">
         <path d="M3 12V6.5l8-1.1V12H3zm10 0V5.2l8-1.2V12h-8zM3 13h8v6.7l-8-1.1V13zm10 0h8v6.9l-8 1.2V13z"/>
       </svg>
     );
   }
-  if (lower.includes('linux') || lower.includes('ubuntu') || lower.includes('debian') || lower.includes('centos') || lower.includes('redhat') || lower.includes('fedora')) {
+  if (text.includes('linux') || text.includes('ubuntu') || text.includes('debian') || text.includes('centos') || text.includes('redhat') || text.includes('fedora') || text.includes('arch') || text.includes('alpine')) {
     return (
       <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="currentColor" aria-label="Linux">
         <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.077 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139zm.484 14.35c.296 0 .523.043.682.13.158.085.226.214.205.387l-.022.135-.13.612c-.097.456-.222.823-.376 1.103a1.31 1.31 0 01-.602.59c-.247.118-.566.176-.957.176s-.71-.058-.957-.176a1.31 1.31 0 01-.602-.59c-.154-.28-.28-.647-.376-1.103l-.13-.612-.022-.135c-.02-.173.047-.302.205-.387.16-.087.387-.13.682-.13zm-2.31-7.45c.27 0 .493.092.67.276.176.184.265.41.265.677 0 .268-.089.494-.265.678a.886.886 0 01-.67.276.886.886 0 01-.67-.276.945.945 0 01-.265-.678c0-.267.089-.493.265-.677a.886.886 0 01.67-.276zm4.62 0c.267 0 .493.092.67.276.176.184.264.41.264.677 0 .268-.088.494-.264.678a.886.886 0 01-.67.276.886.886 0 01-.67-.276.945.945 0 01-.266-.678c0-.267.09-.493.266-.677a.886.886 0 01.67-.276z"/>

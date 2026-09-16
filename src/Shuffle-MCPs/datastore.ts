@@ -123,10 +123,19 @@ export const setRuntimeOrgId = (orgId: string | null) => {
 const getOrgId = (): string | null => {
   if (_runtimeOrgId) return _runtimeOrgId;
   try {
-    const userInfo = localStorage.getItem('shuffle_user_info');
+    const userInfo =
+      localStorage.getItem('shuffle_user_info') ||
+      localStorage.getItem('userinfo') ||
+      localStorage.getItem('user_info');
     if (userInfo) {
       const parsed = JSON.parse(userInfo);
-      return parsed.active_org?.id || null;
+      return (
+        parsed.active_org?.id ||
+        parsed.org_id ||
+        parsed.active_org_id ||
+        (parsed.orgs && parsed.orgs[0]?.id) ||
+        null
+      );
     }
   } catch {
     // Ignore parsing errors

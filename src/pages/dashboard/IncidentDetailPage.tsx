@@ -5684,7 +5684,7 @@ const IncidentDetailPage = () => {
     const laneKeys = taskStatuses.map((s) => s.key);
     const defaultOpenLane = laneKeys.find((k) => k !== 'done') || laneKeys[0] || 'todo';
     setTasks(tasks.map(task => {
-      if (task.id !== taskId) return task;
+      if (String(task.id) !== String(taskId) && task.title !== taskId) return task;
       const becomingDone = !task.completed;
       const previousLane = task.completed
         ? 'done'
@@ -6800,16 +6800,31 @@ const IncidentDetailPage = () => {
           const after = attributeText(currRaw);
           if (before === after) return;
           // Long free text (description) reads better as "updated" + preview
-          // than as a "to <wall of text>" sentence.
+          // than as a "to <wall of text>" sentence. Title edits read best as
+          // "Changed title" with the new title on the detail line.
           const isLongText = field === 'description';
+          const isTitle = field === 'title';
+          let label = `Changed ${ATTRIBUTE_LABELS[field]} to ${after}`;
+          let detail: string | undefined = `from ${before}`;
+
+          if (isLongText) {
+            label = 'Updated the description';
+            detail = after;
+          } else if (isTitle) {
+            label = 'Changed title';
+            detail = after;
+          } else if (before === 'none' || !before) {
+            detail = undefined;
+          }
+
           items.push({
             type: 'step',
             kind: 'attribute-changed',
             // Stagger so multiple attributes changed in one save keep order.
             timestamp: ts + fieldIdx,
             id: `step-attr-${idx}-${field}`,
-            label: isLongText ? 'Updated the description' : `Changed ${ATTRIBUTE_LABELS[field]} to ${after}`,
-            detail: isLongText ? after : `from ${before}`,
+            label,
+            detail,
             actor: revisions[idx]?.updated_by ? String(revisions[idx].updated_by) : undefined,
           });
         });
@@ -6970,8 +6985,11 @@ const IncidentDetailPage = () => {
             taskStatusLabel: currentStatusLabel,
           });
         });
-        if (t.completed && t.completedAt) {
-          const completedTs = normalizeToMs(t.completedAt);
+        if (t.completed) {
+          const completedTs = normalizeToMs(t.completedAt)
+            || (t.statusHistory || []).slice().reverse().find((h) => h?.to === 'done')?.at
+            || normalizeToMs(incident?.editedTs)
+            || createdTs;
           if (completedTs > 0) {
             items.push({
               type: 'step',
@@ -8459,7 +8477,253 @@ const IncidentDetailPage = () => {
           }
         }
 
-        const pill = (
+        const matchingTask = item.taskId
+          ? (visibleTasks.find((t) => String(t.id) === String(item.taskId) || (t.title && t.title === item.detail))
+             || tasks.find((t) => String(t.id) === String(item.taskId) || (t.title && t.title === item.detail)))
+          : undefined;
+        const isTaskCompleted = !!matchingTask?.completed;
+
+        const pill = isSimple ? (
+          <Box
+            key={item.id}
+            data-timeline-compact="true"
+            data-timeline-key={itemKey}
+            data-timeline-timestamp={item.timestamp}
+            data-timeline-filter={itemFilterKey || ''}
+            data-timeline-highlighted={isHighlighted ? 'true' : undefined}
+            data-timeline-dimmed={isDimmed ? 'true' : undefined}
+            data-timeline-preview={item.isPreview ? 'true' : undefined}
+            data-tour={isIocPill ? 'timeline-ioc-pill' : undefined}
+            data-ioc-pill={isIocPill ? 'true' : undefined}
+            className={['timeline-hover-row', isStepHighlighted ? 'incident-new-flash' : ''].filter(Boolean).join(' ')}
+            onClick={pillOnClick}
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              width: '100%',
+              maxWidth: '100%',
+              minWidth: 0,
+              px: isHighlighted ? 0.75 : 0,
+              py: 0.35,
+              borderRadius: 1,
+              bgcolor: isHighlighted ? 'hsl(var(--primary) / 0.12)' : pillBg,
+              border: isHighlighted
+                ? (item.isPreview ? '1px dashed #ff6600' : '1px solid #ff6600')
+                : 'none',
+              boxShadow: isHighlighted ? '0 0 12px rgba(255, 102, 0, 0.25)' : 'none',
+              opacity: isDimmed ? 0.35 : 1,
+              mb: 1.375,
+              cursor: isClickable ? 'pointer' : 'default',
+              transition: 'opacity 0.2s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease',
+              '&:hover': {
+                bgcolor: isHighlighted ? 'hsl(var(--primary) / 0.18)' : (isClickable ? pillBgHover : undefined),
+                borderColor: isHighlighted ? '#ff6600' : (isClickable ? pillBorderHover : undefined),
+              },
+              '&:hover .timeline-reply-btn, &:focus-within .timeline-reply-btn': {
+                opacity: 1,
+                pointerEvents: 'auto',
+              },
+            }}
+          >
+            {/* Row 1: Header (Icon, Actor, Action label, Badges, Timestamp, Reply) */}
+            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, gap: 0.75 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', color: pillColor, flexShrink: 0 }}>
+                {isIocPill ? <WarningAmberIcon size={12} /> : cfg.icon}
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: '1 1 auto', overflow: 'hidden' }}>
+                {item.actor && (
+                  <UserHoverCard username={item.actor} maxChars={12} />
+                )}
+                {item.label && item.kind !== 'observable-added' && (
+                  <Typography
+                    sx={{
+                      fontSize: '0.7rem',
+                      fontWeight: 500,
+                      color: 'text.secondary',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      minWidth: 0,
+                    }}
+                    title={item.label}
+                  >
+                    {stepVerbLabel(item.label, !!item.actor)}
+                  </Typography>
+                )}
+              </Box>
+
+              {previewBadge}
+              {isIocPill && (
+                <Typography
+                  sx={{
+                    fontSize: '0.6rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.4,
+                    px: 0.6,
+                    py: 0.05,
+                    borderRadius: 999,
+                    bgcolor: 'hsl(var(--destructive) / 0.15)',
+                    color: 'hsl(var(--destructive))',
+                    border: '1px solid hsl(var(--destructive) / 0.4)',
+                    flexShrink: 0,
+                  }}
+                >
+                  IOC
+                </Typography>
+              )}
+              {item.kind === 'observable-added' && !!item.corrCount && (
+                <Tooltip
+                  title={`${item.corrCount} correlation match${item.corrCount === 1 ? '' : 'es'} — click to view`}
+                  arrow
+                >
+                  <Typography
+                    component="span"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      if (item.corrObsKeys && item.corrObsKeys.length === 1) {
+                        focusObservableFromTimeline(item.corrObsKeys[0]);
+                      } else {
+                        focusCorrelationFromTimeline(null);
+                      }
+                    }}
+                    sx={{
+                      fontSize: '0.6rem',
+                      fontWeight: 700,
+                      letterSpacing: 0.4,
+                      px: 0.6,
+                      py: 0.05,
+                      borderRadius: 999,
+                      bgcolor: 'hsl(var(--warning, 38 92% 50%) / 0.15)',
+                      color: 'hsl(38 92% 50%)',
+                      border: '1px solid hsl(38 92% 50% / 0.4)',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 0.35,
+                      flexShrink: 0,
+                      '&:hover': { bgcolor: 'hsl(38 92% 50% / 0.22)' },
+                    }}
+                  >
+                    <LinkIcon size={10} />
+                    {item.corrCount}
+                  </Typography>
+                </Tooltip>
+              )}
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto', flexShrink: 0 }}>
+                <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', pl: 0.5, whiteSpace: 'nowrap' }}>
+                  {item.timestamp ? formatCompactTime(item.timestamp) : ''}
+                </Typography>
+                {replyButtonCompact}
+              </Box>
+            </Box>
+
+            {/* Row 2: Detail / Content (if any) */}
+            {item.kind === 'observable-added' && item.obsType && item.obsValue ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, width: '100%', minWidth: 0, pl: 2.25, mt: 0.25 }}>
+                <Typography
+                  sx={{
+                    fontSize: '0.6rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.4,
+                    px: 0.6,
+                    py: 0.05,
+                    borderRadius: 999,
+                    bgcolor: 'hsl(var(--muted) / 0.6)',
+                    color: 'text.secondary',
+                    border: '1px solid hsl(var(--border-subtle))',
+                    flexShrink: 0,
+                    minWidth: 44,
+                    textAlign: 'center',
+                  }}
+                >
+                  {item.obsType}
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: '0.7rem',
+                    fontFamily: 'monospace',
+                    color: isIocPill ? 'hsl(var(--destructive))' : 'text.primary',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    minWidth: 0,
+                    flex: 1,
+                  }}
+                  title={item.obsValue}
+                >
+                  {item.obsValue}
+                </Typography>
+              </Box>
+            ) : item.detail ? (
+              item.taskId && (item.kind === 'task-created' || item.kind === 'task-completed' || item.kind === 'task-status-changed') ? (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 0.5,
+                    width: '100%',
+                    minWidth: 0,
+                    pl: 2.25,
+                    mt: 0.25,
+                  }}
+                >
+                  <Checkbox
+                    size="small"
+                    checked={isTaskCompleted}
+                    onMouseDown={(e) => { e.stopPropagation(); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      const targetId = matchingTask ? String(matchingTask.id) : (item.taskId || '');
+                      if (targetId) handleToggleTask(targetId);
+                    }}
+                    icon={<SquareIcon size={16} />}
+                    checkedIcon={<CheckSquareIcon size={16} />}
+                    sx={{
+                      p: 0,
+                      mt: -0.1,
+                      color: 'hsl(var(--muted-foreground))',
+                      '&.Mui-checked': { color: 'hsl(var(--muted-foreground))' },
+                    }}
+                  />
+                  <Typography
+                    sx={{
+                      fontSize: '0.75rem',
+                      color: isIocPill ? 'hsl(var(--destructive))' : 'hsl(var(--foreground))',
+                      lineHeight: 1.4,
+                      minWidth: 0,
+                      flex: 1,
+                      textDecoration: isTaskCompleted ? 'line-through' : 'none',
+                      ...timelineClampSingleLineSx,
+                    }}
+                    title={item.detail}
+                  >
+                    {item.detail}
+                  </Typography>
+                </Box>
+              ) : (
+                <Box sx={{ width: '100%', minWidth: 0, pl: 2.25, mt: 0.25 }}>
+                  <Typography
+                    sx={{
+                      fontSize: '0.75rem',
+                      color: isIocPill ? 'hsl(var(--destructive))' : 'hsl(var(--foreground))',
+                      lineHeight: 1.4,
+                      minWidth: 0,
+                      ...timelineClampSingleLineSx,
+                    }}
+                    title={item.detail}
+                  >
+                    {item.detail}
+                  </Typography>
+                </Box>
+              )
+            ) : null}
+          </Box>
+        ) : (
           <Box
             key={item.id}
             data-timeline-compact="true"
@@ -8476,19 +8740,18 @@ const IncidentDetailPage = () => {
             sx={{
               display: 'flex',
               alignItems: 'center',
-              flexWrap: isSimple ? 'wrap' : 'nowrap',
-              gap: isSimple ? 0.5 : 1,
-              px: isHighlighted ? 0.75 : (isSimple ? 0 : 1.25),
-              py: isSimple ? 0.25 : 0.5,
-              ml: isSimple ? 0 : 0.5,
-              borderRadius: isSimple ? 1 : 999,
+              flexWrap: 'nowrap',
+              gap: 1,
+              px: isHighlighted ? 0.75 : 1.25,
+              py: 0.5,
+              ml: 0.5,
+              borderRadius: 999,
               bgcolor: isHighlighted ? 'hsl(var(--primary) / 0.12)' : pillBg,
               border: isHighlighted
                 ? (item.isPreview ? '1px dashed #ff6600' : '1px solid #ff6600')
-                : (isSimple ? 'none' : `1px solid ${pillBorder}`),
+                : `1px solid ${pillBorder}`,
               boxShadow: isHighlighted ? '0 0 12px rgba(255, 102, 0, 0.25)' : 'none',
               opacity: isDimmed ? 0.35 : 1,
-              mb: isSimple ? 1.375 : 0,
               maxWidth: '100%',
               minWidth: 0,
               overflow: 'hidden',
@@ -8507,25 +8770,10 @@ const IncidentDetailPage = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', color: pillColor, flexShrink: 0 }}>
               {isIocPill ? <WarningAmberIcon size={12} /> : cfg.icon}
             </Box>
-            {/* The "Observable" word is redundant — the type chip (URL/IP/…)
-                and the IOC badge already convey what this row is. Only render
-                the label for non-observable steps that still benefit from a
-                short text marker. */}
             {item.label && item.kind !== 'observable-added' && (
-              isSimple ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: '0 1 auto', overflow: 'hidden' }}>
-                  {item.actor && (
-                    <UserHoverCard username={item.actor} maxChars={12} />
-                  )}
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 500, color: 'text.secondary', ...timelineClampSingleLineSx }}>
-                    {stepVerbLabel(item.label, !!item.actor)}
-                  </Typography>
-                </Box>
-              ) : (
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: pillColor, flexShrink: 1, minWidth: 0, ...timelineClampSingleLineSx }}>
-                  {item.label}
-                </Typography>
-              )
+              <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: pillColor, flexShrink: 1, minWidth: 0, ...timelineClampSingleLineSx }}>
+                {item.label}
+              </Typography>
             )}
             {previewBadge}
             {isIocPill && (
@@ -8546,9 +8794,6 @@ const IncidentDetailPage = () => {
                 IOC
               </Typography>
             )}
-            {/* "Ask agent →" is only useful when there is room for it. The
-                sidebar timeline is too narrow and the affordance overflows
-                onto the type chip — only show it in the wide inline view. */}
             {isIocPill && isClickable && variant === 'inline' && (
               <Box
                 sx={{
@@ -8613,70 +8858,21 @@ const IncidentDetailPage = () => {
                 </Typography>
               </>
             ) : item.detail && (
-              isSimple && item.taskId && (item.kind === 'task-created' || item.kind === 'task-completed' || item.kind === 'task-status-changed') ? (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 0.5,
-                    flex: '1 1 100%',
-                    order: 2,
-                    minWidth: 0,
-                    pl: 1.25,
-                  }}
-                >
-                  <Checkbox
-                    size="small"
-                    checked={!!tasks.find((t) => t.id === item.taskId)?.completed}
-                    onMouseDown={(e) => { e.stopPropagation(); }}
-                    onClick={(e) => {
-                      // The surrounding pill navigates to the Tasks tab; keep the
-                      // checkbox click local so it only toggles the task.
-                      e.stopPropagation();
-                      e.preventDefault();
-                      if (item.taskId) handleToggleTask(item.taskId);
-                    }}
-                    icon={<SquareIcon size={16} />}
-                    checkedIcon={<CheckSquareIcon size={16} />}
-                    sx={{
-                      p: 0,
-                      mt: -0.1,
-                      color: 'hsl(var(--muted-foreground))',
-                      '&.Mui-checked': { color: 'hsl(var(--muted-foreground))' },
-                    }}
-                  />
-                  <Typography
-                    sx={{
-                      fontSize: '0.75rem',
-                      color: isIocPill ? 'hsl(var(--destructive))' : 'hsl(var(--foreground))',
-                      lineHeight: 1.4,
-                      minWidth: 0,
-                      flex: 1,
-                      textDecoration: tasks.find((t) => t.id === item.taskId)?.completed ? 'line-through' : 'none',
-                      ...timelineClampSingleLineSx,
-                    }}
-                    title={item.detail}
-                  >
-                    {item.detail}
-                  </Typography>
-                </Box>
-              ) : (
-                <Typography
-                  sx={{
-                    fontSize: isSimple ? '0.75rem' : '0.7rem',
-                    color: isIocPill ? 'hsl(var(--destructive))' : (isSimple ? 'hsl(var(--foreground))' : 'text.secondary'),
-                    lineHeight: 1.4,
-                    minWidth: 0,
-                    ...(isSimple ? { flex: '1 1 100%', order: 2, pl: 1.25 } : { flex: '1 1 auto' }),
-                    ...timelineClampSingleLineSx,
-                  }}
-                  title={item.detail}
-                >
-                  {item.detail}
-                </Typography>
-              )
+              <Typography
+                sx={{
+                  fontSize: '0.7rem',
+                  color: isIocPill ? 'hsl(var(--destructive))' : 'text.secondary',
+                  lineHeight: 1.4,
+                  minWidth: 0,
+                  flex: '1 1 auto',
+                  ...timelineClampSingleLineSx,
+                }}
+                title={item.detail}
+              >
+                {item.detail}
+              </Typography>
             )}
-            {!(isSimple && item.taskId) && item.taskStatusLabel && (
+            {item.taskStatusLabel && (
               <Typography
                 component="span"
                 sx={{
@@ -8707,8 +8903,6 @@ const IncidentDetailPage = () => {
                   component="span"
                   onClick={(ev) => {
                     ev.stopPropagation();
-                    // Single observable → flash its row in the Observables tab.
-                    // Bulked → just send to the Correlations tab.
                     if (item.corrObsKeys && item.corrObsKeys.length === 1) {
                       focusObservableFromTimeline(item.corrObsKeys[0]);
                     } else {
@@ -8738,8 +8932,8 @@ const IncidentDetailPage = () => {
               </Tooltip>
             )}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto', flexShrink: 0 }}>
-              <Typography sx={{ fontSize: isSimple ? '0.6rem' : '0.65rem', color: 'text.disabled', pl: isSimple ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-                {item.timestamp ? (isSimple ? formatCompactTime(item.timestamp) : formatRelativeTime(item.timestamp)) : ''}
+              <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled', pl: 1, whiteSpace: 'nowrap' }}>
+                {item.timestamp ? formatRelativeTime(item.timestamp) : ''}
               </Typography>
               {replyButtonCompact}
             </Box>

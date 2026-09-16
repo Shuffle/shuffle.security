@@ -734,10 +734,18 @@ export const getAuthHeader = (overrideOrgId?: string | null): Record<string, str
   let orgId = overrideOrgId ?? _trackedOrgId;
   if (!orgId && typeof localStorage !== 'undefined') {
     try {
-      const raw = localStorage.getItem('shuffle_user_info');
+      const raw =
+        localStorage.getItem('shuffle_user_info') ||
+        localStorage.getItem('userinfo') ||
+        localStorage.getItem('user_info');
       if (raw) {
         const parsed = JSON.parse(raw);
-        orgId = parsed?.active_org?.id || parsed?.org_id || null;
+        orgId =
+          parsed?.active_org?.id ||
+          parsed?.org_id ||
+          parsed?.active_org_id ||
+          (parsed?.orgs && parsed.orgs[0]?.id) ||
+          null;
       }
     } catch { /* ignore */ }
   }

@@ -5,6 +5,11 @@ import { useNavigate } from '@/lib/router-compat';
 import type { IncidentTask } from '@/config/ocsfIncidentSchema';
 import type { LinkedIncidentSummary } from '@/hooks/useRelatedIncidents';
 
+const TIMELINE_WIDTH_STORAGE_KEY = 'shuffle_simple_timeline_width';
+const DEFAULT_TIMELINE_WIDTH = 260;
+const MIN_TIMELINE_WIDTH = 180;
+const MAX_TIMELINE_WIDTH = 500;
+
 interface SimpleCaseLayoutProps {
   narrativeLabel: string;
   overview?: ReactNode;
@@ -278,14 +283,130 @@ export const SimpleCaseLayout = ({
     { key: 'correlations', label: 'Correlations', count: correlationCount, icon: SECTION_ICONS.correlations },
   ];
 
+  const [timelineWidth, setTimelineWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(TIMELINE_WIDTH_STORAGE_KEY);
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!Number.isNaN(parsed) && parsed >= MIN_TIMELINE_WIDTH && parsed <= MAX_TIMELINE_WIDTH) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return DEFAULT_TIMELINE_WIDTH;
+  });
+  const [isResizingTimeline, setIsResizingTimeline] = useState(false);
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizingTimeline(true);
+    const startX = e.clientX;
+    const startWidth = timelineWidth;
+
+    if (typeof document !== 'undefined') {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const maxAllowed = Math.min(MAX_TIMELINE_WIDTH, Math.max(MIN_TIMELINE_WIDTH, (window.innerWidth || 1200) * 0.45));
+      const nextWidth = Math.round(
+        Math.max(MIN_TIMELINE_WIDTH, Math.min(maxAllowed, startWidth + deltaX))
+      );
+      setTimelineWidth(nextWidth);
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      setIsResizingTimeline(false);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      if (typeof document !== 'undefined') {
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+      const deltaX = upEvent.clientX - startX;
+      const maxAllowed = Math.min(MAX_TIMELINE_WIDTH, Math.max(MIN_TIMELINE_WIDTH, (window.innerWidth || 1200) * 0.45));
+      const finalWidth = Math.round(
+        Math.max(MIN_TIMELINE_WIDTH, Math.min(maxAllowed, startWidth + deltaX))
+      );
+      try {
+        localStorage.setItem(TIMELINE_WIDTH_STORAGE_KEY, String(finalWidth));
+      } catch {}
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleTouchResizeStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    setIsResizingTimeline(true);
+    const startX = e.touches[0].clientX;
+    const startWidth = timelineWidth;
+
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      if (moveEvent.touches.length !== 1) return;
+      const deltaX = moveEvent.touches[0].clientX - startX;
+      const maxAllowed = Math.min(MAX_TIMELINE_WIDTH, Math.max(MIN_TIMELINE_WIDTH, (window.innerWidth || 1200) * 0.45));
+      const nextWidth = Math.round(
+        Math.max(MIN_TIMELINE_WIDTH, Math.min(maxAllowed, startWidth + deltaX))
+      );
+      setTimelineWidth(nextWidth);
+    };
+
+    const handleTouchEnd = (endEvent: TouchEvent) => {
+      setIsResizingTimeline(false);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      const clientX = endEvent.changedTouches[0]?.clientX ?? startX;
+      const deltaX = clientX - startX;
+      const maxAllowed = Math.min(MAX_TIMELINE_WIDTH, Math.max(MIN_TIMELINE_WIDTH, (window.innerWidth || 1200) * 0.45));
+      const finalWidth = Math.round(
+        Math.max(MIN_TIMELINE_WIDTH, Math.min(maxAllowed, startWidth + deltaX))
+      );
+      try {
+        localStorage.setItem(TIMELINE_WIDTH_STORAGE_KEY, String(finalWidth));
+      } catch {}
+    };
+
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleTouchEnd);
+  };
+
   const sectionSx = {
     scrollMarginTop: 88,
     pb: { xs: 4, md: 7 },
   } as const;
 
   return (
-    <Box ref={rootRef} sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(180px, 220px) minmax(0, 1fr)', lg: 'minmax(220px, 260px) minmax(0, 1fr) minmax(180px, 220px)' }, gap: { xs: 3, md: 3.625 }, alignItems: 'start' }}>
-      <Box ref={timelineColRef} sx={{ order: { xs: 2, md: 1 }, position: { md: 'sticky' }, top: { md: 24 }, minWidth: 0, height: { xs: 'auto', md: timelineHeight ? `${timelineHeight}px` : 'calc(100vh - 48px)' }, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box
+      ref={rootRef}
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: 'minmax(0, 1fr)',
+          md: `${timelineWidth}px minmax(0, 1fr)`,
+          lg: `${timelineWidth}px minmax(0, 1fr) minmax(180px, 220px)`,
+        },
+        gap: { xs: 3, md: 3.625 },
+        alignItems: 'start',
+      }}
+    >
+      <Box
+        ref={timelineColRef}
+        sx={{
+          order: { xs: 2, md: 1 },
+          position: { md: 'sticky' },
+          top: { md: 24 },
+          minWidth: 0,
+          height: { xs: 'auto', md: timelineHeight ? `${timelineHeight}px` : 'calc(100vh - 48px)' },
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'visible',
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexShrink: 0 }}>
           <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>
             Timeline
@@ -295,6 +416,48 @@ export const SimpleCaseLayout = ({
         <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {timeline}
         </Box>
+
+        {/* Draggable Divider Handle between Timeline and Central View */}
+        <Box
+          onMouseDown={handleResizeStart}
+          onTouchStart={handleTouchResizeStart}
+          onDoubleClick={() => {
+            setTimelineWidth(DEFAULT_TIMELINE_WIDTH);
+            try {
+              localStorage.setItem(TIMELINE_WIDTH_STORAGE_KEY, String(DEFAULT_TIMELINE_WIDTH));
+            } catch {}
+          }}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize timeline panel"
+          title="Drag to resize timeline, double-click to reset"
+          sx={{
+            display: { xs: 'none', md: 'block' },
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            right: { md: -22, lg: -22 },
+            width: 16,
+            cursor: 'col-resize',
+            zIndex: 10,
+            userSelect: 'none',
+            touchAction: 'none',
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 7,
+              width: 2,
+              borderRadius: 1,
+              bgcolor: isResizingTimeline ? 'hsl(var(--primary))' : 'transparent',
+              transition: 'background-color 0.15s ease',
+            },
+            '&:hover::after': {
+              bgcolor: isResizingTimeline ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.4)',
+            },
+          }}
+        />
       </Box>
 
       <Box sx={{ order: { xs: 1, md: 2 }, minWidth: 0, maxWidth: 820, width: '100%', mx: 'auto', pb: '200px' }}>

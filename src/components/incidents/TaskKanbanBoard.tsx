@@ -38,6 +38,8 @@ const getLane = (
   return openLanes[0] || laneKeys[0];
 };
 
+const TASK_HISTORY_DEDUP_WINDOW_MS = 5 * 60 * 1000;
+
 const applyLane = (
   task: IncidentTask & { _lane?: LaneKey },
   lane: LaneKey,
@@ -46,19 +48,39 @@ const applyLane = (
 ): IncidentTask & { _lane?: LaneKey } => {
   const previousLane = getLane(task, laneKeys);
   if (previousLane === lane) return task;
-  const historyEntry = {
-    from: previousLane,
-    to: lane,
-    at: Date.now(),
-    by: by || undefined,
-  };
-  const nextHistory = [...(task.statusHistory || []), historyEntry];
+  const now = Date.now();
+  const prevHistory = task.statusHistory || [];
+  const lastEntry = prevHistory.length > 0 ? prevHistory[prevHistory.length - 1] : null;
+  let nextHistory: typeof prevHistory;
+
+  if (lastEntry && now - (lastEntry.at || 0) <= TASK_HISTORY_DEDUP_WINDOW_MS) {
+    if (lane === lastEntry.from) {
+      // Reverted back to the state before the last transition within the dedup window
+      nextHistory = prevHistory.slice(0, -1);
+    } else {
+      // Transitioned to another lane within the window - merge the transition
+      nextHistory = [
+        ...prevHistory.slice(0, -1),
+        { ...lastEntry, to: lane, at: now, by: by || lastEntry.by },
+      ];
+    }
+  } else {
+    nextHistory = [
+      ...prevHistory,
+      {
+        from: previousLane,
+        to: lane,
+        at: now,
+        by: by || undefined,
+      },
+    ];
+  }
   if (lane === 'done') {
     return {
       ...task,
       _lane: 'done',
       completed: true,
-      completedAt: task.completedAt || Date.now(),
+      completedAt: task.completedAt || now,
       statusHistory: nextHistory,
     };
   }

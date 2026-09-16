@@ -144,7 +144,7 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
             sx={{
               fontWeight: 600,
               fontSize: '0.75rem',
-              color: verifiedAgent ? 'hsl(var(--primary))' : 'text.primary',
+              color: 'text.primary',
             }}
             title={username}
           >
@@ -163,10 +163,8 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
             sx={{
               width: 36,
               height: 36,
-              bgcolor: verifiedAgent
-                ? 'hsl(var(--primary) / 0.18)'
-                : 'hsl(var(--muted))',
-              color: verifiedAgent ? 'hsl(var(--primary))' : 'text.secondary',
+              bgcolor: 'hsl(var(--muted))',
+              color: 'text.secondary',
             }}
           >
             {verifiedAgent ? <AgentIcon size={18} /> : <PersonIcon size={18} />}

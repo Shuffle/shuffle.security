@@ -118,13 +118,20 @@ import { MentionText } from '@/components/incidents/MentionText';
 import CollapsibleContent from '@/components/incidents/CollapsibleContent';
 import { UserHoverCard, resolveUserAvatar } from '@/components/incidents/UserHoverCard';
 import { TaskKanbanBoard } from '@/components/incidents/TaskKanbanBoard';
-import { MentionInput } from '@/components/incidents/MentionInput';
-import { DeferredTextField, DeferredMentionInput, DebouncedMentionInput } from '@/components/incidents/DeferredTextField';
-import { MarkdownDescriptionEditor } from '@/components/incidents/MarkdownDescriptionEditor';
+import { DeferredTextField, DeferredMentionInput, DebouncedMentionInput, DebouncedMentionInputHandle } from '@/components/incidents/DeferredTextField';
 import { TaskDateTimePicker } from '@/components/incidents/TaskDateTimePicker';
 import { FileAttachments } from '@/components/incidents/FileAttachments';
 import { toast } from '@/lib/toast';
 import { isAIAssignee, deduplicateTasks, htmlToPlainText, decodeHtmlEntities, decodeIfBase64, deepMergeIncidents } from '@/lib/utils';
+import { MarkdownDescriptionEditor } from '@/components/incidents/MarkdownDescriptionEditor';
+import { MentionInput } from '@/components/incidents/MentionInput';
+import {
+  TimelineSeverityDropdown,
+  TimelineStatusDropdown,
+  TimelineAssigneeDropdown,
+  TimelineTagsEditor,
+  TimelineTlpDropdown,
+} from '@/components/incidents/TimelineAttributeComponents';
 import { useIncidentAgentRuns } from '@/hooks/useIncidentAgentRuns';
 import { useIncidentWorkflowRuns } from '@/hooks/useIncidentWorkflowRuns';
 import { useAgentNotifications } from '@/hooks/useNotifications';
@@ -299,9 +306,11 @@ const formatCompactTime = (timestamp: number): string => {
 const stepVerbLabel = (label: string, hasActor: boolean): string => {
   if (!hasActor) return label;
   // Attribute-change steps already read as a verb phrase and carry values
-  // whose casing matters ("Changed severity to Medium") — only lowercase the
-  // leading verb so the sentence reads "<user> changed severity to Medium".
-  if (/^Changed /.test(label)) return `${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+  // whose casing matters ("Changed severity") — only lowercase the
+  // leading verb so the sentence reads "<user> changed severity".
+  if (/^(Changed|Added|Removed|Updated|Resolved|Assigned|Unassigned) /.test(label)) {
+    return `${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+  }
   const map: Record<string, string> = {
     'Task created': 'created',
     'Task completed': 'completed',
@@ -1085,6 +1094,7 @@ const IncidentDetailPage = () => {
   });
   const [commentAttachments, setCommentAttachments] = useState<FileAttachment[]>([]);
   const commentFileInputRef = useRef<HTMLInputElement>(null);
+  const debouncedCommentInputRef = useRef<DebouncedMentionInputHandle>(null);
 
   // Locally added timeline entries (comments, agent asks) live here until the
   // backend echoes them back. A background poll or re-parse can return an
@@ -3159,16 +3169,7 @@ const IncidentDetailPage = () => {
     return [...fromNotifications, ...synthetic];
   }, [agentNotifications, id, agentRuns, allIncidentWorkflowRuns]);
 
-  // Simple view: keep the timeline scrolled to the newest entry at the bottom.
-  useEffect(() => {
-    const el = simpleFeedRef.current;
-    if (!el) return;
-    const park = () => { el.scrollTop = el.scrollHeight; };
-    park();
-    const raf = requestAnimationFrame(park);
-    const timer = setTimeout(park, 250);
-    return () => { cancelAnimationFrame(raf); clearTimeout(timer); };
-  }, [activeTab, revisions.length, commentActivity.length, agentRuns?.length]);
+
 
 
   const workflowOnlyRuns = useMemo(() => {
@@ -3275,6 +3276,70 @@ const IncidentDetailPage = () => {
       return r.execution_id === keepIngestId;
     });
   }, [allIncidentWorkflowRuns, agentRuns, agentRunsLoading, workflowRunsLoading]);
+
+  // Simple view: keep the timeline scrolled to the newest entry at the bottom,
+  // and autoscroll when new objects (workflows, agent runs, tasks, comments, etc.) are discovered.
+  useEffect(() => {
+    const el = simpleFeedRef.current;
+    if (!el) return;
+
+    let prevChildCount = el.children.length;
+    let prevScrollHeight = el.scrollHeight;
+
+    const park = (smooth = false) => {
+      try {
+        el.scrollTo({
+          top: el.scrollHeight,
+          behavior: smooth ? 'smooth' : 'auto',
+        });
+      } catch {
+        el.scrollTop = el.scrollHeight;
+      }
+    };
+
+    // Initial park at bottom on mount/tab change
+    park(false);
+    const raf = requestAnimationFrame(() => park(false));
+    const timer = setTimeout(() => park(false), 250);
+
+    // Watch for new DOM objects discovered or rendered in the feed
+    const observer = new MutationObserver((mutations) => {
+      let hasAddedNodes = false;
+      for (const m of mutations) {
+        if (m.addedNodes.length > 0) {
+          hasAddedNodes = true;
+          break;
+        }
+      }
+      const currentChildCount = el.children.length;
+      const currentScrollHeight = el.scrollHeight;
+
+      if (hasAddedNodes || currentChildCount > prevChildCount || currentScrollHeight > prevScrollHeight) {
+        prevChildCount = currentChildCount;
+        prevScrollHeight = currentScrollHeight;
+        requestAnimationFrame(() => park(true));
+      }
+    });
+
+    observer.observe(el, { childList: true, subtree: true });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [
+    activeTab,
+    revisions.length,
+    commentActivity.length,
+    activity.length,
+    agentRuns?.length,
+    workflowOnlyRuns.length,
+    allIncidentWorkflowRuns?.length,
+    tasks.length,
+    editedObservables.length,
+    correlations.length,
+  ]);
   const [selectedAgentRun, setSelectedAgentRun] = useState<AgentRun | null>(null);
   const [selectedWorkflowExecutionId, setSelectedWorkflowExecutionId] = useState<string | null>(null);
 
@@ -5107,6 +5172,10 @@ const IncidentDetailPage = () => {
     trackPendingActivity(commentActivity);
     setActivity(updatedActivity);
     setNewComment('');
+    debouncedCommentInputRef.current?.clear();
+    if (commentDraftKey) {
+      try { window.localStorage.removeItem(commentDraftKey); } catch { /* no-op */ }
+    }
     setCommentAttachments([]);
     setReplyingTo(null);
 
@@ -5681,10 +5750,13 @@ const IncidentDetailPage = () => {
     setNewTaskTitle('');
   };
 
+  const TIMELINE_DEDUP_WINDOW_MS = 5 * 60 * 1000;
+
   const handleToggleTask = (taskId: string) => {
     autoProgressStatus();
     const laneKeys = taskStatuses.map((s) => s.key);
     const defaultOpenLane = laneKeys.find((k) => k !== 'done') || laneKeys[0] || 'todo';
+    const now = Date.now();
     setTasks(tasks.map(task => {
       if (String(task.id) !== String(taskId) && task.title !== taskId) return task;
       const becomingDone = !task.completed;
@@ -5692,18 +5764,40 @@ const IncidentDetailPage = () => {
         ? 'done'
         : (task._lane && laneKeys.includes(task._lane) ? task._lane : defaultOpenLane);
       const nextLane = becomingDone ? 'done' : defaultOpenLane;
-      const historyEntry = {
-        from: previousLane,
-        to: nextLane,
-        at: Date.now(),
-        by: currentUsername || undefined,
-      };
+
+      const prevHistory = task.statusHistory || [];
+      const lastEntry = prevHistory.length > 0 ? prevHistory[prevHistory.length - 1] : null;
+      let nextHistory: typeof prevHistory;
+
+      if (lastEntry && now - (lastEntry.at || 0) <= TIMELINE_DEDUP_WINDOW_MS) {
+        if (nextLane === lastEntry.from) {
+          // Reverted back to the state before the last transition within the dedup window
+          nextHistory = prevHistory.slice(0, -1);
+        } else {
+          // Transitioned to another lane within the window - merge the transition
+          nextHistory = [
+            ...prevHistory.slice(0, -1),
+            { ...lastEntry, to: nextLane, at: now, by: currentUsername || lastEntry.by },
+          ];
+        }
+      } else {
+        nextHistory = [
+          ...prevHistory,
+          {
+            from: previousLane,
+            to: nextLane,
+            at: now,
+            by: currentUsername || undefined,
+          },
+        ];
+      }
+
       return {
         ...task,
         completed: becomingDone,
-        completedAt: becomingDone ? Date.now() : 0,
+        completedAt: becomingDone ? (task.completedAt || now) : 0,
         _lane: nextLane,
-        statusHistory: [...(task.statusHistory || []), historyEntry],
+        statusHistory: nextHistory,
       };
     }));
   };
@@ -6392,11 +6486,11 @@ const IncidentDetailPage = () => {
             {isSimple && showEnrichmentInlineCTA && renderEnrichmentInlineCTA(true)}
             <Box data-tour="incident-comment-input" sx={{ position: 'relative' }}>
               <DebouncedMentionInput
+                ref={debouncedCommentInputRef}
                 value={newComment}
                 onChangeDebounced={setNewComment}
                 onSubmitValue={(text) => {
                   if (text.trim() || commentAttachments.length > 0) {
-                    setNewComment(text);
                     handleAddComment(text);
                   }
                 }}
@@ -6446,7 +6540,13 @@ const IncidentDetailPage = () => {
               </Tooltip>
               <IconButton
                 size="small"
-                onClick={() => handleAddComment()}
+                onClick={() => {
+                  if (debouncedCommentInputRef.current) {
+                    debouncedCommentInputRef.current.submit();
+                  } else {
+                    handleAddComment();
+                  }
+                }}
                 disabled={!newComment.trim() && commentAttachments.length === 0}
                 sx={{
                   position: 'absolute',
@@ -6684,7 +6784,28 @@ const IncidentDetailPage = () => {
       | { type: 'agent'; timestamp: number; data: typeof agentRuns[number] }
       | { type: 'workflow-exec'; timestamp: number; data: typeof agentRuns[number] }
       | { type: 'manual'; timestamp: number; data: ActivityItem }
-      | { type: 'step'; timestamp: number; kind: StepKind; id: string; label: string; detail?: string; actor?: string; count?: number; corrCount?: number; corrObsKeys?: string[]; obsKeys?: string[]; obsType?: string; obsValue?: string; taskId?: string; taskStatusLabel?: string }
+      | {
+          type: 'step';
+          timestamp: number;
+          kind: StepKind;
+          id: string;
+          label: string;
+          detail?: string;
+          actor?: string;
+          count?: number;
+          corrCount?: number;
+          corrObsKeys?: string[];
+          obsKeys?: string[];
+          obsType?: string;
+          obsValue?: string;
+          taskId?: string;
+          taskStatusLabel?: string;
+          attrField?: string;
+          attrBefore?: any;
+          attrAfter?: any;
+          addedTags?: string[];
+          removedTags?: string[];
+        }
     ) & { isPreview?: boolean };
 
     const getItemFilterKey = (it: TimelineItem): TimelineFilterKey | null => {
@@ -6742,19 +6863,19 @@ const IncidentDetailPage = () => {
     // context (title, source, click-to-open email/description) regardless
     // of filter state.
     const revisionsFilterOn = isFilterActive('revisions');
-    revisions.forEach((rev, idx) => {
-      const isOldest = idx === revisions.length - 1;
+    
+    // ── Datastore revisions ───────────────────────────────────────────────
+    parsedRevisions.forEach((rev, idx) => {
+      if (!rev) return;
+      const isOldest = idx === parsedRevisions.length - 1;
       if (!revisionsFilterOn && !isOldest) return;
-      // For the "Incident created" item (the oldest revision), prefer the
-      // incident's true creation timestamp instead of the revision's `edited`
-      // field (see note above about comment ordering).
       const ts = isOldest && incident?.createdTs
         ? normalizeToMs(incident.createdTs)
-        : normalizeToMs(rev.edited ?? rev.created);
+        : normalizeToMs(revisions[idx]?.edited ?? revisions[idx]?.created);
       items.push({
         type: 'revision',
         timestamp: ts,
-        data: rev,
+        data: revisions[idx],
         idx,
         parsedCurrent: parsedRevisions[idx],
         parsedPrevious: idx < revisions.length - 1 ? parsedRevisions[idx + 1] : null,
@@ -6762,16 +6883,16 @@ const IncidentDetailPage = () => {
     });
 
     // ── Attribute-change steps ────────────────────────────────────────────
-    // Severity / status / assignee / title / TLP edits DO produce revisions,
+    // Severity / status / assignee / tags / title / TLP edits DO produce revisions,
     // but the raw "Changes" diff cards are off by default so those edits were
-    // invisible in the timeline. Derive a readable sentence step per changed
-    // attribute from consecutive revisions. Only when the Changes filter is
-    // off, otherwise the full diff card already covers it.
+    // invisible in the timeline. Derive a readable step per changed
+    // attribute from consecutive revisions with native platform components.
     if (!revisionsFilterOn && revisions.length > 1) {
       const ATTRIBUTE_LABELS: Record<string, string> = {
         severity: 'severity',
         status: 'status',
         assignee: 'assignee',
+        labels: 'tags',
         title: 'title',
         tlp: 'TLP',
         description: 'description',
@@ -6786,51 +6907,145 @@ const IncidentDetailPage = () => {
       const attributeValue = (rev: any, field: string): any => {
         if (!rev) return undefined;
         if (field === 'description') return rev.message ?? rev.desc ?? rev.description;
+        if (field === 'tlp') return rev.tlp ?? rev.metadata?.extensions?.custom_attributes?.tlp;
+        if (field === 'assignee') return rev.assignee ?? rev.metadata?.extensions?.custom_attributes?.assignee;
+        if (field === 'labels') return rev.types ?? rev.labels ?? rev.metadata?.extensions?.custom_attributes?.types;
         return rev[field];
       };
-      for (let idx = 0; idx < revisions.length - 1; idx++) {
+      type AttrRawChange = {
+        field: string;
+        prevRaw: any;
+        currRaw: any;
+        ts: number;
+        actor?: string;
+        idx: number;
+        fieldIdx: number;
+      };
+      const changesByField = new Map<string, AttrRawChange[]>();
+
+      // Walk oldest → newest so changes are in chronological order
+      for (let idx = revisions.length - 2; idx >= 0; idx--) {
         const current = parsedRevisions[idx];
         const previous = parsedRevisions[idx + 1];
         if (!current || !previous) continue;
         const ts = normalizeToMs(revisions[idx]?.edited ?? revisions[idx]?.created);
         if (!(ts > 0)) continue;
+        const actor = revisions[idx]?.updated_by ? String(revisions[idx].updated_by) : undefined;
+
         Object.keys(ATTRIBUTE_LABELS).forEach((field, fieldIdx) => {
           const prevRaw = attributeValue(previous, field);
           const currRaw = attributeValue(current, field);
           if (prevRaw === undefined && currRaw === undefined) return;
-          const before = attributeText(prevRaw);
-          const after = attributeText(currRaw);
-          if (before === after) return;
-          // Long free text (description) reads better as "updated" + preview
-          // than as a "to <wall of text>" sentence. Title edits read best as
-          // "Changed title" with the new title on the detail line.
-          const isLongText = field === 'description';
-          const isTitle = field === 'title';
-          let label = `Changed ${ATTRIBUTE_LABELS[field]} to ${after}`;
-          let detail: string | undefined = `from ${before}`;
 
-          if (isLongText) {
-            label = 'Updated the description';
-            detail = after;
-          } else if (isTitle) {
+          const list = changesByField.get(field) || [];
+          list.push({ field, prevRaw, currRaw, ts, actor, idx, fieldIdx });
+          changesByField.set(field, list);
+        });
+      }
+
+      changesByField.forEach((changes, field) => {
+        // Cluster changes within TIMELINE_DEDUP_WINDOW_MS
+        const clusters: AttrRawChange[][] = [];
+        let currentCluster: AttrRawChange[] = [];
+
+        changes.forEach((ch) => {
+          if (currentCluster.length === 0) {
+            currentCluster.push(ch);
+          } else {
+            const prev = currentCluster[currentCluster.length - 1];
+            if (ch.ts - prev.ts <= TIMELINE_DEDUP_WINDOW_MS) {
+              currentCluster.push(ch);
+            } else {
+              clusters.push(currentCluster);
+              currentCluster = [ch];
+            }
+          }
+        });
+        if (currentCluster.length > 0) {
+          clusters.push(currentCluster);
+        }
+
+        clusters.forEach((cluster) => {
+          const initialPrev = cluster[0].prevRaw;
+          const finalCurr = cluster[cluster.length - 1].currRaw;
+          const lastEntry = cluster[cluster.length - 1];
+
+          // Dedicated handling for tags (labels) array diffing
+          if (field === 'labels') {
+            const normalizeTags = (val: any): string[] => {
+              if (Array.isArray(val)) return val.map(String).map((s) => s.trim()).filter(Boolean);
+              if (typeof val === 'string' && val.trim()) return val.split(',').map((s) => s.trim()).filter(Boolean);
+              return [];
+            };
+            const initialTags = normalizeTags(initialPrev);
+            const finalTags = normalizeTags(finalCurr);
+            const addedTags = finalTags.filter((t) => !initialTags.includes(t));
+            const removedTags = initialTags.filter((t) => !finalTags.includes(t));
+            if (addedTags.length === 0 && removedTags.length === 0) return;
+
+            let label = 'Changed tags';
+            if (addedTags.length > 0 && removedTags.length === 0) {
+              label = addedTags.length === 1 ? 'Added tag' : 'Added tags';
+            } else if (removedTags.length > 0 && addedTags.length === 0) {
+              label = removedTags.length === 1 ? 'Removed tag' : 'Removed tags';
+            }
+
+            items.push({
+              type: 'step',
+              kind: 'attribute-changed',
+              timestamp: lastEntry.ts + lastEntry.fieldIdx,
+              id: `step-attr-${lastEntry.idx}-${field}`,
+              label,
+              actor: lastEntry.actor,
+              attrField: 'labels',
+              attrBefore: initialTags,
+              attrAfter: finalTags,
+              addedTags,
+              removedTags,
+            });
+            return;
+          }
+
+          const before = attributeText(initialPrev);
+          const after = attributeText(finalCurr);
+          if (before === after) return;
+
+          let label = `Changed ${ATTRIBUTE_LABELS[field]}`;
+          let detail: string | undefined = after;
+
+          if (field === 'severity') {
+            label = 'Changed severity';
+          } else if (field === 'status') {
+            const isResolved = String(finalCurr).toLowerCase() === 'resolved';
+            label = isResolved ? 'Resolved incident' : 'Changed status';
+          } else if (field === 'assignee') {
+            const isUnassigned = !finalCurr || finalCurr === 'none';
+            label = isUnassigned ? 'Unassigned incident' : 'Changed assignment';
+          } else if (field === 'tlp') {
+            label = 'Changed TLP';
+          } else if (field === 'title') {
             label = 'Changed title';
             detail = after;
-          } else if (before === 'none' || !before) {
-            detail = undefined;
+          } else if (field === 'description') {
+            label = 'Updated description';
+            detail = after;
           }
 
           items.push({
             type: 'step',
             kind: 'attribute-changed',
             // Stagger so multiple attributes changed in one save keep order.
-            timestamp: ts + fieldIdx,
-            id: `step-attr-${idx}-${field}`,
+            timestamp: lastEntry.ts + lastEntry.fieldIdx,
+            id: `step-attr-${lastEntry.idx}-${field}`,
             label,
             detail,
-            actor: revisions[idx]?.updated_by ? String(revisions[idx].updated_by) : undefined,
+            actor: lastEntry.actor,
+            attrField: field,
+            attrBefore: initialPrev,
+            attrAfter: finalCurr,
           });
         });
-      }
+      });
     }
 
     // Synthetic "Incident created" step — fallback only when there are NO
@@ -6967,29 +7182,98 @@ const IncidentDetailPage = () => {
             taskStatusLabel: currentStatusLabel,
           });
         }
-        // Status transitions captured in `statusHistory` (every drag between
-        // kanban columns appends an entry). Skip the trivial → Done case
-        // because the dedicated 'task-completed' step already covers it.
-        (t.statusHistory || []).forEach((entry, hIdx) => {
-          if (!entry?.at) return;
-          if (entry.to === 'done') return;
-          const ts = normalizeToMs(entry.at);
-          if (ts <= 0) return;
-          items.push({
-            type: 'step',
-            kind: 'task-status-changed',
-            timestamp: ts,
-            id: `step-task-status-${t.id}-${hIdx}`,
-            label: 'Task moved',
-            detail: `${t.title} · ${laneLabel(entry.from)} → ${laneLabel(entry.to)}`,
-            actor: entry.by || undefined,
-            taskId: String(t.id),
-            taskStatusLabel: currentStatusLabel,
-          });
+        // Group and deduplicate status transitions on the same task.
+        // If a task undergoes rapid transitions within TIMELINE_DEDUP_WINDOW_MS
+        // (e.g. toggled done -> undone -> done -> undone repeatedly, or dragged
+        // between columns quickly), cluster them and only emit the net/final change.
+        const rawHistory = (t.statusHistory || [])
+          .map((entry, hIdx) => ({
+            from: entry.from,
+            to: entry.to,
+            at: normalizeToMs(entry.at),
+            by: entry.by,
+            hIdx,
+          }))
+          .filter((e) => e.at > 0 && e.from && e.to);
+
+        // Sort ascending by timestamp
+        rawHistory.sort((a, b) => a.at - b.at);
+
+        const clusters: Array<typeof rawHistory> = [];
+        let curCluster: typeof rawHistory = [];
+
+        rawHistory.forEach((entry) => {
+          if (curCluster.length === 0) {
+            curCluster.push(entry);
+          } else {
+            const prev = curCluster[curCluster.length - 1];
+            if (entry.at - prev.at <= TIMELINE_DEDUP_WINDOW_MS) {
+              curCluster.push(entry);
+            } else {
+              clusters.push(curCluster);
+              curCluster = [entry];
+            }
+          }
         });
-        if (t.completed) {
+        if (curCluster.length > 0) {
+          clusters.push(curCluster);
+        }
+
+        let emittedCompletion = false;
+
+        clusters.forEach((cluster) => {
+          const startLane = cluster[0].from;
+          const endLane = cluster[cluster.length - 1].to;
+          const lastEntry = cluster[cluster.length - 1];
+
+          // If the net lane is unchanged across the burst (e.g. done -> undone -> done -> undone),
+          // nothing actually changed overall, so emit 0 steps.
+          if (startLane === endLane) return;
+
+          if (endLane === 'done') {
+            emittedCompletion = true;
+            items.push({
+              type: 'step',
+              kind: 'task-completed',
+              timestamp: lastEntry.at,
+              id: `step-task-completed-${t.id}-${lastEntry.hIdx}`,
+              label: 'Task completed',
+              detail: t.title,
+              actor: lastEntry.by || t.assignee || undefined,
+              taskId: String(t.id),
+              taskStatusLabel: currentStatusLabel,
+            });
+          } else if (startLane === 'done') {
+            items.push({
+              type: 'step',
+              kind: 'task-status-changed',
+              timestamp: lastEntry.at,
+              id: `step-task-status-${t.id}-${lastEntry.hIdx}`,
+              label: 'Task reopened',
+              detail: `${t.title} · Done → ${laneLabel(endLane)}`,
+              actor: lastEntry.by || undefined,
+              taskId: String(t.id),
+              taskStatusLabel: currentStatusLabel,
+            });
+          } else {
+            items.push({
+              type: 'step',
+              kind: 'task-status-changed',
+              timestamp: lastEntry.at,
+              id: `step-task-status-${t.id}-${lastEntry.hIdx}`,
+              label: 'Task moved',
+              detail: `${t.title} · ${laneLabel(startLane)} → ${laneLabel(endLane)}`,
+              actor: lastEntry.by || undefined,
+              taskId: String(t.id),
+              taskStatusLabel: currentStatusLabel,
+            });
+          }
+        });
+
+        // Fallback: If task is marked completed but no completed step was emitted
+        // from history (e.g. legacy tasks with no statusHistory or imported completed tasks).
+        if (t.completed && !emittedCompletion) {
           const completedTs = normalizeToMs(t.completedAt)
-            || (t.statusHistory || []).slice().reverse().find((h) => h?.to === 'done')?.at
             || normalizeToMs(incident?.editedTs)
             || createdTs;
           if (completedTs > 0) {
@@ -7000,9 +7284,7 @@ const IncidentDetailPage = () => {
               id: `step-task-completed-${t.id}`,
               label: 'Task completed',
               detail: t.title,
-              actor: (t.statusHistory || []).slice().reverse().find((h) => h?.to === 'done')?.by
-                || t.assignee
-                || undefined,
+              actor: t.assignee || undefined,
               taskId: String(t.id),
               taskStatusLabel: currentStatusLabel,
             });
@@ -7310,6 +7592,68 @@ const IncidentDetailPage = () => {
         }
 
         selected.forEach((p) => items.push(p));
+      }
+    }
+
+    // ── Deduplicate rapid changes on the same entity ────────────────────────
+    // If the same task or incident attribute was changed multiple times within
+    // TIMELINE_DEDUP_WINDOW_MS, only the latest relevant change in that window
+    // should persist, discarding any intermediate noise.
+    {
+      const sortedByTs = [...items].sort((a, b) => a.timestamp - b.timestamp);
+      const toRemove = new Set<string>();
+
+      type StepTimelineItem = Extract<TimelineItem, { type: 'step' }>;
+      const groups = new Map<string, StepTimelineItem[]>();
+      sortedByTs.forEach((it) => {
+        if (it.type !== 'step') return;
+        let key: string | null = null;
+        if (it.taskId && (it.kind === 'task-status-changed' || it.kind === 'task-completed')) {
+          key = `task:${it.taskId}`;
+        } else if (it.kind === 'attribute-changed') {
+          const match = it.id.match(/^step-attr-\d+-(.+)$/);
+          if (match) key = `attr:${match[1]}`;
+        }
+        if (!key) return;
+        const list = groups.get(key) || [];
+        list.push(it);
+        groups.set(key, list);
+      });
+
+      groups.forEach((group) => {
+        if (group.length <= 1) return;
+        let curCluster: typeof group = [];
+        group.forEach((item) => {
+          if (curCluster.length === 0) {
+            curCluster.push(item);
+          } else {
+            const prev = curCluster[curCluster.length - 1];
+            if (item.timestamp - prev.timestamp <= TIMELINE_DEDUP_WINDOW_MS) {
+              curCluster.push(item);
+            } else {
+              if (curCluster.length > 1) {
+                for (let i = 0; i < curCluster.length - 1; i++) {
+                  toRemove.add(curCluster[i].id);
+                }
+              }
+              curCluster = [item];
+            }
+          }
+        });
+        if (curCluster.length > 1) {
+          for (let i = 0; i < curCluster.length - 1; i++) {
+            toRemove.add(curCluster[i].id);
+          }
+        }
+      });
+
+      if (toRemove.size > 0) {
+        for (let i = items.length - 1; i >= 0; i--) {
+          const it = items[i];
+          if (it.type === 'step' && toRemove.has(it.id)) {
+            items.splice(i, 1);
+          }
+        }
       }
     }
 
@@ -8660,6 +9004,76 @@ const IncidentDetailPage = () => {
                   {item.obsValue}
                 </Typography>
               </Box>
+            ) : item.kind === 'attribute-changed' ? (
+              <Box sx={{ width: '100%', minWidth: 0, pl: 2.25, mt: 0.25 }}>
+                {item.attrField === 'severity' ? (
+                  <TimelineSeverityDropdown
+                    value={String(item.attrAfter || 'medium')}
+                    onChange={(newSev) => {
+                      autoProgressStatus();
+                      setEditedSeverity(newSev);
+                    }}
+                    disabled={isPublicView}
+                  />
+                ) : item.attrField === 'status' ? (
+                  <TimelineStatusDropdown
+                    value={String(item.attrAfter || 'new')}
+                    onChange={(newStatus) => {
+                      setEditedStatus(newStatus);
+                    }}
+                    onResolveRequest={() => setShowResolveDialog(true)}
+                    disabled={isPublicView}
+                  />
+                ) : item.attrField === 'labels' ? (
+                  <TimelineTagsEditor
+                    tags={Array.isArray(item.attrAfter) ? item.attrAfter : []}
+                    addedTags={item.addedTags}
+                    removedTags={item.removedTags}
+                    onAddTag={(tag) => {
+                      autoProgressStatus();
+                      if (!editedLabels.includes(tag)) {
+                        setEditedLabels([...editedLabels, tag]);
+                      }
+                    }}
+                    onDeleteTag={(tag) => {
+                      autoProgressStatus();
+                      setEditedLabels(editedLabels.filter((t) => t !== tag));
+                    }}
+                    disabled={isPublicView}
+                  />
+                ) : item.attrField === 'assignee' ? (
+                  <TimelineAssigneeDropdown
+                    value={String(item.attrAfter || '')}
+                    onChange={(newAssignee) => {
+                      autoProgressStatus();
+                      setEditedAssignee(newAssignee);
+                    }}
+                    disabled={isPublicView}
+                  />
+                ) : item.attrField === 'tlp' ? (
+                  <TimelineTlpDropdown
+                    value={String(item.attrAfter || editedTlp || 'TLP:AMBER')}
+                    onChange={(newTlp) => {
+                      autoProgressStatus();
+                      setEditedTlp(newTlp);
+                    }}
+                    disabled={isPublicView}
+                  />
+                ) : (
+                  <Typography
+                    sx={{
+                      fontSize: '0.75rem',
+                      color: isIocPill ? 'hsl(var(--destructive))' : 'hsl(var(--foreground))',
+                      lineHeight: 1.4,
+                      minWidth: 0,
+                      ...timelineClampSingleLineSx,
+                    }}
+                    title={item.detail || String(item.attrAfter || '')}
+                  >
+                    {item.detail || String(item.attrAfter || '')}
+                  </Typography>
+                )}
+              </Box>
             ) : item.detail ? (
               item.taskId && (item.kind === 'task-created' || item.kind === 'task-completed' || item.kind === 'task-status-changed') ? (
                 <Box
@@ -8774,7 +9188,7 @@ const IncidentDetailPage = () => {
             </Box>
             {item.label && item.kind !== 'observable-added' && (
               <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: pillColor, flexShrink: 1, minWidth: 0, ...timelineClampSingleLineSx }}>
-                {item.label}
+                {stepVerbLabel(item.label, !!item.actor)}
               </Typography>
             )}
             {previewBadge}
@@ -8859,6 +9273,77 @@ const IncidentDetailPage = () => {
                   {item.obsValue}
                 </Typography>
               </>
+            ) : item.kind === 'attribute-changed' ? (
+              item.attrField === 'severity' ? (
+                <TimelineSeverityDropdown
+                  value={String(item.attrAfter || 'medium')}
+                  onChange={(newSev) => {
+                    autoProgressStatus();
+                    setEditedSeverity(newSev);
+                  }}
+                  disabled={isPublicView}
+                />
+              ) : item.attrField === 'status' ? (
+                <TimelineStatusDropdown
+                  value={String(item.attrAfter || 'new')}
+                  onChange={(newStatus) => {
+                    setEditedStatus(newStatus);
+                  }}
+                  onResolveRequest={() => setShowResolveDialog(true)}
+                  disabled={isPublicView}
+                />
+              ) : item.attrField === 'labels' ? (
+                <TimelineTagsEditor
+                  tags={Array.isArray(item.attrAfter) ? item.attrAfter : []}
+                  addedTags={item.addedTags}
+                  removedTags={item.removedTags}
+                  onAddTag={(tag) => {
+                    autoProgressStatus();
+                    if (!editedLabels.includes(tag)) {
+                      setEditedLabels([...editedLabels, tag]);
+                    }
+                  }}
+                  onDeleteTag={(tag) => {
+                    autoProgressStatus();
+                    setEditedLabels(editedLabels.filter((t) => t !== tag));
+                  }}
+                  disabled={isPublicView}
+                />
+              ) : item.attrField === 'assignee' ? (
+                <TimelineAssigneeDropdown
+                  value={String(item.attrAfter || '')}
+                  onChange={(newAssignee) => {
+                    autoProgressStatus();
+                    setEditedAssignee(newAssignee);
+                  }}
+                  disabled={isPublicView}
+                />
+              ) : item.attrField === 'tlp' ? (
+                <TimelineTlpDropdown
+                  value={String(item.attrAfter || editedTlp || 'TLP:AMBER')}
+                  onChange={(newTlp) => {
+                    autoProgressStatus();
+                    setEditedTlp(newTlp);
+                  }}
+                  disabled={isPublicView}
+                />
+              ) : (
+                item.detail && (
+                  <Typography
+                    sx={{
+                      fontSize: '0.7rem',
+                      color: isIocPill ? 'hsl(var(--destructive))' : 'text.secondary',
+                      lineHeight: 1.4,
+                      minWidth: 0,
+                      flex: '1 1 auto',
+                      ...timelineClampSingleLineSx,
+                    }}
+                    title={item.detail}
+                  >
+                    {item.detail}
+                  </Typography>
+                )
+              )
             ) : item.detail && (
               <Typography
                 sx={{
@@ -8973,11 +9458,21 @@ const IncidentDetailPage = () => {
       const timeRemaining = Math.max(0, Math.ceil((5 * 60 * 1000 - messageAge) / 60000));
 
       // Status activities are system-generated resolution events.
-      // Rendered with a severity-colored checkmark next to the title and
-      // generous spacing so closure stands out in the timeline.
+      // Rendered with native resolution status dropdown and details.
       if (isStatusActivity) {
         const currentSeverity = (editedSeverity || incident?.severity || 'medium').toLowerCase();
         const sevColor = severityColors[currentSeverity] || `hsl(var(--severity-${currentSeverity}, var(--severity-medium)))`;
+
+        const contentRaw = decodeHtmlEntities(actItem.content || '');
+        let resReason: string | undefined;
+        let resNotes: string | undefined;
+        const resMatch = contentRaw.match(/^Resolved:\s*([^-]+)(?:\s*-\s*(.*))?$/i);
+        if (resMatch) {
+          resReason = resMatch[1]?.trim();
+          resNotes = resMatch[2]?.trim();
+        } else if (contentRaw) {
+          resNotes = contentRaw;
+        }
 
         if (isSimple) {
           return (
@@ -9045,9 +9540,16 @@ const IncidentDetailPage = () => {
                   {replyButtonCompact}
                 </Box>
               </Box>
-              <Typography sx={{ fontSize: '0.78rem', color: 'hsl(var(--foreground))', mt: 0.5, pl: 0, lineHeight: 1.45, ...timelineClampSingleLineSx }}>
-                {decodeHtmlEntities(actItem.content || '')}
-              </Typography>
+              <Box sx={{ mt: 0.5, pl: 0 }}>
+                <TimelineStatusDropdown
+                  value="resolved"
+                  onChange={(newStatus) => setEditedStatus(newStatus)}
+                  onResolveRequest={() => setShowResolveDialog(true)}
+                  resolutionReason={resReason}
+                  resolutionNotes={resNotes}
+                  disabled={isPublicView}
+                />
+              </Box>
             </Box>
           );
         }
@@ -9120,9 +9622,16 @@ const IncidentDetailPage = () => {
                   {replyButtonCompact}
                 </Box>
               </Box>
-              <Typography sx={{ fontSize: '0.78rem', color: 'hsl(var(--foreground))', mt: 0.25, ...timelineClampSingleLineSx }}>
-                {decodeHtmlEntities(actItem.content || '')}
-              </Typography>
+              <Box sx={{ mt: 0.5 }}>
+                <TimelineStatusDropdown
+                  value="resolved"
+                  onChange={(newStatus) => setEditedStatus(newStatus)}
+                  onResolveRequest={() => setShowResolveDialog(true)}
+                  resolutionReason={resReason}
+                  resolutionNotes={resNotes}
+                  disabled={isPublicView}
+                />
+              </Box>
             </Box>
           </Box>
         );
@@ -9152,11 +9661,9 @@ const IncidentDetailPage = () => {
               flexShrink: 0,
               bgcolor: isDeleted
                 ? 'hsl(var(--border-subtle))'
-                : avatarInfo.isAgent
-                  ? 'hsl(var(--primary) / 0.18)'
-                  : isSimple
-                    ? 'hsl(var(--muted) / 0.6)'
-                    : actItem.type === 'comment' ? 'rgba(255, 102, 0, 0.2)' : 'rgba(255,255,255,0.08)',
+                : isSimple
+                  ? 'hsl(var(--muted) / 0.6)'
+                  : actItem.type === 'comment' ? 'rgba(255, 102, 0, 0.2)' : 'rgba(255,255,255,0.08)',
             }}
           >
             {getActivityIcon(actItem.type)}

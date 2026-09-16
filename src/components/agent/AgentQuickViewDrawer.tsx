@@ -276,14 +276,13 @@ const AgentQuickViewDrawer = ({ open, onClose, item, entityBasePath, onApprove, 
   const [isConfiguring, setIsConfiguring] = useState(false);
   const [modifiedAction, setModifiedAction] = useState('');
   const [questionAnswers, setQuestionAnswers] = useState<Record<number, string>>({});
+  const drawerZIndex = useDrawerLayer(open && Boolean(item));
 
   if (!item) return null;
 
   const data = item.type === 'notification'
     ? buildFromNotification(item.notification, entityBasePath)
     : buildFromRun(item.run, entityBasePath);
-
-  const drawerZIndex = useDrawerLayer(open);
 
   const handleClose = () => {
     setIsConfiguring(false);

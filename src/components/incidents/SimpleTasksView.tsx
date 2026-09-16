@@ -18,6 +18,7 @@ import { TaskAssigneeChip } from "./TaskAssigneeChip";
 import { taskCategories, type IncidentTask } from "@/config/ocsfIncidentSchema";
 import { isAIAssignee } from "@/lib/utils";
 import { openAgentDrawer } from "@/lib/agentDrawer";
+import { TaskAiAssignButton } from "./TaskAiAssignButton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -119,8 +120,9 @@ export const SimpleTasksView = ({
   };
 
   const handleAssignAi = (task: IncidentTask, reRun: boolean = false) => {
-    if (!onAssignAi || !task || !task.id) return;
-    const taskId = String(task.id);
+    if (!onAssignAi || !task) return;
+    const taskId = String(task.id || "").trim();
+    if (!taskId) return;
     if (!assigningTaskIds) {
       setLocalAssigningIds((prev) => ({ ...prev, [taskId]: true }));
       setTimeout(() => {
@@ -332,83 +334,21 @@ export const SimpleTasksView = ({
                       </Box>
 
                       {/* Assign AI Button */}
-                      {!readOnly && onAssignAi && (() => {
-                        const isAssigning = Boolean(
-                          task.id &&
-                            (assigningTaskIds
-                              ? assigningTaskIds[task.id]
-                              : localAssigningIds[task.id]),
-                        );
-                        const isAssigned = isAIAssignee(task.assignee);
-                        return (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            disabled={isAssigning}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isAssigned) {
-                                openAgentDrawer("run", {
-                                  defaultInput: task.aiPrompt,
-                                  taskId: task.id,
-                                  incidentId,
-                                });
-                              } else {
-                                handleAssignAi(task);
-                              }
-                            }}
-                            title={
-                              isAssigned
-                                ? "Assigned to AI Agent. Click to view run in Agent Drawer."
-                                : "Assign to AI Agent"
-                            }
-                            aria-label={isAssigned ? "Assigned AI" : "Assign AI"}
-                            className="task-hover-actions"
-                            sx={{
-                              fontSize: "0.7rem",
-                              fontWeight: 600,
-                              lineHeight: 1,
-                              textTransform: "none",
-                              py: 0.2,
-                              px: 0.8,
-                              minHeight: 24,
-                              height: 24,
-                              borderRadius: 1,
-                              borderColor: isAssigned
-                                ? "hsl(var(--primary) / 0.4)"
-                                : "hsl(var(--border))",
-                              color: isAssigned
-                                ? "hsl(var(--primary))"
-                                : "hsl(var(--foreground))",
-                              bgcolor: isAssigned
-                                ? "hsl(var(--primary) / 0.08)"
-                                : "transparent",
-                              opacity: isAssigning || isAssigned ? 1 : { xs: 1, md: 0 },
-                              transition: "opacity 0.15s ease",
-                              "&:hover": {
-                                borderColor: "hsl(var(--primary))",
-                                bgcolor: "hsl(var(--primary) / 0.12)",
-                              },
-                              "&.Mui-disabled": {
-                                opacity: 0.7,
-                                borderColor: "hsl(var(--border))",
-                                color: "hsl(var(--muted-foreground))",
-                              },
-                            }}
-                          >
-                            {isAssigning ? (
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                                <CircularProgress size={10} color="inherit" thickness={5} />
-                                <span>Assigning...</span>
-                              </Box>
-                            ) : isAssigned ? (
-                              "Assigned AI"
-                            ) : (
-                              "Assign AI"
-                            )}
-                          </Button>
-                        );
-                      })()}
+                      {!readOnly && onAssignAi && (
+                        <TaskAiAssignButton
+                          task={task}
+                          incidentId={incidentId}
+                          isAssigning={Boolean(
+                            task.id &&
+                              (assigningTaskIds
+                                ? assigningTaskIds[task.id]
+                                : localAssigningIds[task.id]),
+                          )}
+                          readOnly={readOnly}
+                          onAssignAi={handleAssignAi}
+                          className="task-hover-actions"
+                        />
+                      )}
 
                       {/* Hover Actions: Delete */}
                       {!readOnly && onDeleteTask && (
@@ -513,9 +453,13 @@ export const SimpleTasksView = ({
                                     fontWeight: 500,
                                   }}
                                 >
-                                  {task.aiStatus === "running"
-                                    ? "Running"
-                                    : "Assigned"}
+                                  {task.aiStatus === "completed" || task.completed
+                                    ? "Handled"
+                                    : task.aiStatus === "failed"
+                                      ? "Failed"
+                                      : task.aiStatus === "running"
+                                        ? "Running"
+                                        : "Assigned"}
                                 </Typography>
                               </Box>
                               {task.aiRunAt ? (

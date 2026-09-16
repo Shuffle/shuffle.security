@@ -4994,13 +4994,8 @@ const IncidentDetailPage = () => {
             customAttrs?.tasks ||
             (parsed.rawOCSF as any)?.tasks ||
             [];
-          // Ensure all tasks have unique IDs (but don't filter duplicates - just normalize IDs)
-          const normalizedTasks = loadedTasks.map(
-            (task: IncidentTask, index: number) => ({
-              ...task,
-              id: task.id || `task-${Date.now()}-${index}`,
-            }),
-          );
+          // Ensure all tasks have unique IDs (deduplicating collisions and normalizing missing IDs)
+          const normalizedTasks = ensureTaskIds<IncidentTask>(loadedTasks);
           setTasks(normalizedTasks);
           // Snapshot the normalized values so auto-save won't fire on load
           // Pre-stringify here (once) so auto-save comparisons are cheap
@@ -5381,12 +5376,7 @@ const IncidentDetailPage = () => {
         setEditedLabels(reParsed.labels || []);
         setActivity(mergePendingActivity(reParsed.activity || []));
         const loadedTasks = reParsed.tasks || [];
-        const normalizedTasks = loadedTasks.map(
-          (task: IncidentTask, index: number) => ({
-            ...task,
-            id: task.id || `task-${Date.now()}-${index}`,
-          }),
-        );
+        const normalizedTasks = ensureTaskIds<IncidentTask>(loadedTasks);
         setTasks(normalizedTasks);
         // Update initial snapshot so auto-save doesn't fire from merge
         initialValuesRef.current = {
@@ -6525,10 +6515,11 @@ const IncidentDetailPage = () => {
                 assignee: editedAssignee.trim() || "", // Sync metadata assignee with top-level
                 customFields: editedCustomFields,
                 stakeholders: editedStakeholders,
-                // Mirror observables here — the loader prefers this path first,
+                // Mirror observables and tasks here — the loader prefers this path first,
                 // so a stale legacy value would otherwise win over the
                 // top-level edit.
                 observables: editedObservables,
+                tasks: tasks,
               },
             },
           },
@@ -7905,10 +7896,12 @@ const IncidentDetailPage = () => {
     const defaultOpenLane =
       laneKeys.find((k) => k !== "done") || laneKeys[0] || "todo";
     const now = Date.now();
+    let toggledCount = 0;
     setTasks(
       tasks.map((task) => {
-        if (String(task.id) !== String(taskId) && task.title !== taskId)
-          return task;
+        const matches = String(task.id) === String(taskId) || (task.title === taskId && !task.id);
+        if (toggledCount > 0 || !matches) return task;
+        toggledCount++;
         const becomingDone = !task.completed;
         const previousLane = task.completed
           ? "done"
@@ -7957,6 +7950,8 @@ const IncidentDetailPage = () => {
           ...task,
           completed: becomingDone,
           completedAt: becomingDone ? task.completedAt || now : 0,
+          aiWorking: becomingDone ? false : task.aiWorking,
+          aiStatus: becomingDone && isAIAssignee(task.assignee) ? "completed" : task.aiStatus,
           _lane: nextLane,
           statusHistory: nextHistory,
         };
@@ -7965,14 +7960,17 @@ const IncidentDetailPage = () => {
   };
 
   const handleUpdateTaskAssignee = (taskId: string, assignee: string) => {
+    let updated = false;
     setTasks(
       tasks.map((task) => {
-        if (task.id === taskId) {
+        if (!updated && (String(task.id) === String(taskId) || (task.title === taskId && !task.id))) {
+          updated = true;
           const isAi = isAIAssignee(assignee);
           return {
             ...task,
             assignee,
             aiWorking: isAi ? task.aiWorking : false,
+            aiStatus: isAi ? task.aiStatus : undefined,
           };
         }
         return task;
@@ -8080,23 +8078,27 @@ const IncidentDetailPage = () => {
         : `Please automatically handle and resolve the following task for incident ${incidentRef} ("${incidentTitle}"):\n\nTask: ${taskTitle}${taskDesc}\n\nPlease investigate, take any necessary actions, and report the results.`;
 
     // 2. Assign task to AI Agent and record assignment history & execution state
+    // Strictly one-by-one: ensure at most ONE single task can ever be mutated per invocation
+    let assignedCount = 0;
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id && String(t.id) === targetTaskId
-          ? {
-              ...t,
-              assignee: "AI Agent",
-              aiWorking: true,
-              aiStatus: "running",
-              aiRunAt: now,
-              aiPrompt: prompt,
-              assignHistory: [
-                ...(t.assignHistory || []),
-                { assignee: "AI Agent", at: now, by: actor },
-              ],
-            }
-          : t,
-      ),
+      prev.map((t) => {
+        if (assignedCount === 0 && t.id && String(t.id) === targetTaskId) {
+          assignedCount++;
+          return {
+            ...t,
+            assignee: "AI Agent",
+            aiWorking: true,
+            aiStatus: "running",
+            aiRunAt: now,
+            aiPrompt: prompt,
+            assignHistory: [
+              ...(t.assignHistory || []),
+              { assignee: "AI Agent", at: now, by: actor },
+            ],
+          };
+        }
+        return t;
+      }),
     );
 
     // 3. Add timeline activity item
@@ -11758,11 +11760,17 @@ const IncidentDetailPage = () => {
               }}
             >
               <Box
+                className="agent-icon"
                 sx={{
                   display: "inline-flex",
                   alignItems: "center",
                   flexShrink: 0,
-                  color: "text.secondary",
+                  color: isFailed
+                    ? "hsl(var(--destructive) / 0.75)"
+                    : hasWarning
+                      ? "hsl(var(--severity-medium) / 0.85)"
+                      : "text.secondary",
+                  transition: "color 0.15s ease",
                 }}
               >
                 <AgentIcon size={13} />
@@ -12107,18 +12115,12 @@ const IncidentDetailPage = () => {
                   borderRadius: isHighlighted ? 1 : 0,
                   bgcolor: isHighlighted
                     ? "hsl(var(--primary) / 0.12)"
-                    : isFailed
-                      ? "hsl(var(--destructive) / 0.02)"
-                      : "transparent",
+                    : "transparent",
                   border: isHighlighted
                     ? item.isPreview
                       ? "1px dashed #ff6600"
                       : "1px solid #ff6600"
-                    : isFailed
-                      ? "1px solid hsl(var(--destructive) / 0.12)"
-                      : isWarning
-                        ? "1px solid hsl(var(--severity-medium) / 0.2)"
-                        : "none",
+                    : "none",
                   boxShadow: isHighlighted
                     ? "0 0 12px rgba(255, 102, 0, 0.25)"
                     : "none",
@@ -12130,11 +12132,7 @@ const IncidentDetailPage = () => {
                   "&:hover": {
                     bgcolor: isHighlighted
                       ? "hsl(var(--primary) / 0.18)"
-                      : isFailed
-                        ? "hsl(var(--destructive) / 0.06)"
-                        : isWarning
-                          ? "hsl(var(--severity-medium) / 0.08)"
-                          : "hsl(var(--muted) / 0.25)",
+                      : "hsl(var(--muted) / 0.25)",
                     "& .wf-icon": {
                       color: isFailed
                         ? "hsl(var(--destructive))"
@@ -12323,19 +12321,11 @@ const IncidentDetailPage = () => {
                   ? item.isPreview
                     ? "1px dashed #ff6600"
                     : "1px solid #ff6600"
-                  : isFailed
-                    ? "1px solid hsl(var(--destructive) / 0.18)"
-                    : isWarning
-                      ? "1px solid hsl(var(--severity-medium) / 0.22)"
-                      : "1px solid transparent",
+                  : "1px solid transparent",
                 mb: 0,
                 bgcolor: isHighlighted
                   ? "hsl(var(--primary) / 0.12)"
-                  : isFailed
-                    ? "hsl(var(--destructive) / 0.025)"
-                    : isWarning
-                      ? "hsl(var(--severity-medium) / 0.035)"
-                      : "transparent",
+                  : "transparent",
                 boxShadow: isHighlighted
                   ? "0 0 12px rgba(255, 102, 0, 0.25)"
                   : "none",
@@ -12346,18 +12336,10 @@ const IncidentDetailPage = () => {
                 "&:hover": {
                   borderColor: isHighlighted
                     ? "#ff6600"
-                    : isFailed
-                      ? "hsl(var(--destructive) / 0.45)"
-                      : isWarning
-                        ? "hsl(var(--severity-medium) / 0.5)"
-                        : "hsl(var(--muted-foreground) / 0.3)",
+                    : "hsl(var(--muted-foreground) / 0.3)",
                   bgcolor: isHighlighted
                     ? "hsl(var(--primary) / 0.18)"
-                    : isFailed
-                      ? "hsl(var(--destructive) / 0.07)"
-                      : isWarning
-                        ? "hsl(var(--severity-medium) / 0.08)"
-                        : "hsl(var(--muted) / 0.25)",
+                    : "hsl(var(--muted) / 0.25)",
                   "& .wf-status-icon": {
                     color: isFailed
                       ? "hsl(var(--destructive))"

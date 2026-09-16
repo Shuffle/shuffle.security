@@ -4,6 +4,7 @@ import { Box, Typography, Chip, IconButton, TextField, Button, CircularProgress 
 import { IncidentTask, taskCategories } from '@/config/ocsfIncidentSchema';
 import { isAIAssignee } from '@/lib/utils';
 import { openAgentDrawer } from '@/lib/agentDrawer';
+import { TaskAiAssignButton } from './TaskAiAssignButton';
 import { useTaskStatuses } from '@/hooks/useEntityLabel';
 import { TaskAssigneeChip } from './TaskAssigneeChip';
 import { TaskEditDialog } from './TaskEditDialog';
@@ -137,8 +138,9 @@ export const TaskKanbanBoard = ({
   const [localAssigningIds, setLocalAssigningIds] = useState<Record<string, boolean>>({});
 
   const handleAssignAi = (task: IncidentTask, reRun: boolean = false) => {
-    if (!onAssignAi || !task || !task.id) return;
-    const taskId = String(task.id);
+    if (!onAssignAi || !task) return;
+    const taskId = String(task.id || "").trim();
+    if (!taskId) return;
     if (!assigningTaskIds) {
       setLocalAssigningIds((prev) => ({ ...prev, [taskId]: true }));
       setTimeout(() => {
@@ -448,80 +450,20 @@ export const TaskKanbanBoard = ({
                             {task.title}
                           </Typography>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-                            {onAssignAi && (() => {
-                              const isAssigning = Boolean(
-                                task.id &&
-                                  (assigningTaskIds
-                                    ? assigningTaskIds[task.id]
-                                    : localAssigningIds[task.id]),
-                              );
-                              const isAssigned = isAIAssignee(task.assignee);
-                              return (
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  disabled={isAssigning}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isAssigned) {
-                                      openAgentDrawer('run', {
-                                        defaultInput: task.aiPrompt,
-                                        taskId: task.id,
-                                        incidentId,
-                                      });
-                                    } else {
-                                      handleAssignAi(task);
-                                    }
-                                  }}
-                                  title={
-                                    isAssigned
-                                      ? 'Assigned to AI Agent. Click to view run in Agent Drawer.'
-                                      : 'Assign to AI Agent'
-                                  }
-                                  aria-label={isAssigned ? 'Assigned AI' : 'Assign AI'}
-                                  sx={{
-                                    fontSize: '0.68rem',
-                                    fontWeight: 600,
-                                    lineHeight: 1,
-                                    textTransform: 'none',
-                                    py: 0.2,
-                                    px: 0.6,
-                                    minHeight: 22,
-                                    height: 22,
-                                    borderRadius: 1,
-                                    borderColor: isAssigned
-                                      ? 'hsl(var(--primary) / 0.4)'
-                                      : 'hsl(var(--border))',
-                                    color: isAssigned
-                                      ? 'hsl(var(--primary))'
-                                      : 'hsl(var(--foreground))',
-                                    bgcolor: isAssigned
-                                      ? 'hsl(var(--primary) / 0.08)'
-                                      : 'transparent',
-                                    '&:hover': {
-                                      borderColor: 'hsl(var(--primary))',
-                                      bgcolor: 'hsl(var(--primary) / 0.12)',
-                                    },
-                                    '&.Mui-disabled': {
-                                      opacity: 0.7,
-                                      borderColor: 'hsl(var(--border))',
-                                      color: 'hsl(var(--muted-foreground))',
-                                    },
-                                  }}
-                                >
-                                  {isAssigning ? (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                      <CircularProgress size={10} color="inherit" thickness={5} />
-                                      <span>Assigning...</span>
-                                    </Box>
-                                  ) : isAssigned ? (
-                                    'Assigned AI'
-                                  ) : (
-                                    'Assign AI'
-                                  )}
-                                </Button>
-                              );
-                            })()}
+                            {onAssignAi && (
+                              <TaskAiAssignButton
+                                task={task}
+                                incidentId={incidentId}
+                                isAssigning={Boolean(
+                                  task.id &&
+                                    (assigningTaskIds
+                                      ? assigningTaskIds[task.id]
+                                      : localAssigningIds[task.id]),
+                                )}
+                                readOnly={readOnly}
+                                onAssignAi={handleAssignAi}
+                              />
+                            )}
                             <IconButton
                               size="small"
                               onClick={(e) => {

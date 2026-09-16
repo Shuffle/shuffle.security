@@ -9,6 +9,7 @@ import { Drawer } from '@mui/material';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 import AppDetailContent, { checkAppNameMatch } from '@/Shuffle-MCPs/views/AppDetailContent';
+import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
 
 export { checkAppNameMatch };
 
@@ -66,6 +67,7 @@ export default function AppDetailDrawer({
   const drawerWidth = `min(${width}px, 100vw)`;
   const drawerMinWidth = `min(${minWidth}px, 100vw)`;
   const drawerMaxWidth = `min(${maxWidth}px, 100vw)`;
+  const drawerZIndex = useDrawerLayer(open);
 
   const handleClose = () => {
     onRefresh?.();
@@ -99,7 +101,7 @@ export default function AppDetailDrawer({
       }}
       {...({ PaperProps: drawerPaperProps } as any)}
       sx={{
-        zIndex: 9999,
+        zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
           width: `${drawerWidth} !important`,

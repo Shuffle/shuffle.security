@@ -26,6 +26,7 @@ import {
 import type { AgentRun } from '@/Shuffle-MCPs/agentActivity';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
+import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
 
 export interface AgentExecutionDrawerProps extends ShuffleHostProps {
   open: boolean;
@@ -109,6 +110,8 @@ const AgentExecutionDrawer = ({
   const drawerMinWidth = `min(${minWidth}px, 100vw)`;
   const drawerMaxWidth = `min(${maxWidth}px, 100vw)`;
 
+  const drawerZIndex = useDrawerLayer(open);
+
   return (
     <Drawer
       anchor="right"
@@ -117,7 +120,7 @@ const AgentExecutionDrawer = ({
       keepMounted
       transitionDuration={{ enter: 120, exit: 100 }}
       sx={{
-        zIndex: 10011,
+        zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
           width: { xs: '100vw', sm: drawerWidth },

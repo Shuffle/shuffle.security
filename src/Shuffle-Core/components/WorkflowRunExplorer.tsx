@@ -49,6 +49,7 @@ import {
 import { getApiUrl, getAuthHeader, getShuffleCoreUrl, getShuffleCoreWorkflowUrl } from '../api';
 import { navigateToShuffleCore } from '@/lib/authHandoff';
 import NotificationsDrawer from './NotificationsDrawer';
+import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
 import { AppFallbackIcon } from '@/Shuffle-MCPs/components/AppFallbackIcon';
 import shuffleLogo from '@/assets/shuffle-logo.png';
 import singulAgentIcon from '@/assets/singul-agent-icon.png';
@@ -1150,6 +1151,7 @@ export const WorkflowRunExplorerDrawer: React.FC<WorkflowRunExplorerDrawerProps>
   const drawerWidth = `min(${width}px, 100vw)`;
   const drawerMinWidth = `min(${minWidth}px, 100vw)`;
   const drawerMaxWidth = `min(${maxWidth}px, 100vw)`;
+  const drawerZIndex = useDrawerLayer(open);
 
   return (
     <Drawer
@@ -1170,7 +1172,7 @@ export const WorkflowRunExplorerDrawer: React.FC<WorkflowRunExplorerDrawerProps>
       sx={{
         // This drawer is commonly launched from another drawer (app details,
         // agent results, incidents). It must always sit above its opener.
-        zIndex: 10011,
+        zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
           width: `${drawerWidth} !important`,

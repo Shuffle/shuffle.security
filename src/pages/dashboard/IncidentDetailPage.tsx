@@ -6590,7 +6590,6 @@ const IncidentDetailPage = () => {
           user is typing a new comment. */}
       {isSimple ? (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 }}>
-          {showEnrichmentInlineCTA && renderEnrichmentInlineCTA()}
           <Box ref={simpleFeedRef} data-simple-timeline-feed="true" sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', pb: 1.25 }}>
             {renderTimelineFeedItems(variant)}
           </Box>

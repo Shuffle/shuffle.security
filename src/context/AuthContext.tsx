@@ -299,7 +299,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
+      // A single 401/403 must never drop a working session: a backend that is
+      // mid-state-update, a gateway hiccup or a cold start can answer once with
+      // an auth error and then be fine. Confirm with a second, delayed attempt
+      // and only tear down the session if it still says unauthenticated.
       if (result === 'unauthenticated') {
+        await new Promise((resolve) => window.setTimeout(resolve, 1200));
+        const confirm = await fetchUserInfo(preferBearer ? token : null);
+        if (confirm === 'ok') {
+          setIsAuthenticated(true);
+          result = 'ok';
+        } else if (confirm !== 'unauthenticated') {
+          // Second attempt was transient → keep whatever we hydrated.
+          result = 'error';
+        }
+      }
+
+      if (result === 'unauthenticated') {
+        // Preserve where the user was so login can send them back, even when
+        // this happens during an unexpected reload.
+        try {
+          const path = window.location.pathname + window.location.search;
+          if (path && !path.startsWith('/login') && !path.startsWith('/register')) {
+            sessionStorage.setItem('shuffle_redirect_after_login', path);
+          }
+        } catch { /* ignore */ }
         if (token) {
           localStorage.removeItem('session_token');
           setSessionToken(null);

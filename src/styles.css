@@ -631,3 +631,43 @@
     display: flex !important;
   }
 }
+
+/* react18-json-view is used with the `dark` prop in many places, which pins
+   the viewer to its dark color tokens. On light surfaces those tokens are
+   nearly invisible, so re-define the tree colors for light mode while leaving
+   dark mode untouched. */
+html.light .json-view,
+html:not(.dark) .json-view,
+.light .json-view,
+body:not(.dark) .json-view {
+  color: hsl(var(--foreground));
+  --json-property: hsl(140 55% 30%);
+  --json-index: hsl(220 70% 45%);
+  --json-number: hsl(220 70% 45%);
+  --json-string: hsl(30 80% 35%);
+  --json-boolean: hsl(340 70% 45%);
+  --json-null: hsl(340 70% 45%);
+}
+
+html.light .json-view .jv-chevron,
+html.light .json-view .jv-size,
+html:not(.dark) .json-view .jv-chevron,
+html:not(.dark) .json-view .jv-size,
+.light .json-view .jv-chevron,
+.light .json-view .jv-size,
+body:not(.dark) .json-view .jv-chevron,
+body:not(.dark) .json-view .jv-size {
+  color: hsl(var(--foreground));
+  opacity: 0.65;
+}
+
+html.light .json-view .jv-chevron:hover,
+html.light .json-view .jv-size:hover,
+html:not(.dark) .json-view .jv-chevron:hover,
+html:not(.dark) .json-view .jv-size:hover,
+.light .json-view .jv-chevron:hover,
+.light .json-view .jv-size:hover,
+body:not(.dark) .json-view .jv-chevron:hover,
+body:not(.dark) .json-view .jv-size:hover {
+  opacity: 1;
+}

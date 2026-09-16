@@ -1683,6 +1683,8 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
             </Box>
           </Box>
         )}
+        </>
+        )}
       </DialogContent>
 
       <Divider sx={{ borderColor: 'hsl(var(--border))' }} />

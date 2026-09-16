@@ -61,6 +61,10 @@ export interface AgentDrawerOpenDetail {
   source?: string;
   defaultInput?: string;
   autoSubmit?: boolean;
+  taskId?: string;
+  incidentId?: string;
+  executionId?: string | null;
+  resetExecution?: boolean;
 }
 
 export const ASK_AI_PANEL_WIDTH_STORAGE_KEY = 'shuffle:ask_ai_panel_width';

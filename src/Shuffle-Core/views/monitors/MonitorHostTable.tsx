@@ -147,14 +147,31 @@ export interface MonitorHostTableProps {
   hosts: MonitorHost[];
   /** Called after a successful action to let the parent reload data. */
   onRefresh?: () => void;
-  /** If true, renders the Add Host button in the header bar and empty state. */
+  /** If true, renders the Add Host button in the header bar and empty state. Defaults to true. */
   showAddHost?: boolean;
   /** Optional monitoring group information for binding new host deployments directly to this group. */
   group?: MonitoringGroupLike;
+  /** Custom title for the card header. Defaults to 'Host Monitors' (or group name if specific). */
+  title?: string;
+  /** Custom subtitle for the card header. Defaults to 'Deploy lightweight monitors on endpoints to check compliance & posture'. */
+  subtitle?: string;
+  /** If true, hides the top card header bar (used in nested contexts like AssetsPage). Defaults to false. */
+  hideHeader?: boolean;
+  /** Optional organization ID for datastore posture queries. Falls back to localStorage userinfo/shuffle_user_info. */
+  orgId?: string;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
-export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: MonitorHostTableProps) => {
+export const MonitorHostTable = ({
+  hosts,
+  onRefresh,
+  showAddHost = true,
+  group,
+  title,
+  subtitle,
+  hideHeader = false,
+  orgId,
+}: MonitorHostTableProps) => {
   const navigate = useNavigate();
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set());
   const [sortCol, setSortCol] = useState<string | null>(null);
@@ -216,7 +233,7 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
     }
 
     let isMounted = true;
-    fetchHostSupplements().then(supplements => {
+    fetchHostSupplements(orgId).then(supplements => {
       if (!isMounted) return;
       const merged = mergeHosts(hosts as any[], supplements);
       setSupplementedHosts(merged as MonitorHost[]);
@@ -226,7 +243,7 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
     });
 
     return () => { isMounted = false; };
-  }, [hosts]);
+  }, [hosts, orgId]);
 
   const toggleSort = (col: string) => {
     if (sortCol === col) {
@@ -539,60 +556,126 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
           backgroundColor: 'hsl(var(--card))',
         }}
       >
-        {(showAddHost || group) && (
+        {!hideHeader && (
           <div
-            className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/20"
+            className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-card"
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '12px 20px',
+              padding: '14px 20px',
               borderBottom: '1px solid hsl(var(--border))',
-              backgroundColor: 'hsla(var(--muted), 0.2)',
+              backgroundColor: 'hsl(var(--card))',
             }}
           >
-            <div className="flex items-center gap-2" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="text-sm font-semibold text-foreground">
-                {group?.name || group?.Name || 'Monitored Hosts'}
-              </span>
-              <span className="text-xs text-muted-foreground font-mono">
-                ({allHosts.length} {allHosts.length === 1 ? 'host' : 'hosts'})
-              </span>
+            <div className="flex items-center gap-3" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  backgroundColor: 'rgba(249, 115, 22, 0.15)',
+                  color: '#f97316',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Laptop size={18} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="text-sm font-semibold text-foreground" style={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                    {title || (group?.name && group.name !== 'Monitored Hosts' ? `${group.name} - Host Monitors` : 'Host Monitors')}
+                  </span>
+                  <span
+                    className="text-xs text-muted-foreground font-mono"
+                    style={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}
+                  >
+                    ({allHosts.length} {allHosts.length === 1 ? 'host' : 'hosts'})
+                  </span>
+                </div>
+                <p
+                  className="text-xs text-muted-foreground"
+                  style={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))', margin: '2px 0 0 0' }}
+                >
+                  {subtitle || 'Deploy lightweight monitors on endpoints to check compliance & posture'}
+                </p>
+              </div>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5 h-8 text-xs"
-              onClick={() => setAddHostOpen(true)}
-            >
-              <Plus size={13} />
-              Add Host
-            </Button>
+            {showAddHost && (
+              <div className="flex items-center gap-1.5" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-8 text-xs"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, fontSize: '0.75rem' }}
+                  onClick={() => setAddHostOpen(true)}
+                >
+                  <Plus size={13} />
+                  Add Host
+                </Button>
+              </div>
+            )}
           </div>
         )}
-        {/* Table header */}
-        <div
-          className="grid grid-cols-[2rem_minmax(140px,1.5fr)_3.5rem_3.5rem_4rem_4rem_4rem_4.5rem_0.7fr_0.8fr_2.5rem] gap-2 px-5 py-2 border-b border-border bg-muted/30 items-center"
-          style={{ display: 'grid', gridTemplateColumns: '2rem minmax(140px, 1.5fr) 3.5rem 3.5rem 4rem 4rem 4rem 4.5rem 0.7fr 0.8fr 2.5rem' }}
-        >
-          <TooltipProvider delayDuration={200}>
-            <Tooltip><TooltipTrigger asChild>
-              <span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none flex items-center gap-1" onClick={() => toggleSort('os')}>
-                OS{sortArrow('os')}
+        {/* Table scroll container */}
+        <div style={{ width: '100%', overflowX: 'auto' }}>
+          <div style={{ minWidth: 920 }}>
+            {/* Table header */}
+            <div
+              className="grid gap-2 px-5 py-2.5 border-b border-border bg-muted/30 items-center select-none"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: TABLE_GRID_TEMPLATE,
+                gap: 8,
+                columnGap: 8,
+                padding: '8px 20px',
+                borderBottom: '1px solid hsl(var(--border))',
+                backgroundColor: 'hsla(var(--muted), 0.3)',
+                alignItems: 'center',
+              }}
+            >
+              <TooltipProvider delayDuration={200}>
+                <Tooltip><TooltipTrigger asChild>
+                  <span className="text-xs font-semibold text-muted-foreground cursor-pointer flex items-center justify-center gap-1" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }} onClick={() => toggleSort('os')}>
+                    OS{sortArrow('os')}
+                  </span>
+                </TooltipTrigger><TooltipContent>Sort by Operating System</TooltipContent></Tooltip>
+              </TooltipProvider>
+              <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} onClick={() => toggleSort('hostname')}>
+                Hostname{sortArrow('hostname')}
               </span>
-            </TooltipTrigger><TooltipContent>Sort by Operating System</TooltipContent></Tooltip>
-          </TooltipProvider>
-          <span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort('hostname')}>Hostname{sortArrow('hostname')}</span>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none text-center" onClick={() => toggleSort('hd')}>Disk{sortArrow('hd')}</span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">HD Encrypted</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none text-center" onClick={() => toggleSort('screenlock')}>Lock{sortArrow('screenlock')}</span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Screenlock</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none text-center" onClick={() => toggleSort('software')}>Software{sortArrow('software')}</span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Installed Software</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none text-center" onClick={() => toggleSort('codescan')}>Code{sortArrow('codescan')}</span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Code Package Scanner</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none text-center" onClick={() => toggleSort('processes')}>Procs{sortArrow('processes')}</span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Active Processes</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none text-center" onClick={() => toggleSort('response')}>Response{sortArrow('response')}</span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Response Actions</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
-          <span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort('group')}>Group{sortArrow('group')}</span>
-          <span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort('checkin')}>Last Check-in{sortArrow('checkin')}</span>
-          <span className="text-xs font-semibold text-muted-foreground">Actions</span>
-        </div>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('hd')}>Disk{sortArrow('hd')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">HD Encrypted</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('screenlock')}>Lock{sortArrow('screenlock')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Screenlock</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('software')}>Software{sortArrow('software')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Installed Software</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('codescan')}>Code{sortArrow('codescan')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Code Package Scanner</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('processes')}>Procs{sortArrow('processes')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Active Processes</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('response')}>Response{sortArrow('response')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Response Actions</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
+              <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} onClick={() => toggleSort('group')}>
+                Group{sortArrow('group')}
+              </span>
+              <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} onClick={() => toggleSort('checkin')}>
+                Last Check-in{sortArrow('checkin')}
+              </span>
+              <span className="text-xs font-semibold text-muted-foreground" style={{ display: 'block', textAlign: 'right', width: '100%', paddingRight: 4 }}>
+                Actions
+              </span>
+            </div>
         {/* Host rows */}
         {allHosts.length === 0 ? (
           <div className="px-5 py-12 flex flex-col items-center justify-center text-center gap-3">
@@ -661,7 +744,7 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="flex justify-center" style={{ display: 'flex', justifyContent: 'center' }}>
+                    <span className="flex justify-center items-center" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
                       <div
                         className={`w-2.5 h-2.5 rounded-full ${dotColor}`}
                         style={{
@@ -682,15 +765,30 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
           return (
             <div key={rowKey}>
               <div
-                className="grid grid-cols-[2rem_minmax(140px,1.5fr)_3.5rem_3.5rem_4rem_4rem_4rem_4.5rem_0.7fr_0.8fr_2.5rem] gap-2 px-5 py-3 border-b border-border last:border-b-0 hover:bg-muted/20 transition-colors items-center cursor-pointer"
-                style={{ display: 'grid', gridTemplateColumns: '2rem minmax(140px, 1.5fr) 3.5rem 3.5rem 4rem 4rem 4rem 4.5rem 0.7fr 0.8fr 2.5rem' }}
+                className="grid gap-2 px-5 py-3 border-b border-border last:border-b-0 hover:bg-muted/20 transition-colors items-center cursor-pointer"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: TABLE_GRID_TEMPLATE,
+                  gap: 8,
+                  columnGap: 8,
+                  padding: '12px 20px',
+                  borderBottom: '1px solid hsl(var(--border))',
+                  alignItems: 'center',
+                }}
                 onClick={toggleExpanded}
               >
-                <div className="flex items-center justify-center">
-                  <OsIcon os={host.os} size={14} className="text-muted-foreground" />
+                <div className="flex items-center justify-center" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <OsIcon
+                    os={host.os}
+                    platform={host.platform as string}
+                    kernel={host.kernel as string}
+                    hostname={host.hostname}
+                    size={14}
+                    className="text-muted-foreground"
+                  />
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
+                <div className="flex flex-col min-w-0" style={{ minWidth: 0 }}>
+                  <div className="flex items-center gap-2 min-w-0" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                     <ChevronRight size={14} className={`text-muted-foreground shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                     <HostNameDisplay
                       hostname={host.hostname}
@@ -730,11 +828,11 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
                   tip={`response_actions = ${fmtRaw(responseActionsRaw)}`}
                   color={responseActionsMode === 'full' ? 'bg-[hsl(var(--severity-high))]' : 'bg-[hsl(var(--severity-low))]'}
                 />
-                <span className="text-xs text-muted-foreground truncate">{host.groupName}</span>
+                <span className="text-xs text-muted-foreground truncate" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{host.groupName}</span>
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex items-center gap-1.5 cursor-help">
+                      <div className="flex items-center gap-1.5 cursor-help" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'help' }}>
                         <div
                           className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRecent ? 'bg-green-500' : 'bg-muted-foreground/40'}`}
                           style={{
@@ -745,7 +843,7 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
                             flexShrink: 0,
                           }}
                         />
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs text-muted-foreground" style={{ fontSize: 12 }}>
                           {checkinDate ? checkinDate.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                         </span>
                       </div>
@@ -778,7 +876,11 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
                   </Tooltip>
                 </TooltipProvider>
                 {/* Actions popover */}
-                <div className="flex items-center justify-end gap-2.5" onClick={e => e.stopPropagation()}>
+                <div
+                  className="flex items-center justify-end gap-1.5"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, width: '100%' }}
+                  onClick={e => e.stopPropagation()}
+                >
                   {responseActionsOn ? (
                     <Popover
                       onOpenChange={(open) => {
@@ -992,6 +1094,8 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
           );
         })
       )}
+          </div>
+        </div>
       </div>
 
       <AlertDialog open={!!pendingDisableRce} onOpenChange={(o) => { if (!o) setPendingDisableRce(null); }}>

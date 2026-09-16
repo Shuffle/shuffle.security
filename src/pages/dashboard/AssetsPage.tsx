@@ -447,7 +447,7 @@ const AssetsPage = () => {
                 from <code>{SENSORS_KEY}</code>
               </Typography>
             </Box>
-            <MonitorHostTable hosts={filtered.map(s => s.host as any)} />
+            <MonitorHostTable hosts={filtered.map(s => s.host as any)} hideHeader={true} />
           </Box>
         );
       })()}

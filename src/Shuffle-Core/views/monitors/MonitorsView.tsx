@@ -1306,48 +1306,46 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
       </div>
 
       {/* Host Monitors section */}
-      <div className="rounded-lg border border-border bg-transparent overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Laptop size={18} className="text-primary" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">Host Monitors</h3>
-              <p className="text-xs text-muted-foreground">Deploy lightweight monitors on endpoints to check compliance & posture</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={handleOpenAddHost}>
-              <Plus size={14} />
-              Add Host
-            </Button>
-          </div>
+      {loadError && !groupsLoading && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-md border border-destructive/30 bg-destructive/5 text-destructive mb-4">
+          <AlertTriangle size={16} className="shrink-0" />
+          <span className="text-sm flex-1">{loadError}</span>
+          <Button size="sm" variant="outline" className="gap-1.5 shrink-0 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => loadGroups()}>
+            <RefreshCw size={13} />
+            Retry
+          </Button>
         </div>
+      )}
 
-        {/* Error banner */}
-        {loadError && !groupsLoading && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-md border border-destructive/30 bg-destructive/5 text-destructive">
-            <AlertTriangle size={16} className="shrink-0" />
-            <span className="text-sm flex-1">{loadError}</span>
-            <Button size="sm" variant="outline" className="gap-1.5 shrink-0 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => loadGroups()}>
-              <RefreshCw size={13} />
-              Retry
-            </Button>
-          </div>
-        )}
-
-        {groupsLoading && allHosts.length === 0 && (
-          <div className="border-t border-border px-5 py-16 flex flex-col items-center text-center gap-3">
+      {groupsLoading && allHosts.length === 0 ? (
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <div className="px-5 py-16 flex flex-col items-center text-center gap-3">
             <Loader2 size={28} className="text-muted-foreground animate-spin" />
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">Loading monitors…</p>
               <p className="text-xs text-muted-foreground">Fetching monitoring groups, hosts, and supplements.</p>
             </div>
           </div>
-        )}
-
-        {!groupsLoading && allHosts.length === 0 && (
+        </div>
+      ) : allHosts.length === 0 ? (
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Laptop size={18} className="text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Host Monitors</h3>
+                <p className="text-xs text-muted-foreground">Deploy lightweight monitors on endpoints to check compliance & posture</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={handleOpenAddHost}>
+                <Plus size={14} />
+                Add Host
+              </Button>
+            </div>
+          </div>
           <div className="grid grid-cols-5 gap-0 divide-x divide-border">
             {HOST_OVERVIEW_TILES.map(check => (
               <div key={check.id} className="px-4 py-4 flex flex-col items-center text-center gap-2">
@@ -1359,9 +1357,6 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
               </div>
             ))}
           </div>
-        )}
-
-        {allHosts.length === 0 && !groupsLoading ? (
           <div className="border-t border-border px-5 py-16 flex flex-col items-center text-center gap-4">
             <Activity size={36} className="text-muted-foreground/25" />
             <div className="space-y-1">
@@ -1373,10 +1368,10 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
               Add Host
             </Button>
           </div>
-        ) : allHosts.length > 0 ? (
-          <MonitorHostTable hosts={allHosts as any} onRefresh={loadGroups} />
-        ) : null}
-      </div>
+        </div>
+      ) : (
+        <MonitorHostTable hosts={allHosts as any} onRefresh={loadGroups} />
+      )}
       </>)}
 
       {/* Add Host Monitor Dialog */}

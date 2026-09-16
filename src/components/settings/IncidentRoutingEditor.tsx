@@ -622,7 +622,7 @@ export const IncidentRoutingEditor = ({
   if (!isParentOrg && !forceShow) {
     return (
       <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
-        Incident Routing Rules are only available when you have one or more child tenants.
+        {entityPluralCap} Routing Rules are only available when you have one or more child tenants.
       </Typography>
     );
   }

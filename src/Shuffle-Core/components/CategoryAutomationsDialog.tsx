@@ -265,7 +265,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
   showViewToggle = true,
 }) => {
   // Which view is active: 'automations' or 'settings'
-  const [currentView, setCurrentView] = useState<'automations' | 'settings'>(initialView);
+  const [currentView, setCurrentView] = useState<'automations' | 'settings' | 'routing'>(initialView);
 
   // Sync view when dialog opens or initialView changes
   useEffect(() => {

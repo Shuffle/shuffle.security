@@ -46,7 +46,7 @@ const ROOT_ALIASES: Record<string, string[]> = {
   $unmapped: ['unmapped_original'],
 };
 
-const looksLikeTranslationExpr = (s: string): boolean => {
+export const looksLikeTranslationExpr = (s: string): boolean => {
   if (!s || typeof s !== 'string') return false;
   const t = s.trim();
   if (t.length < 3) return false;
@@ -62,7 +62,7 @@ const looksLikeTranslationExpr = (s: string): boolean => {
  *   `[{"name":"Subject","value":"X"},...][?(@.name==Subject)].value`
  * Returns the parsed array + filter parameters when the shape matches.
  */
-const parseHybridHeaderFailure = (
+export const parseHybridHeaderFailure = (
   s: string,
 ): { array: Json[]; headerName: string; pickKey: string } | null => {
   if (typeof s !== 'string') return null;

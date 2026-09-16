@@ -85,6 +85,13 @@ export interface IncidentTask {
     at: number;
     by?: string;
   }>;
+  deletedAt?: number;
+  deletedBy?: string;
+  assignHistory?: Array<{
+    assignee: string;
+    at: number;
+    by?: string;
+  }>;
 }
 
 // Task categories for organization

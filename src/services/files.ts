@@ -252,3 +252,94 @@ export const formatFileSize = (bytes: number): string => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
+
+// In-memory cache for resolved blob URLs so re-rendering or navigating views never re-fetches
+const blobCache = new Map<string, string>();
+const pendingFetches = new Map<string, Promise<string>>();
+
+/**
+ * Normalize a file source to extract its canonical relative endpoint, e.g.
+ * '/api/v1/files/UUID/content' regardless of whether it was prefixed with
+ * an absolute backend URL.
+ */
+export const normalizeFileKey = (src: string): string => {
+  if (!src) return '';
+  const idx = src.indexOf('/api/v1/files/');
+  if (idx !== -1) {
+    return src.slice(idx);
+  }
+  return src;
+};
+
+/**
+ * Cache a local blob URL for a file source (e.g. immediately after upload).
+ */
+export const cacheFileBlob = (src: string, blobUrl: string): void => {
+  if (!src || !blobUrl) return;
+  blobCache.set(normalizeFileKey(src), blobUrl);
+  blobCache.set(src, blobUrl);
+};
+
+/**
+ * Get an already-resolved blob URL from memory if present.
+ */
+export const getCachedFileBlob = (src?: string | null): string | undefined => {
+  if (!src) return undefined;
+  return blobCache.get(normalizeFileKey(src)) || blobCache.get(src);
+};
+
+/**
+ * Check if a source string refers to a Shuffle file API endpoint.
+ */
+export const isShuffleFileUrl = (src?: string | null): boolean => {
+  if (!src || typeof src !== 'string') return false;
+  return src.includes('/api/v1/files/');
+};
+
+/**
+ * Resolves a file URL (which may be a relative /api/v1/files/... or absolute URL)
+ * into a renderable URL. For Shuffle file endpoints requiring authentication,
+ * fetches the content with auth headers and returns a local object URL.
+ */
+export const resolveFileUrl = async (src: string): Promise<string> => {
+  if (!src) return '';
+  if (src.startsWith('data:') || src.startsWith('blob:')) {
+    return src;
+  }
+
+  const cached = getCachedFileBlob(src);
+  if (cached) return cached;
+
+  const key = normalizeFileKey(src);
+  const pending = pendingFetches.get(key) || pendingFetches.get(src);
+  if (pending) return pending;
+
+  // If not a Shuffle file endpoint and already absolute, return directly
+  if (!isShuffleFileUrl(src) && /^https?:\/\//i.test(src)) {
+    return src;
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      const url = src.startsWith('http') ? src : getApiUrl(src);
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: getAuthHeader(),
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to load file: HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      cacheFileBlob(src, objectUrl);
+      return objectUrl;
+    } finally {
+      pendingFetches.delete(key);
+      pendingFetches.delete(src);
+    }
+  })();
+
+  pendingFetches.set(key, fetchPromise);
+  pendingFetches.set(src, fetchPromise);
+  return fetchPromise;
+};

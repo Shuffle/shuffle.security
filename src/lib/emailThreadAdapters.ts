@@ -34,7 +34,7 @@ const gmailIsDraft = (labelIds: unknown): boolean => {
  * draft, fall back to the first (newest overall) so the UI still has a
  * message expanded by default.
  */
-const assignLatest = (messages: EmailMessage[]): EmailMessage[] => {
+export const assignLatest = (messages: EmailMessage[]): EmailMessage[] => {
   if (messages.length === 0) return messages;
   let latestIdx = messages.findIndex(m => !m.isDraft);
   if (latestIdx === -1) latestIdx = 0;
@@ -419,8 +419,44 @@ export const resolveEmailThread = (rawOCSF: any): ResolvedEmailThread | null => 
  * (e.g. never selected as merge primary, never treated as "latest").
  */
 export const isDraftOnlyIncident = (rawOCSF: any): boolean => {
+  if (!rawOCSF) return false;
+  if (
+    rawOCSF?.isDraft === true ||
+    rawOCSF?.is_draft === true ||
+    rawOCSF?.draft === true ||
+    (typeof rawOCSF?.status === 'string' && rawOCSF?.status.toLowerCase() === 'draft')
+  ) {
+    return true;
+  }
+  const unmapped = rawOCSF?.unmapped_original;
+  if (unmapped && (unmapped.isDraft === true || unmapped.is_draft === true || unmapped.draft === true)) {
+    return true;
+  }
   const resolved = resolveEmailThread(rawOCSF);
   if (!resolved || resolved.messages.length === 0) return false;
   return resolved.messages.every(m => m.isDraft === true);
+};
+
+/**
+ * True when the incident's resolved email thread has at least one draft message.
+ */
+export const hasDraftMessages = (rawOCSF: any): boolean => {
+  if (!rawOCSF) return false;
+  if (isDraftOnlyIncident(rawOCSF)) return true;
+  const resolved = resolveEmailThread(rawOCSF);
+  if (!resolved || resolved.messages.length === 0) return false;
+  return resolved.messages.some(m => m.isDraft === true);
+};
+
+/**
+ * True when the incident's resolved email thread has at least one non-draft (sent) message.
+ */
+export const hasNonDraftMessages = (rawOCSF: any): boolean => {
+  if (!rawOCSF) return false;
+  const resolved = resolveEmailThread(rawOCSF);
+  if (!resolved || resolved.messages.length === 0) {
+    return !isDraftOnlyIncident(rawOCSF);
+  }
+  return resolved.messages.some(m => !m.isDraft);
 };
 

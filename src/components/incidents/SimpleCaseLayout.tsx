@@ -18,7 +18,7 @@ import {
 import { useNavigate } from "@/lib/router-compat";
 import type { IncidentTask } from "@/config/ocsfIncidentSchema";
 import type { LinkedIncidentSummary } from "@/hooks/useRelatedIncidents";
-import { groupTasksByCategory } from "./taskCategoryUtils";
+import { groupTasksByCategory, UNCATEGORIZED_KEY } from "./taskCategoryUtils";
 
 const TIMELINE_WIDTH_STORAGE_KEY = "shuffle_simple_timeline_width";
 const DEFAULT_TIMELINE_WIDTH = 260;
@@ -54,6 +54,8 @@ interface SimpleCaseLayoutProps {
     resolvedBy?: string;
     resolvedAt?: number;
   };
+  /** Section currently hovered in the simple timeline, to highlight in the center and Overview rail. */
+  highlightSection?: SectionKey | "overview" | null;
 }
 
 const SECTIONS = [
@@ -112,6 +114,7 @@ export const SimpleCaseLayout = ({
   correlationCount,
   relatedIncidents,
   resolution,
+  highlightSection = null,
 }: SimpleCaseLayoutProps) => {
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -131,6 +134,11 @@ export const SimpleCaseLayout = ({
   const categoryGroups = useMemo(
     () => groupTasksByCategory(taskItems),
     [taskItems],
+  );
+
+  const hasCategories = useMemo(
+    () => categoryGroups.some((g) => g.categoryKey !== UNCATEGORIZED_KEY),
+    [categoryGroups],
   );
 
   useEffect(() => {
@@ -529,6 +537,20 @@ export const SimpleCaseLayout = ({
     pb: { xs: 4, md: 7 },
   } as const;
 
+  const getSectionHighlightSx = (key: SectionKey | "overview") => {
+    const isTargeted = highlightSection === key;
+    return {
+      borderRadius: 2,
+      transition:
+        "background-color 0.2s ease, box-shadow 0.2s ease, outline 0.2s ease",
+      bgcolor: isTargeted ? "hsl(var(--primary) / 0.035)" : "transparent",
+      outline: isTargeted
+        ? "1px solid hsl(var(--primary) / 0.3)"
+        : "1px solid transparent",
+      boxShadow: isTargeted ? "0 0 16px hsl(var(--primary) / 0.08)" : "none",
+    };
+  };
+
   return (
     <Box
       ref={rootRef}
@@ -663,8 +685,12 @@ export const SimpleCaseLayout = ({
               position: "sticky",
               top: 0,
               zIndex: 3,
-              bgcolor: "hsl(var(--background))",
               pt: 1,
+              ...getSectionHighlightSx("overview"),
+              bgcolor:
+                highlightSection === "overview"
+                  ? "hsl(var(--primary) / 0.035)"
+                  : "hsl(var(--background))",
             }}
           >
             {overview}
@@ -677,7 +703,7 @@ export const SimpleCaseLayout = ({
               refs.current.emailThread = node;
             }}
             data-simple-section="emailThread"
-            sx={sectionSx}
+            sx={{ ...sectionSx, ...getSectionHighlightSx("emailThread") }}
             {...sectionActivation("emailThread")}
           >
             {emailThread}
@@ -689,12 +715,22 @@ export const SimpleCaseLayout = ({
             refs.current.narrative = node;
           }}
           data-simple-section="narrative"
-          sx={sectionSx}
+          data-incident-field="description"
+          sx={{ ...sectionSx, ...getSectionHighlightSx("narrative") }}
           {...sectionActivation("narrative")}
         >
           <Typography
             component="h2"
-            sx={{ fontSize: "1.15rem", fontWeight: 700, mb: 2.5 }}
+            sx={{
+              fontSize: "1.15rem",
+              fontWeight: 700,
+              mb: 2.5,
+              color:
+                highlightSection === "narrative"
+                  ? "hsl(var(--primary))"
+                  : "inherit",
+              transition: "color 0.2s ease",
+            }}
           >
             {narrativeLabel}
           </Typography>
@@ -706,15 +742,26 @@ export const SimpleCaseLayout = ({
             refs.current.tasks = node;
           }}
           data-simple-section="tasks"
-          sx={sectionSx}
+          sx={{ ...sectionSx, ...getSectionHighlightSx("tasks") }}
           {...sectionActivation("tasks")}
         >
-          <Typography
-            component="h2"
-            sx={{ fontSize: "1.15rem", fontWeight: 700, mb: 2.5 }}
-          >
-            Tasks
-          </Typography>
+          {!hasCategories && (
+            <Typography
+              component="h2"
+              sx={{
+                fontSize: "1.15rem",
+                fontWeight: 700,
+                mb: 2.5,
+                color:
+                  highlightSection === "tasks"
+                    ? "hsl(var(--primary))"
+                    : "inherit",
+                transition: "color 0.2s ease",
+              }}
+            >
+              Tasks
+            </Typography>
+          )}
           {tasks}
         </Box>
         {customFields && (
@@ -724,12 +771,21 @@ export const SimpleCaseLayout = ({
               refs.current.customFields = node;
             }}
             data-simple-section="customFields"
-            sx={sectionSx}
+            sx={{ ...sectionSx, ...getSectionHighlightSx("customFields") }}
             {...sectionActivation("customFields")}
           >
             <Typography
               component="h2"
-              sx={{ fontSize: "1.15rem", fontWeight: 700, mb: 2.5 }}
+              sx={{
+                fontSize: "1.15rem",
+                fontWeight: 700,
+                mb: 2.5,
+                color:
+                  highlightSection === "customFields"
+                    ? "hsl(var(--primary))"
+                    : "inherit",
+                transition: "color 0.2s ease",
+              }}
             >
               Custom Fields
             </Typography>
@@ -742,12 +798,21 @@ export const SimpleCaseLayout = ({
             refs.current.observables = node;
           }}
           data-simple-section="observables"
-          sx={sectionSx}
+          sx={{ ...sectionSx, ...getSectionHighlightSx("observables") }}
           {...sectionActivation("observables")}
         >
           <Typography
             component="h2"
-            sx={{ fontSize: "1.15rem", fontWeight: 700, mb: 2.5 }}
+            sx={{
+              fontSize: "1.15rem",
+              fontWeight: 700,
+              mb: 2.5,
+              color:
+                highlightSection === "observables"
+                  ? "hsl(var(--primary))"
+                  : "inherit",
+              transition: "color 0.2s ease",
+            }}
           >
             Observables
           </Typography>
@@ -759,12 +824,21 @@ export const SimpleCaseLayout = ({
             refs.current.correlations = node;
           }}
           data-simple-section="correlations"
-          sx={{ ...sectionSx, pb: 0 }}
+          sx={{ ...sectionSx, pb: 0, ...getSectionHighlightSx("correlations") }}
           {...sectionActivation("correlations")}
         >
           <Typography
             component="h2"
-            sx={{ fontSize: "1.15rem", fontWeight: 700, mb: 2.5 }}
+            sx={{
+              fontSize: "1.15rem",
+              fontWeight: 700,
+              mb: 2.5,
+              color:
+                highlightSection === "correlations"
+                  ? "hsl(var(--primary))"
+                  : "inherit",
+              transition: "color 0.2s ease",
+            }}
           >
             Correlations
           </Typography>
@@ -809,7 +883,7 @@ export const SimpleCaseLayout = ({
           }}
         >
           {sectionData.map(({ key, label, count, icon: Icon }) => {
-            const isActive = activeSection === key;
+            const isActive = activeSection === key || highlightSection === key;
             return (
               <Fragment key={key}>
                 <Button

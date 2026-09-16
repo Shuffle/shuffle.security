@@ -43,7 +43,7 @@ import { extractThreadId } from '@/hooks/useThreadCorrelatedIncidents';
 
 import { CreateIncidentDialog, ActivityItem } from '@/components/incidents/CreateIncidentDialog';
 import { OCSFIncidentFinding, Observable, TLP_LABELS, convertLegacyTlp, mapOCSFSeverity, mapOCSFStatus } from '@/config/ocsfIncidentSchema';
-import { deduplicateTasks, decodeHtmlEntities } from '@/lib/utils';
+import { deduplicateTasks, decodeHtmlEntities, isAIAssignee } from '@/lib/utils';
 import { autoCorrectTranslatedString } from '@/lib/translationFallback';
 import { ResolveIncidentDialog, ResolutionData, RESOLUTION_REASONS } from '@/components/incidents/ResolveIncidentDialog';
 import { CategoryAutomationsDialog } from '@shuffleio/shuffle-core';
@@ -206,12 +206,6 @@ const parseTimestamp = (timestamp: number | string | undefined): number => {
   return normalizeToMs(timestamp);
 };
 
-// Helper to check if an assignee is the AI Agent
-const isAIAssignee = (assignee: string | null | undefined): boolean => {
-  if (!assignee) return false;
-  const lower = assignee.toLowerCase();
-  return lower.includes('agent') || lower === 'ai' || lower === 'ai agent';
-};
 
 // Strict check: only return string if it has meaningful non-whitespace content
 const meaningfulString = (val: unknown): string | undefined => {

@@ -504,6 +504,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
     title: (params, _, entityOverride) => {
       const cleanId = formatEntityDisplayId(params.id);
       const entity = entityOverride || getActivePageEntityName();
@@ -525,6 +526,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
     title: (params, _, entityOverride) => {
       const cleanId = formatEntityDisplayId(params.id);
       const entity = entityOverride || getActivePageEntityName();
@@ -546,6 +548,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
     title: (params, _, entityOverride) => {
       const cleanId = formatEntityDisplayId(params.id);
       const entity = entityOverride || getActivePageEntityName();
@@ -567,6 +570,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
     title: 'How can we help handle incidents?',
     subtitle: 'Shuffle Incidents MCP',
     defaultPrompt: 'Investigate this incident and recommend next steps: ',
@@ -581,6 +585,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
     title: 'How can we help handle cases?',
     subtitle: 'Shuffle Incidents MCP',
     defaultPrompt: 'Investigate this case and recommend next steps: ',
@@ -595,6 +600,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
     title: 'How can we help handle tickets?',
     subtitle: 'Shuffle Incidents MCP',
     defaultPrompt: 'Investigate this ticket and recommend next steps: ',
@@ -609,6 +615,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
     title: 'How can we help handle alerts?',
     subtitle: 'Shuffle Incidents MCP',
     defaultPrompt: 'Investigate this alert and recommend next steps: ',

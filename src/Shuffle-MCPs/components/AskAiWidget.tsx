@@ -162,7 +162,15 @@ export const AskAiWidget: React.FC<AskAiWidgetProps> = ({
     (activeContext.buttonLabelFn ? activeContext.buttonLabelFn() : activeContext.buttonLabel) ||
     'Ask AI';
 
-  const isBeta = activeContext.isBeta === true;
+  const isIncidentOrDocsRoute =
+    currentPath.startsWith('/incidents') ||
+    currentPath.startsWith('/incidents-simple') ||
+    currentPath.startsWith('/cases') ||
+    currentPath.startsWith('/alerts') ||
+    currentPath.startsWith('/tickets') ||
+    currentPath.startsWith('/docs');
+
+  const isBeta = activeContext.isBeta === true || isIncidentOrDocsRoute;
   const effectiveRequireSupport = isBeta ? false : requireSupport;
   const defaultTag = isBeta ? 'Beta' : 'Support';
   const effectiveTagLabel = buttonProps?.tagLabel !== undefined ? buttonProps.tagLabel : defaultTag;

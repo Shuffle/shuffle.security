@@ -9,11 +9,24 @@ import {
   MenuItem,
   FormControl,
   Button,
+  CircularProgress,
 } from "@mui/material";
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { DeferredTextField } from "./DeferredTextField";
+import { MarkdownDescriptionEditor } from "./MarkdownDescriptionEditor";
 import { TaskAssigneeChip } from "./TaskAssigneeChip";
 import { taskCategories, type IncidentTask } from "@/config/ocsfIncidentSchema";
+import { isAIAssignee } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import {
   groupTasksByCategory,
@@ -35,6 +48,10 @@ export interface SimpleTasksViewProps {
   expandedTaskIds?: string[];
   onToggleTaskExpanded?: (taskId: string) => void;
   readOnly?: boolean;
+  onAssignAi?: (task: IncidentTask) => void;
+  assigningTaskIds?: Record<string, boolean>;
+  highlightTaskId?: string | null;
+  incidentId?: string;
 }
 
 export const SimpleTasksView = ({
@@ -49,8 +66,14 @@ export const SimpleTasksView = ({
   expandedTaskIds = [],
   onToggleTaskExpanded,
   readOnly = false,
+  onAssignAi,
+  assigningTaskIds,
+  highlightTaskId = null,
+  incidentId,
 }: SimpleTasksViewProps) => {
   const [localExpandedIds, setLocalExpandedIds] = useState<string[]>([]);
+  const [localAssigningIds, setLocalAssigningIds] = useState<Record<string, boolean>>({});
+  const [pendingDeleteTask, setPendingDeleteTask] = useState<IncidentTask | null>(null);
   const isExpanded = (id: string) =>
     onToggleTaskExpanded
       ? expandedTaskIds.includes(id)
@@ -75,6 +98,11 @@ export const SimpleTasksView = ({
   const [activeInlineCat, setActiveInlineCat] = useState<string | null>(null);
 
   const categoryGroups = useMemo(() => groupTasksByCategory(tasks), [tasks]);
+  const hasCategories = useMemo(
+    () => categoryGroups.some((g) => g.categoryKey !== UNCATEGORIZED_KEY),
+    [categoryGroups],
+  );
+  const showCategoryHeaders = hasCategories || categoryGroups.length > 1;
 
   const handleCreateGlobal = () => {
     if (!globalTitle.trim()) return;
@@ -87,6 +115,21 @@ export const SimpleTasksView = ({
     if (!title) return;
     onAddTask(title, catKey === UNCATEGORIZED_KEY ? "" : catKey);
     setInlineTitles((prev) => ({ ...prev, [catKey]: "" }));
+  };
+
+  const handleAssignAi = (task: IncidentTask) => {
+    if (!onAssignAi) return;
+    if (!assigningTaskIds) {
+      setLocalAssigningIds((prev) => ({ ...prev, [task.id]: true }));
+      setTimeout(() => {
+        setLocalAssigningIds((prev) => {
+          const next = { ...prev };
+          delete next[task.id];
+          return next;
+        });
+      }, 8000);
+    }
+    onAssignAi(task);
   };
 
   const allCategoryOptions = [
@@ -136,84 +179,92 @@ export const SimpleTasksView = ({
             }}
           >
             {/* Category Sub-area Header */}
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                py: 0.75,
-                borderBottom: "1px solid hsl(var(--border) / 0.6)",
-                mb: 0.5,
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Box
-                  sx={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    bgcolor: group.color,
-                    flexShrink: 0,
-                  }}
-                />
-                <Typography
-                  sx={{
-                    fontSize: "0.78rem",
-                    fontWeight: 700,
-                    color: group.color,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  {group.label}
-                </Typography>
-                <Typography
-                  sx={{
-                    fontSize: "0.72rem",
-                    color: "hsl(var(--muted-foreground))",
-                    fontWeight: 500,
-                  }}
-                >
-                  ({group.totalCount - group.openCount}/{group.totalCount}{" "}
-                  completed)
-                </Typography>
-              </Box>
+            {showCategoryHeaders && (
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  py: 0.75,
+                  borderBottom: "1px solid hsl(var(--border) / 0.6)",
+                  mb: 1,
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                  <Box
+                    sx={{
+                      width: 3.5,
+                      height: 18,
+                      borderRadius: "2px",
+                      bgcolor: group.color,
+                      flexShrink: 0,
+                      boxShadow:
+                        Boolean(highlightTaskId) &&
+                        group.tasks.some(
+                          (t) =>
+                            String(t.id) === String(highlightTaskId) ||
+                            (t.title && t.title === highlightTaskId),
+                        )
+                          ? `0 0 8px ${group.color}`
+                          : "none",
+                      transition: "box-shadow 0.2s ease",
+                    }}
+                  />
+                  <Typography
+                    component="h3"
+                    sx={{
+                      fontSize: "1.05rem",
+                      fontWeight: 700,
+                      color: "hsl(var(--foreground))",
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    {group.label}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: "0.75rem",
+                      color: "hsl(var(--muted-foreground))",
+                      fontWeight: 500,
+                    }}
+                  >
+                    ({group.totalCount - group.openCount}/{group.totalCount}{" "}
+                    completed)
+                  </Typography>
+                </Box>
 
-              {!readOnly && (
-                <Button
-                  size="small"
-                  onClick={() =>
-                    setActiveInlineCat((prev) =>
-                      prev === group.categoryKey ? null : group.categoryKey,
-                    )
-                  }
-                  sx={{
-                    minHeight: 24,
-                    px: 1,
-                    py: 0,
-                    fontSize: "0.72rem",
-                    textTransform: "none",
-                    color: "hsl(var(--muted-foreground))",
-                    "&:hover": { color: "hsl(var(--foreground))" },
-                  }}
-                >
-                  + Add task
-                </Button>
-              )}
-            </Box>
+                {!readOnly && (
+                  <Button
+                    size="small"
+                    onClick={() =>
+                      setActiveInlineCat((prev) =>
+                        prev === group.categoryKey ? null : group.categoryKey,
+                      )
+                    }
+                    sx={{
+                      minHeight: 24,
+                      px: 1,
+                      py: 0,
+                      fontSize: "0.72rem",
+                      textTransform: "none",
+                      color: "hsl(var(--muted-foreground))",
+                      "&:hover": { color: "hsl(var(--foreground))" },
+                    }}
+                  >
+                    + Add task
+                  </Button>
+                )}
+              </Box>
+            )}
 
             {/* Tasks in Category */}
             <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
               {group.tasks.map((task) => {
                 const expanded = isExpanded(task.id);
-                const currentCat = (task.category || "").trim().toLowerCase();
-                const matchedOption = allCategoryOptions.find(
-                  (opt) => opt.value === currentCat,
-                ) || {
-                  value: currentCat || UNCATEGORIZED_KEY,
-                  label: task.category || UNCATEGORIZED_LABEL,
-                  color: group.color,
-                };
+                const isHighlighted =
+                  Boolean(highlightTaskId) &&
+                  (String(task.id) === String(highlightTaskId) ||
+                    (task.title && task.title === highlightTaskId));
 
                 return (
                   <Box
@@ -221,11 +272,25 @@ export const SimpleTasksView = ({
                     data-simple-task-id={task.id}
                     sx={{
                       py: 0.6,
-                      px: 0.5,
-                      borderRadius: 1,
+                      px: 0.75,
+                      borderRadius: 1.5,
                       scrollMarginTop: 100,
-                      transition: "background-color 0.15s ease",
-                      "&:hover": { bgcolor: "hsl(var(--muted) / 0.25)" },
+                      transition:
+                        "background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease",
+                      bgcolor: isHighlighted
+                        ? "hsl(var(--primary) / 0.14)"
+                        : undefined,
+                      border: isHighlighted
+                        ? "1px solid #ff6600"
+                        : "1px solid transparent",
+                      boxShadow: isHighlighted
+                        ? "0 0 12px rgba(255, 102, 0, 0.25)"
+                        : "none",
+                      "&:hover": {
+                        bgcolor: isHighlighted
+                          ? "hsl(var(--primary) / 0.18)"
+                          : "hsl(var(--muted) / 0.25)",
+                      },
                       "&:hover .task-hover-actions": { opacity: 1 },
                     }}
                   >
@@ -264,92 +329,73 @@ export const SimpleTasksView = ({
                         />
                       </Box>
 
-                      {/* Category Switcher Pill */}
-                      {!readOnly && onUpdateTaskCategory && (
-                        <FormControl
-                          size="small"
-                          variant="standard"
-                          sx={{ flexShrink: 0 }}
-                        >
-                          <Select
-                            value={matchedOption.value}
-                            onChange={(e) => {
-                              const nextCat = e.target.value;
-                              onUpdateTaskCategory(
-                                task.id,
-                                nextCat === UNCATEGORIZED_KEY ? "" : nextCat,
-                              );
+                      {/* Assign AI Button */}
+                      {!readOnly && onAssignAi && (() => {
+                        const isAssigning = !!(assigningTaskIds ? assigningTaskIds[task.id] : localAssigningIds[task.id]);
+                        const isAssigned = isAIAssignee(task.assignee);
+                        return (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            disabled={isAssigning}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAssignAi(task);
                             }}
-                            disableUnderline
+                            aria-label="Assign AI"
+                            className="task-hover-actions"
                             sx={{
-                              fontSize: "0.68rem",
+                              fontSize: "0.7rem",
                               fontWeight: 600,
-                              color: matchedOption.color,
-                              bgcolor: "hsl(var(--muted) / 0.4)",
+                              lineHeight: 1,
+                              textTransform: "none",
+                              py: 0.2,
+                              px: 0.8,
+                              minHeight: 24,
+                              height: 24,
                               borderRadius: 1,
-                              px: 0.75,
-                              py: 0.1,
-                              "& .MuiSelect-select": { py: 0, pr: 2 },
-                              "& .MuiSvgIcon-root": {
-                                fontSize: 13,
-                                color: matchedOption.color,
+                              borderColor: isAssigned
+                                ? "hsl(var(--primary) / 0.4)"
+                                : "hsl(var(--border))",
+                              color: isAssigned
+                                ? "hsl(var(--primary))"
+                                : "hsl(var(--foreground))",
+                              bgcolor: isAssigned
+                                ? "hsl(var(--primary) / 0.08)"
+                                : "transparent",
+                              opacity: isAssigning || isAssigned ? 1 : { xs: 1, md: 0 },
+                              transition: "opacity 0.15s ease",
+                              "&:hover": {
+                                borderColor: "hsl(var(--primary))",
+                                bgcolor: "hsl(var(--primary) / 0.12)",
                               },
-                            }}
-                            MenuProps={{
-                              PaperProps: {
-                                sx: {
-                                  bgcolor: "hsl(var(--card))",
-                                  border: "1px solid hsl(var(--border))",
-                                },
+                              "&.Mui-disabled": {
+                                opacity: 0.7,
+                                borderColor: "hsl(var(--border))",
+                                color: "hsl(var(--muted-foreground))",
                               },
                             }}
                           >
-                            {allCategoryOptions.map((opt) => (
-                              <MenuItem
-                                key={opt.value}
-                                value={opt.value}
-                                sx={{
-                                  fontSize: "0.74rem",
-                                  gap: 1,
-                                  color: opt.color,
-                                  fontWeight: 500,
-                                }}
-                              >
-                                <Box
-                                  sx={{
-                                    width: 6,
-                                    height: 6,
-                                    borderRadius: "50%",
-                                    bgcolor: opt.color,
-                                  }}
-                                />
-                                {opt.label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      )}
-
-                      {/* Assignee Chip */}
-                      {onUpdateTaskAssignee && (
-                        <Box sx={{ flexShrink: 0 }}>
-                          <TaskAssigneeChip
-                            value={task.assignee || ""}
-                            onChange={(next) =>
-                              onUpdateTaskAssignee(task.id, next)
-                            }
-                            maxWidth={120}
-                            dense
-                          />
-                        </Box>
-                      )}
+                            {isAssigning ? (
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                <CircularProgress size={10} color="inherit" thickness={5} />
+                                <span>Assigning...</span>
+                              </Box>
+                            ) : isAssigned ? (
+                              "Assigned AI"
+                            ) : (
+                              "Assign AI"
+                            )}
+                          </Button>
+                        );
+                      })()}
 
                       {/* Hover Actions: Delete */}
                       {!readOnly && onDeleteTask && (
                         <IconButton
                           size="small"
                           className="task-hover-actions"
-                          onClick={() => onDeleteTask(task.id)}
+                          onClick={() => setPendingDeleteTask(task)}
                           aria-label="Delete task"
                           sx={{
                             p: 0.25,
@@ -389,26 +435,57 @@ export const SimpleTasksView = ({
 
                     {/* Description Block */}
                     {expanded && (
-                      <Box sx={{ pl: 4.25, pr: 4.5, pt: 0.4 }}>
-                        <DeferredTextField
+                      <Box
+                        sx={{
+                          pl: 4.25,
+                          pr: 4.5,
+                          pt: 0.6,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 1,
+                        }}
+                      >
+                        <MarkdownDescriptionEditor
+                          key={task.id}
                           value={task.description || ""}
                           onCommit={(next) =>
                             onUpdateTaskDescription(task.id, next)
                           }
-                          variant="standard"
-                          fullWidth
-                          multiline
-                          disabled={readOnly}
-                          placeholder="Add a description"
-                          slotProps={{ input: { disableUnderline: true } }}
-                          sx={{
-                            "& textarea": {
-                              fontSize: "0.82rem",
-                              lineHeight: 1.6,
-                              color: "hsl(var(--muted-foreground))",
-                            },
-                          }}
+                          placeholder="Add a task description... Markdown supported, paste images directly."
+                          readOnly={readOnly}
+                          minRows={2}
+                          incidentId={incidentId}
+                          taskId={task.id}
+                          compact
                         />
+                        {onUpdateTaskAssignee && (
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                              pt: 0.25,
+                            }}
+                          >
+                            <Typography
+                              sx={{
+                                fontSize: "0.72rem",
+                                color: "hsl(var(--muted-foreground))",
+                                fontWeight: 500,
+                              }}
+                            >
+                              Assignee:
+                            </Typography>
+                            <TaskAssigneeChip
+                              value={task.assignee || ""}
+                              onChange={(next) =>
+                                onUpdateTaskAssignee(task.id, next)
+                              }
+                              maxWidth={140}
+                              dense
+                            />
+                          </Box>
+                        )}
                       </Box>
                     )}
                   </Box>
@@ -536,10 +613,11 @@ export const SimpleTasksView = ({
                 >
                   <Box
                     sx={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
+                      width: 3,
+                      height: 12,
+                      borderRadius: "1px",
                       bgcolor: cat.color,
+                      flexShrink: 0,
                     }}
                   />
                   {cat.label}
@@ -549,6 +627,37 @@ export const SimpleTasksView = ({
           </FormControl>
         </Box>
       )}
+
+      {/* Delete task confirmation dialog */}
+      <AlertDialog
+        open={!!pendingDeleteTask}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteTask(null);
+        }}
+      >
+        <AlertDialogContent className="z-[1500]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {pendingDeleteTask?.title ? `"${pendingDeleteTask.title}"` : "this task"}? This action cannot be undone and will be recorded in the incident timeline.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDeleteTask && onDeleteTask) {
+                  onDeleteTask(pendingDeleteTask.id);
+                }
+                setPendingDeleteTask(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Box>
   );
 };

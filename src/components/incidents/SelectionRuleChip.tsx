@@ -141,8 +141,13 @@ const isEditableTarget = (node: Node | null): boolean => {
       if (el.closest?.('[data-incident-field]')) return false;
       return true;
     }
-    if (el.isContentEditable) return true;
+    if (el.isContentEditable) {
+      // Allow if this contenteditable is inside a marked incident field (e.g. description).
+      if (el.closest?.('[data-incident-field]')) return false;
+      return true;
+    }
     if (el.getAttribute?.('data-selection-rule-ui') === '1') return true;
+    if (el.getAttribute?.('data-markdown-format-bar') === '1') return true;
     el = el.parentElement;
   }
   return false;
@@ -386,15 +391,30 @@ export const SelectionRuleChip = ({ incidentId }: SelectionRuleChipProps) => {
       setChip(null);
       return;
     }
-    const rect = range.getBoundingClientRect();
+    let rect = range.getBoundingClientRect();
     if (!rect || (rect.width === 0 && rect.height === 0)) {
-      setChip(null);
-      return;
+      const clientRects = range.getClientRects();
+      if (clientRects.length > 0) {
+        rect = clientRects[0];
+      } else {
+        setChip(null);
+        return;
+      }
     }
     const detectedField = detectField(anchor);
+    let chipY = rect.bottom + 8;
+    // If the Markdown format bar is active and positioned below the selection,
+    // position this automation rule chip below it so both popovers show at once.
+    const formatBar = document.querySelector('[data-markdown-format-bar="1"]') as HTMLElement | null;
+    if (formatBar && formatBar.getAttribute('data-format-bar-placement') === 'below') {
+      const fbRect = formatBar.getBoundingClientRect();
+      if (fbRect.bottom >= chipY) {
+        chipY = fbRect.bottom + 8;
+      }
+    }
     setChip({
       x: rect.left + rect.width / 2,
-      y: rect.bottom + 8,
+      y: chipY,
       text,
       field: detectedField,
     });
@@ -416,7 +436,7 @@ export const SelectionRuleChip = ({ incidentId }: SelectionRuleChipProps) => {
 
     const handlePointerDown = (e: PointerEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t?.closest?.('[data-selection-rule-ui="1"]')) return;
+      if (t?.closest?.('[data-selection-rule-ui="1"], [data-markdown-format-bar="1"]')) return;
       pointerDownRef.current = true;
       // Hide any existing chip while a new selection is being created.
       if (chip && !popoverOpen) setChip(null);
@@ -454,12 +474,14 @@ export const SelectionRuleChip = ({ incidentId }: SelectionRuleChipProps) => {
     document.addEventListener('selectionchange', handleSelectionChange);
     document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('mouseup', handlePointerUp);
     document.addEventListener('pointercancel', handlePointerCancel);
     window.addEventListener('selection-rule:external', handleExternalSelection);
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange);
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('pointerup', handlePointerUp);
+      document.removeEventListener('mouseup', handlePointerUp);
       document.removeEventListener('pointercancel', handlePointerCancel);
       window.removeEventListener('selection-rule:external', handleExternalSelection);
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -480,7 +502,7 @@ export const SelectionRuleChip = ({ incidentId }: SelectionRuleChipProps) => {
     if (!chip && !popoverOpen) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t?.closest?.('[data-selection-rule-ui="1"]')) return;
+      if (t?.closest?.('[data-selection-rule-ui="1"], [data-markdown-format-bar="1"]')) return;
       // Ignore clicks inside MUI portal-rendered popovers/menus (Selects).
       if (t?.closest?.('.MuiPopover-root, .MuiMenu-root, .MuiModal-root')) return;
       closeChip();
@@ -498,6 +520,9 @@ export const SelectionRuleChip = ({ incidentId }: SelectionRuleChipProps) => {
     const snippet = truncate(chip.text, 32);
     setRuleName(`Auto-rule: "${snippet}"`);
     setPopoverOpen(true);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('selection-rule:popover-open'));
+    }
   };
 
   const handleSave = async () => {

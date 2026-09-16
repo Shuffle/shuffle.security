@@ -20,9 +20,9 @@
 import { useEffect, useState } from 'react';
 import { Box, BoxProps } from '@mui/material';
 import { ShuffleMarkdown } from '@/components/shared/Markdown';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { resolveFileUrl, getCachedFileBlob, isShuffleFileUrl } from '@/services/files';
 
-const isApiFileUrl = (src: string) => src.includes('/api/v1/files/');
+const isApiFileUrl = (src: string) => isShuffleFileUrl(src);
 
 /** Only allow URLs that cannot execute script when rendered. */
 const isSafeUrl = (raw?: unknown): raw is string => {
@@ -47,33 +47,44 @@ const isSafeImageUrl = (raw?: unknown): raw is string => {
 /** Image that loads Shuffle file-API images through the authenticated session. */
 const MarkdownImage = ({ src, alt, title }: { src?: unknown; alt?: string; title?: string }) => {
   const safeSrc = isSafeImageUrl(src) ? src.trim() : undefined;
-  const [resolved, setResolved] = useState<string | undefined>(
-    safeSrc && isApiFileUrl(safeSrc) ? undefined : safeSrc,
-  );
+  const [resolved, setResolved] = useState<string | undefined>(() => {
+    if (!safeSrc) return undefined;
+    if (safeSrc.startsWith('data:') || safeSrc.startsWith('blob:')) return safeSrc;
+    if (isShuffleFileUrl(safeSrc)) {
+      return getCachedFileBlob(safeSrc);
+    }
+    return safeSrc;
+  });
 
   useEffect(() => {
-    if (!safeSrc || !isApiFileUrl(safeSrc)) {
+    if (!safeSrc) {
+      setResolved(undefined);
+      return;
+    }
+    if (safeSrc.startsWith('data:') || safeSrc.startsWith('blob:')) {
       setResolved(safeSrc);
       return;
     }
-    let objectUrl = '';
+    if (!isShuffleFileUrl(safeSrc)) {
+      setResolved(safeSrc);
+      return;
+    }
+    const cached = getCachedFileBlob(safeSrc);
+    if (cached) {
+      setResolved(cached);
+      return;
+    }
+
     let cancelled = false;
-    (async () => {
-      try {
-        const url = safeSrc.startsWith('http') ? safeSrc : getApiUrl(safeSrc);
-        const resp = await fetch(url, { credentials: 'include', headers: getAuthHeader() });
-        if (!resp.ok) return;
-        const blob = await resp.blob();
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setResolved(objectUrl);
-      } catch {
+    resolveFileUrl(safeSrc)
+      .then((url) => {
+        if (!cancelled) setResolved(url);
+      })
+      .catch(() => {
         // Leave the image unresolved; the alt text stays visible.
-      }
-    })();
+      });
     return () => {
       cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [safeSrc]);
 

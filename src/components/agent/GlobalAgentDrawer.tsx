@@ -40,6 +40,7 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
   const [open, setOpen] = useState(false);
   const [initialTab, setInitialTab] = useState<AgentRunDrawerTab>('run');
   const [defaultInput, setDefaultInput] = useState<string>('');
+  const [autoSubmit, setAutoSubmit] = useState<boolean>(false);
 
   useEffect(() => {
     try {
@@ -80,6 +81,9 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
       const nextTab = (detail?.tab ?? 'run') as AgentRunDrawerTab;
       if (detail?.defaultInput !== undefined) {
         setDefaultInput(detail.defaultInput);
+      }
+      if (detail?.autoSubmit !== undefined) {
+        setAutoSubmit(detail.autoSubmit);
       }
       setInitialTab(nextTab);
       setOpen(true);
@@ -137,6 +141,7 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
         if (!nextOpen) {
           setInitialTab('run');
           setDefaultInput('');
+          setAutoSubmit(false);
           try {
             localStorage.setItem('shuffle_agent_drawer_tab', 'run');
           } catch { /* ignore */ }
@@ -159,6 +164,7 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
         theme,
         isSupport,
         defaultInput,
+        autoSubmit,
       }}
     />
   );

@@ -3,7 +3,7 @@ import {
   isTenantGhost,
   type TenantStamp,
 } from "@/utils/tenantAuthority";
-import {
+import React, {
   useState,
   useEffect,
   useMemo,
@@ -118,6 +118,8 @@ import {
 import {
   autoCorrectTranslatedString,
   repairCorruptedOcsfFields,
+  looksLikeTranslationExpr,
+  parseHybridHeaderFailure,
   type FieldRepair,
 } from "@/lib/translationFallback";
 import { useUsers } from "@/hooks/useUsers";
@@ -283,6 +285,7 @@ import {
   RefreshCw as RefreshIcon,
   TrendingUp as TrendingUpIcon,
   Wand2 as AutoFixHighIcon,
+  Sparkles as SparklesIcon,
   MoreVertical as MoreVertIcon,
   Forward as ForwardIcon,
   GitMerge as CallMergeIcon,
@@ -491,6 +494,8 @@ const stepVerbLabel = (label: string, hasActor: boolean): string => {
     "Task created": "created",
     "Task completed": "completed",
     "Task moved": "moved",
+    "Task assigned to AI Agent": "assigned to AI Agent",
+    "Task deleted": "deleted",
     "Incident created": "created this incident",
   };
   return map[label] || label;
@@ -779,17 +784,33 @@ const getLocalEmailThreadMessageCount = (raw: any): number => {
   const counts: number[] = [];
   try {
     const resolved = resolveEmailThread(raw);
-    if (resolved?.messages?.length) counts.push(resolved.messages.length);
+    if (resolved?.messages?.length) {
+      const nonDrafts = resolved.messages.filter((m) => !m.isDraft);
+      counts.push(nonDrafts.length > 0 ? nonDrafts.length : resolved.messages.length);
+    }
   } catch {
     /* ignore malformed provider payloads */
   }
   const unmapped = raw.unmapped_original;
-  if (Array.isArray(unmapped?.messages)) counts.push(unmapped.messages.length);
-  if (Array.isArray(unmapped?.emails)) counts.push(unmapped.emails.length);
-  if (Array.isArray(raw.email?.messages))
-    counts.push(raw.email.messages.length);
+  if (Array.isArray(unmapped?.messages)) {
+    const nonDrafts = unmapped.messages.filter(
+      (m: any) => m?.isDraft !== true && !m?.labelIds?.includes?.("DRAFT")
+    );
+    counts.push(nonDrafts.length > 0 ? nonDrafts.length : unmapped.messages.length);
+  }
+  if (Array.isArray(unmapped?.emails)) {
+    const nonDrafts = unmapped.emails.filter(
+      (m: any) => m?.isDraft !== true && m?.is_draft !== true
+    );
+    counts.push(nonDrafts.length > 0 ? nonDrafts.length : unmapped.emails.length);
+  }
+  if (Array.isArray(raw.email?.messages)) {
+    const nonDrafts = raw.email.messages.filter((m: any) => m?.isDraft !== true);
+    counts.push(nonDrafts.length > 0 ? nonDrafts.length : raw.email.messages.length);
+  }
   return counts.length ? Math.max(...counts) : 0;
 };
+
 
 const parseIncidentFromDatastore = (item: {
   key: string;
@@ -1091,6 +1112,105 @@ const SimpleIncidentTitle = ({
   );
 };
 
+/**
+ * Extracts a concise human-readable error or failure message from a workflow execution run.
+ * Checks run.error, action failures in run.results, run.failure_reason, parsed JSON in run.result,
+ * and falls back to agent failure diagnosis or high-level status.
+ */
+const getWorkflowFailureReason = (run: any): string | null => {
+  if (!run) return null;
+
+  // 1. Explicit error field on run
+  if (run.error) {
+    if (typeof run.error === "string" && run.error.trim()) {
+      return run.error.trim();
+    }
+    if (typeof run.error === "object" && run.error !== null) {
+      const msg = run.error.message || run.error.reason || run.error.error;
+      if (msg && typeof msg === "string" && msg.trim()) return msg.trim();
+    }
+  }
+
+  // 2. Explicit failure_reason
+  if (run.failure_reason && typeof run.failure_reason === "string" && run.failure_reason.trim()) {
+    return run.failure_reason.trim();
+  }
+
+  // 3. Check individual action results in run.results
+  if (Array.isArray(run.results)) {
+    const failedAction = run.results.find((r: any) => {
+      const s = String(r?.status || "").toUpperCase();
+      return s === "FAILURE" || s === "FAILED" || s === "ERROR" || s === "ABORTED";
+    });
+
+    if (failedAction) {
+      const actionLabel =
+        failedAction.action?.label ||
+        failedAction.action?.app_name ||
+        failedAction.label ||
+        "Action";
+
+      let errorMsg = "";
+      if (typeof failedAction.result === "string" && failedAction.result.trim()) {
+        try {
+          const parsed = JSON.parse(failedAction.result);
+          errorMsg =
+            parsed.reason ||
+            parsed.message ||
+            parsed.error ||
+            parsed.details ||
+            failedAction.result;
+        } catch {
+          errorMsg = failedAction.result;
+        }
+      }
+
+      if (typeof errorMsg === "string" && errorMsg.trim()) {
+        const firstLine = errorMsg.split("\n")[0].trim();
+        return `${actionLabel}: ${firstLine}`;
+      }
+      return `${actionLabel} failed`;
+    }
+  }
+
+  // 4. Check run.result string or object
+  if (run.result) {
+    if (typeof run.result === "string" && run.result.trim()) {
+      try {
+        const parsed = JSON.parse(run.result);
+        if (parsed && typeof parsed === "object") {
+          const r = parsed.reason || parsed.message || parsed.error;
+          if (r && typeof r === "string" && r.trim()) return r.trim();
+        }
+      } catch {
+        const status = String(run.status || "").toUpperCase();
+        const isFailedStatus =
+          status === "FAILED" ||
+          status === "FAILURE" ||
+          status === "ERROR" ||
+          status === "ABORTED";
+        if (isFailedStatus && run.result.length < 200 && !run.result.startsWith("{") && !run.result.startsWith("[")) {
+          return run.result.trim();
+        }
+      }
+    }
+  }
+
+  // 5. Check if getAgentFailureInfo extracts anything
+  try {
+    const info = getAgentFailureInfo(run);
+    if (info?.reason) return info.reason;
+  } catch {
+    // ignore
+  }
+
+  const status = String(run.status || "").toUpperCase();
+  if (status === "ABORTED") return "Execution aborted";
+  if (status === "FAILED" || status === "FAILURE" || status === "ERROR") return "Execution failed";
+
+  return null;
+};
+
 const IncidentDetailPage = () => {
   const { id: rawId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -1239,7 +1359,68 @@ const IncidentDetailPage = () => {
 
   // Editable fields
   const [editedTitle, setEditedTitle] = useState("");
+  const [editedStatus, setEditedStatus] = useState("");
   const currentIncidentTitle = (editedTitle || incident?.title || "").trim();
+
+  // Optimistic tracking for immediate manual timeline updates
+  const [optimisticAttrChanges, setOptimisticAttrChanges] = useState<
+    Array<{
+      field: string;
+      prevRaw: any;
+      currRaw: any;
+      timestamp: number;
+      actor: string;
+    }>
+  >([]);
+  const autoProgressedStatusRef = useRef<boolean>(false);
+
+  const handleManualTitleChange = useCallback(
+    (nextTitle: string) => {
+      if (isPublicView) return;
+      const prevTitle = (editedTitle || incident?.title || "").trim();
+      const newTitleTrimmed = nextTitle.trim();
+      setEditedTitle(nextTitle);
+      if (newTitleTrimmed && newTitleTrimmed !== prevTitle) {
+        setOptimisticAttrChanges((prev) => [
+          ...prev.filter(
+            (p) => p.field !== "title" || Date.now() - p.timestamp > 20000,
+          ),
+          {
+            field: "title",
+            prevRaw: prevTitle,
+            currRaw: newTitleTrimmed,
+            timestamp: Date.now(),
+            actor: currentUsername || "You",
+          },
+        ]);
+      }
+    },
+    [isPublicView, editedTitle, incident?.title, currentUsername],
+  );
+
+  const handleManualStatusChange = useCallback(
+    (nextStatus: string) => {
+      autoProgressedStatusRef.current = false;
+      const prevStatus = (editedStatus || incident?.status || "new").trim();
+      const newStatusTrimmed = (nextStatus || "").trim();
+      setEditedStatus(nextStatus);
+      if (newStatusTrimmed && newStatusTrimmed !== prevStatus) {
+        setOptimisticAttrChanges((prev) => [
+          ...prev.filter(
+            (p) => p.field !== "status" || Date.now() - p.timestamp > 20000,
+          ),
+          {
+            field: "status",
+            prevRaw: prevStatus,
+            currRaw: newStatusTrimmed,
+            timestamp: Date.now(),
+            actor: currentUsername || "You",
+          },
+        ]);
+      }
+    },
+    [editedStatus, incident?.status, currentUsername],
+  );
 
   usePageMeta({
     title: currentIncidentTitle
@@ -1265,7 +1446,6 @@ const IncidentDetailPage = () => {
   const [editedMessage, setEditedMessage] = useState("");
   const [editedSeverity, setEditedSeverity] = useState("");
   const [editedAssignee, setEditedAssignee] = useState("");
-  const [editedStatus, setEditedStatus] = useState("");
   const [editedTlp, setEditedTlp] = useState("TLP:AMBER");
   const [editedReferences, setEditedReferences] = useState<string[]>([]);
   const [newReference, setNewReference] = useState("");
@@ -1344,6 +1524,78 @@ const IncidentDetailPage = () => {
   const flashedCorrTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+
+  // Hovered target from simple timeline, to visually link to center areas and TOC
+  const [hoveredSimpleTimelineTarget, setHoveredSimpleTimelineTarget] =
+    useState<{
+      section:
+        | "overview"
+        | "narrative"
+        | "tasks"
+        | "customFields"
+        | "observables"
+        | "correlations"
+        | "emailThread"
+        | null;
+      taskId?: string | null;
+      obsKey?: string | null;
+      attrField?: string | null;
+    } | null>(null);
+
+  const hoverScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleGentleScroll = (target: {
+    section?:
+      | "overview"
+      | "narrative"
+      | "tasks"
+      | "customFields"
+      | "observables"
+      | "correlations"
+      | "emailThread"
+      | null;
+    taskId?: string | null;
+  }) => {
+    if (hoverScrollTimerRef.current) {
+      clearTimeout(hoverScrollTimerRef.current);
+      hoverScrollTimerRef.current = null;
+    }
+    hoverScrollTimerRef.current = setTimeout(() => {
+      try {
+        let el: HTMLElement | null = null;
+        if (target.taskId) {
+          const escaped =
+            typeof CSS !== "undefined" && CSS.escape
+              ? CSS.escape(target.taskId)
+              : target.taskId;
+          el = document.querySelector(
+            `[data-simple-task-id="${escaped}"]`,
+          ) as HTMLElement | null;
+        }
+        if (!el && target.section) {
+          el = document.getElementById(
+            `simple-case-${target.section}`,
+          ) as HTMLElement | null;
+        }
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const isVisible =
+          rect.top >= 80 && rect.bottom <= window.innerHeight - 60;
+        if (!isVisible) {
+          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 220);
+  };
+
+  const cancelGentleScroll = () => {
+    if (hoverScrollTimerRef.current) {
+      clearTimeout(hoverScrollTimerRef.current);
+      hoverScrollTimerRef.current = null;
+    }
+  };
   // Track the user's most recent keystroke so background polls can defer
   // while they're actively typing in a textfield.
   const lastKeystrokeRef = useRef<number>(0);
@@ -1571,8 +1823,9 @@ const IncidentDetailPage = () => {
     preview: string;
   } | null>(null);
   const commentInputRef = useRef<HTMLDivElement>(null);
-  // Simple-view timeline feed: always parked at the newest (bottom) entry.
+  // Simple-view timeline feed: tracks whether to auto-follow bottom on new entries.
   const simpleFeedRef = useRef<HTMLDivElement | null>(null);
+  const followSimpleTimelineRef = useRef<boolean>(true);
   const defaultFeedRef = useRef<HTMLDivElement | null>(null);
   const [simpleExpandedTaskIds, setSimpleExpandedTaskIds] = useState<string[]>(
     [],
@@ -1648,6 +1901,7 @@ const IncidentDetailPage = () => {
 
   // Tasks
   const [tasks, setTasks] = useState<IncidentTask[]>([]);
+  const [assigningTaskIds, setAssigningTaskIds] = useState<Record<string, boolean>>({});
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
@@ -2051,6 +2305,25 @@ const IncidentDetailPage = () => {
    * the user can see exactly which observable the timeline entry refers to.
    */
   const focusObservableFromTimeline = (typeValueKey: string | null) => {
+    if (activeTab === 7) {
+      if (!typeValueKey) return;
+      setFlashedObsKey(typeValueKey);
+      if (flashedObsTimerRef.current) clearTimeout(flashedObsTimerRef.current);
+      flashedObsTimerRef.current = setTimeout(() => setFlashedObsKey(null), 2200);
+      setTimeout(() => {
+        try {
+          const escaped =
+            typeof CSS !== "undefined" && CSS.escape
+              ? CSS.escape(typeValueKey.toLowerCase())
+              : typeValueKey.toLowerCase();
+          const el = (document.querySelector(
+            `[data-simple-obs-key="${escaped}"]`,
+          ) || document.getElementById("simple-case-observables")) as HTMLElement | null;
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        } catch {}
+      }, 50);
+      return;
+    }
     setActiveTab(2);
     if (!typeValueKey) return;
     setFlashedObsKey(typeValueKey);
@@ -2076,6 +2349,28 @@ const IncidentDetailPage = () => {
    * Used by clickable task pills in the timeline.
    */
   const focusTaskFromTimeline = (taskId: string | null) => {
+    if (activeTab === 7) {
+      if (!taskId) return;
+      setFlashedTaskId(taskId);
+      if (flashedTaskTimerRef.current) clearTimeout(flashedTaskTimerRef.current);
+      flashedTaskTimerRef.current = setTimeout(
+        () => setFlashedTaskId(null),
+        2200,
+      );
+      setTimeout(() => {
+        try {
+          const escaped =
+            typeof CSS !== "undefined" && CSS.escape
+              ? CSS.escape(taskId)
+              : taskId;
+          const el = (document.querySelector(
+            `[data-simple-task-id="${escaped}"]`,
+          ) || document.getElementById("simple-case-tasks")) as HTMLElement | null;
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        } catch {}
+      }, 50);
+      return;
+    }
     setActiveTab(1);
     if (!taskId) return;
     setFlashedTaskId(taskId);
@@ -2104,6 +2399,17 @@ const IncidentDetailPage = () => {
    * (used for the "incident-level correlations" pill that has no key).
    */
   const focusCorrelationFromTimeline = (correlationKey: string | null) => {
+    if (activeTab === 7) {
+      setTimeout(() => {
+        try {
+          const el = document.getElementById(
+            "simple-case-correlations",
+          ) as HTMLElement | null;
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        } catch {}
+      }, 50);
+      return;
+    }
     setActiveTab(3);
     if (correlationKey) {
       setFlashedCorrelationKey(correlationKey);
@@ -2136,6 +2442,17 @@ const IncidentDetailPage = () => {
   const [flashedRelatedId, setFlashedRelatedId] = useState<string | null>(null);
   const flashedRelatedTimerRef = useRef<any>(null);
   const focusRelatedIncident = (relatedId: string | null) => {
+    if (activeTab === 7) {
+      setTimeout(() => {
+        try {
+          const el = document.getElementById(
+            "simple-case-correlations",
+          ) as HTMLElement | null;
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        } catch {}
+      }, 50);
+      return;
+    }
     setActiveTab(3);
     if (!relatedId) return;
     setFlashedRelatedId(relatedId);
@@ -2173,7 +2490,7 @@ const IncidentDetailPage = () => {
     const type = sepIdx > -1 ? obsKey.slice(0, sepIdx) : "";
     const value = sepIdx > -1 ? obsKey.slice(sepIdx + 2) : obsKey;
     const labelType = type ? type.toUpperCase() : "observable";
-    const prompt = `@agent This ${labelType} \`${value}\` is flagged as a Known IOC on the timeline. What do we know about it (threat-feed sources, related campaigns), and what should we do next — block, isolate, or investigate further?`;
+    const prompt = `@AIAgent This ${labelType} \`${value}\` is flagged as a Known IOC on the timeline. What do we know about it (threat-feed sources, related campaigns), and what should we do next — block, isolate, or investigate further?`;
     setActiveTab(0);
     setNewComment((cur) => (cur && cur.trim() ? cur : prompt));
     setTimeout(() => {
@@ -3381,19 +3698,20 @@ const IncidentDetailPage = () => {
     ];
 
     // Primary selection order:
-    //   1. If any pool member ALREADY anchors merges (has linked pointers),
+    //   1. Never pick a draft-only incident as primary if a non-draft member
+    //      exists in the pool. Drafts are unsent and cannot be the source of truth.
+    //   2. If any non-draft member ALREADY anchors merges (has linked pointers),
     //      it stays the primary. Threads keep a stable ID across time —
     //      new siblings fold into the existing anchor instead of rotating
     //      the primary to whichever incident happens to be newest.
-    //   2. Otherwise (first merge on this thread), never pick a draft as
-    //      primary; latest non-draft wins; id breaks ties.
+    //   3. Otherwise, latest non-draft wins; id breaks ties.
     pool.sort((a, b) => {
-      const aAnchor = getLinkedPointers(a.raw).length > 0 ? 0 : 1;
-      const bAnchor = getLinkedPointers(b.raw).length > 0 ? 0 : 1;
-      if (aAnchor !== bAnchor) return aAnchor - bAnchor;
       const ad = isDraftOnlyIncident(a.raw) ? 1 : 0;
       const bd = isDraftOnlyIncident(b.raw) ? 1 : 0;
       if (ad !== bd) return ad - bd;
+      const aAnchor = getLinkedPointers(a.raw).length > 0 ? 0 : 1;
+      const bAnchor = getLinkedPointers(b.raw).length > 0 ? 0 : 1;
+      if (aAnchor !== bAnchor) return aAnchor - bAnchor;
       return b.ts - a.ts || b.id.localeCompare(a.id);
     });
     const primary = pool[0];
@@ -3602,14 +3920,13 @@ const IncidentDetailPage = () => {
     readIncidentTimestamp,
   ]);
 
-  // Auto-invoke thread merging when the org preference is enabled. Runs
-  // silently in the background whenever the current incident has visible
-  // thread siblings that are not already merged/linked. Guarded per
-  // thread_id so a single load only triggers one merge attempt.
+  // Auto-invoke thread merging when the org preference is enabled, OR when
+  // a draft is discovered in an existing thread.
+  // User directive: "If an email in the incident area is ever discovered to be
+  // a draft in an existing thread, merge and omit it."
   const autoMergeThreadEnabled = useAutoMergeThread();
   const autoMergedThreadsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!autoMergeThreadEnabled) return;
     if (isPublicView) return;
     if (autoMergeBusy) return;
     if (!incident?.id || !incident.rawOCSF) return;
@@ -3633,6 +3950,16 @@ const IncidentDetailPage = () => {
       if (s === "merged" || inc.status_id === 6) return false;
       return true;
     });
+
+    const isCurrentDraft = isDraftOnlyIncident(incident.rawOCSF);
+    const hasDraftSibling = previewMergeable.some((inc) => isDraftOnlyIncident(inc.raw));
+    const hasNonDraftSibling = previewMergeable.some((inc) => !isDraftOnlyIncident(inc.raw));
+    const isDraftInExistingThread =
+      (isCurrentDraft && (hasNonDraftSibling || Boolean(relatedIncidents.primary?.id) || threadCorrelated.discoveredCount > 0)) ||
+      (hasDraftSibling && !isCurrentDraft);
+
+    if (!autoMergeThreadEnabled && !isDraftInExistingThread) return;
+
     // Trigger if either the preview has mergeable siblings OR the raw
     // correlation count exceeds what we've resolved locally — in the
     // latter case handleAutoMergeThread() will loadAll() and evaluate
@@ -3652,6 +3979,7 @@ const IncidentDetailPage = () => {
     isPublicView,
     autoMergeBusy,
     incident?.id,
+    incident?.rawOCSF,
     primaryPointer,
     threadCorrelated.threadId,
     threadCorrelated.loading,
@@ -3675,6 +4003,16 @@ const IncidentDetailPage = () => {
       // Don't clobber the editor while the user is previewing an older revision.
       if (selectedRevisionIdx === null)
         setRawJsonText(JSON.stringify(invariantRaw, null, 2));
+
+      // Tag browser recovery repairs so they do not produce timeline noise
+      (invariantRaw as any)._auto_repaired_fields = ["status"];
+      if (!invariantRaw.metadata) (invariantRaw as any).metadata = {};
+      if (!(invariantRaw.metadata as any).extensions)
+        (invariantRaw.metadata as any).extensions = {};
+      (invariantRaw.metadata.extensions as any).auto_recovered_fields = [
+        "status",
+      ];
+
       writeIncidentSafe(
         incident.id,
         invariantRaw,
@@ -4285,13 +4623,17 @@ const IncidentDetailPage = () => {
   ]);
 
   // Simple view: keep the timeline scrolled to the newest entry at the bottom,
-  // and autoscroll when new objects (workflows, agent runs, tasks, comments, etc.) are discovered.
+  // but NEVER hijack or force-scroll if the user has manually scrolled up.
   useEffect(() => {
     const el = simpleFeedRef.current;
     if (!el) return;
 
     let prevChildCount = el.children.length;
     let prevScrollHeight = el.scrollHeight;
+
+    const isAtBottom = (threshold = 60) => {
+      return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+    };
 
     const park = (smooth = false) => {
       try {
@@ -4304,10 +4646,31 @@ const IncidentDetailPage = () => {
       }
     };
 
+    // Track user scrolling: if user scrolls away from bottom, pause following;
+    // if user scrolls back down near bottom, re-engage following.
+    const handleScroll = () => {
+      followSimpleTimelineRef.current = isAtBottom(60);
+    };
+
+    const handleUserGesture = () => {
+      requestAnimationFrame(() => {
+        followSimpleTimelineRef.current = isAtBottom(60);
+      });
+    };
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    el.addEventListener("wheel", handleUserGesture, { passive: true });
+    el.addEventListener("touchmove", handleUserGesture, { passive: true });
+
     // Initial park at bottom on mount/tab change
+    followSimpleTimelineRef.current = true;
     park(false);
-    const raf = requestAnimationFrame(() => park(false));
-    const timer = setTimeout(() => park(false), 250);
+    const raf = requestAnimationFrame(() => {
+      if (followSimpleTimelineRef.current) park(false);
+    });
+    const timer = setTimeout(() => {
+      if (followSimpleTimelineRef.current) park(false);
+    }, 250);
 
     // Watch for new DOM objects discovered or rendered in the feed
     const observer = new MutationObserver((mutations) => {
@@ -4328,7 +4691,13 @@ const IncidentDetailPage = () => {
       ) {
         prevChildCount = currentChildCount;
         prevScrollHeight = currentScrollHeight;
-        requestAnimationFrame(() => park(true));
+
+        // ONLY autoscroll if following is active and user is near bottom!
+        if (followSimpleTimelineRef.current && isAtBottom(60)) {
+          requestAnimationFrame(() => {
+            if (followSimpleTimelineRef.current) park(true);
+          });
+        }
       }
     });
 
@@ -4338,19 +4707,11 @@ const IncidentDetailPage = () => {
       cancelAnimationFrame(raf);
       clearTimeout(timer);
       observer.disconnect();
+      el.removeEventListener("scroll", handleScroll);
+      el.removeEventListener("wheel", handleUserGesture);
+      el.removeEventListener("touchmove", handleUserGesture);
     };
-  }, [
-    activeTab,
-    revisions.length,
-    commentActivity.length,
-    activity.length,
-    agentRuns?.length,
-    workflowOnlyRuns.length,
-    allIncidentWorkflowRuns?.length,
-    tasks.length,
-    editedObservables.length,
-    correlations.length,
-  ]);
+  }, [activeTab]);
   const [selectedAgentRun, setSelectedAgentRun] = useState<AgentRun | null>(
     null,
   );
@@ -4671,6 +5032,14 @@ const IncidentDetailPage = () => {
               "[IncidentDetail] Persisting repaired translation fields:",
               fieldRepairs,
             );
+            const repairedFieldNames = fieldRepairs.map((r) => r.field);
+            (repairedRaw as any)._auto_repaired_fields = repairedFieldNames;
+            if (!repairedRaw.metadata) (repairedRaw as any).metadata = {};
+            if (!(repairedRaw.metadata as any).extensions)
+              (repairedRaw.metadata as any).extensions = {};
+            (repairedRaw.metadata.extensions as any).auto_recovered_fields =
+              repairedFieldNames;
+
             writeIncidentSafe(id, repairedRaw, crossOrgId || undefined).catch(
               (err) =>
                 console.warn(
@@ -6177,6 +6546,23 @@ const IncidentDetailPage = () => {
           tasks: tasks,
         };
 
+    if (autoProgressedStatusRef.current) {
+      (updatedData as any)._auto_repaired_fields = [
+        ...((updatedData as any)._auto_repaired_fields || []),
+        "status",
+      ];
+      (updatedData as any)._auto_status_progressed = true;
+      if (!updatedData.metadata) (updatedData as any).metadata = {};
+      if (!(updatedData.metadata as any).extensions)
+        (updatedData.metadata as any).extensions = {};
+      (updatedData.metadata.extensions as any).auto_recovered_fields = [
+        ...((updatedData.metadata.extensions as any).auto_recovered_fields ||
+          []),
+        "status",
+      ];
+      autoProgressedStatusRef.current = false;
+    }
+
     try {
       const saveResult = await writeIncidentSafe(
         incident.id,
@@ -6296,7 +6682,7 @@ const IncidentDetailPage = () => {
       // Refresh revisions after a short delay so the Activity feed shows the new change
       setTimeout(() => {
         loadRevisions();
-      }, 3000);
+      }, 1000);
 
       // Schedule observable/enrichment refresh ~7s after save
       // Backend may update enrichments asynchronously after the save
@@ -6646,6 +7032,7 @@ const IncidentDetailPage = () => {
   // Auto-transition status to "in_progress" when any action is taken
   const autoProgressStatus = useCallback(() => {
     if (editedStatus === "new") {
+      autoProgressedStatusRef.current = true;
       setEditedStatus("in_progress");
     }
   }, [editedStatus]);
@@ -6744,6 +7131,7 @@ const IncidentDetailPage = () => {
     // Hold the local entry so a background poll that raced our write cannot
     // remove it before the backend echoes it back.
     trackPendingActivity(commentActivity);
+    followSimpleTimelineRef.current = true;
     setActivity(updatedActivity);
     setNewComment("");
     debouncedCommentInputRef.current?.clear();
@@ -7181,7 +7569,9 @@ const IncidentDetailPage = () => {
             (it: any) =>
               it?.type === "comment" &&
               typeof it?.content === "string" &&
-              it.content.trim().startsWith(`@AIAgent ${prompt}`),
+              (it.content.trim().startsWith(`@AIAgent ${prompt}`) ||
+                it.content.trim().startsWith(`@ai-agent ${prompt}`) ||
+                it.content.trim().startsWith(`@agent ${prompt}`)),
           );
           if (!alreadyAsked) {
             nextActivity = [
@@ -7398,7 +7788,7 @@ const IncidentDetailPage = () => {
     if (!incident) return;
 
     // Immediately update local status so auto-save won't revert it
-    setEditedStatus("resolved");
+    handleManualStatusChange("resolved");
     setIsSaving(true);
 
     const reasonLabel =
@@ -7615,12 +8005,100 @@ const IncidentDetailPage = () => {
   };
 
   const handleDeleteTask = (taskId: string) => {
+    autoProgressStatus();
+    const actor = currentUsername || "You";
+    const now = Date.now();
+    const targetTask = tasks.find((t) => t.id === taskId);
+    const taskTitle = targetTask?.title || "Untitled task";
+
     // Soft delete: mark as disabled instead of removing (preserved for backend persistence)
     setTasks(
       tasks.map((task) =>
-        task.id === taskId ? { ...task, disabled: true } : task,
+        task.id === taskId
+          ? { ...task, disabled: true, deletedAt: now, deletedBy: actor }
+          : task,
       ),
     );
+
+    const deleteActivity: ActivityItem = {
+      id: `task-deleted-${now}-${taskId}`,
+      type: "change",
+      user: actor,
+      timestamp: now,
+      content: `Deleted task "${taskTitle}"`,
+      details: {
+        taskId,
+        taskTitle,
+        deletedBy: actor,
+        action: "delete_task",
+      },
+      attachments: [],
+    };
+    setActivity((prev) => [...prev, deleteActivity]);
+  };
+
+  const handleAssignAi = (task: IncidentTask) => {
+    autoProgressStatus();
+    const actor = currentUsername || "You";
+    const now = Date.now();
+
+    // 1. Enter loading state (disabled and unclickable for 8s)
+    setAssigningTaskIds((prev) => ({ ...prev, [task.id]: true }));
+    setTimeout(() => {
+      setAssigningTaskIds((prev) => {
+        const next = { ...prev };
+        delete next[task.id];
+        return next;
+      });
+    }, 8000);
+
+    // 2. Assign task to AI Agent and record assignment history
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === task.id
+          ? {
+              ...t,
+              assignee: "AI Agent",
+              aiWorking: true,
+              assignHistory: [
+                ...(t.assignHistory || []),
+                { assignee: "AI Agent", at: now, by: actor },
+              ],
+            }
+          : t,
+      ),
+    );
+
+    // 3. Add timeline activity item
+    const assignActivity: ActivityItem = {
+      id: `task-assign-ai-${now}-${task.id}`,
+      type: "assignment",
+      user: actor,
+      timestamp: now,
+      content: `Assigned task "${task.title || "Untitled task"}" to AI Agent`,
+      details: {
+        taskId: task.id,
+        taskTitle: task.title,
+        requestedBy: actor,
+        assignee: "AI Agent",
+        action: "assign_ai",
+      },
+      attachments: [],
+    };
+    setActivity((prev) => [...prev, assignActivity]);
+
+    // 4. Open Ask AI / Agent Drawer with incident context and instructions
+    const incidentRef = incident?.id ? `#${incident.id}` : "";
+    const incidentTitle = incident?.title || editedTitle || "Incident";
+    const taskTitle = task.title || "Untitled task";
+    const taskDesc = task.description ? `\n\nTask details: ${task.description}` : "";
+    const prompt = `Please automatically handle and resolve the following task for incident ${incidentRef} ("${incidentTitle}"):\n\nTask: ${taskTitle}${taskDesc}\n\nPlease investigate, take any necessary actions, and report the results.`;
+
+    openAgentDrawer("run", {
+      defaultInput: prompt,
+      source: "task-auto-assign",
+      autoSubmit: true,
+    });
   };
 
   const handleApplyTemplate = async (template: CaseTemplate) => {
@@ -8738,6 +9216,10 @@ const IncidentDetailPage = () => {
             <Box
               ref={simpleFeedRef}
               data-simple-timeline-feed="true"
+              onMouseLeave={() => {
+                cancelGentleScroll();
+                setHoveredSimpleTimelineTarget(null);
+              }}
               sx={{
                 flex: 1,
                 minHeight: 0,
@@ -8809,13 +9291,27 @@ const IncidentDetailPage = () => {
                       // (py: 0.5 = 4px + 12px icon / 2). Dot half-height = 6.
                       top: 9,
                     },
+                    // Failed workflow rows: subtle red dot by default, super red on hover
+                    '&[data-timeline-failed="true"]::before': {
+                      border: "2px solid hsl(var(--destructive) / 0.45)",
+                    },
+                    '&[data-timeline-failed="true"]:hover::before': {
+                      border: "2px solid hsl(var(--destructive))",
+                    },
+                    // Warning rows (needing attention): subtle amber dot
+                    '&[data-timeline-warning="true"]::before': {
+                      border: "2px solid hsl(var(--severity-medium) / 0.5)",
+                    },
+                    '&[data-timeline-warning="true"]:hover::before': {
+                      border: "2px solid hsl(var(--severity-medium))",
+                    },
                     // Quiet rows (e.g. completed executions) should not scream from
-                    // the rail. Muted dot by default; parent hover restores accent.
+                    // the rail. Muted dot by default; parent hover stays neutral muted.
                     '&[data-timeline-quiet="true"]::before': {
                       border: "2px solid hsl(var(--muted-foreground) / 0.35)",
                     },
                     '&[data-timeline-quiet="true"]:hover::before': {
-                      border: "2px solid #ff6600",
+                      border: "2px solid hsl(var(--muted-foreground) / 0.7)",
                     },
                   },
                 }),
@@ -8843,6 +9339,8 @@ const IncidentDetailPage = () => {
       | "task-created"
       | "task-completed"
       | "task-status-changed"
+      | "task-assigned"
+      | "task-deleted"
       | "observable-added"
       | "correlation-found"
       | "incident-created"
@@ -8901,12 +9399,152 @@ const IncidentDetailPage = () => {
         if (
           it.kind === "task-created" ||
           it.kind === "task-completed" ||
-          it.kind === "task-status-changed"
+          it.kind === "task-status-changed" ||
+          it.kind === "task-assigned" ||
+          it.kind === "task-deleted"
         )
           return "tasks";
         if (it.kind === "observable-added") return "observables";
         if (it.kind === "correlation-found") return "correlations";
       }
+      return null;
+    };
+
+    const getSimpleTimelineItemTarget = (
+      it: TimelineItem,
+    ): {
+      section:
+        | "overview"
+        | "narrative"
+        | "tasks"
+        | "customFields"
+        | "observables"
+        | "correlations"
+        | "emailThread"
+        | null;
+      taskId?: string | null;
+      obsKey?: string | null;
+      attrField?: string | null;
+    } | null => {
+      if (it.type === "step") {
+        if (
+          it.kind === "task-created" ||
+          it.kind === "task-completed" ||
+          it.kind === "task-status-changed" ||
+          it.kind === "task-assigned" ||
+          it.kind === "task-deleted" ||
+          it.taskId
+        ) {
+          let resolvedTaskId = it.taskId || null;
+          if (!resolvedTaskId && it.detail) {
+            const matched = (visibleTasks || []).find(
+              (t) =>
+                t.title &&
+                (t.title === it.detail || it.detail?.includes(t.title)),
+            );
+            if (matched) resolvedTaskId = String(matched.id);
+          }
+          return {
+            section: "tasks",
+            taskId: resolvedTaskId,
+          };
+        }
+        if (it.kind === "observable-added") {
+          const obsKey =
+            (it.obsKeys && it.obsKeys[0]) ||
+            (it.obsType && it.obsValue
+              ? `${it.obsType.toLowerCase()}::${it.obsValue.toLowerCase()}`
+              : null);
+          return {
+            section: "observables",
+            obsKey,
+          };
+        }
+        if (it.kind === "correlation-found") {
+          return {
+            section: "correlations",
+          };
+        }
+        if (it.kind === "incident-created") {
+          return {
+            section: "narrative",
+          };
+        }
+        if (it.kind === "attribute-changed") {
+          if (it.attrField === "description" || it.attrField === "details") {
+            return {
+              section: "narrative",
+            };
+          }
+          return {
+            section: "overview",
+            attrField: it.attrField || null,
+          };
+        }
+        if (it.kind === "routing-matched") {
+          return {
+            section: "overview",
+          };
+        }
+      }
+
+      if (it.type === "revision") {
+        if (it.idx === revisions.length - 1) {
+          return { section: "narrative" };
+        }
+        const currentDesc =
+          it.parsedCurrent?.description || it.parsedCurrent?.message;
+        const prevDesc =
+          it.parsedPrevious?.description || it.parsedPrevious?.message;
+        if (currentDesc !== prevDesc) {
+          return { section: "narrative" };
+        }
+        if (it.parsedCurrent?.tasks !== it.parsedPrevious?.tasks) {
+          return { section: "tasks" };
+        }
+        if (
+          it.parsedCurrent?.observables !== it.parsedPrevious?.observables ||
+          it.parsedCurrent?.enrichments !== it.parsedPrevious?.enrichments
+        ) {
+          return { section: "observables" };
+        }
+        if (
+          it.parsedCurrent?.severity !== it.parsedPrevious?.severity ||
+          it.parsedCurrent?.status !== it.parsedPrevious?.status ||
+          it.parsedCurrent?.assignee !== it.parsedPrevious?.assignee ||
+          it.parsedCurrent?.title !== it.parsedPrevious?.title
+        ) {
+          return {
+            section: "overview",
+            attrField:
+              it.parsedCurrent?.severity !== it.parsedPrevious?.severity
+                ? "severity"
+                : it.parsedCurrent?.status !== it.parsedPrevious?.status
+                  ? "status"
+                  : it.parsedCurrent?.assignee !== it.parsedPrevious?.assignee
+                    ? "assignee"
+                    : "title",
+          };
+        }
+        return { section: "narrative" };
+      }
+
+      if (it.type === "manual") {
+        const act = it.data as any;
+        if (act.resolution) {
+          return { section: "overview", attrField: "status" };
+        }
+        if (act.type === "task" || (act as any).taskId) {
+          return { section: "tasks", taskId: (act as any).taskId || null };
+        }
+        if (isMergeActivityItem(act)) {
+          return { section: "correlations" };
+        }
+        if (act.type === "email" || (act as any).isEmail) {
+          return { section: "emailThread" };
+        }
+      }
+
       return null;
     };
 
@@ -9057,6 +9695,128 @@ const IncidentDetailPage = () => {
         idx: number;
         fieldIdx: number;
       };
+      const isAutoChangedAttribute = (
+        field: string,
+        prevRaw: any,
+        currRaw: any,
+        current: any,
+        previous: any,
+      ): boolean => {
+        // 1. Explicit auto-repaired fields attached by browser recovery routines
+        const currentRepaired: string[] = Array.isArray(
+          current?._auto_repaired_fields,
+        )
+          ? current._auto_repaired_fields
+          : Array.isArray(current?.metadata?.extensions?.auto_recovered_fields)
+            ? current.metadata.extensions.auto_recovered_fields
+            : [];
+        if (currentRepaired.includes(field)) return true;
+
+        const prevRepaired: string[] = Array.isArray(
+          previous?._auto_repaired_fields,
+        )
+          ? previous._auto_repaired_fields
+          : Array.isArray(previous?.metadata?.extensions?.auto_recovered_fields)
+            ? previous.metadata.extensions.auto_recovered_fields
+            : [];
+        if (prevRepaired.includes(field)) return true;
+
+        // 2. Title repairs (repairCorruptedOcsfFields recovery in browser)
+        if (field === "title") {
+          const prevStr =
+            typeof prevRaw === "string" ? prevRaw.trim() : "";
+          if (
+            looksLikeTranslationExpr(prevStr) ||
+            prevStr.includes("$['") ||
+            prevStr.startsWith("[{") ||
+            prevStr.startsWith('{"') ||
+            Array.isArray(prevRaw) ||
+            parseHybridHeaderFailure(prevStr) !== null
+          ) {
+            return true;
+          }
+          if (
+            prevRaw &&
+            autoCorrectTranslatedString(prevRaw, previous, "Subject") ===
+              currRaw
+          ) {
+            return true;
+          }
+        }
+
+        // 3. Assignee repairs
+        if (field === "assignee") {
+          const prevStr =
+            typeof prevRaw === "string" ? prevRaw.trim() : "";
+          if (
+            looksLikeTranslationExpr(prevStr) ||
+            prevStr.includes("$['") ||
+            Array.isArray(prevRaw) ||
+            parseHybridHeaderFailure(prevStr) !== null
+          ) {
+            return true;
+          }
+          if (
+            prevRaw &&
+            autoCorrectTranslatedString(prevRaw, previous, "From") === currRaw
+          ) {
+            return true;
+          }
+        }
+
+        // 4. Merged status invariant repair
+        if (field === "status") {
+          const currStr = String(currRaw || "").toLowerCase();
+          const prevStr = String(prevRaw || "").toLowerCase();
+          if (
+            currStr === "merged" &&
+            (previous?.merged_into ||
+              current?.merged_into ||
+              previous?.status_id === 99 ||
+              current?.status_id === 99)
+          ) {
+            return true;
+          }
+          // 5. Automated status progression: from "new" to "in_progress"
+          // when triggered by autoProgressStatus alongside tasks/observables/references additions
+          if (prevStr === "new" && currStr === "in_progress") {
+            if (
+              current?._auto_status_progressed ||
+              currentRepaired.includes("status")
+            ) {
+              return true;
+            }
+            const prevObsCount = Array.isArray(previous?.observables)
+              ? previous.observables.length
+              : 0;
+            const currObsCount = Array.isArray(current?.observables)
+              ? current.observables.length
+              : 0;
+            const prevTasksCount = Array.isArray(previous?.tasks)
+              ? previous.tasks.length
+              : 0;
+            const currTasksCount = Array.isArray(current?.tasks)
+              ? current.tasks.length
+              : 0;
+            const prevRefsCount = Array.isArray(previous?.references)
+              ? previous.references.length
+              : 0;
+            const currRefsCount = Array.isArray(current?.references)
+              ? current.references.length
+              : 0;
+            if (
+              currObsCount > prevObsCount ||
+              currTasksCount > prevTasksCount ||
+              currRefsCount > prevRefsCount
+            ) {
+              return true;
+            }
+          }
+        }
+
+        return false;
+      };
+
       const changesByField = new Map<string, AttrRawChange[]>();
 
       // Walk oldest → newest so changes are in chronological order
@@ -9077,6 +9837,48 @@ const IncidentDetailPage = () => {
           const currRaw = attributeValue(current, field);
           if (prevRaw === undefined && currRaw === undefined) return;
 
+          // Suppress auto-changed attributes from the browser recovery system
+          if (
+            isAutoChangedAttribute(
+              field,
+              prevRaw,
+              currRaw,
+              current,
+              previous,
+            )
+          ) {
+            return;
+          }
+
+          // ONLY push when the values actually changed!
+          if (field === "labels") {
+            const normalizeTags = (val: any): string[] => {
+              if (Array.isArray(val))
+                return val
+                  .map(String)
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+              if (typeof val === "string" && val.trim())
+                return val
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+              return [];
+            };
+            const initialTags = normalizeTags(prevRaw);
+            const finalTags = normalizeTags(currRaw);
+            if (
+              initialTags.length === finalTags.length &&
+              initialTags.every((t) => finalTags.includes(t))
+            ) {
+              return;
+            }
+          } else {
+            const before = attributeText(prevRaw);
+            const after = attributeText(currRaw);
+            if (before === after) return;
+          }
+
           const list = changesByField.get(field) || [];
           list.push({ field, prevRaw, currRaw, ts, actor, idx, fieldIdx });
           changesByField.set(field, list);
@@ -9092,8 +9894,11 @@ const IncidentDetailPage = () => {
           if (currentCluster.length === 0) {
             currentCluster.push(ch);
           } else {
-            const prev = currentCluster[currentCluster.length - 1];
-            if (ch.ts - prev.ts <= TIMELINE_DEDUP_WINDOW_MS) {
+            // Anchor dedup clustering to the start of the current cluster (currentCluster[0].ts)
+            // so rapid bursts combine (e.g. within 5 mins), but NEVER daisy-chain across
+            // independent modifications spanning 42+ minutes!
+            const clusterStart = currentCluster[0];
+            if (ch.ts - clusterStart.ts <= TIMELINE_DEDUP_WINDOW_MS) {
               currentCluster.push(ch);
             } else {
               clusters.push(currentCluster);
@@ -9194,6 +9999,58 @@ const IncidentDetailPage = () => {
             attrBefore: initialPrev,
             attrAfter: finalCurr,
           });
+        });
+      });
+
+      // Inject pending optimistic attribute changes not yet present in server revisions
+      optimisticAttrChanges.forEach((opt, optIdx) => {
+        // If an attribute change step already covers this field and after value, skip
+        const alreadyCovered = items.some(
+          (it) =>
+            it.type === "step" &&
+            it.kind === "attribute-changed" &&
+            it.attrField === opt.field &&
+            attributeText(it.attrAfter).toLowerCase().trim() ===
+              attributeText(opt.currRaw).toLowerCase().trim() &&
+            Math.abs(it.timestamp - opt.timestamp) < 30000,
+        );
+        if (alreadyCovered) return;
+
+        let label = `Changed ${ATTRIBUTE_LABELS[opt.field] || opt.field}`;
+        let detail: string | undefined = attributeText(opt.currRaw);
+
+        if (opt.field === "severity") {
+          label = "Changed severity";
+        } else if (opt.field === "status") {
+          const isResolved =
+            String(opt.currRaw).toLowerCase() === "resolved";
+          label = isResolved ? "Resolved incident" : "Changed status";
+        } else if (opt.field === "assignee") {
+          const isUnassigned = !opt.currRaw || opt.currRaw === "none";
+          label = isUnassigned
+            ? "Unassigned incident"
+            : "Changed assignment";
+        } else if (opt.field === "tlp") {
+          label = "Changed TLP";
+        } else if (opt.field === "title") {
+          label = "Changed title";
+          detail = attributeText(opt.currRaw);
+        } else if (opt.field === "description") {
+          label = "Updated description";
+          detail = attributeText(opt.currRaw);
+        }
+
+        items.push({
+          type: "step",
+          kind: "attribute-changed",
+          timestamp: opt.timestamp + optIdx,
+          id: `step-attr-opt-${opt.field}-${opt.timestamp}`,
+          label,
+          detail,
+          actor: opt.actor,
+          attrField: opt.field,
+          attrBefore: opt.prevRaw,
+          attrAfter: opt.currRaw,
         });
       });
     }
@@ -9321,7 +10178,7 @@ const IncidentDetailPage = () => {
         taskStatuses.find((s) => s.key === key)?.label ||
         (key === "done" ? "Done" : key.replace(/[_-]+/g, " "));
 
-      if (isFilterActive("tasks"))
+      if (isFilterActive("tasks")) {
         visibleTasks.forEach((t) => {
           // Current lane for the task, mirroring TaskKanbanBoard.getLane: an
           // explicit `_lane` wins, completed tasks are Done, everything else
@@ -9377,8 +10234,8 @@ const IncidentDetailPage = () => {
             if (curCluster.length === 0) {
               curCluster.push(entry);
             } else {
-              const prev = curCluster[curCluster.length - 1];
-              if (entry.at - prev.at <= TIMELINE_DEDUP_WINDOW_MS) {
+              const clusterStart = curCluster[0];
+              if (entry.at - clusterStart.at <= TIMELINE_DEDUP_WINDOW_MS) {
                 curCluster.push(entry);
               } else {
                 clusters.push(curCluster);
@@ -9462,7 +10319,45 @@ const IncidentDetailPage = () => {
               });
             }
           }
+
+          // Task assigned to AI Agent
+          (t.assignHistory || []).forEach((entry, aIdx) => {
+            const assignTs = normalizeToMs(entry.at);
+            if (assignTs > 0 && entry.assignee === "AI Agent") {
+              items.push({
+                type: "step",
+                kind: "task-assigned",
+                timestamp: assignTs,
+                id: `step-task-assigned-${t.id}-${aIdx}`,
+                label: "Task assigned to AI Agent",
+                detail: t.title,
+                actor: entry.by || undefined,
+                taskId: String(t.id),
+                taskStatusLabel: currentStatusLabel,
+              });
+            }
+          });
         });
+
+        // Deleted tasks
+        tasks
+          .filter((t) => t.disabled && t.deletedAt)
+          .forEach((t) => {
+            const deletedTs = normalizeToMs(t.deletedAt);
+            if (deletedTs > 0) {
+              items.push({
+                type: "step",
+                kind: "task-deleted",
+                timestamp: deletedTs,
+                id: `step-task-deleted-${t.id}`,
+                label: "Task deleted",
+                detail: t.title,
+                actor: t.deletedBy || undefined,
+                taskId: String(t.id),
+              });
+            }
+          });
+      }
 
       if (isFilterActive("observables")) {
         // Observables — manual entries + automated enrichments. Dedupe by
@@ -9868,8 +10763,8 @@ const IncidentDetailPage = () => {
           if (curCluster.length === 0) {
             curCluster.push(item);
           } else {
-            const prev = curCluster[curCluster.length - 1];
-            if (item.timestamp - prev.timestamp <= TIMELINE_DEDUP_WINDOW_MS) {
+            const clusterStart = curCluster[0];
+            if (item.timestamp - clusterStart.timestamp <= TIMELINE_DEDUP_WINDOW_MS) {
               curCluster.push(item);
             } else {
               if (curCluster.length > 1) {
@@ -11069,8 +11964,19 @@ const IncidentDetailPage = () => {
           status === "EXECUTING" ||
           status === "WAITING" ||
           status === "RUNNING";
+        const hasFailedAction =
+          Array.isArray(run.results) &&
+          run.results.some((r: any) => {
+            const s = String(r?.status || "").toUpperCase();
+            return s === "FAILURE" || s === "FAILED" || s === "ERROR";
+          });
         const isFailed =
-          status === "FAILED" || status === "ERROR" || status === "ABORTED";
+          status === "FAILED" ||
+          status === "FAILURE" ||
+          status === "ERROR" ||
+          status === "ABORTED" ||
+          (!isRunning && (hasFailedAction || run.success === false));
+        const failReason = isFailed ? getWorkflowFailureReason(run) : null;
         const startedMs = run.started_at ? normalizeToMs(run.started_at) : 0;
         const isLongRunning =
           isRunning && startedMs > 0 && Date.now() - startedMs > 5 * 60 * 1000;
@@ -11119,12 +12025,16 @@ const IncidentDetailPage = () => {
               : run.started_at
                 ? formatCompactTime(normalizeToMs(run.started_at))
                 : "";
-          const detailText = isWarning
-            ? warnTitle
-            : isFailed
+          const detailText = isFailed
+            ? failReason
               ? shortId
+                ? `${failReason} · ${shortId}`
+                : failReason
+              : shortId
                 ? `Execution failed · ${shortId}`
                 : "Execution failed"
+            : isWarning
+              ? warnTitle
               : isRunning
                 ? shortId
                   ? `Running · ${shortId}`
@@ -11140,6 +12050,11 @@ const IncidentDetailPage = () => {
               data-timeline-timestamp={item.timestamp}
               data-timeline-filter="workflows"
               data-timeline-compact="true"
+              data-timeline-quiet={
+                !isFailed && !isRunning && !isWarning ? "true" : undefined
+              }
+              data-timeline-failed={isFailed ? "true" : undefined}
+              data-timeline-warning={isWarning ? "true" : undefined}
               data-timeline-highlighted={isHighlighted ? "true" : undefined}
               data-timeline-dimmed={isDimmed ? "true" : undefined}
               data-timeline-preview={item.isPreview ? "true" : undefined}
@@ -11163,12 +12078,18 @@ const IncidentDetailPage = () => {
                   borderRadius: isHighlighted ? 1 : 0,
                   bgcolor: isHighlighted
                     ? "hsl(var(--primary) / 0.12)"
-                    : "transparent",
+                    : isFailed
+                      ? "hsl(var(--destructive) / 0.02)"
+                      : "transparent",
                   border: isHighlighted
                     ? item.isPreview
                       ? "1px dashed #ff6600"
                       : "1px solid #ff6600"
-                    : "none",
+                    : isFailed
+                      ? "1px solid hsl(var(--destructive) / 0.12)"
+                      : isWarning
+                        ? "1px solid hsl(var(--severity-medium) / 0.2)"
+                        : "none",
                   boxShadow: isHighlighted
                     ? "0 0 12px rgba(255, 102, 0, 0.25)"
                     : "none",
@@ -11180,7 +12101,35 @@ const IncidentDetailPage = () => {
                   "&:hover": {
                     bgcolor: isHighlighted
                       ? "hsl(var(--primary) / 0.18)"
-                      : "hsl(var(--muted) / 0.25)",
+                      : isFailed
+                        ? "hsl(var(--destructive) / 0.06)"
+                        : isWarning
+                          ? "hsl(var(--severity-medium) / 0.08)"
+                          : "hsl(var(--muted) / 0.25)",
+                    "& .wf-icon": {
+                      color: isFailed
+                        ? "hsl(var(--destructive))"
+                        : isWarning
+                          ? "hsl(var(--severity-medium))"
+                          : "hsl(var(--muted-foreground))",
+                    },
+                    "& .wf-icon svg": {
+                      color: isFailed
+                        ? "hsl(var(--destructive)) !important"
+                        : isWarning
+                          ? "hsl(var(--severity-medium)) !important"
+                          : "hsl(var(--muted-foreground)) !important",
+                    },
+                    "& .wf-icon svg *": {
+                      stroke: isFailed ? "hsl(var(--destructive)) !important" : undefined,
+                    },
+                    "& .wf-verb": {
+                      color: isFailed
+                        ? "hsl(var(--destructive))"
+                        : isWarning
+                          ? "hsl(var(--severity-medium))"
+                          : "text.primary",
+                    },
                   },
                   "&:hover .timeline-reply-btn, &:focus-within .timeline-reply-btn":
                     {
@@ -11189,20 +12138,36 @@ const IncidentDetailPage = () => {
                     },
                 }}
               >
-                <Box
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    flexShrink: 0,
-                    color: isFailed
-                      ? "hsl(var(--destructive))"
+                <Tooltip
+                  title={
+                    isFailed
+                      ? failReason
+                        ? `Failed: ${failReason}`
+                        : "Workflow execution failed"
                       : isWarning
-                        ? "hsl(var(--severity-medium))"
-                        : "hsl(var(--muted-foreground))",
-                  }}
+                        ? warnTitle
+                        : exactTs || wfName
+                  }
+                  arrow
+                  placement="top"
                 >
-                  <ZapIcon size={13} />
-                </Box>
+                  <Box
+                    className="wf-icon"
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      flexShrink: 0,
+                      color: isFailed
+                        ? "hsl(var(--destructive) / 0.5)"
+                        : isWarning
+                          ? "hsl(var(--severity-medium) / 0.65)"
+                          : "hsl(var(--muted-foreground))",
+                      transition: "color 0.15s ease",
+                    }}
+                  >
+                    <ZapIcon size={13} />
+                  </Box>
+                </Tooltip>
                 <Typography
                   sx={{
                     fontSize: "0.7rem",
@@ -11214,11 +12179,17 @@ const IncidentDetailPage = () => {
                   {wfName}
                 </Typography>
                 <Typography
+                  className="wf-verb"
                   sx={{
                     fontSize: "0.7rem",
                     fontWeight: 500,
-                    color: "text.secondary",
+                    color: isFailed
+                      ? "hsl(var(--destructive) / 0.75)"
+                      : isWarning
+                        ? "hsl(var(--severity-medium) / 0.85)"
+                        : "text.secondary",
                     flexShrink: 0,
+                    transition: "color 0.15s ease",
                   }}
                 >
                   {verb}
@@ -11250,7 +12221,9 @@ const IncidentDetailPage = () => {
                   <Typography
                     sx={{
                       fontSize: "0.75rem",
-                      color: "hsl(var(--foreground))",
+                      color: isFailed
+                        ? "hsl(var(--destructive) / 0.85)"
+                        : "hsl(var(--foreground))",
                       flex: "1 1 100%",
                       order: 2,
                       pl: 1.25,
@@ -11292,6 +12265,8 @@ const IncidentDetailPage = () => {
             data-timeline-quiet={
               !isFailed && !isRunning && !isWarning ? "true" : undefined
             }
+            data-timeline-failed={isFailed ? "true" : undefined}
+            data-timeline-warning={isWarning ? "true" : undefined}
             data-timeline-highlighted={isHighlighted ? "true" : undefined}
             data-timeline-dimmed={isDimmed ? "true" : undefined}
             data-timeline-preview={item.isPreview ? "true" : undefined}
@@ -11305,7 +12280,6 @@ const IncidentDetailPage = () => {
                 else if (execUrl)
                   await navigateToShuffleCore(execUrl, { newTab: true });
               }}
-
               sx={{
                 position: "relative",
                 display: "flex",
@@ -11321,47 +12295,64 @@ const IncidentDetailPage = () => {
                     ? "1px dashed #ff6600"
                     : "1px solid #ff6600"
                   : isFailed
-                    ? "1px solid hsl(var(--destructive) / 0.5)"
+                    ? "1px solid hsl(var(--destructive) / 0.18)"
                     : isWarning
-                      ? "1px solid hsl(var(--severity-medium) / 0.6)"
+                      ? "1px solid hsl(var(--severity-medium) / 0.22)"
                       : "1px solid transparent",
                 mb: 0,
                 bgcolor: isHighlighted
                   ? "hsl(var(--primary) / 0.12)"
-                  : isWarning
-                    ? "hsl(var(--severity-medium) / 0.08)"
-                    : "transparent",
+                  : isFailed
+                    ? "hsl(var(--destructive) / 0.025)"
+                    : isWarning
+                      ? "hsl(var(--severity-medium) / 0.035)"
+                      : "transparent",
                 boxShadow: isHighlighted
                   ? "0 0 12px rgba(255, 102, 0, 0.25)"
                   : "none",
                 opacity: isDimmed ? 0.35 : 1,
-                cursor: execUrl ? "pointer" : "default",
+                cursor: execUrl || run.execution_id ? "pointer" : "default",
                 transition:
                   "opacity 0.2s ease, border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease, box-shadow 0.2s ease",
                 "&:hover": {
                   borderColor: isHighlighted
                     ? "#ff6600"
-                    : isWarning
-                      ? "hsl(var(--severity-medium))"
-                      : "hsl(var(--muted-foreground) / 0.4)",
+                    : isFailed
+                      ? "hsl(var(--destructive) / 0.45)"
+                      : isWarning
+                        ? "hsl(var(--severity-medium) / 0.5)"
+                        : "hsl(var(--muted-foreground) / 0.3)",
                   bgcolor: isHighlighted
                     ? "hsl(var(--primary) / 0.18)"
-                    : isWarning
-                      ? "hsl(var(--severity-medium) / 0.14)"
-                      : "hsl(var(--muted) / 0.3)",
-                  ...(isFailed || isRunning || isWarning
-                    ? {}
-                    : {
-                        "& .wf-status-icon svg": {
-                          color: "hsl(var(--severity-low))",
-                        },
-                        "& .wf-status-icon svg *": {
-                          stroke: "hsl(var(--severity-low))",
-                        },
-                        "& .wf-status-text": {
-                          color: "hsl(var(--severity-low))",
-                        },
-                      }),
+                    : isFailed
+                      ? "hsl(var(--destructive) / 0.07)"
+                      : isWarning
+                        ? "hsl(var(--severity-medium) / 0.08)"
+                        : "hsl(var(--muted) / 0.25)",
+                  "& .wf-status-icon": {
+                    color: isFailed
+                      ? "hsl(var(--destructive))"
+                      : isWarning
+                        ? "hsl(var(--severity-medium))"
+                        : "hsl(var(--muted-foreground))",
+                  },
+                  "& .wf-status-icon svg": {
+                    color: isFailed
+                      ? "hsl(var(--destructive)) !important"
+                      : isWarning
+                        ? "hsl(var(--severity-medium)) !important"
+                        : "hsl(var(--muted-foreground)) !important",
+                  },
+                  "& .wf-status-icon svg *": {
+                    stroke: isFailed ? "hsl(var(--destructive)) !important" : undefined,
+                  },
+                  "& .wf-status-text": {
+                    color: isFailed
+                      ? "hsl(var(--destructive))"
+                      : isWarning
+                        ? "hsl(var(--severity-medium))"
+                        : "hsl(var(--muted-foreground))",
+                  },
                 },
                 "&:hover .timeline-reply-btn, &:focus-within .timeline-reply-btn":
                   {
@@ -11385,46 +12376,67 @@ const IncidentDetailPage = () => {
                   />
                 </Tooltip>
               )}
-              <Box
-                className="wf-status-icon"
-                sx={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  flexShrink: 0,
-                  opacity: 0.8,
-                  transition: "color 0.15s ease",
-                }}
+              <Tooltip
+                title={
+                  isFailed
+                    ? failReason
+                      ? `Failed: ${failReason}`
+                      : "Workflow execution failed"
+                    : isWarning
+                      ? warnTitle
+                      : exactTs || wfName
+                }
+                arrow
+                placement="top"
               >
-                {isRunning ? (
-                  <CircularProgress
-                    size={12}
-                    thickness={5}
-                    sx={{
-                      color: isWarning
-                        ? "hsl(var(--severity-medium))"
+                <Box
+                  className="wf-status-icon"
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    flexShrink: 0,
+                    opacity: isFailed ? 0.9 : 0.8,
+                    color: isFailed
+                      ? "hsl(var(--destructive) / 0.5)"
+                      : isWarning
+                        ? "hsl(var(--severity-medium) / 0.65)"
                         : "hsl(var(--muted-foreground))",
-                    }}
-                  />
-                ) : (
-                  <ZapIcon
-                    size={14}
-                    color={
-                      isFailed
-                        ? "hsl(var(--destructive))"
-                        : isWarning
-                          ? "hsl(var(--severity-medium))"
-                          : "hsl(var(--muted-foreground))"
-                    }
-                  />
-                )}
-              </Box>
+                    transition: "color 0.15s ease",
+                  }}
+                >
+                  {isRunning ? (
+                    <CircularProgress
+                      size={12}
+                      thickness={5}
+                      sx={{
+                        color: isWarning
+                          ? "hsl(var(--severity-medium) / 0.65)"
+                          : "hsl(var(--muted-foreground))",
+                      }}
+                    />
+                  ) : (
+                    <ZapIcon
+                      size={14}
+                      color={
+                        isFailed
+                          ? "hsl(var(--destructive) / 0.5)"
+                          : isWarning
+                            ? "hsl(var(--severity-medium) / 0.65)"
+                            : "hsl(var(--muted-foreground))"
+                      }
+                    />
+                  )}
+                </Box>
+              </Tooltip>
               <Typography
                 sx={{
                   fontSize: "0.8125rem",
                   fontWeight: 500,
-                  color: isWarning
+                  color: isFailed
                     ? "hsl(var(--foreground))"
-                    : "hsl(var(--muted-foreground))",
+                    : isWarning
+                      ? "hsl(var(--foreground))"
+                      : "hsl(var(--muted-foreground))",
                   minWidth: 0,
                   flexShrink: 1,
                   ...timelineClampSingleLineSx,
@@ -11440,9 +12452,9 @@ const IncidentDetailPage = () => {
                   sx={{
                     fontSize: "0.7rem",
                     color: isFailed
-                      ? "hsl(var(--destructive))"
+                      ? "hsl(var(--destructive) / 0.75)"
                       : isWarning
-                        ? "hsl(var(--severity-medium))"
+                        ? "hsl(var(--severity-medium) / 0.85)"
                         : "hsl(var(--muted-foreground))",
                     flexShrink: 0,
                     textTransform: "lowercase",
@@ -11452,6 +12464,26 @@ const IncidentDetailPage = () => {
                   · {status.toLowerCase()}
                 </Typography>
               )}
+              {isFailed && failReason && (
+                <Tooltip title={failReason} arrow placement="top">
+                  <Typography
+                    sx={{
+                      ...timelineClampSingleLineSx,
+                      fontSize: "0.7rem",
+                      color: "hsl(var(--destructive) / 0.8)",
+                      maxWidth: 260,
+                      ml: 0.5,
+                      flexShrink: 1,
+                      cursor: "help",
+                      "&:hover": {
+                        color: "hsl(var(--destructive))",
+                      },
+                    }}
+                  >
+                    ({failReason})
+                  </Typography>
+                </Tooltip>
+              )}
               {isWarning && (
                 <Tooltip title={warnTitle} arrow>
                   <Box
@@ -11460,7 +12492,7 @@ const IncidentDetailPage = () => {
                       alignItems: "center",
                       gap: 0.25,
                       flexShrink: 0,
-                      color: "hsl(var(--severity-medium))",
+                      color: "hsl(var(--severity-medium) / 0.85)",
                     }}
                   >
                     <WarningAmberIcon size={13} />
@@ -11468,7 +12500,7 @@ const IncidentDetailPage = () => {
                       <Typography
                         sx={{
                           fontSize: "0.7rem",
-                          color: "hsl(var(--severity-medium))",
+                          color: "hsl(var(--severity-medium) / 0.85)",
                           fontWeight: 600,
                         }}
                       >
@@ -11528,6 +12560,8 @@ const IncidentDetailPage = () => {
           "task-created": { icon: <TaskAltIcon size={12} /> },
           "task-completed": { icon: <CheckCircleIcon size={12} /> },
           "task-status-changed": { icon: <ForwardIcon size={12} /> },
+          "task-assigned": { icon: <SparklesIcon size={12} /> },
+          "task-deleted": { icon: <DeleteIcon size={12} /> },
           "observable-added": { icon: <FingerprintIcon size={12} /> },
           "correlation-found": { icon: <Network size={12} /> },
           "incident-created": { icon: <HistoryIcon size={12} /> },
@@ -12002,7 +13036,7 @@ const IncidentDetailPage = () => {
                   <TimelineStatusDropdown
                     value={String(item.attrAfter || "new")}
                     onChange={(newStatus) => {
-                      setEditedStatus(newStatus);
+                      handleManualStatusChange(newStatus);
                     }}
                     onResolveRequest={() => setShowResolveDialog(true)}
                     disabled={isPublicView}
@@ -12324,7 +13358,7 @@ const IncidentDetailPage = () => {
                 <TimelineStatusDropdown
                   value={String(item.attrAfter || "new")}
                   onChange={(newStatus) => {
-                    setEditedStatus(newStatus);
+                    handleManualStatusChange(newStatus);
                   }}
                   onResolveRequest={() => setShowResolveDialog(true)}
                   disabled={isPublicView}
@@ -12690,7 +13724,7 @@ const IncidentDetailPage = () => {
               >
                 <TimelineStatusDropdown
                   value="resolved"
-                  onChange={(newStatus) => setEditedStatus(newStatus)}
+                  onChange={(newStatus) => handleManualStatusChange(newStatus)}
                   onResolveRequest={() => setShowResolveDialog(true)}
                   disabled={isPublicView}
                 />
@@ -12840,7 +13874,7 @@ const IncidentDetailPage = () => {
             >
               <TimelineStatusDropdown
                 value="resolved"
-                onChange={(newStatus) => setEditedStatus(newStatus)}
+                onChange={(newStatus) => handleManualStatusChange(newStatus)}
                 onResolveRequest={() => setShowResolveDialog(true)}
                 disabled={isPublicView}
               />
@@ -13998,6 +15032,25 @@ const IncidentDetailPage = () => {
       const itemKey = getItemKey(item);
       const replies = repliesByParent.get(itemKey) || [];
       const node = renderItem(item, { isReply });
+      const target = isSimple ? getSimpleTimelineItemTarget(item) : null;
+      const interactiveNode =
+        isSimple && React.isValidElement(node)
+          ? React.cloneElement(node as React.ReactElement<any>, {
+              onMouseEnter: (e: React.MouseEvent) => {
+                (node as any).props?.onMouseEnter?.(e);
+                if (target) {
+                  setHoveredSimpleTimelineTarget(target);
+                  scheduleGentleScroll(target);
+                }
+              },
+              onMouseLeave: (e: React.MouseEvent) => {
+                (node as any).props?.onMouseLeave?.(e);
+                cancelGentleScroll();
+                setHoveredSimpleTimelineTarget(null);
+              },
+            })
+          : node;
+
       // A parent row can render nothing (e.g. a no-op revision). Never drop its
       // replies with it — they still belong in the timeline.
       if (!node && replies.length === 0) return null;
@@ -14012,11 +15065,11 @@ const IncidentDetailPage = () => {
       const commentText = isManualActivity
         ? String((item.data as any)?.content || "")
         : "";
-      const mentionsAgent = /@\s*ai[\s_-]*agent\b/i.test(commentText);
+      const mentionsAgent = /@\s*(?:ai[\s_-]*)?agent\b/i.test(commentText);
       const hasAgentReply = replies.some((r) => {
         if (r.type !== "manual") return false;
         const u = (r.data as any)?.user || "";
-        return /agent|ai\s*agent|aiagent/i.test(u);
+        return isAIAssignee(u);
       });
       // For age, prefer the most recent rerun timestamp so a "Rerun" click
       // resets the loader window. Falls back to the original comment time.
@@ -14057,7 +15110,7 @@ const IncidentDetailPage = () => {
 
       if (!node && replies.length === 0) return null;
       if (replies.length === 0 && !showAgentProcessing && !showIndicatorCheck)
-        return node;
+        return interactiveNode;
 
       const cappedDepth = Math.min(depth, 4);
       return (
@@ -14069,7 +15122,7 @@ const IncidentDetailPage = () => {
             gap: isReply ? 1 : 1.5,
           }}
         >
-          {node}
+          {interactiveNode}
           <Box
             sx={{
               ml: variant === "simple" ? 1 : cappedDepth === 0 ? 4 : 3,
@@ -14511,7 +15564,9 @@ const IncidentDetailPage = () => {
                     (it: any) =>
                       it?.type === "comment" &&
                       typeof it?.content === "string" &&
-                      it.content.trim().startsWith(`@AIAgent ${prompt}`),
+                      (it.content.trim().startsWith(`@AIAgent ${prompt}`) ||
+                        it.content.trim().startsWith(`@ai-agent ${prompt}`) ||
+                        it.content.trim().startsWith(`@agent ${prompt}`)),
                   );
                 }
                 case "suggest_move":
@@ -15023,6 +16078,14 @@ const IncidentDetailPage = () => {
                   onChange={(e) =>
                     !isPublicView && setEditedTitle(e.target.value)
                   }
+                  onBlur={() => {
+                    if (!isPublicView) handleManualTitleChange(editedTitle);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !isPublicView) {
+                      handleManualTitleChange(editedTitle);
+                    }
+                  }}
                   variant="standard"
                   placeholder="Enter title..."
                   inputProps={{
@@ -15064,7 +16127,7 @@ const IncidentDetailPage = () => {
                         setShowResolveDialog(true);
                         return;
                       }
-                      setEditedStatus(val);
+                      handleManualStatusChange(val);
                     }}
                     disableUnderline
                     sx={{
@@ -16603,8 +17666,22 @@ const IncidentDetailPage = () => {
                     onCommit={setEditedMessage}
                     placeholder="Add a description... Markdown supported, paste images directly."
                     readOnly={isPublicView}
+                    incidentId={incident?.id}
                   />
                 );
+
+                const isTitleHovered =
+                  hoveredSimpleTimelineTarget?.section === "overview" &&
+                  hoveredSimpleTimelineTarget?.attrField === "title";
+                const isSeverityHovered =
+                  hoveredSimpleTimelineTarget?.section === "overview" &&
+                  hoveredSimpleTimelineTarget?.attrField === "severity";
+                const isStatusHovered =
+                  hoveredSimpleTimelineTarget?.section === "overview" &&
+                  hoveredSimpleTimelineTarget?.attrField === "status";
+                const isAssigneeHovered =
+                  hoveredSimpleTimelineTarget?.section === "overview" &&
+                  hoveredSimpleTimelineTarget?.attrField === "assignee";
 
                 // Overview block at the top of the center column: source icon + title,
                 // then the three fields that matter most (severity, status, assignee)
@@ -16656,13 +17733,30 @@ const IncidentDetailPage = () => {
                           />
                         )}
                       </Box>
-                      <SimpleIncidentTitle
-                        title={editedTitle}
-                        onCommit={(next) => {
-                          if (!isPublicView) setEditedTitle(next);
+                      <Box
+                        sx={{
+                          flex: 1,
+                          minWidth: 0,
+                          borderRadius: 1,
+                          px: isTitleHovered ? 0.75 : 0,
+                          bgcolor: isTitleHovered
+                            ? "hsl(var(--primary) / 0.12)"
+                            : "transparent",
+                          boxShadow: isTitleHovered
+                            ? "0 0 10px rgba(255, 102, 0, 0.25)"
+                            : "none",
+                          transition:
+                            "background-color 0.2s ease, box-shadow 0.2s ease, padding 0.2s ease",
                         }}
-                        readOnly={isPublicView}
-                      />
+                      >
+                        <SimpleIncidentTitle
+                          title={editedTitle}
+                          onCommit={(next) => {
+                            if (!isPublicView) handleManualTitleChange(next);
+                          }}
+                          readOnly={isPublicView}
+                        />
+                      </Box>
                     </Box>
                     <Box
                       sx={{
@@ -16673,7 +17767,22 @@ const IncidentDetailPage = () => {
                         ...(isPublicView && { pointerEvents: "none" }),
                       }}
                     >
-                      <FormControl size="small" variant="standard">
+                      <FormControl
+                        size="small"
+                        variant="standard"
+                        sx={{
+                          borderRadius: 1,
+                          px: isSeverityHovered ? 0.75 : 0,
+                          bgcolor: isSeverityHovered
+                            ? "hsl(var(--primary) / 0.12)"
+                            : "transparent",
+                          boxShadow: isSeverityHovered
+                            ? "0 0 10px rgba(255, 102, 0, 0.25)"
+                            : "none",
+                          transition:
+                            "background-color 0.2s ease, box-shadow 0.2s ease, padding 0.2s ease",
+                        }}
+                      >
                         <Select
                           value={editedSeverity}
                           onChange={(e) => setEditedSeverity(e.target.value)}
@@ -16707,7 +17816,22 @@ const IncidentDetailPage = () => {
                           </MenuItem>
                         </Select>
                       </FormControl>
-                      <FormControl size="small" variant="standard">
+                      <FormControl
+                        size="small"
+                        variant="standard"
+                        sx={{
+                          borderRadius: 1,
+                          px: isStatusHovered ? 0.75 : 0,
+                          bgcolor: isStatusHovered
+                            ? "hsl(var(--primary) / 0.12)"
+                            : "transparent",
+                          boxShadow: isStatusHovered
+                            ? "0 0 10px rgba(255, 102, 0, 0.25)"
+                            : "none",
+                          transition:
+                            "background-color 0.2s ease, box-shadow 0.2s ease, padding 0.2s ease",
+                        }}
+                      >
                         <Select
                           value={editedStatus}
                           onChange={(e) => {
@@ -16716,7 +17840,7 @@ const IncidentDetailPage = () => {
                               setShowResolveDialog(true);
                               return;
                             }
-                            setEditedStatus(val);
+                            handleManualStatusChange(val);
                           }}
                           disableUnderline
                           sx={{
@@ -16767,7 +17891,22 @@ const IncidentDetailPage = () => {
                             })}
                         </Select>
                       </FormControl>
-                      <FormControl size="small" variant="standard">
+                      <FormControl
+                        size="small"
+                        variant="standard"
+                        sx={{
+                          borderRadius: 1,
+                          px: isAssigneeHovered ? 0.75 : 0,
+                          bgcolor: isAssigneeHovered
+                            ? "hsl(var(--primary) / 0.12)"
+                            : "transparent",
+                          boxShadow: isAssigneeHovered
+                            ? "0 0 10px rgba(255, 102, 0, 0.25)"
+                            : "none",
+                          transition:
+                            "background-color 0.2s ease, box-shadow 0.2s ease, padding 0.2s ease",
+                        }}
+                      >
                         <Select
                           value={editedAssignee || ""}
                           onChange={(e) => setEditedAssignee(e.target.value)}
@@ -16836,6 +17975,9 @@ const IncidentDetailPage = () => {
                 const simpleTasks = (
                   <SimpleTasksView
                     tasks={visibleTasks}
+                    highlightTaskId={
+                      hoveredSimpleTimelineTarget?.taskId || flashedTaskId
+                    }
                     onToggleTask={handleToggleTask}
                     onUpdateTaskTitle={handleUpdateTaskTitle}
                     onUpdateTaskDescription={handleUpdateTaskDescription}
@@ -16848,6 +17990,9 @@ const IncidentDetailPage = () => {
                     expandedTaskIds={simpleExpandedTaskIds}
                     onToggleTaskExpanded={toggleSimpleTaskExpanded}
                     readOnly={isPublicView}
+                    onAssignAi={handleAssignAi}
+                    assigningTaskIds={assigningTaskIds}
+                    incidentId={incident?.id}
                   />
                 );
 
@@ -16880,44 +18025,64 @@ const IncidentDetailPage = () => {
 
                 const simpleObservables = (
                   <Box>
-                    {simpleObservableRows.map((observable, index) => (
-                      <Box
-                        key={`${observable.type}-${observable.value}-${index}`}
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 1.5,
-                          py: 0.8,
-                        }}
-                      >
-                        <Typography
+                    {simpleObservableRows.map((observable, index) => {
+                      const rowKey = `${observable.type.toLowerCase()}::${observable.value.toLowerCase()}`;
+                      const isHighlighted =
+                        (hoveredSimpleTimelineTarget?.obsKey &&
+                          hoveredSimpleTimelineTarget.obsKey.toLowerCase() ===
+                            rowKey) ||
+                        (flashedObsKey &&
+                          flashedObsKey.toLowerCase() === rowKey);
+                      return (
+                        <Box
+                          key={`${observable.type}-${observable.value}-${index}`}
+                          data-simple-obs-key={rowKey}
                           sx={{
-                            width: 110,
-                            flexShrink: 0,
-                            color: "hsl(var(--muted-foreground))",
-                            fontSize: "0.72rem",
-                            textTransform: "uppercase",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1.5,
+                            py: 0.8,
+                            px: isHighlighted ? 1 : 0,
+                            borderRadius: 1,
+                            bgcolor: isHighlighted
+                              ? "hsl(var(--primary) / 0.12)"
+                              : "transparent",
+                            boxShadow: isHighlighted
+                              ? "0 0 10px rgba(255, 102, 0, 0.22)"
+                              : "none",
+                            transition:
+                              "background-color 0.2s ease, box-shadow 0.2s ease, padding 0.2s ease",
                           }}
                         >
-                          {observable.type}
-                        </Typography>
-                        <Typography
-                          sx={{
-                            minWidth: 0,
-                            flex: 1,
-                            fontFamily: "monospace",
-                            fontSize: "0.82rem",
-                            overflowWrap: "anywhere",
-                          }}
-                        >
-                          {observable.value}
-                        </Typography>
-                        <ObservableLookupMenu
-                          type={observable.type}
-                          value={observable.value}
-                        />
-                      </Box>
-                    ))}
+                          <Typography
+                            sx={{
+                              width: 110,
+                              flexShrink: 0,
+                              color: "hsl(var(--muted-foreground))",
+                              fontSize: "0.72rem",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {observable.type}
+                          </Typography>
+                          <Typography
+                            sx={{
+                              minWidth: 0,
+                              flex: 1,
+                              fontFamily: "monospace",
+                              fontSize: "0.82rem",
+                              overflowWrap: "anywhere",
+                            }}
+                          >
+                            {observable.value}
+                          </Typography>
+                          <ObservableLookupMenu
+                            type={observable.type}
+                            value={observable.value}
+                          />
+                        </Box>
+                      );
+                    })}
                     {simpleObservableRows.length === 0 && (
                       <Typography
                         sx={{
@@ -17068,6 +18233,9 @@ const IncidentDetailPage = () => {
                 return (
                   <>
                     <SimpleCaseLayout
+                      highlightSection={
+                        hoveredSimpleTimelineTarget?.section || null
+                      }
                       narrativeLabel="Description"
                       overview={simpleOverview}
                       emailThread={simpleEmailThread}
@@ -17155,6 +18323,9 @@ const IncidentDetailPage = () => {
                 incidentId={id || "new"}
                 currentUser={currentUsername || "You"}
                 highlightTaskId={flashedTaskId}
+                onDeleteTask={handleDeleteTask}
+                onAssignAi={handleAssignAi}
+                assigningTaskIds={assigningTaskIds}
               />
             )}
 
@@ -17240,7 +18411,7 @@ const IncidentDetailPage = () => {
                       </IconButton>
                     </Box>
                     {isEditingDescription ? (
-                      <Box sx={{ maxHeight: 350, overflow: "auto" }}>
+                      <Box sx={{ maxHeight: 350, overflow: "auto" }} data-incident-field="description">
                         <MentionInput
                           value={editedMessage}
                           onChange={setEditedMessage}
@@ -17255,6 +18426,7 @@ const IncidentDetailPage = () => {
                       </Box>
                     ) : descriptionView === "rendered" && hasHtmlDescription ? (
                       <Box
+                        data-incident-field="description"
                         sx={{
                           p: 1.5,
                           bgcolor: (t) =>
@@ -17290,6 +18462,7 @@ const IncidentDetailPage = () => {
                       (descriptionView === "rendered" &&
                         !hasHtmlDescription) ? (
                       <Box
+                        data-incident-field="description"
                         sx={{
                           p: 2,
                           bgcolor: "hsl(var(--input))",
@@ -17336,6 +18509,7 @@ const IncidentDetailPage = () => {
                       </Box>
                     ) : (
                       <Box
+                        data-incident-field="description"
                         sx={{
                           p: 1.5,
                           bgcolor: "hsl(var(--input))",

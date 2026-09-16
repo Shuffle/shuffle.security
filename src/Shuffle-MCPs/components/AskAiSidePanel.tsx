@@ -60,6 +60,7 @@ export interface AgentDrawerOpenDetail {
   tab?: AgentRunDrawerTab;
   source?: string;
   defaultInput?: string;
+  autoSubmit?: boolean;
 }
 
 export const ASK_AI_PANEL_WIDTH_STORAGE_KEY = 'shuffle:ask_ai_panel_width';
@@ -271,6 +272,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   const currentTab = propActiveTab !== undefined ? propActiveTab : internalTab;
 
   const [controlledDefaultInput, setControlledDefaultInput] = useState<string | undefined>(defaultInput);
+  const [controlledAutoSubmit, setControlledAutoSubmit] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
     if (defaultInput !== undefined) {
@@ -279,6 +281,16 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   }, [defaultInput]);
 
   const effectiveDefaultInput = controlledDefaultInput ?? defaultInput ?? agentUIProps?.defaultInput;
+  const effectiveAutoSubmit = controlledAutoSubmit ?? agentUIProps?.autoSubmit;
+
+  const isBetaRoute =
+    context.isBeta === true ||
+    currentPathname.startsWith('/incidents') ||
+    currentPathname.startsWith('/incidents-simple') ||
+    currentPathname.startsWith('/cases') ||
+    currentPathname.startsWith('/alerts') ||
+    currentPathname.startsWith('/tickets') ||
+    currentPathname.startsWith('/docs');
 
   const handleTabChange = useCallback(
     (nextTab: AgentRunDrawerTab) => {
@@ -329,6 +341,9 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       }
       if (detail?.defaultInput !== undefined) {
         setControlledDefaultInput(detail.defaultInput);
+      }
+      if (detail?.autoSubmit !== undefined) {
+        setControlledAutoSubmit(detail.autoSubmit);
       }
     };
     window.addEventListener(AGENT_DRAWER_OPEN_EVENT, onOpen as EventListener);
@@ -683,12 +698,12 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                 px: 0.75,
                 py: 0.2,
                 borderRadius: '4px',
-                bgcolor: context.isBeta ? 'hsla(var(--primary) / 0.12)' : 'hsl(var(--muted))',
-                color: context.isBeta ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-                border: context.isBeta ? '1px solid hsla(var(--primary) / 0.26)' : '1px solid hsl(var(--border))',
+                bgcolor: isBetaRoute ? 'hsla(var(--primary) / 0.12)' : 'hsl(var(--muted))',
+                color: isBetaRoute ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+                border: isBetaRoute ? '1px solid hsla(var(--primary) / 0.26)' : '1px solid hsl(var(--border))',
               }}
             >
-              {context.isBeta ? 'Beta' : (isLoggedIn ? (isSupport ? 'Support' : 'Agent') : 'Guest')}
+              {isBetaRoute ? 'Beta' : (isLoggedIn ? (isSupport ? 'Support' : 'Agent') : 'Guest')}
             </Box>
           </Box>
 
@@ -937,6 +952,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                 contextParams={context.params}
                 composeSubmitInput={context.composeInput}
                 defaultInput={effectiveDefaultInput}
+                autoSubmit={effectiveAutoSubmit}
                 onAppsChange={handleAppsChange}
                 onSelectPreset={handleSelectPreset}
                 onChooseLLM={() => handleTabChange('localLLM')}

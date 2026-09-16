@@ -1,7 +1,7 @@
 import { Typography, TypographyProps } from '@mui/material';
 import { useAuth } from '@/context/AuthContext';
 import { useUsers } from '@/hooks/useUsers';
-import { isAIAssignee } from '@/lib/utils';
+import { isAIAssignee, AI_AGENT_HANDLE } from '@/lib/utils';
 import UserHoverCard from './UserHoverCard';
 
 interface MentionTextProps extends Omit<TypographyProps, 'children'> {
@@ -26,9 +26,14 @@ export const MentionText = ({ text, sx, ...props }: MentionTextProps) => {
   const currentUsername = userInfo?.username || '';
 
   // Require start-of-string or whitespace before the @ so we don't match
-  // inside emails or IP-laden URLs.
-  const mentionRegex = /(^|\s)@(\w+)/g;
-  const parts: { type: 'text' | 'mention'; content: string; isCurrentUser: boolean }[] = [];
+  // inside emails or IP-laden URLs. Support hyphens in handles like @ai-agent.
+  const mentionRegex = /(^|\s)@([\w-]+)/g;
+  const parts: {
+    type: 'text' | 'mention';
+    content: string;
+    isCurrentUser: boolean;
+    isAgent?: boolean;
+  }[] = [];
 
   let lastIndex = 0;
   let match;
@@ -58,8 +63,9 @@ export const MentionText = ({ text, sx, ...props }: MentionTextProps) => {
 
     parts.push({
       type: 'mention',
-      content: `@${username}`,
-      isCurrentUser: username.toLowerCase() === currentUsername.toLowerCase(),
+      content: isAgent ? AI_AGENT_HANDLE : `@${username}`,
+      isCurrentUser: !isAgent && username.toLowerCase() === currentUsername.toLowerCase(),
+      isAgent,
     });
 
     lastIndex = mentionStart + 1 + username.length;
@@ -97,7 +103,7 @@ export const MentionText = ({ text, sx, ...props }: MentionTextProps) => {
               display: 'inline-block',
             }}
           >
-            <UserHoverCard username={part.content} />
+            <UserHoverCard username={part.content} isAgent={part.isAgent} />
           </span>
         );
       })}

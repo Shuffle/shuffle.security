@@ -19,6 +19,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { linkMergePairsIncremental, getLinkedPointers, isMergedIncident, isClosedIncident, getPrimaryPointer, pairWasUnmerged } from '@/lib/incidentRelations';
+import { isDraftOnlyIncident } from '@/lib/emailThreadAdapters';
 import { useAutoMergeThread } from '@/hooks/useEntityLabel';
 import { extractThreadId } from '@/hooks/useThreadCorrelatedIncidents';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
@@ -85,16 +86,18 @@ export const useBackgroundThreadContinuation = (
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!enabled) return;
     if (busyRef.current) return;
     if (!incidents || incidents.length === 0) return;
 
     // Collect at most one candidate per thread in the current list view.
-    // Existing anchors win; otherwise the newest visible row starts the
-    // merge. This avoids the old behavior where a brand-new 77-row thread
-    // would sit untouched until someone opened an incident detail page.
+    // Non-draft candidates always win over draft candidates; existing anchors win;
+    // otherwise the newest visible row starts the merge.
+    // If auto-merge is disabled org-wide, we still collect threads that contain
+    // a draft incident so drafts discovered in existing threads are merged and omitted.
     const now = Date.now();
     const byThread = new Map<string, ThreadCandidate>();
+    const threadHasDraft = new Set<string>();
+
     for (const inc of incidents) {
       const raw = inc.rawOCSF;
       if (!raw) continue;
@@ -104,10 +107,14 @@ export const useBackgroundThreadContinuation = (
       if (isClosedIncident(raw)) continue;
       if (getPrimaryPointer(raw)) continue;
 
-      const linked = getLinkedPointers(raw).length;
       const tid = extractThreadId(raw);
       if (!tid) continue;
       const threadKey = String(tid).toLowerCase();
+      if (isDraftOnlyIncident(raw)) {
+        threadHasDraft.add(threadKey);
+      }
+
+      const linked = getLinkedPointers(raw).length;
       const key = linked > 0 ? `${threadKey}:${inc.id}` : `${threadKey}:new`;
       const prev = lastCheckRef.current.get(key);
       if (prev && now - prev.at < CHECK_COOLDOWN_MS && prev.linked >= linked) {
@@ -117,6 +124,13 @@ export const useBackgroundThreadContinuation = (
       const existing = byThread.get(threadKey);
       if (!existing) {
         byThread.set(threadKey, candidate);
+        continue;
+      }
+      // Never pick a draft candidate over a non-draft candidate
+      const existingIsDraft = isDraftOnlyIncident(existing.rawOCSF);
+      const candidateIsDraft = isDraftOnlyIncident(raw);
+      if (candidateIsDraft !== existingIsDraft) {
+        if (!candidateIsDraft) byThread.set(threadKey, candidate);
         continue;
       }
       const existingIsAnchor = existing.linked > 0;
@@ -131,7 +145,13 @@ export const useBackgroundThreadContinuation = (
         byThread.set(threadKey, candidate);
       }
     }
-    const candidates = Array.from(byThread.values()).slice(0, MAX_THREAD_GROUPS_PER_PASS);
+
+    // If auto-merge is not enabled org-wide, filter down to threads with drafts
+    let candidateList = Array.from(byThread.values());
+    if (!enabled) {
+      candidateList = candidateList.filter((c) => threadHasDraft.has(String(c.threadId).toLowerCase()));
+    }
+    const candidates = candidateList.slice(0, MAX_THREAD_GROUPS_PER_PASS);
     if (candidates.length === 0) return;
 
     busyRef.current = true;
@@ -143,6 +163,7 @@ export const useBackgroundThreadContinuation = (
         for (const candidate of candidates) {
           const raw = candidate.rawOCSF;
           const threadId = candidate.threadId;
+          const threadKey = String(threadId).toLowerCase();
           const key = candidate.checkKey;
           const alreadyLinked = new Set<string>(
             getLinkedPointers(raw).map((p) => p.id.toLowerCase()),
@@ -156,7 +177,7 @@ export const useBackgroundThreadContinuation = (
               method: 'POST',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-              body: JSON.stringify({ type: 'value', key: String(threadId).toLowerCase() }),
+              body: JSON.stringify({ type: 'value', key: threadKey }),
             });
             if (!resp.ok) continue;
             const data = await resp.json();
@@ -220,17 +241,43 @@ export const useBackgroundThreadContinuation = (
             .filter((s) => !pairWasUnmerged(raw, candidate.id, s.raw, s.id));
           if (siblings.length === 0) continue;
 
-          // Incremental batched merge: process large threads in bounded
-          // chunks and split failed chunks smaller so one bad sibling does
-          // not block the rest of the thread.
-          const primaryTitle = raw?.title || raw?.finding_info_list?.[0]?.title || candidate.id;
+          const fullPool = [
+            { id: candidate.id, raw, title: raw?.title || raw?.finding_info_list?.[0]?.title || candidate.id, ts: readTs(raw) || candidate.createdTs || 0 },
+            ...siblings.map((s) => ({ id: s.id, raw: s.raw, title: s.title, ts: readTs(s.raw) || 0 })),
+          ];
+          const hasDraftInPool = fullPool.some((p) => isDraftOnlyIncident(p.raw));
+          const hasNonDraftInPool = fullPool.some((p) => !isDraftOnlyIncident(p.raw));
+          // If auto-merge preference is disabled, only proceed if this thread discovers
+          // a draft in an existing thread (both draft and non-draft members present).
+          if (!enabled && (!hasDraftInPool || !hasNonDraftInPool)) {
+            continue;
+          }
+
+          // Primary selection order:
+          //   1. Non-draft always wins over draft.
+          //   2. Existing anchor (linked pointers) wins.
+          //   3. Newest timestamp wins; ID breaks ties.
+          fullPool.sort((a, b) => {
+            const ad = isDraftOnlyIncident(a.raw) ? 1 : 0;
+            const bd = isDraftOnlyIncident(b.raw) ? 1 : 0;
+            if (ad !== bd) return ad - bd;
+            const aAnchor = getLinkedPointers(a.raw).length > 0 ? 0 : 1;
+            const bAnchor = getLinkedPointers(b.raw).length > 0 ? 0 : 1;
+            if (aAnchor !== bAnchor) return aAnchor - bAnchor;
+            return b.ts - a.ts || b.id.localeCompare(a.id);
+          });
+          const primary = fullPool[0];
+          const sources = fullPool.slice(1).filter((s) => !pairWasUnmerged(primary.raw, primary.id, s.raw, s.id));
+          if (sources.length === 0) continue;
+
+          const primaryTitle = primary.title || primary.id;
           let mergedThisPass = 0;
           try {
             const batch = await linkMergePairsIncremental({
-              primaryId: candidate.id,
-              primaryRaw: raw,
+              primaryId: primary.id,
+              primaryRaw: primary.raw,
               primaryTitle,
-              sources: siblings.map((s) => ({ id: s.id, raw: s.raw, title: s.title })),
+              sources: sources.map((s) => ({ id: s.id, raw: s.raw, title: s.title })),
               linkedBy: 'thread-auto-merge-list',
               chunkSize: 10,
             });
@@ -238,13 +285,17 @@ export const useBackgroundThreadContinuation = (
             totalMerged += mergedThisPass;
           } catch { /* silent — cooldown will let us retry later */ }
           // Update cooldown record with the new linked count so a later
-          // pass only suppresses work that actually succeeded. Previously
-          // this used siblings.length, which made a partial failure look
-          // fully processed and left large threads stuck.
+          // pass only suppresses work that actually succeeded.
           lastCheckRef.current.set(key, {
             at: Date.now(),
             linked: (alreadyLinked.size - 1) + mergedThisPass,
           });
+          if (primary.id !== candidate.id) {
+            lastCheckRef.current.set(`${threadKey}:${primary.id}`, {
+              at: Date.now(),
+              linked: getLinkedPointers(primary.raw).length + mergedThisPass,
+            });
+          }
 
         }
       } catch { /* silent */ } finally {

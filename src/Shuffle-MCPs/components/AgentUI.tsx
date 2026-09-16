@@ -4015,14 +4015,14 @@ const AgentUI: React.FC<AgentUIProps> = ({
     // /api/v1/agent/workflow-edit after the skill was unselected.
   }, [chosenApps, executionApps, getExecution, onRun, attachedImages, readUrlParams, setSearchParams, viewMode, selectedPreset, isLoggedIn]);
 
-  // Auto-submit on mount when caller provides a defaultInput + autoSubmit.
-  const autoSubmittedRef = useRef(false);
+  // Auto-submit on mount or when defaultInput updates with autoSubmit.
+  const lastSubmittedInputRef = useRef<string | null>(null);
   useEffect(() => {
-    if (autoSubmit && defaultInput && !autoSubmittedRef.current && !executionId) {
-      autoSubmittedRef.current = true;
+    if (autoSubmit && defaultInput && defaultInput !== lastSubmittedInputRef.current) {
+      lastSubmittedInputRef.current = defaultInput;
       submitInput(defaultInput);
     }
-  }, [autoSubmit, defaultInput, executionId, submitInput]);
+  }, [autoSubmit, defaultInput, submitInput]);
 
   // ── Submit answers / continuation ──
   const submitQuestions = useCallback(async (

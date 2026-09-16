@@ -71,7 +71,16 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
   // Check support status (prop or fallback to localStorage)
   const isEffectiveSupport = isSupport !== undefined ? isSupport : isSupportUser();
 
-  const effectiveRequireSupport = isBeta ? false : requireSupport;
+  const isIncidentOrDocs =
+    currentPath.startsWith('/incidents') ||
+    currentPath.startsWith('/incidents-simple') ||
+    currentPath.startsWith('/cases') ||
+    currentPath.startsWith('/alerts') ||
+    currentPath.startsWith('/tickets') ||
+    currentPath.startsWith('/docs');
+
+  const effectiveIsBeta = isBeta || isIncidentOrDocs;
+  const effectiveRequireSupport = effectiveIsBeta ? false : requireSupport;
   if (effectiveRequireSupport && !isEffectiveSupport) {
     return null;
   }
@@ -80,7 +89,10 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
     return null;
   }
 
-  const effectiveTagLabel = tagLabel !== undefined ? tagLabel : (isBeta ? 'Beta' : 'Support');
+  const effectiveTagLabel =
+    tagLabel !== undefined && !(tagLabel === 'Support' && isIncidentOrDocs)
+      ? tagLabel
+      : (effectiveIsBeta ? 'Beta' : 'Support');
 
   const effectiveTooltip =
     tooltipTitle !== undefined
@@ -179,9 +191,9 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: '0.04em',
-                color: isBeta ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-                bgcolor: isBeta ? 'hsla(var(--primary) / 0.12)' : 'hsla(var(--muted-foreground) / 0.12)',
-                border: isBeta ? '1px solid hsla(var(--primary) / 0.26)' : '1px solid hsla(var(--muted-foreground) / 0.24)',
+                color: effectiveIsBeta ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+                bgcolor: effectiveIsBeta ? 'hsla(var(--primary) / 0.12)' : 'hsla(var(--muted-foreground) / 0.12)',
+                border: effectiveIsBeta ? '1px solid hsla(var(--primary) / 0.26)' : '1px solid hsla(var(--muted-foreground) / 0.24)',
                 px: 0.9,
                 py: 0.25,
                 borderRadius: '9999px',

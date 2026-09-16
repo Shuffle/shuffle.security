@@ -15,6 +15,7 @@ export interface AgentDrawerOpenDetail {
   tab?: AgentDrawerTab;
   source?: string;
   defaultInput?: string;
+  autoSubmit?: boolean;
 }
 
 /**
@@ -29,7 +30,7 @@ export const openAgentToolPicker = () => {
 
 export const openAgentDrawer = (
   tab: AgentDrawerTab = 'run',
-  options?: { openToolPicker?: boolean; defaultInput?: string; source?: string },
+  options?: { openToolPicker?: boolean; defaultInput?: string; source?: string; autoSubmit?: boolean },
 ) => {
   window.dispatchEvent(
     new CustomEvent<AgentDrawerOpenDetail>(AGENT_DRAWER_OPEN_EVENT, {
@@ -37,6 +38,7 @@ export const openAgentDrawer = (
         tab,
         defaultInput: options?.defaultInput,
         source: options?.source,
+        autoSubmit: options?.autoSubmit,
       },
     }),
   );

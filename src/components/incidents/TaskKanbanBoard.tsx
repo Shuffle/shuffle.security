@@ -1,7 +1,8 @@
 import { Plus as AddIcon, Trash as DeleteOutlineIcon, GripVertical as DragIndicatorIcon } from 'lucide-react';
 import { useState, useMemo } from 'react';
-import { Box, Typography, Chip, IconButton, TextField, Button } from '@mui/material';
+import { Box, Typography, Chip, IconButton, TextField, Button, CircularProgress } from '@mui/material';
 import { IncidentTask, taskCategories } from '@/config/ocsfIncidentSchema';
+import { isAIAssignee } from '@/lib/utils';
 import { useTaskStatuses } from '@/hooks/useEntityLabel';
 import { TaskAssigneeChip } from './TaskAssigneeChip';
 import { TaskEditDialog } from './TaskEditDialog';
@@ -101,6 +102,9 @@ interface TaskKanbanBoardProps {
   currentUser: string;
   /** Task id to briefly flash, e.g. when the user clicked it in the timeline. */
   highlightTaskId?: string | null;
+  onDeleteTask?: (taskId: string) => void;
+  onAssignAi?: (task: IncidentTask) => void;
+  assigningTaskIds?: Record<string, boolean>;
 }
 
 /**
@@ -116,6 +120,9 @@ export const TaskKanbanBoard = ({
   incidentId,
   currentUser,
   highlightTaskId = null,
+  onDeleteTask,
+  onAssignAi,
+  assigningTaskIds,
 }: TaskKanbanBoardProps) => {
   const taskStatuses = useTaskStatuses();
   const laneKeys = useMemo(() => taskStatuses.map((s) => s.key), [taskStatuses]);
@@ -126,6 +133,22 @@ export const TaskKanbanBoard = ({
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [localAssigningIds, setLocalAssigningIds] = useState<Record<string, boolean>>({});
+
+  const handleAssignAi = (task: IncidentTask) => {
+    if (!onAssignAi) return;
+    if (!assigningTaskIds) {
+      setLocalAssigningIds((prev) => ({ ...prev, [task.id]: true }));
+      setTimeout(() => {
+        setLocalAssigningIds((prev) => {
+          const next = { ...prev };
+          delete next[task.id];
+          return next;
+        });
+      }, 8000);
+    }
+    onAssignAi(task);
+  };
 
   // ---------------------------------------------------------------- handlers
   const handleAddTask = () => {
@@ -151,11 +174,15 @@ export const TaskKanbanBoard = ({
   const confirmDeleteTask = () => {
     if (!pendingDeleteId) return;
     const id = pendingDeleteId;
-    onTasksChange(
-      tasks
-        .map((t) => (t.id === id ? { ...t, disabled: true } : t))
-        .filter((t) => !t.disabled),
-    );
+    if (onDeleteTask) {
+      onDeleteTask(id);
+    } else {
+      onTasksChange(
+        tasks
+          .map((t) => (t.id === id ? { ...t, disabled: true } : t))
+          .filter((t) => !t.disabled),
+      );
+    }
     setPendingDeleteId(null);
   };
 
@@ -418,16 +445,74 @@ export const TaskKanbanBoard = ({
                           >
                             {task.title}
                           </Typography>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPendingDeleteId(task.id);
-                            }}
-                            sx={{ p: 0.25 }}
-                          >
-                            <DeleteOutlineIcon size={14} />
-                          </IconButton>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                            {onAssignAi && (() => {
+                              const isAssigning = !!(assigningTaskIds ? assigningTaskIds[task.id] : localAssigningIds[task.id]);
+                              const isAssigned = isAIAssignee(task.assignee);
+                              return (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  disabled={isAssigning}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAssignAi(task);
+                                  }}
+                                  aria-label="Assign AI"
+                                  sx={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 600,
+                                    lineHeight: 1,
+                                    textTransform: 'none',
+                                    py: 0.2,
+                                    px: 0.6,
+                                    minHeight: 22,
+                                    height: 22,
+                                    borderRadius: 1,
+                                    borderColor: isAssigned
+                                      ? 'hsl(var(--primary) / 0.4)'
+                                      : 'hsl(var(--border))',
+                                    color: isAssigned
+                                      ? 'hsl(var(--primary))'
+                                      : 'hsl(var(--foreground))',
+                                    bgcolor: isAssigned
+                                      ? 'hsl(var(--primary) / 0.08)'
+                                      : 'transparent',
+                                    '&:hover': {
+                                      borderColor: 'hsl(var(--primary))',
+                                      bgcolor: 'hsl(var(--primary) / 0.12)',
+                                    },
+                                    '&.Mui-disabled': {
+                                      opacity: 0.7,
+                                      borderColor: 'hsl(var(--border))',
+                                      color: 'hsl(var(--muted-foreground))',
+                                    },
+                                  }}
+                                >
+                                  {isAssigning ? (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                      <CircularProgress size={10} color="inherit" thickness={5} />
+                                      <span>Assigning...</span>
+                                    </Box>
+                                  ) : isAssigned ? (
+                                    'Assigned AI'
+                                  ) : (
+                                    'Assign AI'
+                                  )}
+                                </Button>
+                              );
+                            })()}
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPendingDeleteId(task.id);
+                              }}
+                              sx={{ p: 0.25 }}
+                            >
+                              <DeleteOutlineIcon size={14} />
+                            </IconButton>
+                          </Box>
                         </Box>
                         <Box
                           sx={{

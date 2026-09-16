@@ -4,6 +4,7 @@ import { Box, TextField, TextFieldProps, Typography, Avatar } from '@mui/materia
 import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
 import { useUsers, User } from '@/hooks/useUsers';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
+import { isAIAssignee, AI_AGENT_HANDLE } from '@/lib/utils';
 
 interface MentionInputProps extends Omit<TextFieldProps, 'onChange'> {
   value: string;
@@ -43,9 +44,9 @@ export const MentionInput = ({ value, onChange, onSubmit, ...props }: MentionInp
     
     onChange(newValue);
     
-    // Find if we're in the middle of typing a mention
+    // Find if we're in the middle of typing a mention (supports hyphens)
     const textBeforeCursor = newValue.slice(0, cursorPos);
-    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+    const mentionMatch = textBeforeCursor.match(/@([\w-]*)$/);
     
     if (mentionMatch) {
       const query = mentionMatch[1].toLowerCase();
@@ -53,9 +54,19 @@ export const MentionInput = ({ value, onChange, onSubmit, ...props }: MentionInp
       setMentionStartPos(mentionMatch.index!);
       
       // Filter suggestions - show more results since popup is now scrollable
-      const filtered = allUsers.filter(u => 
-        u.username.toLowerCase().includes(query)
-      );
+      const filtered = allUsers.filter(u => {
+        if (u.isAI) {
+          return (
+            !query ||
+            'ai agent'.includes(query) ||
+            'ai-agent'.includes(query) ||
+            'aiagent'.includes(query) ||
+            'agent'.includes(query) ||
+            isAIAssignee(query)
+          );
+        }
+        return u.username.toLowerCase().includes(query);
+      });
       
       setSuggestions(filtered.slice(0, 15));
       setShowSuggestions(filtered.length > 0);
@@ -109,7 +120,7 @@ export const MentionInput = ({ value, onChange, onSubmit, ...props }: MentionInp
     
     const beforeMention = value.slice(0, mentionStartPos);
     const afterMention = value.slice(mentionStartPos + mentionQuery.length + 1);
-    const mentionText = `@${user.username.replace(/\s+/g, '')} `;
+    const mentionText = user.isAI ? `${AI_AGENT_HANDLE} ` : `@${user.username.replace(/\s+/g, '')} `;
     
     const newValue = beforeMention + mentionText + afterMention;
     onChange(newValue);
@@ -201,7 +212,7 @@ export const MentionInput = ({ value, onChange, onSubmit, ...props }: MentionInp
                     fontSize: '0.8rem',
                   }}
                 >
-                  {user.username}
+                  {user.isAI ? 'AI Agent (@AIAgent)' : user.username}
                 </Typography>
               </Box>
             </Box>

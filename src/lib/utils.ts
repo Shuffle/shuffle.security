@@ -384,14 +384,40 @@ export function deduplicateTasks<T>(tasks: T[]): T[] {
   });
 }
 
+export const AI_AGENT_HANDLE = '@AIAgent';
+export const AI_AGENT_DISPLAY_NAME = 'AI Agent';
+
 /**
- * Check if an assignee refers to the AI Agent.
- * Matches variations like "agent", "ai agent", "aiagent", "AI Agent", etc.
+ * Check if an assignee or username refers to the AI Agent.
+ * Matches all standard variations:
+ * - "ai-agent", "@ai-agent", "ai_agent", "@ai_agent", "aiagent", "@aiagent"
+ * - "@AIAgent", "AIAgent", "AI Agent", "@AI Agent"
+ * - "agent", "@agent"
+ * - "ai-agent@shuffler.io", "ai@shuffle.io"
  */
-export function isAIAssignee(assignee?: string): boolean {
+export function isAIAssignee(assignee?: string | null): boolean {
   if (!assignee) return false;
-  const normalized = assignee.toLowerCase().replace(/\s+/g, '');
-  return normalized === 'agent' || normalized === 'aiagent' || normalized.includes('aiagent');
+  const cleaned = assignee.trim().toLowerCase();
+  if (!cleaned) return false;
+
+  // Check email forms like ai-agent@shuffler.io or ai@shuffle.io
+  if (
+    cleaned.startsWith('ai-agent@') ||
+    cleaned.startsWith('ai_agent@') ||
+    cleaned.startsWith('ai@')
+  ) {
+    return true;
+  }
+
+  // Strip leading @, spaces, hyphens, underscores, dots
+  const normalized = cleaned.replace(/^@+/, '').replace(/[\s\-_.]/g, '');
+
+  return (
+    normalized === 'agent' ||
+    normalized === 'aiagent' ||
+    normalized.includes('aiagent') ||
+    normalized.startsWith('aiagent')
+  );
 }
 
 /**

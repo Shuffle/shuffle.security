@@ -23,7 +23,7 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import EmailHtmlFrame from './EmailHtmlFrame';
-import { resolveEmailThread, type ResolvedEmailThread } from '@/lib/emailThreadAdapters';
+import { resolveEmailThread, assignLatest, type ResolvedEmailThread } from '@/lib/emailThreadAdapters';
 import { IncidentSection } from './IncidentSection';
 import { confirmExternalLinkClick } from '@/utils/safeExternalLinks';
 
@@ -486,10 +486,15 @@ const parseEmailThread = (text: string, html: string): EmailMessage[] => {
   return messages;
 };
 
-/** Count messages in email thread from structured data or raw text/html */
+/** Count messages in email thread from structured data or raw text/html.
+ * Drafts in an existing thread are omitted until sent.
+ */
 export const getEmailMessageCount = (text: string, html: string, rawOCSF?: any, incident?: any): number => {
   const structured = resolveEmailThread(rawOCSF || incident?.rawOCSF || incident);
-  if (structured && structured.messages.length > 0) return structured.messages.length;
+  if (structured && structured.messages.length > 0) {
+    const nonDrafts = structured.messages.filter(m => !m.isDraft);
+    return nonDrafts.length > 0 ? nonDrafts.length : structured.messages.length;
+  }
   if (!text && !html) return 0;
   return parseEmailThread(text, html).length;
 };
@@ -783,12 +788,26 @@ const EmailThreadPanel = ({
     [resolved, descriptionText, descriptionHtml],
   );
 
+  // Drafts can exist, but they should not be a part of the full threading until sent.
+  // AKA we just don't show them in the existing Email thread list.
+  const hasNonDraft = useMemo(() => messages.some(m => !m.isDraft), [messages]);
+  const draftCount = useMemo(() => messages.filter(m => m.isDraft).length, [messages]);
+  const allDrafts = messages.length > 0 && draftCount === messages.length;
+
+  const displayMessages: EmailMessage[] = useMemo(() => {
+    if (hasNonDraft) {
+      const nonDrafts = messages.filter(m => !m.isDraft);
+      return assignLatest(nonDrafts);
+    }
+    return messages;
+  }, [messages, hasNonDraft]);
+
   // Raw mode = render the complete current provider message once, without
   // turning its quoted history into UI rows. It is still parsed/rendered HTML;
   // "raw" does not mean source code or concatenating every provider message.
   const rawHtml = useMemo(() => {
-    const current = resolved?.messages.find((message) => message.isLatest)
-      || resolved?.messages[0];
+    const current = displayMessages.find((message) => message.isLatest)
+      || displayMessages[0];
     if (current?.bodyHtml?.trim()) {
       // Compare readable content only. Marketing/notification emails (LinkedIn,
       // Jira, etc.) carry a plain alternative stuffed with tracking URLs, which
@@ -807,7 +826,6 @@ const EmailThreadPanel = ({
     }
     if (current?.body?.trim()) return plainTextToEmailHtml(current.body);
 
-
     if (descriptionHtml && descriptionHtml.trim()) {
       return rawEmailDocument(descriptionHtml);
     }
@@ -815,24 +833,22 @@ const EmailThreadPanel = ({
     // Last resort: the threaded parser often recovered HTML slices even when
     // no provider payload / description HTML exists. Without this, raw mode
     // silently rendered nothing at all.
-    const fromParsed = messages
+    const fromParsed = displayMessages
       .map((m) => m.bodyHtml)
       .filter((h): h is string => !!h && !!h.trim())
       .map(extractHtmlBody);
     if (fromParsed.length) return rawEmailDocument(fromParsed[0]);
 
     return '';
-  }, [resolved, descriptionHtml, messages]);
-
+  }, [displayMessages, descriptionHtml]);
 
   const rawText = useMemo(() => {
-    const fromProvider = (resolved?.messages || [])
+    const fromProvider = displayMessages
       .map((m) => m.body)
       .filter((b): b is string => !!b && !!b.trim());
     if (fromProvider.length) return fromProvider.join('\n\n');
     return descriptionText;
-  }, [resolved, descriptionText]);
-
+  }, [displayMessages, descriptionText]);
 
   const sourceLabel = resolved?.source === 'gmail'
     ? 'Gmail'
@@ -844,11 +860,11 @@ const EmailThreadPanel = ({
 
   // Thread subject from first message
   const threadSubject = useMemo(() => {
-    for (const m of messages) {
+    for (const m of displayMessages) {
       if (m.subject) return m.subject.replace(/^(Re|Fwd|Fw):\s*/gi, '').trim();
     }
     return rawOCSF?.title || '';
-  }, [messages, rawOCSF]);
+  }, [displayMessages, rawOCSF]);
 
   // Latest message is always expanded, toggle older ones
   const toggleMessage = (id: string) => {
@@ -862,15 +878,20 @@ const EmailThreadPanel = ({
 
   // Prefill To/Cc when the reply box is opened, derived from the latest
   // message: reply goes to the sender, Cc preserves any existing Cc recipients.
+  // If an omitted draft exists in this thread, populate the reply box with its text.
   useEffect(() => {
     if (!showReplyBox) return;
-    const latest = messages[0];
+    const latest = displayMessages[0];
     if (!latest) return;
     const defaultTo = latest.fromEmail || latest.from || '';
     setReplyTo(prev => prev || defaultTo);
     if (latest.cc && !replyCc) {
       setReplyCc(latest.cc);
       setShowCc(true);
+    }
+    const draftMsg = messages.find((m) => m.isDraft);
+    if (draftMsg?.body && !replyText) {
+      setReplyText(draftMsg.body);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showReplyBox]);
@@ -893,22 +914,10 @@ const EmailThreadPanel = ({
     setShowReplyBox(false);
   };
 
-  if (messages.length === 0) return null;
-
-  // Draft awareness: some providers deliver unsent drafts (Gmail DRAFT label,
-  // Outlook isDraft, generic status:'draft'). Drafts should never be treated
-  // as the source of truth — we already skip them when picking `isLatest`
-  // inside the adapter, but the header should also make it visible when
-  // the newest message overall is a draft (analyst can then look at the
-  // last sent message instead).
-  const draftCount = messages.filter(m => m.isDraft).length;
-  const allDrafts = draftCount === messages.length;
-  const newestIsDraft = messages[0]?.isDraft === true;
-  const hasNonDraft = messages.some(m => !m.isDraft);
+  if (displayMessages.length === 0) return null;
 
   // Header badges (parsed-from chip only). Rendered next to the title in
-  // IncidentSection's `badge` slot. We intentionally do not show a message
-  // count because the single-item render is the preferred default view.
+  // IncidentSection's `badge` slot.
   const headerBadge = (
     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
       {sourceLabel && (
@@ -928,19 +937,32 @@ const EmailThreadPanel = ({
           />
         </Tooltip>
       )}
-      {draftCount > 0 && (
+      {allDrafts && (
         <Tooltip
-          title={
-            allDrafts
-              ? 'Every message in this thread is an unsent draft — do not treat it as a source of truth.'
-              : newestIsDraft && hasNonDraft
-                ? 'Newest message is an unsent draft. The last sent message is highlighted as Latest instead.'
-                : `${draftCount} unsent draft${draftCount !== 1 ? 's' : ''} in this thread.`
-          }
+          title="Every message in this thread is an unsent draft — do not treat it as a source of truth."
           arrow
         >
           <Chip
-            label={allDrafts ? 'Draft only' : `${draftCount} draft${draftCount !== 1 ? 's' : ''}`}
+            label="Draft only"
+            size="small"
+            variant="outlined"
+            sx={{
+              height: 18,
+              fontSize: '0.65rem',
+              bgcolor: 'transparent',
+              borderColor: 'hsl(var(--warning) / 0.5)',
+              color: 'hsl(var(--warning))',
+            }}
+          />
+        </Tooltip>
+      )}
+      {draftCount > 0 && !allDrafts && (
+        <Tooltip
+          title={`${draftCount} unsent draft${draftCount !== 1 ? 's' : ''} in this thread omitted from thread list until sent.`}
+          arrow
+        >
+          <Chip
+            label={`${draftCount} draft${draftCount !== 1 ? 's' : ''} omitted`}
             size="small"
             variant="outlined"
             sx={{
@@ -955,6 +977,7 @@ const EmailThreadPanel = ({
       )}
     </Box>
   );
+
 
 
   // Right-side action buttons (reply / forward / popout). Rendered in
@@ -1039,7 +1062,7 @@ const EmailThreadPanel = ({
           <Box sx={{ px: 2, py: 1.5 }}>
             <Box sx={{ display: { xs: 'flex', sm: 'none' }, flexDirection: 'column', gap: 0.25, mb: 1.5 }}>
               {(() => {
-                const first = messages[0];
+                const first = displayMessages[0];
                 const parsed = extractEmail(first.from);
                 const name = parsed.name || first.from;
                 const email = parsed.email || first.fromEmail;
@@ -1059,7 +1082,7 @@ const EmailThreadPanel = ({
             <EmailHtmlFrame html={rawHtml || plainTextToEmailHtml(rawText)} />
           </Box>
 
-        ) : messages.map((msg, idx) => {
+        ) : displayMessages.map((msg, idx) => {
 
           const isExpanded = msg.isLatest ? !expandedMessages.has(msg.id) : expandedMessages.has(msg.id);
           const parsed = extractEmail(msg.from);
@@ -1072,7 +1095,7 @@ const EmailThreadPanel = ({
 
           return (
             <Box key={msg.id} sx={{
-              borderBottom: idx < messages.length - 1 ? '1px solid hsl(var(--border))' : 'none',
+              borderBottom: idx < displayMessages.length - 1 ? '1px solid hsl(var(--border))' : 'none',
             }}>
               <Box
                 onClick={() => toggleMessage(msg.id)}
@@ -1211,7 +1234,7 @@ const EmailThreadPanel = ({
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ReplyIcon size={16} style={{ color: 'text.secondary' }} />
               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
-                Reply to {messages[0]?.from || 'sender'}
+                Reply to {displayMessages[0]?.from || 'sender'}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 0.5 }}>

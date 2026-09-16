@@ -19,7 +19,7 @@ import { useState } from 'react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
 import singulAgentIcon from '@/assets/singul-agent-icon.png';
-import { isAIAssignee } from '@/lib/utils';
+import { isAIAssignee, AI_AGENT_HANDLE } from '@/lib/utils';
 import { useUsers, type User } from '@/hooks/useUsers';
 import { openAgentDrawer } from '@/lib/agentDrawer';
 
@@ -87,6 +87,7 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
   const verifiedAgent = looksLikeAgent || (isAgent === true && !realUser);
   const githubUrl = realUser?.public_profile?.github_url;
   const githubAvatar = realUser?.public_profile?.github_avatar;
+  const displayName = verifiedAgent ? AI_AGENT_HANDLE : username;
 
   // Clicking the agent name should open the same hover popup instead of
   // redirecting to another page. This keeps the interaction lightweight and
@@ -146,9 +147,9 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
               fontSize: '0.75rem',
               color: 'text.primary',
             }}
-            title={username}
+            title={displayName}
           >
-            {shortenName(username, maxChars)}
+            {shortenName(displayName, maxChars)}
           </Typography>
         </Box>
       </HoverCardTrigger>
@@ -175,7 +176,7 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
               sx={{ fontWeight: 600, fontSize: '0.85rem', lineHeight: 1.2 }}
               noWrap
             >
-              {username}
+              {displayName}
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
               {verifiedAgent ? 'AI Agent · automated responder' : (realUser?.role || 'Team member')}
@@ -207,7 +208,7 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
                   Verified
                 </Typography>
                 <Chip
-                  label={looksLikeAgent ? 'Name match' : 'is_agent flag'}
+                  label="Automated responder"
                   size="small"
                   sx={{
                     height: 16,

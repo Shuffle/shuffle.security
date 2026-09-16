@@ -6389,6 +6389,7 @@ const IncidentDetailPage = () => {
                 </Button>
               </Box>
             )}
+            {isSimple && showEnrichmentInlineCTA && renderEnrichmentInlineCTA(true)}
             <Box data-tour="incident-comment-input" sx={{ position: 'relative' }}>
               <DebouncedMentionInput
                 value={newComment}

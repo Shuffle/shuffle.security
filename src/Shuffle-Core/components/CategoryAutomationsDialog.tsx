@@ -1030,24 +1030,59 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                 ? `Routing for ${entityPluralCap}`
                 : `Settings for ${entityPluralCap}`}
           </Typography>
+          {currentView === 'routing' && (
+            <Chip
+              label="Support only"
+              size="small"
+              sx={{
+                height: 20,
+                fontSize: '0.65rem',
+                fontWeight: 500,
+                color: 'hsl(var(--muted-foreground))',
+                bgcolor: 'hsl(var(--muted) / 0.5)',
+                border: '1px solid hsl(var(--border))',
+                '& .MuiChip-label': { px: 1 },
+              }}
+            />
+          )}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {isSupportUser && (
-            <Button
-              size="small"
-              onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
-              sx={{
-                textTransform: 'none',
-                fontSize: '0.75rem',
-                color: 'text.secondary',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: 1.5,
-                px: 1.25,
-                '&:hover': { color: 'text.primary', borderColor: 'hsl(var(--primary))' },
-              }}
-            >
-              {currentView === 'routing' ? 'Back to automations' : 'Routing rules'}
-            </Button>
+            <>
+              <Tooltip
+                title="Routing rules are a support-only preview and are not visible to regular users yet."
+                arrow
+              >
+                <Button
+                  size="small"
+                  onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '0.75rem',
+                    color: 'text.secondary',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: 1.5,
+                    px: 1.25,
+                    '&:hover': { color: 'text.primary', borderColor: 'hsl(var(--primary))' },
+                  }}
+                >
+                  {currentView === 'routing' ? 'Back to automations' : 'Routing rules'}
+                </Button>
+              </Tooltip>
+              <Chip
+                label="Support only"
+                size="small"
+                sx={{
+                  height: 20,
+                  fontSize: '0.65rem',
+                  fontWeight: 500,
+                  color: 'hsl(var(--muted-foreground))',
+                  bgcolor: 'hsl(var(--muted) / 0.5)',
+                  border: '1px solid hsl(var(--border))',
+                  '& .MuiChip-label': { px: 1 },
+                }}
+              />
+            </>
           )}
           {showViewToggle && currentView !== 'routing' && (
             <Tooltip

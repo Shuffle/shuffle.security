@@ -32,6 +32,13 @@ interface SimpleCaseLayoutProps {
   correlationCount: number;
   /** Incidents merged into this one, shown at the bottom of the Overview rail. */
   relatedIncidents?: LinkedIncidentSummary[];
+  /** Closure details shown in the Overview rail once the case is resolved. */
+  resolution?: {
+    reasonLabel: string;
+    notes?: string;
+    resolvedBy?: string;
+    resolvedAt?: number;
+  };
 }
 
 const SECTIONS = ['emailThread', 'narrative', 'tasks', 'customFields', 'observables', 'correlations'] as const;

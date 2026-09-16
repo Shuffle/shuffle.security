@@ -773,6 +773,7 @@ const SimpleIncidentTitle = ({ title, onCommit, readOnly = false }: SimpleIncide
         color: title ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
         cursor: readOnly ? 'default' : 'text',
         borderRadius: 1,
+        pt: '5px',
         transition: 'background-color 0.15s ease',
         '&:hover': {
           bgcolor: readOnly ? 'transparent' : 'rgba(255, 255, 255, 0.04)',

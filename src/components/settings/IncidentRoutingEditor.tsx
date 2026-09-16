@@ -150,7 +150,7 @@ export interface RoutingRule {
 const FIELD_SUGGESTIONS = ROUTING_FIELD_SUGGESTIONS;
 
 const FIELD_LABELS: Record<string, string> = {
-  '*': '* (whole incident, auto base64-decoded)',
+  '*': '* (whole item, auto base64-decoded)',
 };
 
 
@@ -296,7 +296,8 @@ interface IncidentRoutingEditorProps {
   entityLabel?: { singular: string; plural: string };
   /**
    * Category passed to POST /api/v2/workflows/generate when the backing
-   * routing workflow is auto-created. Defaults to "cases".
+   * routing workflow is auto-created. Defaults to "cases" for incidents, or
+   * entityCategory for other entities.
    */
   generateCategory?: string;
 }
@@ -305,9 +306,12 @@ export const IncidentRoutingEditor = ({
   forceShow = false,
   entityCategory = DEFAULT_ROUTING_ENTITY_CATEGORY,
   entityLabel = { singular: 'incident', plural: 'incidents' },
-  generateCategory = 'cases',
+  generateCategory,
 }: IncidentRoutingEditorProps) => {
   const entityPluralCap = entityLabel.plural.charAt(0).toUpperCase() + entityLabel.plural.slice(1);
+  const effectiveGenerateCategory =
+    generateCategory ||
+    (entityCategory === DEFAULT_ROUTING_ENTITY_CATEGORY ? 'cases' : entityCategory);
   const { userInfo } = useAuth();
   const currentOrgId = userInfo?.active_org?.id;
   const { subOrgs, isParentOrg } = useSubOrgs(currentOrgId);
@@ -462,7 +466,7 @@ export const IncidentRoutingEditor = ({
               headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 label: `${entityPluralCap} Routing Rules`,
-                category: generateCategory,
+                category: effectiveGenerateCategory,
               }),
             });
             window.dispatchEvent(new CustomEvent('shuffle-workflow-toggled', {
@@ -673,7 +677,7 @@ export const IncidentRoutingEditor = ({
             No routing rules yet.
           </Typography>
           <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))' }}>
-            Rules are evaluated by your incident automation. When a rule matches, an incident shows
+            Rules are evaluated by your {entityLabel.singular} automation. When a rule matches, a {entityLabel.singular} shows
             a suggestion banner with a "Move" CTA — your team confirms before anything happens.
           </Typography>
         </Paper>
@@ -1455,7 +1459,7 @@ export const IncidentRoutingEditor = ({
         <DialogContent>
           <DialogContentText sx={{ color: 'hsl(var(--muted-foreground))' }}>
             This will permanently delete the rule <strong style={{ color: 'hsl(var(--foreground))' }}>"{pendingDelete?.name}"</strong>.
-            Incidents will no longer be evaluated against it. This action cannot be undone.
+            {entityPluralCap} will no longer be evaluated against it. This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>

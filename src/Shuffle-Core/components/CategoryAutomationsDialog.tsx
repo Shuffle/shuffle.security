@@ -303,7 +303,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
   // is generated for — incidents use the legacy "cases" category.
   const isSupportUser = useIsSupport();
   const routingGenerateCategory =
-    activeCategory === DATASTORE_CATEGORIES.INCIDENTS ? 'cases' : entityPlural;
+    activeCategory === DATASTORE_CATEGORIES.INCIDENTS ? 'cases' : activeCategory;
   const navigate = useNavigate();
   const [automations, setAutomations] = useState<CategoryAutomation[]>([]);
   const [isSaving, setIsSaving] = useState(false);

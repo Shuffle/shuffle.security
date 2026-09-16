@@ -46,7 +46,10 @@ export interface IncidentEvaluationContext {
   observables?: Array<{ type?: string; value?: string }>;
   stakeholders?: Array<{ email?: string }>;
   rawOCSF?: any;
+  [key: string]: any;
 }
+
+export type DatastoreEvaluationContext = IncidentEvaluationContext;
 
 const getDeep = (obj: any, path: string): any => {
   if (obj == null) return undefined;
@@ -141,14 +144,12 @@ const resolveField = (ctx: IncidentEvaluationContext, field: string): any => {
   if (!field) return undefined;
 
   // Whole-object match — collect every string from the context so operators
-  // like `contains` scan the entire incident payload at once.
+  // like `contains` scan the entire payload at once.
   if (field === '*' || field === '$whole') {
     const buckets: any[] = [
-      ctx.title, ctx.description, ctx.source, ctx.severity, ctx.status,
-      ctx.labels,
-      (ctx.observables || []).map((o) => `${o.type || ''}:${o.value || ''}`),
-      (ctx.stakeholders || []).map((s) => s.email || ''),
-      ctx.rawOCSF,
+      ctx,
+      (ctx.observables || []).map((o) => `${o?.type || ''}:${o?.value || ''}`),
+      (ctx.stakeholders || []).map((s) => s?.email || ''),
     ];
     return collectAllStrings(buckets);
   }
@@ -182,6 +183,12 @@ const resolveField = (ctx: IncidentEvaluationContext, field: string): any => {
   // rawOCSF.* — deep-path into the original payload
   if (field.startsWith('rawOCSF.')) {
     return getDeep(ctx.rawOCSF, field.slice('rawOCSF.'.length));
+  }
+
+  // Generic deep-path or top-level field on any datastore record
+  const deepVal = getDeep(ctx, field);
+  if (deepVal !== undefined) {
+    return deepVal;
   }
 
   return undefined;

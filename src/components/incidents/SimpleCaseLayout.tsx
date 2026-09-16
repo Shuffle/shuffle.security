@@ -18,7 +18,7 @@ import {
 import { useNavigate } from "@/lib/router-compat";
 import type { IncidentTask } from "@/config/ocsfIncidentSchema";
 import type { LinkedIncidentSummary } from "@/hooks/useRelatedIncidents";
-import { groupTasksByCategory } from "./SimpleTasksView";
+import { groupTasksByCategory } from "./taskCategoryUtils";
 
 const TIMELINE_WIDTH_STORAGE_KEY = "shuffle_simple_timeline_width";
 const DEFAULT_TIMELINE_WIDTH = 260;
@@ -423,7 +423,9 @@ export const SimpleCaseLayout = ({
           return parsed;
         }
       }
-    } catch {}
+    } catch {
+      // Ignore localStorage read errors
+    }
     return DEFAULT_TIMELINE_WIDTH;
   });
   const [isResizingTimeline, setIsResizingTimeline] = useState(false);
@@ -470,7 +472,9 @@ export const SimpleCaseLayout = ({
       );
       try {
         localStorage.setItem(TIMELINE_WIDTH_STORAGE_KEY, String(finalWidth));
-      } catch {}
+      } catch {
+        // Ignore localStorage write errors
+      }
     };
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -511,7 +515,9 @@ export const SimpleCaseLayout = ({
       );
       try {
         localStorage.setItem(TIMELINE_WIDTH_STORAGE_KEY, String(finalWidth));
-      } catch {}
+      } catch {
+        // Ignore localStorage write errors
+      }
     };
 
     window.addEventListener("touchmove", handleTouchMove);
@@ -598,7 +604,9 @@ export const SimpleCaseLayout = ({
                 TIMELINE_WIDTH_STORAGE_KEY,
                 String(DEFAULT_TIMELINE_WIDTH),
               );
-            } catch {}
+            } catch {
+              // Ignore localStorage write errors
+            }
           }}
           role="separator"
           aria-orientation="vertical"

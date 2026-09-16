@@ -15,93 +15,13 @@ import { DeferredTextField } from "./DeferredTextField";
 import { TaskAssigneeChip } from "./TaskAssigneeChip";
 import { taskCategories, type IncidentTask } from "@/config/ocsfIncidentSchema";
 
-export interface TaskCategoryGroup {
-  categoryKey: string;
-  label: string;
-  color: string;
-  tasks: IncidentTask[];
-  openCount: number;
-  totalCount: number;
-}
-
-export const UNCATEGORIZED_KEY = "general";
-export const UNCATEGORIZED_LABEL = "General";
-export const UNCATEGORIZED_COLOR = "#94a3b8";
-
-export const groupTasksByCategory = (
-  tasks: IncidentTask[],
-): TaskCategoryGroup[] => {
-  const activeTasks = tasks.filter((t) => !t.disabled);
-  const groups: TaskCategoryGroup[] = [];
-
-  // 1. Standard lifecycle categories in defined order
-  for (const cat of taskCategories) {
-    const matching = activeTasks.filter(
-      (t) =>
-        (t.category || "").trim().toLowerCase() === cat.value.toLowerCase(),
-    );
-    if (matching.length > 0) {
-      groups.push({
-        categoryKey: cat.value,
-        label: cat.label,
-        color: cat.color,
-        tasks: matching,
-        openCount: matching.filter((t) => !t.completed).length,
-        totalCount: matching.length,
-      });
-    }
-  }
-
-  // 2. Custom categories not in standard list
-  const standardKeys = new Set(
-    taskCategories.map((c) => c.value.toLowerCase()),
-  );
-  const customCategories = new Map<string, IncidentTask[]>();
-  const uncategorizedTasks: IncidentTask[] = [];
-
-  for (const t of activeTasks) {
-    const rawCat = (t.category || "").trim();
-    const lower = rawCat.toLowerCase();
-    if (!rawCat || lower === UNCATEGORIZED_KEY || lower === "uncategorized") {
-      uncategorizedTasks.push(t);
-    } else if (!standardKeys.has(lower)) {
-      if (!customCategories.has(rawCat)) {
-        customCategories.set(rawCat, []);
-      }
-      customCategories.get(rawCat)!.push(t);
-    }
-  }
-
-  // Add custom categories sorted alphabetically
-  const sortedCustom = Array.from(customCategories.keys()).sort((a, b) =>
-    a.localeCompare(b),
-  );
-  for (const customName of sortedCustom) {
-    const matching = customCategories.get(customName) || [];
-    groups.push({
-      categoryKey: customName.toLowerCase(),
-      label: customName,
-      color: "#a1a1aa",
-      tasks: matching,
-      openCount: matching.filter((t) => !t.completed).length,
-      totalCount: matching.length,
-    });
-  }
-
-  // 3. Uncategorized / General tasks
-  if (uncategorizedTasks.length > 0) {
-    groups.push({
-      categoryKey: UNCATEGORIZED_KEY,
-      label: UNCATEGORIZED_LABEL,
-      color: UNCATEGORIZED_COLOR,
-      tasks: uncategorizedTasks,
-      openCount: uncategorizedTasks.filter((t) => !t.completed).length,
-      totalCount: uncategorizedTasks.length,
-    });
-  }
-
-  return groups;
-};
+import {
+  groupTasksByCategory,
+  type TaskCategoryGroup,
+  UNCATEGORIZED_KEY,
+  UNCATEGORIZED_LABEL,
+  UNCATEGORIZED_COLOR,
+} from "./taskCategoryUtils";
 
 export interface SimpleTasksViewProps {
   tasks: IncidentTask[];

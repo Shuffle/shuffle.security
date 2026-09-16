@@ -199,15 +199,9 @@ def _resolve_field(ctx: dict, field: str) -> Any:
 
     if field == "*" or field == "$whole":
         buckets = [
-            ctx.get("title"),
-            ctx.get("description"),
-            ctx.get("source"),
-            ctx.get("severity"),
-            ctx.get("status"),
-            ctx.get("labels"),
+            ctx,
             [f"{o.get('type') or ''}:{o.get('value') or ''}" for o in (ctx.get("observables") or [])],
             [s.get("email") or "" for s in (ctx.get("stakeholders") or [])],
-            ctx.get("rawOCSF"),
         ]
         return _collect_all_strings(buckets)
 
@@ -231,6 +225,10 @@ def _resolve_field(ctx: dict, field: str) -> Any:
 
     if field.startswith("rawOCSF."):
         return _get_deep(ctx.get("rawOCSF"), field[len("rawOCSF."):])
+
+    deep = _get_deep(ctx, field)
+    if deep is not None:
+        return deep
 
     return None
 
@@ -613,6 +611,10 @@ def _run_tests() -> None:
           evaluate_condition(ctx, {"field": "rawOCSF.payload.body.data", "op": "contains", "value": "secret invoice"}))
     check("* whole-object also decodes base64",
           evaluate_condition(ctx, {"field": "*", "op": "contains", "value": "secret invoice"}))
+    check("arbitrary datastore field resolution",
+          evaluate_condition({"hostname": "prod-web-01", "ip": "10.0.1.5"}, {"field": "hostname", "op": "equals", "value": "prod-web-01"}))
+    check("arbitrary datastore deep path resolution",
+          evaluate_condition({"asset": {"owner": {"email": "sec@shuffler.io"}}}, {"field": "asset.owner.email", "op": "endsWith", "value": "@shuffler.io"}))
     check("no match returns false",
           not evaluate_condition(ctx, {"field": "title", "op": "contains", "value": "ransomware"}))
     check("regex invalid returns false",

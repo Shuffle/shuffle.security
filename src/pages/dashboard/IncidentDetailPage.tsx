@@ -19476,7 +19476,14 @@ const IncidentDetailPage = () => {
                         size="small"
                         variant="contained"
                         disabled={enrichmentStatus.isEnabling}
-                        onClick={enrichmentStatus.enable}
+                        onClick={() => {
+                          void enrichmentStatus.enable().catch((err) => {
+                            console.error("[enrichment] enable failed", err);
+                            toast.error(
+                              "Enrichment did not turn on yet. It may still be starting up — try again in a moment.",
+                            );
+                          });
+                        }}
                         sx={{
                           textTransform: "none",
                           fontSize: "0.75rem",

@@ -1717,7 +1717,11 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
 
       <Divider sx={{ borderColor: 'hsl(var(--border))' }} />
 
-      <DialogActions sx={{ px: 4, py: 2.5, justifyContent: 'space-between' }}>
+      <DialogActions sx={{ px: 4, py: 2.5, justifyContent: currentView === 'routing' ? 'flex-end' : 'space-between' }}>
+        {currentView === 'routing' ? (
+          <Button onClick={onClose}>Close</Button>
+        ) : (
+        <>
         <Button
           size="small"
           startIcon={<RestoreIcon />}

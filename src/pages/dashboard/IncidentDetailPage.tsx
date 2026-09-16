@@ -1987,20 +1987,20 @@ const IncidentDetailPage = () => {
     return () => window.clearInterval(id);
   }, [enrichmentStatus.active, enrichmentStatus.isLoading, incidentAgeMs, lastCommentAgeMs, FRESH_INCIDENT_CTA_MS, FRESH_COMMENT_CTA_MS]);
 
-  const renderEnrichmentInlineCTA = () => (
+  const renderEnrichmentInlineCTA = (simple = false) => (
     <Box sx={{
       display: 'flex',
-      alignItems: 'center',
-      gap: 1.5,
-      mx: 2,
-      mt: 2,
+      flexDirection: simple ? 'column' : 'row',
+      alignItems: simple ? 'flex-start' : 'center',
+      gap: simple ? 1 : 1.5,
+      ...(simple ? { mb: 1 } : { mx: 2, mt: 2 }),
       px: 1.5,
       py: 1,
       borderRadius: 1.5,
       bgcolor: 'rgba(251, 146, 60, 0.08)',
       border: '1px solid rgba(251, 146, 60, 0.18)',
     }}>
-      <Typography variant="caption" sx={{ color: '#fb923c', fontWeight: 500, flex: 1, lineHeight: 1.3 }}>
+      <Typography variant="caption" sx={{ color: '#fb923c', fontWeight: 500, lineHeight: 1.3, ...(simple ? {} : { flex: 1 }) }}>
         Automatic observable extraction is not yet fully enabled — observables and correlations may be missing from this incident.
       </Typography>
       <Tooltip

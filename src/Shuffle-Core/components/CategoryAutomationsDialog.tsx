@@ -1018,17 +1018,38 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {currentView === 'automations' ? (
             <RocketLaunchIcon size={26} style={{ color: enabledCount > 0 ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground))' }} />
+          ) : currentView === 'routing' ? (
+            <AccountTreeIcon size={26} style={{ color: 'hsl(var(--foreground))' }} />
           ) : (
             <SettingsIcon size={26} style={{ color: 'hsl(var(--foreground))' }} />
           )}
           <Typography variant="h6" sx={{ fontSize: '1.1rem', fontWeight: 600 }}>
             {currentView === 'automations'
               ? `Automation for ${entityPluralCap}`
-              : `Settings for ${entityPluralCap}`}
+              : currentView === 'routing'
+                ? `Routing for ${entityPluralCap}`
+                : `Settings for ${entityPluralCap}`}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {showViewToggle && (
+          {isSupportUser && (
+            <Button
+              size="small"
+              onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
+              sx={{
+                textTransform: 'none',
+                fontSize: '0.75rem',
+                color: 'text.secondary',
+                border: '1px solid hsl(var(--border))',
+                borderRadius: 1.5,
+                px: 1.25,
+                '&:hover': { color: 'text.primary', borderColor: 'hsl(var(--primary))' },
+              }}
+            >
+              {currentView === 'routing' ? 'Back to automations' : 'Routing rules'}
+            </Button>
+          )}
+          {showViewToggle && currentView !== 'routing' && (
             <Tooltip
               title={
                 currentView === 'automations'

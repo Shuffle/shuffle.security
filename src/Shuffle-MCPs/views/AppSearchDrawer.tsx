@@ -18,6 +18,7 @@ import { API_CONFIG } from '@/Shuffle-MCPs/api';
 import { ShufflePipelinesBanner } from '@/Shuffle-MCPs/components/ShufflePipelinesBanner';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
+import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
 
 
 // Singul styles — compact dark theme
@@ -352,7 +353,7 @@ export default function AppSearchDrawer({
         {...({ PaperProps: drawerPaperProps } as any)}
 
         sx={{
-          zIndex: 9999,
+          zIndex: drawerZIndex,
           '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
             width: `${drawerWidth} !important`,

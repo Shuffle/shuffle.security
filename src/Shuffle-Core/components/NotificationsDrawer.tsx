@@ -372,6 +372,7 @@ const NotificationsDrawer = ({
       open={open}
       onClose={onClose}
       sx={{
+        zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
           width: { xs: '100vw', sm: drawerWidth },

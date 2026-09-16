@@ -38,6 +38,7 @@ import { getShuffleCoreFormUrl, isAgentApprovalFormUrl } from '@/Shuffle-MCPs/ap
 import { navigateToShuffleCore, isShuffleCoreUrl } from '@/lib/authHandoff';
 import { useEntityText } from '@/hooks/useEntityLabel';
 import { useIsSupport } from '@/hooks/useIsSupport';
+import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
 
 export type QuickViewItem =
   | { type: 'notification'; notification: AgentNotification }
@@ -326,6 +327,7 @@ const AgentQuickViewDrawer = ({ open, onClose, item, entityBasePath, onApprove, 
       open={open}
       onClose={handleClose}
       sx={{
+        zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
           width: { xs: '100vw', sm: 720 },

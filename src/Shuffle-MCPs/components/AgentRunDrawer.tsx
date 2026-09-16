@@ -40,6 +40,7 @@ import LocalLLMConfig from '@/Shuffle-MCPs/components/LocalLLMConfig';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
+import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
 
 export type AgentRunDrawerTab = 'run' | 'permissions' | 'localLLM';
 
@@ -223,6 +224,7 @@ const AgentRunDrawer = ({
       open={open}
       onClose={onClose}
       sx={{
+        zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
           width: { xs: '100vw', sm: drawerWidth },

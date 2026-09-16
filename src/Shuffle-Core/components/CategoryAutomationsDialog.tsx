@@ -36,6 +36,8 @@ import { useAuthenticatedApps } from '../useAuthenticatedApps';
 
 import { CategoryAutomation, DATASTORE_CATEGORIES, getDatastoreByCategory, RBACConfig } from '@/Shuffle-MCPs/datastore';
 import { ShareAccessModal } from '@/components/common/ShareAccessModal';
+import { IncidentRoutingEditor } from '@/components/settings/IncidentRoutingEditor';
+import { useIsSupport } from '@/hooks/useIsSupport';
 import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
 import { fetchAppsCached, fetchWorkflowsCached } from '../views/appsFetchCache';
 

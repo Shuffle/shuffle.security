@@ -117,19 +117,30 @@ export const IngestionSourcesRow = ({
 
   const fetchIngestionApps = useCallback(async () => {
     if (!loadedOnceRef.current) setIngestionLoading(true);
+    let loadFailed = false;
     try {
+
       const [authApps, workflowsResponse] = await Promise.all([
         fetchAuthenticatedApps(currentOrgId).catch(() => []),
         fetch(getApiUrl('/api/v1/workflows'), {
           credentials: 'include',
           headers: { ...getAuthHeader() },
-        }),
+        }).catch(() => null),
       ]);
 
       if (!Array.isArray(authApps)) return;
 
+      // Connectivity loss: never overwrite what is already on screen with an
+      // empty list, and allow the next attempt to load normally again.
+      if (!workflowsResponse || !workflowsResponse.ok) {
+        loadFailed = true;
+        return;
+      }
+
+
       let workflowAppNames: Set<string> | undefined;
       if (workflowsResponse.ok) {
+
         const workflows = await workflowsResponse.json();
         const workflowList = Array.isArray(workflows) ? workflows : (workflows.workflows || []);
 
@@ -190,10 +201,13 @@ export const IngestionSourcesRow = ({
 
       setIngestionApps(results);
     } catch (error) {
+      loadFailed = true;
       console.error('Failed to fetch ingestion apps:', error);
     } finally {
       setIngestionLoading(false);
-      loadedOnceRef.current = true;
+      // Only remember a successful load; a failed one must be retried from a
+      // clean state instead of leaving the row permanently empty.
+      loadedOnceRef.current = loadedOnceRef.current || !loadFailed;
     }
   }, [workflowLabel, webhookWorkflowName, currentOrgId]);
 
@@ -202,11 +216,17 @@ export const IngestionSourcesRow = ({
     const handleIntegrationsChanged = () => {
       fetchIngestionApps();
     };
+    const handleBackOnline = () => {
+      fetchIngestionApps();
+    };
     window.addEventListener('integrations-changed', handleIntegrationsChanged);
+    window.addEventListener('online', handleBackOnline);
     return () => {
       window.removeEventListener('integrations-changed', handleIntegrationsChanged);
+      window.removeEventListener('online', handleBackOnline);
     };
   }, [fetchIngestionApps]);
+
 
   const triggerSync = useCallback(async (overrideWorkflowId?: string) => {
     const wfId = overrideWorkflowId || ingestWorkflowId;

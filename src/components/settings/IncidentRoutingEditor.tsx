@@ -560,6 +560,7 @@ export const IncidentRoutingEditor = ({
   const handleAdd = () => {
     const fresh = emptyRule({
       actions: [{ type: 'suggest_move', targetOrgId: subOrgs[0]?.id || '', reason: '' }],
+      entityCategory,
     });
     setDrafts((prev) => ({ ...prev, [fresh.id]: fresh }));
     setLocalOnlyIds((prev) => new Set(prev).add(fresh.id));

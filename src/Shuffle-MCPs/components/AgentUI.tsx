@@ -2875,6 +2875,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // stale poll responses from a previous run after the user has started a
   // new one (otherwise an in-flight fetch can repaint the old execution).
   const activeExecutionIdRef = useRef<string | null>(
+    executionId ||
     initialExecution?.execution_id ||
     (contextStorageKey ? getPageContextChoice(contextStorageKey)?.executionId || null : null),
   );
@@ -3648,9 +3649,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
     let initialStatus: string = 'EXECUTING';
     let savedViewMode: 'start' | 'simple' | 'detailed' | null = null;
 
-    if (executionId && authorization) {
+    if (executionId) {
       eid = executionId;
-      auth = authorization;
+      auth = authorization || null;
     } else if (readUrlParams) {
       const params = new URLSearchParams(window.location.search);
       eid = params.get('execution_id');
@@ -4708,6 +4709,27 @@ const AgentUI: React.FC<AgentUIProps> = ({
     });
     setRunComplete(Boolean(isTerminal && !hasPendingDecision && (finishAnswer || finishDecisionId)));
   }, [execution?.status, agentData?.decisions, finishAnswer, finishDecisionId]);
+
+  // Broadcast execution status changes so assigned tasks update their state and status dots
+  useEffect(() => {
+    const eid = execution?.execution_id || activeExecutionIdRef.current;
+    const status = (execution?.status || agentData?.status || '').toUpperCase();
+    if (!eid || !status || typeof window === 'undefined') return;
+
+    if (status === 'FINISHED' || status === 'SUCCESS') {
+      window.dispatchEvent(
+        new CustomEvent('shuffle:agent_execution_status', {
+          detail: { executionId: eid, status: 'completed' },
+        }),
+      );
+    } else if (['FAILURE', 'ABORTED', 'CANCELLED', 'CANCELED'].includes(status)) {
+      window.dispatchEvent(
+        new CustomEvent('shuffle:agent_execution_status', {
+          detail: { executionId: eid, status: 'failed' },
+        }),
+      );
+    }
+  }, [execution?.execution_id, execution?.status, agentData?.status]);
 
   // Auto-focus the continuation field when the run finishes, so it is obvious
   // the execution can be continued.

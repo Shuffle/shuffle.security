@@ -626,6 +626,7 @@ export const TaskEditDialog = ({
                       defaultInput: task.aiPrompt,
                       taskId: task.id,
                       incidentId,
+                      executionId: task.aiRunId,
                     });
                   }}
                   sx={{

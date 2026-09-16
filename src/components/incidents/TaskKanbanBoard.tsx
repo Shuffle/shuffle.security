@@ -3,7 +3,6 @@ import { useState, useMemo } from 'react';
 import { Box, Typography, Chip, IconButton, TextField, Button, CircularProgress } from '@mui/material';
 import { IncidentTask, taskCategories } from '@/config/ocsfIncidentSchema';
 import { isAIAssignee } from '@/lib/utils';
-import { openAgentDrawer } from '@/lib/agentDrawer';
 import { TaskAiAssignButton } from './TaskAiAssignButton';
 import { useTaskStatuses } from '@/hooks/useEntityLabel';
 import { TaskAssigneeChip } from './TaskAssigneeChip';

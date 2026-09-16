@@ -461,6 +461,23 @@ export const SimpleTasksView = ({
                                         ? "Running"
                                         : "Assigned"}
                                 </Typography>
+                                {task.aiRunId && (
+                                  <Typography
+                                    sx={{
+                                      fontSize: "0.65rem",
+                                      fontFamily: "monospace",
+                                      px: 0.75,
+                                      py: 0.15,
+                                      borderRadius: 0.5,
+                                      border: "1px solid hsl(var(--border))",
+                                      bgcolor: "hsl(var(--muted) / 0.5)",
+                                      color: "hsl(var(--foreground))",
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {task.aiRunId.slice(0, 8)}
+                                  </Typography>
+                                )}
                               </Box>
                               {task.aiRunAt ? (
                                 <Typography
@@ -536,6 +553,7 @@ export const SimpleTasksView = ({
                                     defaultInput: task.aiPrompt,
                                     taskId: task.id,
                                     incidentId,
+                                    executionId: task.aiRunId,
                                   })
                                 }
                                 sx={{

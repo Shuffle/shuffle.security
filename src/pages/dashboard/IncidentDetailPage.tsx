@@ -8091,6 +8091,7 @@ const IncidentDetailPage = () => {
             aiStatus: "running",
             aiRunAt: now,
             aiPrompt: prompt,
+            aiRunId: undefined,
             assignHistory: [
               ...(t.assignHistory || []),
               { assignee: "AI Agent", at: now, by: actor },
@@ -8128,8 +8129,63 @@ const IncidentDetailPage = () => {
       autoSubmit: true,
       taskId: targetTaskId,
       incidentId: incident?.id,
+      resetExecution: true,
     });
   };
+
+  // Listen for AI Agent task execution and completion events to update task state and persist execution ID
+  useEffect(() => {
+    const handleTaskAiExecution = (e: Event) => {
+      const detail = (e as CustomEvent<{
+        taskId: string;
+        executionId: string;
+        status?: "running" | "completed" | "failed";
+      }>).detail;
+      if (!detail?.taskId || !detail?.executionId) return;
+
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (String(t.id) === String(detail.taskId)) {
+            return {
+              ...t,
+              aiRunId: detail.executionId,
+              aiWorking: detail.status === "completed" || detail.status === "failed" ? false : true,
+              aiStatus: detail.status || "running",
+            };
+          }
+          return t;
+        }),
+      );
+    };
+
+    const handleAgentExecutionStatus = (e: Event) => {
+      const detail = (e as CustomEvent<{
+        executionId: string;
+        status: "completed" | "failed";
+      }>).detail;
+      if (!detail?.executionId) return;
+
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.aiRunId === detail.executionId) {
+            return {
+              ...t,
+              aiWorking: false,
+              aiStatus: detail.status,
+            };
+          }
+          return t;
+        }),
+      );
+    };
+
+    window.addEventListener("shuffle:task_ai_execution", handleTaskAiExecution as EventListener);
+    window.addEventListener("shuffle:agent_execution_status", handleAgentExecutionStatus as EventListener);
+    return () => {
+      window.removeEventListener("shuffle:task_ai_execution", handleTaskAiExecution as EventListener);
+      window.removeEventListener("shuffle:agent_execution_status", handleAgentExecutionStatus as EventListener);
+    };
+  }, []);
 
   const handleApplyTemplate = async (template: CaseTemplate) => {
     autoProgressStatus();

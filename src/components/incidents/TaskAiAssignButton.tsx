@@ -45,12 +45,13 @@ export const TaskAiAssignButton: React.FC<TaskAiAssignButtonProps> = ({
     e.stopPropagation();
     if (readOnly) return;
 
-    if (isAssigned) {
+    if (isAssigned || isRunning) {
       // Open Agent Drawer with contextual instructions and task scope
       openAgentDrawer("run", {
         defaultInput: task.aiPrompt,
         taskId: task.id,
         incidentId,
+        executionId: task.aiRunId,
       });
     } else if (onAssignAi) {
       onAssignAi(task);
@@ -58,32 +59,30 @@ export const TaskAiAssignButton: React.FC<TaskAiAssignButtonProps> = ({
   };
 
   const label = isRunning
-    ? isAssigning
-      ? "Assigning..."
-      : "Running..."
+    ? "Assigned"
     : isHandled
       ? "Handled"
       : isFailed
         ? "Failed"
         : isAssigned
-          ? "Assigned AI"
+          ? "Assigned"
           : "Assign AI";
 
   const tooltipTitle = isRunning
-    ? "AI Agent is currently executing this task. Click to view in Agent Drawer."
+    ? `Assigned to AI Agent (Running)${task.aiRunId ? ` · ${task.aiRunId.slice(0, 8)}` : ""}. Click to view in Agent Drawer.`
     : isHandled
-      ? "Task handled by AI Agent. Click to view details in Agent Drawer."
+      ? `Task handled by AI Agent${task.aiRunId ? ` · ${task.aiRunId.slice(0, 8)}` : ""}. Click to view details in Agent Drawer.`
       : isFailed
-        ? "Task execution failed. Click to view or retry in Agent Drawer."
+        ? `Task execution failed${task.aiRunId ? ` · ${task.aiRunId.slice(0, 8)}` : ""}. Click to view or retry in Agent Drawer.`
         : isAssigned
-          ? "Assigned to AI Agent. Click to view in Agent Drawer."
+          ? `Assigned to AI Agent${task.aiRunId ? ` · ${task.aiRunId.slice(0, 8)}` : ""}. Click to view in Agent Drawer.`
           : "Assign this specific task to AI Agent to handle directly";
 
   return (
     <Tooltip title={tooltipTitle} arrow placement="top">
       <ButtonBase
         onClick={handleClick}
-        disabled={readOnly || isAssigning}
+        disabled={readOnly}
         aria-label={label}
         className={className}
         sx={{
@@ -108,7 +107,7 @@ export const TaskAiAssignButton: React.FC<TaskAiAssignButtonProps> = ({
                   ? "hsl(var(--primary) / 0.5)"
                   : "hsl(var(--border))",
           boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
-          cursor: readOnly || isAssigning ? "default" : "pointer",
+          cursor: readOnly ? "default" : "pointer",
           userSelect: "none",
           fontSize: "0.7rem",
           fontWeight: 600,
@@ -117,7 +116,7 @@ export const TaskAiAssignButton: React.FC<TaskAiAssignButtonProps> = ({
           backdropFilter: "blur(6px)",
           opacity: isRunning || isAssigned ? 1 : { xs: 1, md: 0 },
           "&:hover":
-            !readOnly && !isAssigning
+            !readOnly
               ? {
                   bgcolor: "hsl(var(--accent))",
                   color: "hsl(var(--accent-foreground))",
@@ -127,7 +126,7 @@ export const TaskAiAssignButton: React.FC<TaskAiAssignButtonProps> = ({
                 }
               : undefined,
           "&:active":
-            !readOnly && !isAssigning
+            !readOnly
               ? {
                   transform: "translateY(0px)",
                 }

@@ -18,6 +18,8 @@ export interface AgentDrawerOpenDetail {
   autoSubmit?: boolean;
   taskId?: string;
   incidentId?: string;
+  executionId?: string | null;
+  resetExecution?: boolean;
 }
 
 /**
@@ -39,6 +41,8 @@ export const openAgentDrawer = (
     autoSubmit?: boolean;
     taskId?: string;
     incidentId?: string;
+    executionId?: string | null;
+    resetExecution?: boolean;
   },
 ) => {
   window.dispatchEvent(
@@ -50,6 +54,8 @@ export const openAgentDrawer = (
         autoSubmit: options?.autoSubmit,
         taskId: options?.taskId,
         incidentId: options?.incidentId,
+        executionId: options?.executionId,
+        resetExecution: options?.resetExecution,
       },
     }),
   );

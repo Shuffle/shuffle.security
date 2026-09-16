@@ -317,6 +317,17 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
     prevOpenRef.current = open;
   }, [open, initialTab, onTabChange]);
 
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
+  const [runResetKey, setRunResetKey] = useState<number>(0);
+
+  useEffect(() => {
+    if (!open) {
+      setActiveTaskId(null);
+      setActiveExecutionId(null);
+    }
+  }, [open]);
+
   // Broadcast mounted status so AgentUI knows a drawer/panel is present
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -345,12 +356,53 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       if (detail?.autoSubmit !== undefined) {
         setControlledAutoSubmit(detail.autoSubmit);
       }
+      if (detail?.taskId !== undefined) {
+        setActiveTaskId(detail.taskId || null);
+      } else if (!detail?.tab) {
+        setActiveTaskId(null);
+      }
+      if (detail?.resetExecution) {
+        setActiveExecutionId(null);
+        setRunResetKey((k) => k + 1);
+      } else if (detail?.executionId !== undefined) {
+        setActiveExecutionId(detail.executionId || null);
+      } else if (detail?.taskId) {
+        setActiveExecutionId(null);
+      }
     };
     window.addEventListener(AGENT_DRAWER_OPEN_EVENT, onOpen as EventListener);
     return () => {
       window.removeEventListener(AGENT_DRAWER_OPEN_EVENT, onOpen as EventListener);
     };
   }, [handleTabChange]);
+
+  const handleAgentRun = useCallback(
+    (event: { input: string; success: boolean; executionId?: string; error?: string }) => {
+      if (event.executionId && activeTaskId) {
+        setActiveExecutionId(event.executionId);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('shuffle:task_ai_execution', {
+              detail: {
+                taskId: activeTaskId,
+                executionId: event.executionId,
+                status: event.success ? 'running' : 'failed',
+              },
+            }),
+          );
+        }
+      }
+    },
+    [activeTaskId],
+  );
+
+  const effectiveStorageKey = activeTaskId
+    ? `${context.storageKey}:task:${activeTaskId}`
+    : context.storageKey;
+
+  const agentUiKey = activeTaskId
+    ? `${context.storageKey}:task:${activeTaskId}:${activeExecutionId || 'fresh'}:${runResetKey}`
+    : `${context.storageKey}:${runResetKey}`;
 
   const effectiveLocalLLMSlot =
     localLLMSlot ?? (
@@ -932,12 +984,13 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
               }}
             >
               <AgentUI
-                key={context.storageKey}
+                {...agentUIProps}
+                key={agentUiKey}
                 sidebarLayout={true}
                 compact={true}
                 mobileView={true}
                 hideHeroIcon={true}
-                title={displayTitle}
+                title={activeTaskId ? 'Task AI Agent' : displayTitle}
                 subtitle={null}
                 hideChooseLLM={!isLoggedIn}
                 isLoggedIn={isLoggedIn}
@@ -948,17 +1001,19 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                 initialPresetId={context.presetId}
                 placeholder={context.placeholder}
                 contextCategory={context.sourceCategory}
-                contextStorageKey={context.storageKey}
+                contextStorageKey={effectiveStorageKey}
                 contextParams={context.params}
                 composeSubmitInput={context.composeInput}
                 defaultInput={effectiveDefaultInput}
                 autoSubmit={effectiveAutoSubmit}
+                executionId={activeExecutionId || undefined}
+                initialExecution={activeExecutionId ? { execution_id: activeExecutionId } : undefined}
+                onRun={handleAgentRun}
                 onAppsChange={handleAppsChange}
                 onSelectPreset={handleSelectPreset}
                 onChooseLLM={() => handleTabChange('localLLM')}
                 apiBaseUrl={globalUrl || agentUIProps?.apiBaseUrl}
                 theme={effectiveTheme}
-                {...agentUIProps}
                 sx={{
                   flex: 1,
                   height: '100%',

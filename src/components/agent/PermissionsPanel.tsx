@@ -101,6 +101,8 @@ interface PermissionsPanelProps {
 }
 
 const PermissionsPanel = ({ compact = false }: PermissionsPanelProps) => {
+  const [selectedSkill, setSelectedSkill] = useState<string>('incident-handler');
+
   const {
     categories,
     isLoading,
@@ -111,7 +113,7 @@ const PermissionsPanel = ({ compact = false }: PermissionsPanelProps) => {
     togglePermission,
     toggleCategory,
     resetToDefaults,
-  } = useAgentPermissions();
+  } = useAgentPermissions(selectedSkill);
 
   const [expandedCategories, setExpandedCategories] = useState<string[]>(
     () => categories.map(c => c.id)
@@ -526,7 +528,7 @@ const PermissionsPanel = ({ compact = false }: PermissionsPanelProps) => {
           <Alert severity="error" sx={{ mb: 2, fontSize: '0.8rem' }}>{error}</Alert>
         )}
 
-        <AssignedToolsSection compact />
+        <AssignedToolsSection compact onSkillChange={setSelectedSkill} />
 
         {/* Categories — compact drawer style */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -749,7 +751,7 @@ const PermissionsPanel = ({ compact = false }: PermissionsPanelProps) => {
   // ── Full page variant ──
   return (
     <>
-      <AssignedToolsSection />
+      <AssignedToolsSection onSkillChange={setSelectedSkill} />
       {/* Summary bar */}
       <Box
         sx={{

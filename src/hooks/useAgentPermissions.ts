@@ -208,11 +208,18 @@ export const DEFAULT_AGENT_PERMISSIONS: AgentPermissionCategory[] = [
   },
 ];
 
-export const useAgentPermissions = () => {
+export const getDatastoreKeyForSkill = (skill: string = 'incident-handler'): string => {
+  const clean = (skill || 'incident-handler').toLowerCase().trim();
+  return `agent_permissions_${clean}`;
+};
+
+export const useAgentPermissions = (skill: string = 'incident-handler') => {
   const [categories, setCategories] = useState<AgentPermissionCategory[]>(DEFAULT_AGENT_PERMISSIONS);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const datastoreKey = getDatastoreKeyForSkill(skill);
 
   // Load permissions from datastore
   const loadPermissions = useCallback(async () => {
@@ -223,31 +230,42 @@ export const useAgentPermissions = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await getDatastoreItem(DATASTORE_KEY, DATASTORE_CATEGORIES.CONFIGURATION);
+      let response = await getDatastoreItem(datastoreKey, DATASTORE_CATEGORIES.CONFIGURATION);
+      // For incident-handler, fall back to legacy 'agent_permissions' if skill-specific key has not been populated yet
+      if ((!response.success || !response.item?.value) && (skill === 'incident-handler' || skill === 'default')) {
+        response = await getDatastoreItem('agent_permissions', DATASTORE_CATEGORIES.CONFIGURATION);
+      }
+
       if (response.success && response.item?.value) {
         const data = typeof response.item.value === 'string'
           ? JSON.parse(response.item.value)
           : response.item.value;
         if (Array.isArray(data) && data.length > 0) {
           setCategories(data);
+          return;
         }
       }
+      setCategories(DEFAULT_AGENT_PERMISSIONS);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load permissions');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [datastoreKey, skill]);
 
   // Save permissions to datastore
   const savePermissions = useCallback(async (updatedCategories: AgentPermissionCategory[]) => {
     setIsSaving(true);
     setError(null);
     try {
-      const response = await setDatastoreItem(DATASTORE_KEY, updatedCategories, DATASTORE_CATEGORIES.CONFIGURATION);
+      const response = await setDatastoreItem(datastoreKey, updatedCategories, DATASTORE_CATEGORIES.CONFIGURATION);
       if (!response.success) {
         setError(response.error || 'Failed to save permissions');
         return false;
+      }
+      // If incident-handler, keep legacy 'agent_permissions' key updated for backwards compatibility
+      if (skill === 'incident-handler' || skill === 'default') {
+        await setDatastoreItem('agent_permissions', updatedCategories, DATASTORE_CATEGORIES.CONFIGURATION);
       }
       return true;
     } catch (err) {
@@ -256,7 +274,7 @@ export const useAgentPermissions = () => {
     } finally {
       setIsSaving(false);
     }
-  }, []);
+  }, [datastoreKey, skill]);
 
   // Toggle a single permission
   const togglePermission = useCallback(async (categoryId: string, permissionId: string) => {

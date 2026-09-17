@@ -23,6 +23,14 @@ import { X as CloseIcon, GitBranch as CallSplitIcon, ChevronDown as ExpandMoreIc
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Button, IconButton, Stack, Tooltip, Chip } from '@mui/material';
 import { useDatastore } from '@/hooks/useDatastore';
+import { useWorkflows } from '@/hooks/useWorkflows';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
+import {
+  findRoutingWorkflow,
+  isRoutingWorkflowActive,
+  getExpectedRoutingWorkflowLabel,
+} from '@/utils/routingWorkflowUtils';
 import {
   ROUTING_DATASTORE_CATEGORY,
   type RoutingRule,
@@ -62,6 +70,8 @@ interface RoutingRulePreviewBannerProps {
    * hidden and applied actions render as muted "done" chips.
    */
   isActionApplied?: (action: RoutingAction) => boolean;
+  entityCategory?: string;
+  entityLabel?: { singular: string; plural: string };
 }
 
 const dismissKey = (incidentId: string | undefined, ruleId: string) =>
@@ -74,10 +84,75 @@ export const RoutingRulePreviewBanner = ({
   onApply,
   onApplyActions,
   isActionApplied,
+  entityCategory = 'shuffle-security_incidents',
+  entityLabel = { singular: 'incident', plural: 'incidents' },
 }: RoutingRulePreviewBannerProps) => {
   const { userInfo } = useAuth();
   const currentOrgId = userInfo?.active_org?.id;
   const { subOrgs, parentOrg } = useSubOrgs(currentOrgId);
+
+  const { data: workflows = [], isLoading: workflowsLoading, refetch: refetchWorkflows } = useWorkflows();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleUpdate = () => {
+      refetchWorkflows();
+    };
+    window.addEventListener('shuffle-workflows-updated', handleUpdate);
+    window.addEventListener('shuffle-workflow-toggled', handleUpdate);
+    return () => {
+      window.removeEventListener('shuffle-workflows-updated', handleUpdate);
+      window.removeEventListener('shuffle-workflow-toggled', handleUpdate);
+    };
+  }, [refetchWorkflows]);
+
+  const matchedWorkflow = useMemo(
+    () => findRoutingWorkflow(workflows, entityLabel, entityCategory),
+    [workflows, entityLabel, entityCategory],
+  );
+
+  const isWorkflowActive = useMemo(
+    () => isRoutingWorkflowActive(matchedWorkflow),
+    [matchedWorkflow],
+  );
+
+  const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
+
+  const handleGenerateWorkflow = async () => {
+    setIsGeneratingWorkflow(true);
+    const targetLabel = getExpectedRoutingWorkflowLabel(entityLabel, entityCategory);
+    const effectiveCategory =
+      entityCategory === 'shuffle-security_incidents' ? 'cases' : entityCategory;
+    try {
+      const res = await fetch(getApiUrl('/api/v2/workflows/generate'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: targetLabel,
+          category: effectiveCategory,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.reason || `Failed to create workflow (${res.status})`);
+      }
+      invalidateWorkflowsCache();
+      toast.success(`Workflow "${targetLabel}" created`);
+      window.dispatchEvent(
+        new CustomEvent('shuffle-workflow-toggled', {
+          detail: { label: targetLabel, enabled: true },
+        }),
+      );
+      window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
+      await refetchWorkflows();
+    } catch (err: any) {
+      console.error('Failed to create routing workflow:', err);
+      toast.error(err?.message || 'Failed to create routing workflow');
+    } finally {
+      setIsGeneratingWorkflow(false);
+    }
+  };
 
   // Rules live on the PARENT org. If we're on a parent, that's `currentOrgId`.
   // If we're on a sub-org and the parent is known, fetch from there.
@@ -323,9 +398,97 @@ export const RoutingRulePreviewBanner = ({
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <CallSplitIcon size={14} style={{ color: 'hsl(var(--muted-foreground))', flexShrink: 0 }} />
-        <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: 12, flex: 1 }}>
+        <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>
           {visible.length} routing rule{visible.length === 1 ? '' : 's'} matched
         </Typography>
+
+        {/* Workflow automation indicator */}
+        {workflowsLoading && !workflows.length ? (
+          <Tooltip title="Checking backing workflow automation status">
+            <Chip
+              size="small"
+              label="Checking…"
+              sx={{
+                height: 19,
+                fontSize: '0.65rem',
+                fontWeight: 500,
+                bgcolor: 'hsl(var(--muted))',
+                color: 'hsl(var(--muted-foreground))',
+                border: '1px solid hsl(var(--border))',
+                '& .MuiChip-label': { px: 0.75 },
+              }}
+            />
+          </Tooltip>
+        ) : isWorkflowActive && matchedWorkflow ? (
+          <Tooltip title={`Rules automated in background by "${matchedWorkflow.name}". Click to open workflow.`}>
+            <Chip
+              size="small"
+              label="Automated"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(`/workflows/${matchedWorkflow.id}`, '_blank');
+              }}
+              sx={{
+                height: 19,
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                bgcolor: 'hsl(var(--severity-low) / 0.15)',
+                color: 'hsl(var(--severity-low))',
+                border: '1px solid hsl(var(--severity-low) / 0.4)',
+                '&:hover': { bgcolor: 'hsl(var(--severity-low) / 0.25)' },
+                '& .MuiChip-label': { px: 0.75 },
+              }}
+            />
+          </Tooltip>
+        ) : matchedWorkflow ? (
+          <Tooltip title={`Workflow "${matchedWorkflow.name}" exists but is paused. Click to open workflow.`}>
+            <Chip
+              size="small"
+              label="Workflow paused"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(`/workflows/${matchedWorkflow.id}`, '_blank');
+              }}
+              sx={{
+                height: 19,
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                bgcolor: 'hsl(var(--severity-medium) / 0.15)',
+                color: 'hsl(var(--severity-medium))',
+                border: '1px solid hsl(var(--severity-medium) / 0.4)',
+                '&:hover': { bgcolor: 'hsl(var(--severity-medium) / 0.25)' },
+                '& .MuiChip-label': { px: 0.75 },
+              }}
+            />
+          </Tooltip>
+        ) : (
+          <Tooltip title={`No workflow found for ${entityLabel.plural}. Rules will not run automatically until a workflow is created. Click to create.`}>
+            <Chip
+              size="small"
+              label={isGeneratingWorkflow ? 'Creating…' : 'Not automated'}
+              disabled={isGeneratingWorkflow}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleGenerateWorkflow();
+              }}
+              sx={{
+                height: 19,
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                bgcolor: 'hsl(var(--muted))',
+                color: 'hsl(var(--muted-foreground))',
+                border: '1px solid hsl(var(--border))',
+                '&:hover': { bgcolor: 'hsl(var(--muted) / 0.8)', color: 'hsl(var(--foreground))' },
+                '& .MuiChip-label': { px: 0.75 },
+              }}
+            />
+          </Tooltip>
+        )}
+
+        <Box sx={{ flex: 1 }} />
         {pendingActions.length > 0 && (
           <Button
             size="small"

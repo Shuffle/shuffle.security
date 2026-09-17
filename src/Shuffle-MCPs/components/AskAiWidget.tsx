@@ -28,6 +28,7 @@ export interface AgentDrawerOpenDetail {
   autoSubmit?: boolean;
   taskId?: string;
   incidentId?: string;
+  incidentContext?: Record<string, any>;
   executionId?: string | null;
   resetExecution?: boolean;
 }

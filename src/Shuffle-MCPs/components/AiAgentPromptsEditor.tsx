@@ -9,6 +9,10 @@ export interface AiAgentPromptsEditorProps {
   apps: string[][];
   /** Read-only mode: render prompts as plain text, no edit/add/remove. */
   readOnly?: boolean;
+  /** Optional skill label (e.g. "Incident Handler") to show shared permission context. */
+  skillLabel?: string;
+  /** Optional check if an app key is a built-in default app for the active skill. */
+  isBuiltInApp?: (appKey: string) => boolean;
   /** Edit handlers — required when `readOnly` is false. */
   onChangePrompt?: (index: number, value: string) => void;
   onRemovePrompt?: (index: number) => void;
@@ -31,6 +35,8 @@ const AiAgentPromptsEditor: React.FC<AiAgentPromptsEditorProps> = ({
   prompts,
   apps,
   readOnly = false,
+  skillLabel,
+  isBuiltInApp,
   onChangePrompt,
   onRemovePrompt,
   onAddPrompt,
@@ -115,17 +121,44 @@ const AiAgentPromptsEditor: React.FC<AiAgentPromptsEditorProps> = ({
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-              <Typography
-                sx={{
-                  fontSize: '0.65rem',
-                  fontWeight: 600,
-                  color: 'hsl(var(--muted-foreground))',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}
+              <Tooltip
+                title={
+                  skillLabel
+                    ? `Allowed apps are shared with ${skillLabel} permissions. Changes made here apply to all automations and agent runs.`
+                    : 'Apps this AI Agent prompt is permitted to run.'
+                }
               >
-                Allowed apps
-              </Typography>
+                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                  <Typography
+                    sx={{
+                      fontSize: '0.65rem',
+                      fontWeight: 600,
+                      color: 'hsl(var(--muted-foreground))',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    Allowed apps
+                  </Typography>
+                  {skillLabel && (
+                    <Typography
+                      component="span"
+                      sx={{
+                        fontSize: '0.62rem',
+                        fontWeight: 600,
+                        color: 'hsl(var(--primary))',
+                        bgcolor: 'hsl(var(--primary) / 0.1)',
+                        px: 0.6,
+                        py: 0.1,
+                        borderRadius: 0.75,
+                        letterSpacing: '0.02em',
+                      }}
+                    >
+                      {skillLabel} permissions
+                    </Typography>
+                  )}
+                </Box>
+              </Tooltip>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', flex: 1 }}>
                 {promptApps.length === 0 && (
                   <Typography sx={{ fontSize: '0.7rem', color: 'hsl(var(--muted-foreground))', opacity: 0.7 }}>
@@ -136,8 +169,13 @@ const AiAgentPromptsEditor: React.FC<AiAgentPromptsEditorProps> = ({
                   const meta = resolveAppMeta(appKey);
                   const displayName = meta.name;
                   const img = meta.image || `https://shuffler.io/images/apps/${displayName}.png`;
+                  const isBuiltIn = isBuiltInApp ? isBuiltInApp(appKey) : false;
                   const clickable = !readOnly && !!onRemoveApp;
-                  const tip = clickable ? `Remove ${displayName.replace(/_/g, ' ')}` : displayName.replace(/_/g, ' ');
+                  const tip = isBuiltIn
+                    ? `${displayName.replace(/_/g, ' ')} (Default built-in app for ${skillLabel || 'skill'})`
+                    : clickable
+                    ? `Remove ${displayName.replace(/_/g, ' ')} (Assigned permission)`
+                    : displayName.replace(/_/g, ' ');
                   return (
                     <Tooltip key={appKey} title={tip}>
                       <IconButton
@@ -147,12 +185,18 @@ const AiAgentPromptsEditor: React.FC<AiAgentPromptsEditorProps> = ({
                         sx={{
                           width: 26,
                           height: 26,
-                          border: '1px solid hsl(var(--severity-low) / 0.3)',
-                          bgcolor: 'hsl(var(--severity-low) / 0.1)',
+                          border: isBuiltIn
+                            ? '1px solid hsl(var(--primary) / 0.35)'
+                            : '1px solid hsl(var(--severity-low) / 0.3)',
+                          bgcolor: isBuiltIn
+                            ? 'hsl(var(--primary) / 0.08)'
+                            : 'hsl(var(--severity-low) / 0.1)',
                           borderRadius: 1,
                           '&.Mui-disabled': {
                             opacity: 1,
-                            bgcolor: 'hsl(var(--severity-low) / 0.1)',
+                            bgcolor: isBuiltIn
+                              ? 'hsl(var(--primary) / 0.08)'
+                              : 'hsl(var(--severity-low) / 0.1)',
                           },
                           '&:hover': clickable
                             ? {
@@ -173,7 +217,7 @@ const AiAgentPromptsEditor: React.FC<AiAgentPromptsEditorProps> = ({
                   );
                 })}
                 {!readOnly && onAddAppRequested && (
-                  <Tooltip title="Add allowed app">
+                  <Tooltip title={skillLabel ? `Assign tools to ${skillLabel}` : 'Add allowed app'}>
                     <IconButton
                       size="small"
                       onClick={() => onAddAppRequested(idx)}

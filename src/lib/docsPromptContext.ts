@@ -141,13 +141,21 @@ export const isDocInjectedPrompt = (prompt?: string | null): boolean => {
   );
 };
 
+import { extractCleanIncidentPrompt, isIncidentInjectedPrompt } from './incidentPromptContext';
+
 /**
- * Extracts the user's actual question from a doc-injected prompt,
+ * Extracts the user's actual question from a doc-injected or incident-injected prompt,
  * so the UI header and rerun forms stay completely clean.
  */
 export const extractCleanDisplayPrompt = (prompt?: string | null): string => {
   if (!prompt || typeof prompt !== 'string') return '';
   const trimmed = prompt.trim();
+
+  // If this is an incident-injected prompt or task assignment, clean it cleanly
+  if (isIncidentInjectedPrompt(trimmed)) {
+    return extractCleanIncidentPrompt(trimmed);
+  }
+
   if (!isDocInjectedPrompt(trimmed)) return trimmed;
 
   // 1. If delimited by --- END DOCUMENTATION ---

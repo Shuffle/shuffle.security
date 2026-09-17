@@ -18,6 +18,7 @@ export interface AgentDrawerOpenDetail {
   autoSubmit?: boolean;
   taskId?: string;
   incidentId?: string;
+  incidentContext?: Record<string, any>;
   executionId?: string | null;
   resetExecution?: boolean;
 }
@@ -41,6 +42,7 @@ export const openAgentDrawer = (
     autoSubmit?: boolean;
     taskId?: string;
     incidentId?: string;
+    incidentContext?: Record<string, any>;
     executionId?: string | null;
     resetExecution?: boolean;
   },
@@ -54,6 +56,7 @@ export const openAgentDrawer = (
         autoSubmit: options?.autoSubmit,
         taskId: options?.taskId,
         incidentId: options?.incidentId,
+        incidentContext: options?.incidentContext,
         executionId: options?.executionId,
         resetExecution: options?.resetExecution,
       },
@@ -64,4 +67,3 @@ export const openAgentDrawer = (
     window.setTimeout(openAgentToolPicker, 250);
   }
 };
-

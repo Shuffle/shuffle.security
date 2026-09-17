@@ -63,6 +63,7 @@ export interface AgentDrawerOpenDetail {
   autoSubmit?: boolean;
   taskId?: string;
   incidentId?: string;
+  incidentContext?: Record<string, any>;
   executionId?: string | null;
   resetExecution?: boolean;
 }
@@ -72,6 +73,10 @@ export const MIN_ASK_AI_PANEL_WIDTH = 340;
 export const MAX_ASK_AI_PANEL_WIDTH = 960;
 
 export interface AskAiSidePanelProps extends ShuffleHostProps {
+  /** Target incident ID */
+  incidentId?: string;
+  /** Structured incident context */
+  incidentContext?: Record<string, any>;
   /** Whether the side panel is open */
   open: boolean;
   /** Callback to close the side panel */
@@ -158,6 +163,8 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   defaultInput,
   serverside,
   colorMode,
+  incidentId: propIncidentId,
+  incidentContext: propIncidentContext,
   sx,
 }) => {
   const themeScope = useShuffleMcpTheme();
@@ -323,12 +330,16 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
 
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
+  const [activeIncidentId, setActiveIncidentId] = useState<string | null>(null);
+  const [activeIncidentContext, setActiveIncidentContext] = useState<Record<string, any> | null>(null);
   const [runResetKey, setRunResetKey] = useState<number>(0);
 
   useEffect(() => {
     if (!open) {
       setActiveTaskId(null);
       setActiveExecutionId(null);
+      setActiveIncidentId(null);
+      setActiveIncidentContext(null);
     }
   }, [open]);
 
@@ -364,6 +375,12 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
         setActiveTaskId(detail.taskId || null);
       } else if (!detail?.tab) {
         setActiveTaskId(null);
+      }
+      if (detail?.incidentId !== undefined) {
+        setActiveIncidentId(detail.incidentId || null);
+      }
+      if (detail?.incidentContext !== undefined) {
+        setActiveIncidentContext(detail.incidentContext || null);
       }
       if (detail?.resetExecution) {
         setActiveExecutionId(null);
@@ -1016,6 +1033,8 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                 onAppsChange={handleAppsChange}
                 onSelectPreset={handleSelectPreset}
                 onChooseLLM={() => handleTabChange('localLLM')}
+                incidentId={activeIncidentId || propIncidentId || agentUIProps?.incidentId}
+                incidentContext={activeIncidentContext || propIncidentContext || agentUIProps?.incidentContext}
                 apiBaseUrl={globalUrl || agentUIProps?.apiBaseUrl}
                 theme={effectiveTheme}
                 sx={{

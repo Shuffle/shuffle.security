@@ -57,6 +57,13 @@ import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import { useDatastore } from '@/hooks/useDatastore';
 import { useSubOrgs } from '@/hooks/useSubOrgs';
 import { useAuth } from '@/context/AuthContext';
+import { useWorkflows } from '@/hooks/useWorkflows';
+import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
+import {
+  findRoutingWorkflow,
+  isRoutingWorkflowActive,
+  getExpectedRoutingWorkflowLabel,
+} from '@/utils/routingWorkflowUtils';
 import {
   MAX_GROUP_DEPTH,
   emptyLeaf,
@@ -320,6 +327,67 @@ export const IncidentRoutingEditor = ({
     category: ROUTING_DATASTORE_CATEGORY,
   });
 
+  const { data: workflows = [], isLoading: workflowsLoading, refetch: refetchWorkflows } = useWorkflows();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleUpdate = () => {
+      refetchWorkflows();
+    };
+    window.addEventListener('shuffle-workflows-updated', handleUpdate);
+    window.addEventListener('shuffle-workflow-toggled', handleUpdate);
+    return () => {
+      window.removeEventListener('shuffle-workflows-updated', handleUpdate);
+      window.removeEventListener('shuffle-workflow-toggled', handleUpdate);
+    };
+  }, [refetchWorkflows]);
+
+  const matchedWorkflow = useMemo(
+    () => findRoutingWorkflow(workflows, entityLabel, entityCategory),
+    [workflows, entityLabel, entityCategory],
+  );
+
+  const isWorkflowActive = useMemo(
+    () => isRoutingWorkflowActive(matchedWorkflow),
+    [matchedWorkflow],
+  );
+
+  const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
+
+  const handleGenerateWorkflow = async () => {
+    setIsGeneratingWorkflow(true);
+    const targetLabel = getExpectedRoutingWorkflowLabel(entityLabel, entityCategory);
+    try {
+      const res = await fetch(getApiUrl('/api/v2/workflows/generate'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: targetLabel,
+          category: effectiveGenerateCategory,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.reason || `Failed to create workflow (${res.status})`);
+      }
+      invalidateWorkflowsCache();
+      toast.success(`Workflow "${targetLabel}" created`);
+      window.dispatchEvent(
+        new CustomEvent('shuffle-workflow-toggled', {
+          detail: { label: targetLabel, enabled: true },
+        }),
+      );
+      window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
+      await refetchWorkflows();
+    } catch (err: any) {
+      console.error('Failed to create routing workflow:', err);
+      toast.error(err?.message || 'Failed to create routing workflow');
+    } finally {
+      setIsGeneratingWorkflow(false);
+    }
+  };
+
   // Local draft state — only saved on explicit "Save" per rule.
   const [drafts, setDrafts] = useState<Record<string, RoutingRule>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
@@ -458,21 +526,26 @@ export const IncidentRoutingEditor = ({
       const ok = await addItem(rule.id, JSON.stringify(payload), false);
       if (ok) {
         toast.success('Routing rule saved');
-        if (items.length === 0) {
+        if (items.length === 0 || !matchedWorkflow) {
           try {
+            const genLabel = getExpectedRoutingWorkflowLabel(entityLabel, entityCategory);
             await fetch(getApiUrl('/api/v2/workflows/generate'), {
               method: 'POST',
               credentials: 'include',
               headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                label: `${entityPluralCap} Routing Rules`,
+                label: genLabel,
                 category: effectiveGenerateCategory,
               }),
             });
-            window.dispatchEvent(new CustomEvent('shuffle-workflow-toggled', {
-              detail: { label: `${entityPluralCap} Routing Rules`, enabled: true },
-            }));
+            invalidateWorkflowsCache();
+            window.dispatchEvent(
+              new CustomEvent('shuffle-workflow-toggled', {
+                detail: { label: genLabel, enabled: true },
+              }),
+            );
             window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
+            await refetchWorkflows();
           } catch (e) {
             console.warn('Auto-enable routing workflow failed:', e);
           }
@@ -633,6 +706,141 @@ export const IncidentRoutingEditor = ({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Workflow automation status banner */}
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 1.5,
+          borderRadius: 1.5,
+          borderColor: isWorkflowActive
+            ? 'hsl(var(--severity-low) / 0.35)'
+            : matchedWorkflow
+              ? 'hsl(var(--severity-medium) / 0.35)'
+              : 'hsl(var(--border))',
+          bgcolor: isWorkflowActive
+            ? 'hsl(var(--severity-low) / 0.05)'
+            : matchedWorkflow
+              ? 'hsl(var(--severity-medium) / 0.05)'
+              : 'hsl(var(--muted) / 0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
+          <Chip
+            label={
+              workflowsLoading && !workflows.length
+                ? 'Checking…'
+                : isWorkflowActive
+                  ? 'Automated'
+                  : matchedWorkflow
+                    ? 'Inactive'
+                    : 'Not automated'
+            }
+            size="small"
+            sx={{
+              height: 22,
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              flexShrink: 0,
+              bgcolor: isWorkflowActive
+                ? 'hsl(var(--severity-low) / 0.15)'
+                : matchedWorkflow
+                  ? 'hsl(var(--severity-medium) / 0.15)'
+                  : 'hsl(var(--muted))',
+              color: isWorkflowActive
+                ? 'hsl(var(--severity-low))'
+                : matchedWorkflow
+                  ? 'hsl(var(--severity-medium))'
+                  : 'hsl(var(--muted-foreground))',
+              border: '1px solid',
+              borderColor: isWorkflowActive
+                ? 'hsl(var(--severity-low) / 0.4)'
+                : matchedWorkflow
+                  ? 'hsl(var(--severity-medium) / 0.4)'
+                  : 'hsl(var(--border))',
+              '& .MuiChip-label': { px: 1 },
+            }}
+          />
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: '0.8rem',
+              color: 'hsl(var(--foreground))',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {workflowsLoading && !workflows.length ? (
+              'Checking workflow automation…'
+            ) : isWorkflowActive && matchedWorkflow ? (
+              <>
+                Rules evaluated by{' '}
+                <Box component="span" sx={{ fontWeight: 600 }}>
+                  {matchedWorkflow.name}
+                </Box>
+              </>
+            ) : matchedWorkflow ? (
+              <>
+                Workflow{' '}
+                <Box component="span" sx={{ fontWeight: 600 }}>
+                  {matchedWorkflow.name}
+                </Box>{' '}
+                exists but is paused or stopped.
+              </>
+            ) : (
+              `No workflow found for ${entityLabel.plural}. Rules will not run until a workflow is created.`
+            )}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+          {matchedWorkflow ? (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => window.open(`/workflows/${matchedWorkflow.id}`, '_blank')}
+              sx={{
+                height: 28,
+                fontSize: '0.75rem',
+                textTransform: 'none',
+                borderColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))',
+                '&:hover': {
+                  borderColor: 'hsl(var(--primary))',
+                  color: 'hsl(var(--primary))',
+                },
+              }}
+            >
+              Open workflow
+            </Button>
+          ) : (
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={isGeneratingWorkflow}
+              onClick={handleGenerateWorkflow}
+              sx={{
+                height: 28,
+                fontSize: '0.75rem',
+                textTransform: 'none',
+                borderColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))',
+                '&:hover': {
+                  borderColor: 'hsl(var(--primary))',
+                  color: 'hsl(var(--primary))',
+                },
+              }}
+            >
+              {isGeneratingWorkflow ? 'Creating…' : 'Create workflow'}
+            </Button>
+          )}
+        </Box>
+      </Paper>
+
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box>
           <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>

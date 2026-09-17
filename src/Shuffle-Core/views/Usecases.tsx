@@ -40,7 +40,6 @@ import {
   AppSearchDrawer,
   useAppDetailOptional,
   extractActionAppNames,
-  AiAgentPromptsEditor,
   extractWorkflowAppNames,
   normalizeAppName,
   getIngestionCategory,
@@ -50,6 +49,7 @@ import {
   DATASTORE_CATEGORIES,
   resolveApp,
 } from '@shuffleio/shuffle-mcps';
+import AiAgentPromptsEditor from '@/Shuffle-MCPs/components/AiAgentPromptsEditor';
 import { getAuthHeader, getShuffleCoreWorkflowUrl } from '../api';
 import {
   type IntegrationItem,
@@ -84,6 +84,7 @@ import { useHostMonitorCount } from '@/hooks/useHostMonitorCount';
 import { ThreatIntelReadinessBanner } from '@/components/threat-intel/ThreatIntelReadinessBanner';
 import { useWorkflowHealth } from '@/hooks/useWorkflowHealth';
 import { diagnoseUsecase } from '@/services/workflowHealth';
+import { resolveSkillAllowedApps, isBuiltInSkillApp } from '@/lib/agentTools';
 // ── Flow phases ────────────────────────────────────────────────────────────────
 
 export type FlowPhase = 'ingest' | 'correlation' | 'response';
@@ -3091,10 +3092,12 @@ function AiIncidentHandlingPromptsBlock() {
             return na - nb;
           });
         const promptList = actionOpts.map((o) => o.value || '');
+        const skillApps = resolveSkillAllowedApps('incident-handler');
         const appList = promptList.map((_, i) => {
           const k = i === 0 ? 'apps' : `apps-${i + 1}`;
           const o = opts.find((x) => x.key === k);
-          return o?.value ? o.value.split(',').map((s) => s.trim()).filter(Boolean) : [];
+          const raw = o?.value ? o.value.split(',').map((s) => s.trim()).filter(Boolean) : [];
+          return Array.from(new Set([...skillApps, ...raw]));
         });
         if (cancelled) return;
         setEnabled(true);
@@ -3189,6 +3192,8 @@ function AiIncidentHandlingPromptsBlock() {
       <AiAgentPromptsEditor
         prompts={prompts}
         apps={apps}
+        skillLabel="Incident Handler"
+        isBuiltInApp={(key: string) => isBuiltInSkillApp('incident-handler', key)}
         readOnly
         resolveAppMeta={resolveAppMeta}
       />

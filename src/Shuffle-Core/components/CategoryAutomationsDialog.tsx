@@ -41,6 +41,19 @@ import { useIsSupport } from '@/hooks/useIsSupport';
 import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
 import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
 import { fetchAppsCached, fetchWorkflowsCached } from '../views/appsFetchCache';
+import {
+  getToolsForSkill,
+  getAgentTools,
+  setAgentTools,
+  saveAgentTools,
+  removeAgentTool,
+  getSkillForCategory,
+  getSkillLabel,
+  isBuiltInSkillApp,
+  resolveSkillAllowedApps,
+  AGENT_TOOLS_CHANGED_EVENT,
+  ToolRef,
+} from '@/lib/agentTools';
 
 // API format for automations
 interface AutomationApiFormat {
@@ -330,6 +343,14 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
   const [aiAgentApps, setAiAgentApps] = useState<string[][]>([[]]);
   const [aiAgentSkill, setAiAgentSkill] = useState<string>('incident-response');
 
+  const effectiveSkill = useMemo(() => {
+    return getSkillForCategory(activeCategory, aiAgentSkill);
+  }, [activeCategory, aiAgentSkill]);
+
+  const activeSkillLabel = useMemo(() => {
+    return getSkillLabel(effectiveSkill);
+  }, [effectiveSkill]);
+
   const selectedSkillPreset = useMemo(() => {
     if (!aiAgentSkill) return null;
     return (
@@ -345,9 +366,34 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
     );
   }, [aiAgentSkill]);
 
+  // Keep allowed apps in sync when permissions are updated elsewhere
+  useEffect(() => {
+    if (!open) return;
+    const handleToolsChanged = () => {
+      const skillApps = resolveSkillAllowedApps(effectiveSkill);
+      setAiAgentApps((prev) => {
+        if (prev.length === 0) return [skillApps];
+        return prev.map((arr, i) => {
+          if (i === 0) {
+            return Array.from(new Set([...skillApps, ...arr]));
+          }
+          return arr;
+        });
+      });
+    };
+
+    window.addEventListener(AGENT_TOOLS_CHANGED_EVENT, handleToolsChanged);
+    return () => {
+      window.removeEventListener(AGENT_TOOLS_CHANGED_EVENT, handleToolsChanged);
+    };
+  }, [open, effectiveSkill]);
+
   const handleSelectSkillPreset = (preset: AgentPreset) => {
     setAiAgentSkill(preset.id);
     setHasChanges(true);
+
+    const canonicalSkill = getSkillForCategory(activeCategory, preset.id);
+    const skillAllowed = resolveSkillAllowedApps(canonicalSkill);
 
     const isEmptyPrompt =
       aiAgentPrompts.length === 0 ||
@@ -356,20 +402,18 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
     if (preset.id === 'incident-response') {
       if (isEmptyPrompt) {
         setAiAgentPrompts([...DEFAULT_INCIDENT_AI_PROMPTS]);
-        setAiAgentApps(DEFAULT_INCIDENT_AI_APPS.map((a) => [...a]));
       }
+      setAiAgentApps([skillAllowed]);
     } else if (preset.id === 'vulnerability') {
       if (isEmptyPrompt) {
         setAiAgentPrompts([...DEFAULT_VULNERABILITY_AI_PROMPTS]);
-        setAiAgentApps(DEFAULT_VULNERABILITY_AI_APPS.map((a) => [...a]));
       }
+      setAiAgentApps([skillAllowed]);
     } else {
       if (isEmptyPrompt && preset.defaultPrompt) {
         setAiAgentPrompts([preset.defaultPrompt]);
-        if (preset.defaultApps && preset.defaultApps.length > 0) {
-          setAiAgentApps([preset.defaultApps.map((a) => a.name)]);
-        }
       }
+      setAiAgentApps([skillAllowed]);
     }
   };
 
@@ -702,36 +746,43 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         const finalPrompts = prompts.length > 0 ? prompts : [''];
         setAiAgentPrompts(finalPrompts);
 
+        const firstOpt = actionOptions[0] as any;
+        const savedSkill = firstOpt?.template || firstOpt?.skill;
+        const activeSkill = savedSkill || defaultSkillForCat;
+        setAiAgentSkill(activeSkill);
+
+        const canonicalSkill = getSkillForCategory(activeCategory, activeSkill);
+        const skillAllowedApps = resolveSkillAllowedApps(canonicalSkill);
+
         // Apps live inside the same option as the prompt (option.apps).
         // Legacy fallback: parallel "apps" / "apps-N" options.
         const appsByIdx: string[][] = actionOptions.map((opt, i) => {
           const inline = (opt as any)?.apps;
+          let loaded: string[] = [];
           if (Array.isArray(inline)) {
-            return inline.map((s: unknown) => String(s).trim()).filter(Boolean);
+            loaded = inline.map((s: unknown) => String(s).trim()).filter(Boolean);
+          } else {
+            const key = i === 0 ? 'apps' : `apps-${i + 1}`;
+            const legacy = aiAutomation.options?.find(o => o.key === key);
+            loaded = legacy?.value
+              ? legacy.value.split(',').map(s => s.trim()).filter(Boolean)
+              : [];
           }
-          const key = i === 0 ? 'apps' : `apps-${i + 1}`;
-          const legacy = aiAutomation.options?.find(o => o.key === key);
-          return legacy?.value
-            ? legacy.value.split(',').map(s => s.trim()).filter(Boolean)
-            : [];
+          // Merge loaded apps with the skill's assigned permissions and built-in apps
+          const merged = Array.from(new Set([...skillAllowedApps, ...loaded]));
+          return merged.length > 0 ? merged : skillAllowedApps;
         });
-        setAiAgentApps(appsByIdx.length > 0 ? appsByIdx : [[]]);
-
-        const firstOpt = actionOptions[0] as any;
-        const savedSkill = firstOpt?.template || firstOpt?.skill;
-        if (savedSkill) {
-          setAiAgentSkill(savedSkill);
-        } else {
-          setAiAgentSkill(defaultSkillForCat);
-        }
+        setAiAgentApps(appsByIdx.length > 0 ? appsByIdx : [skillAllowedApps]);
       } else {
+        const canonicalSkill = getSkillForCategory(activeCategory, defaultSkillForCat);
+        const skillAllowedApps = resolveSkillAllowedApps(canonicalSkill);
         setAiAgentSkill(defaultSkillForCat);
         if (isVuln) {
           setAiAgentPrompts([...DEFAULT_VULNERABILITY_AI_PROMPTS]);
-          setAiAgentApps(DEFAULT_VULNERABILITY_AI_APPS.map(a => [...a]));
+          setAiAgentApps([skillAllowedApps]);
         } else {
           setAiAgentPrompts(['']);
-          setAiAgentApps([[]]);
+          setAiAgentApps([skillAllowedApps]);
         }
       }
     }
@@ -781,7 +832,8 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         } else if (config.type === 'ai_agent') {
           // Use "action", "action-2", "action-3" format. The per-prompt app
           // allow-list lives INSIDE the same option object as `apps`.
-          const effectiveSkill = aiAgentSkill || (activeCategory.includes('vuln') ? 'vulnerability' : 'incident-response');
+          const effectiveSkillForSave = aiAgentSkill || (activeCategory.includes('vuln') ? 'vulnerability' : 'incident-response');
+          const canonicalSkill = getSkillForCategory(activeCategory, effectiveSkillForSave);
           const pairs = aiAgentPrompts
             .map((prompt, idx) => ({ prompt, apps: aiAgentApps[idx] || [] }))
             .filter(p => p.prompt.trim());
@@ -789,18 +841,28 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
             key: idx === 0 ? 'action' : `action-${idx + 1}`,
             value: p.prompt,
             apps: p.apps.length > 0 ? p.apps : null,
-            template: effectiveSkill,
-            skill: effectiveSkill,
+            template: effectiveSkillForSave,
+            skill: effectiveSkillForSave,
           }));
           if (options.length === 0) {
             options = [{
               key: 'action',
               value: '',
               apps: null,
-              template: effectiveSkill,
-              skill: effectiveSkill,
+              template: effectiveSkillForSave,
+              skill: effectiveSkillForSave,
             }];
           }
+
+          // Persist assigned tools to datastore permissions so both configurations match
+          const allAssignedApps: ToolRef[] = Array.from(new Set(aiAgentApps.flat()))
+            .filter((appKey) => !isBuiltInSkillApp(canonicalSkill, appKey))
+            .map((appKey) => {
+              const meta = resolveAppMeta(appKey);
+              return { name: meta.name || appKey, id: appKey };
+            });
+          setAgentTools(allAssignedApps, canonicalSkill);
+          saveAgentTools(allAssignedApps, canonicalSkill);
         } else {
           options = [{ key: config.optionKey || '', value: '' }];
         }
@@ -913,7 +975,8 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
       } else if (config.type === 'security_rules') {
         options = [{ key: config.optionKey || '', value: securityRulesText }];
       } else if (config.type === 'ai_agent') {
-        const effectiveSkill = aiAgentSkill || (activeCategory.includes('vuln') ? 'vulnerability' : 'incident-response');
+        const effectiveSkillForSave = aiAgentSkill || (activeCategory.includes('vuln') ? 'vulnerability' : 'incident-response');
+        const canonicalSkill = getSkillForCategory(activeCategory, effectiveSkillForSave);
         const pairs = aiAgentPrompts
           .map((prompt, idx) => ({ prompt, apps: aiAgentApps[idx] || [] }))
           .filter(p => p.prompt.trim());
@@ -921,18 +984,28 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
           key: idx === 0 ? 'action' : `action-${idx + 1}`,
           value: p.prompt,
           apps: p.apps.length > 0 ? p.apps : null,
-          template: effectiveSkill,
-          skill: effectiveSkill,
+          template: effectiveSkillForSave,
+          skill: effectiveSkillForSave,
         }));
         if (options.length === 0) {
           options = [{
             key: 'action',
             value: '',
             apps: null,
-            template: effectiveSkill,
-            skill: effectiveSkill,
+            template: effectiveSkillForSave,
+            skill: effectiveSkillForSave,
           }];
         }
+
+        // Persist assigned tools to datastore permissions so both configurations match
+        const allAssignedApps: ToolRef[] = Array.from(new Set(aiAgentApps.flat()))
+          .filter((appKey) => !isBuiltInSkillApp(canonicalSkill, appKey))
+          .map((appKey) => {
+            const meta = resolveAppMeta(appKey);
+            return { name: meta.name || appKey, id: appKey };
+          });
+        setAgentTools(allAssignedApps, canonicalSkill);
+        saveAgentTools(allAssignedApps, canonicalSkill);
       } else {
         options = [{ key: config.optionKey || '', value: '' }];
       }
@@ -1406,6 +1479,8 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                       <AiAgentPromptsEditor
                         prompts={aiAgentPrompts}
                         apps={aiAgentApps}
+                        skillLabel={activeSkillLabel}
+                        isBuiltInApp={(key) => isBuiltInSkillApp(effectiveSkill, key)}
                         resolveAppMeta={resolveAppMeta}
                         onChangePrompt={(idx, next) => {
                           const updated = [...aiAgentPrompts];
@@ -1428,6 +1503,12 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                           updated[idx] = (updated[idx] || []).filter((n) => n !== appKey);
                           setAiAgentApps(updated);
                           setHasChanges(true);
+
+                          // Synchronize removal with Permissions if not built-in
+                          if (!isBuiltInSkillApp(effectiveSkill, appKey)) {
+                            removeAgentTool(appKey, effectiveSkill);
+                            saveAgentTools(getAgentTools(effectiveSkill), effectiveSkill);
+                          }
                         }}
                         onAddAppRequested={(idx) => setAppPickerForIdx(idx)}
                         renderPromptInput={({ index, value, onChange, placeholder }) => (
@@ -1808,8 +1889,8 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
       <AppSearchDrawer
         open={appPickerForIdx !== null}
         onClose={() => setAppPickerForIdx(null)}
-        title="Allow App"
-        subtitle="Restrict this AI Agent prompt to specific apps"
+        title={`Assign tools to ${activeSkillLabel}`}
+        subtitle={`Pick the apps ${activeSkillLabel} is allowed to use across automations and agent runs`}
         multiSelect
         selectedApps={
           appPickerForIdx === null
@@ -1821,14 +1902,18 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         }
         onSelectionChange={(apps) => {
           if (appPickerForIdx === null) return;
-          const ids = apps.map((a) => a.id).filter((id): id is string => !!id);
-          if (ids.length !== apps.length) {
-            toast.error('Cannot allow app: missing canonical app ID');
-          }
+          const ids = apps.map((a) => a.id || a.name).filter((id): id is string => !!id);
           const updated = [...aiAgentApps];
           updated[appPickerForIdx] = Array.from(new Set(ids));
           setAiAgentApps(updated);
           setHasChanges(true);
+
+          // Synchronize with Permissions for effectiveSkill
+          const nextTools: ToolRef[] = apps
+            .filter((a) => !isBuiltInSkillApp(effectiveSkill, a.name, a.id))
+            .map((a) => ({ name: a.name, id: a.id || a.name }));
+          setAgentTools(nextTools, effectiveSkill);
+          saveAgentTools(nextTools, effectiveSkill);
         }}
       />
 

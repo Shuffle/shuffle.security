@@ -72,6 +72,9 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
     [scheduleAgentRun],
   );
 
+  const [incidentId, setIncidentId] = useState<string | undefined>();
+  const [incidentContext, setIncidentContext] = useState<Record<string, any> | undefined>();
+
   const isAgentDisabled = isAgentRoute(location.pathname);
 
   useEffect(() => {
@@ -84,6 +87,12 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
       }
       if (detail?.autoSubmit !== undefined) {
         setAutoSubmit(detail.autoSubmit);
+      }
+      if (detail?.incidentId !== undefined) {
+        setIncidentId(detail.incidentId);
+      }
+      if (detail?.incidentContext !== undefined) {
+        setIncidentContext(detail.incidentContext);
       }
       setInitialTab(nextTab);
       setOpen(true);
@@ -142,6 +151,8 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
           setInitialTab('run');
           setDefaultInput('');
           setAutoSubmit(false);
+          setIncidentId(undefined);
+          setIncidentContext(undefined);
           try {
             localStorage.setItem('shuffle_agent_drawer_tab', 'run');
           } catch { /* ignore */ }
@@ -165,6 +176,8 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
         isSupport,
         defaultInput,
         autoSubmit,
+        incidentId,
+        incidentContext,
       }}
     />
   );

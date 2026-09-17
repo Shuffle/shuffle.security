@@ -32,7 +32,7 @@
  * window event so the UI updates without a reload.
  */
 
-import { getDatastoreItem, setDatastoreItem } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreItem, setDatastoreItem } from '../Shuffle-MCPs/datastore';
 
 const STORAGE_KEY = 'agent_tools_config';
 const DATASTORE_CATEGORY = 'shuffle-security_agent_tools';
@@ -80,7 +80,14 @@ const getActiveOrgId = (): string | null => {
       localStorage.getItem('user_info');
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed.active_org?.id || parsed.org_id || parsed.active_org_id || null;
+    return (
+      parsed?.active_org?.id ||
+      parsed?.org_id ||
+      parsed?.active_org_id ||
+      (Array.isArray(parsed?.orgs) && parsed.orgs[0]?.id) ||
+      parsed?.id ||
+      null
+    );
   } catch {
     return null;
   }
@@ -146,14 +153,45 @@ const readCacheRecord = (): CacheRecord => {
   try {
     const key = getStorageKey();
     let raw = localStorage.getItem(key);
-    if (!raw && key !== STORAGE_KEY) {
-      raw = localStorage.getItem(STORAGE_KEY);
+    let parsed: any = null;
+    let entries: AgentToolsEntry[] = [];
+    let updatedAt = 0;
+
+    if (raw) {
+      try {
+        parsed = JSON.parse(raw);
+        entries = sanitize(parsed);
+        updatedAt =
+          extractUpdatedAt(parsed) || entries.reduce((max, e) => Math.max(max, e.updatedAt || 0), 0);
+      } catch {
+        /* fall through */
+      }
     }
-    if (!raw) return { entries: [], updatedAt: 0 };
-    const parsed = JSON.parse(raw);
-    const entries = sanitize(parsed);
-    const updatedAt =
-      extractUpdatedAt(parsed) || entries.reduce((max, e) => Math.max(max, e.updatedAt || 0), 0);
+
+    // If org-specific key is missing or has no tools, check global fallback
+    if (entries.length === 0 || entries.every((e) => e.tools.length === 0)) {
+      if (key !== STORAGE_KEY) {
+        const fallbackRaw = localStorage.getItem(STORAGE_KEY);
+        if (fallbackRaw) {
+          try {
+            const fallbackParsed = JSON.parse(fallbackRaw);
+            const fallbackEntries = sanitize(fallbackParsed);
+            if (fallbackEntries.some((e) => e.tools.length > 0)) {
+              entries = fallbackEntries;
+              updatedAt =
+                extractUpdatedAt(fallbackParsed) ||
+                fallbackEntries.reduce((max, e) => Math.max(max, e.updatedAt || 0), 0) ||
+                Date.now();
+              // Migrate immediately into org key
+              writeCache(entries, updatedAt);
+            }
+          } catch {
+            /* ignore fallback parse failure */
+          }
+        }
+      }
+    }
+
     return { entries, updatedAt };
   } catch {
     return { entries: [], updatedAt: 0 };
@@ -274,11 +312,27 @@ const mergeEntries = (
     if (!existing) {
       map.set(key, { ...inc, tools: dedupeTools(inc.tools) });
     } else if (preferIncoming) {
-      map.set(key, { ...inc, tools: dedupeTools(inc.tools) });
+      const incTs = inc.updatedAt || 0;
+      const existTs = existing.updatedAt || 0;
+      // If incoming has no tools but existing has tools, do not wipe out existing
+      // tools unless incoming explicitly has a newer updatedAt > 0
+      if (inc.tools.length === 0 && existing.tools.length > 0) {
+        if (incTs > existTs && incTs > 0) {
+          map.set(key, { ...inc, tools: [] });
+        }
+      } else {
+        map.set(key, { ...inc, tools: dedupeTools(inc.tools) });
+      }
     } else {
       const incTs = inc.updatedAt || 0;
       const existTs = existing.updatedAt || 0;
-      if (incTs >= existTs) {
+      // Never allow an empty tool array from an older/equal remote payload
+      // to wipe out locally configured tools
+      if (inc.tools.length === 0 && existing.tools.length > 0) {
+        if (incTs > existTs && incTs > 0) {
+          map.set(key, { ...inc, tools: [] });
+        }
+      } else if (incTs >= existTs) {
         map.set(key, { ...inc, tools: dedupeTools(inc.tools) });
       }
     }
@@ -343,14 +397,17 @@ export const loadAgentToolsFromDatastore = async (): Promise<AgentToolsEntry[]> 
       return merged;
     }
 
-    // If server returned empty array but local cache has tools, retain and sync up
-    if (remoteEntries.length === 0 && localEntries.length > 0) {
-      persistToDatastore(localEntries, localUpdatedAt);
+    const remoteHasAnyTools = remoteEntries.some((e) => e.tools.length > 0);
+    const localHasAnyTools = localEntries.some((e) => e.tools.length > 0);
+
+    // If server returned empty or only empty-tool entries, but local cache has tools, retain local and push to server
+    if (!remoteHasAnyTools && localHasAnyTools) {
+      persistToDatastore(localEntries, localUpdatedAt || Date.now());
       return localEntries;
     }
 
     // If local cache is newer than server, retain local
-    if (localUpdatedAt > remoteUpdatedAt && localEntries.length > 0) {
+    if (localUpdatedAt > remoteUpdatedAt && localHasAnyTools) {
       const merged = mergeEntries(remoteEntries, localEntries, true);
       writeCache(merged, localUpdatedAt);
       persistToDatastore(merged, localUpdatedAt);
@@ -378,11 +435,15 @@ export const getAgentTools = (
   if (entry && entry.tools && entry.tools.length > 0) {
     return entry.tools;
   }
-  if (agent === 'incident-handler' || agent === 'incident-response') {
-    return all.find((e) => e.agent === DEFAULT_AGENT && e.actionType === actionType)?.tools ?? [];
-  }
-  if (agent === DEFAULT_AGENT) {
-    return all.find((e) => (e.agent === 'incident-handler' || e.agent === 'incident-response') && e.actionType === actionType)?.tools ?? [];
+  if (agent === 'incident-handler' || agent === 'incident-response' || agent === DEFAULT_AGENT) {
+    const found = all.find(
+      (e) =>
+        (e.agent === 'incident-handler' || e.agent === 'incident-response' || e.agent === DEFAULT_AGENT) &&
+        e.actionType === actionType &&
+        e.tools &&
+        e.tools.length > 0,
+    );
+    if (found?.tools && found.tools.length > 0) return found.tools;
   }
   return [];
 };
@@ -424,10 +485,10 @@ export const setAgentTools = (
   };
 
   setEntry(agent);
-  if (agent === 'incident-handler' || agent === 'incident-response') {
-    setEntry(DEFAULT_AGENT);
-  } else if (agent === DEFAULT_AGENT) {
+  if (agent === 'incident-handler' || agent === 'incident-response' || agent === DEFAULT_AGENT) {
     setEntry('incident-handler');
+    setEntry('incident-response');
+    setEntry(DEFAULT_AGENT);
   }
 
   writeCache(all, now);
@@ -452,6 +513,8 @@ export const getToolsForSkill = (skillOrPresetId: string): ToolRef[] => {
   if (normalized === 'incident-handler' || normalized === 'incident-response' || normalized === 'default') {
     const ih = getAgentTools('incident-handler');
     if (ih.length > 0) return ih;
+    const ir = getAgentTools('incident-response');
+    if (ir.length > 0) return ir;
     return getAgentTools(DEFAULT_AGENT);
   }
   return getAgentTools(normalized);
@@ -490,3 +553,114 @@ export const removeAgentTool = (
 
 export const formatToolName = (name: string): string =>
   name.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+/**
+ * Maps a datastore category (e.g. 'shuffle-security_incidents') or explicit skill
+ * to the canonical agent skill ID (e.g. 'incident-handler', 'vulnerability').
+ */
+export const getSkillForCategory = (category: string, explicitSkill?: string): string => {
+  if (explicitSkill && explicitSkill.trim()) {
+    const s = explicitSkill.toLowerCase().trim();
+    if (s === 'incident-response' || s === 'incident-handler') return 'incident-handler';
+    if (s === 'vulnerability-agent' || s === 'vulnerability-management' || s === 'vulnerability') return 'vulnerability';
+    if (s === 'workflow-edit' || s === 'build-workflows') return 'build-workflows';
+    if (s === 'computer-use' || s === 'host-monitor-control') return 'host-monitor-control';
+    return s;
+  }
+  const cat = (category || '').toLowerCase().trim();
+  if (cat.includes('incident')) return 'incident-handler';
+  if (cat.includes('vuln')) return 'vulnerability';
+  if (cat.includes('infra') || cat.includes('sensor')) return 'host-monitor-control';
+  return 'incident-handler';
+};
+
+/** Human-readable display label for a skill. */
+export const getSkillLabel = (skillOrCategory: string): string => {
+  const norm = getSkillForCategory(skillOrCategory, skillOrCategory);
+  switch (norm) {
+    case 'incident-handler':
+    case 'incident-response':
+      return 'Incident Handler';
+    case 'vulnerability':
+      return 'Vulnerability Agent';
+    case 'build-workflows':
+      return 'Build Workflow';
+    case 'host-monitor-control':
+      return 'Computer Use';
+    case 'support':
+      return 'Support Agent';
+    case 'detection':
+      return 'Detection Agent';
+    default:
+      return formatToolName(norm);
+  }
+};
+
+/** Canonical built-in app identifiers (both slugs and IDs) that are active by default for a skill. */
+export const getBuiltInAppsForSkill = (skillOrPresetId: string): string[] => {
+  const norm = (skillOrPresetId || '').toLowerCase().trim();
+  if (norm === 'incident-handler' || norm === 'incident-response' || norm === 'default') {
+    return ['48793430d21468f9e371ace402efcd8e', 'shuffle_incidents'];
+  }
+  if (norm === 'vulnerability' || norm === 'vulnerability-agent' || norm === 'vulnerability-management') {
+    return ['shuffle_vulnerabilities', 'shuffle_software_and_packages', 'b82668d868f6dc7ac1dc14caa92c674b'];
+  }
+  if (norm === 'build-workflows') {
+    return ['shuffle_workflows_builder', 'shuffle_apps'];
+  }
+  if (norm === 'host-monitor-control' || norm === 'computer-use') {
+    return ['shuffle_host_monitors'];
+  }
+  if (norm === 'support') {
+    return ['shuffle_tools'];
+  }
+  if (norm === 'detection') {
+    return ['shuffle_detection'];
+  }
+  return [];
+};
+
+/** Checks if an app key or ID is a built-in default for a skill. */
+export const isBuiltInSkillApp = (
+  skillOrPresetId: string,
+  appKey: string,
+  appId?: string | null,
+): boolean => {
+  const builtIn = getBuiltInAppsForSkill(skillOrPresetId).map((s) => s.toLowerCase());
+  const k = (appKey || '').toLowerCase();
+  const id = (appId || '').toLowerCase();
+  return (k ? builtIn.includes(k) : false) || (id ? builtIn.includes(id) : false);
+};
+
+/**
+ * Returns all allowed apps for a skill: built-in default apps merged with assigned tools from permissions.
+ */
+export const resolveSkillAllowedApps = (skillOrPresetId: string): string[] => {
+  const builtIns = getBuiltInAppsForSkill(skillOrPresetId);
+  const assigned = getToolsForSkill(skillOrPresetId);
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  // Primary built-in (e.g. 48793430d21468f9e371ace402efcd8e / shuffle_incidents)
+  for (const b of builtIns) {
+    const k = b.toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      result.push(b);
+    }
+  }
+
+  // Assigned tools (e.g. elasticsearch)
+  for (const t of assigned) {
+    const idKey = (t.id || '').toLowerCase();
+    const nameKey = (t.name || '').toLowerCase();
+    const val = t.id || t.name;
+    const checkKey = idKey || nameKey;
+    if (checkKey && !seen.has(checkKey)) {
+      seen.add(checkKey);
+      result.push(val);
+    }
+  }
+
+  return result;
+};

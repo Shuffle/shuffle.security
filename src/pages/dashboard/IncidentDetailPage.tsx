@@ -415,10 +415,15 @@ import {
 import { usePageMeta } from "@/hooks/usePageMeta";
 import {
   getAgentTools as getAssignedAgentTools,
-  AGENT_TOOLS_CHANGED_EVENT,
-  formatToolName as formatAgentToolName,
 } from "@/lib/agentTools";
 import { openAgentDrawer } from "@/lib/agentDrawer";
+import {
+  setActiveIncidentPromptContext,
+  clearActiveIncidentPromptContext,
+  buildTaskAiPrompt,
+  isLegacyTaskPrompt,
+  type ActiveIncidentPromptContext,
+} from "@/lib/incidentPromptContext";
 import { useScheduleAgentRun } from "@/hooks/useScheduleAgentRun";
 
 // Transport failures (circuit-breaker 503s, flaky tunnels) are not the same as
@@ -1922,32 +1927,9 @@ const IncidentDetailPage = () => {
     [],
   );
 
-  // "Ask the agent" popover state — quick way to send an @AIAgent question
-  // from the incident header without scrolling down to the comment box.
-  const [askAgentAnchor, setAskAgentAnchor] = useState<HTMLElement | null>(
-    null,
-  );
-  const [askAgentText, setAskAgentText] = useState("");
-  const [askAgentSending, setAskAgentSending] = useState(false);
   // Sub-org incidents must be validated against THEIR tenant, not the active
   // org — otherwise readiness reports the parent org's wiring.
   const agentReadiness = useAgentReadiness(crossOrgId || undefined);
-  // Assigned agent tools, mirrored into the "Ask the AI agent" popover so it
-  // is obvious which apps the agent may use before asking a question.
-  const [askAgentTools, setAskAgentTools] = useState<string[]>(() =>
-    getAssignedAgentTools().map((t) => t.name),
-  );
-  useEffect(() => {
-    const refresh = () =>
-      setAskAgentTools(getAssignedAgentTools().map((t) => t.name));
-    refresh();
-    window.addEventListener(AGENT_TOOLS_CHANGED_EVENT, refresh);
-    window.addEventListener("storage", refresh);
-    return () => {
-      window.removeEventListener(AGENT_TOOLS_CHANGED_EVENT, refresh);
-      window.removeEventListener("storage", refresh);
-    };
-  }, [askAgentAnchor]);
 
   // Builds the auto-attached context block sent with @AIAgent questions.
   // Lives as a closure so it always reads the latest scoped state.
@@ -2196,6 +2178,46 @@ const IncidentDetailPage = () => {
   const [activeAiExecutions, setActiveAiExecutions] = useState<Set<string>>(
     () => new Set(),
   );
+
+  // Synchronize active incident context globally for Ask AI / Agent Drawer
+  useEffect(() => {
+    const activeContext: ActiveIncidentPromptContext = {
+      id: incident?.id || rawId || id,
+      title: incident?.title || editedTitle || currentIncidentTitle || "Incident",
+      severity: editedSeverity || incident?.severity || "medium",
+      status: editedStatus || incident?.status || "open",
+      description: editedMessage || (incident as any)?.description || (incident as any)?.message || "",
+      observables: editedObservables,
+      tasks: tasks.map((t) => ({
+        id: String(t.id),
+        title: t.title,
+        status: (t as any).status || t.aiStatus || "todo",
+        category: t.category,
+        description: t.description,
+      })),
+    };
+    setActiveIncidentPromptContext(activeContext);
+
+    return () => {
+      clearActiveIncidentPromptContext();
+    };
+  }, [
+    incident?.id,
+    incident?.title,
+    incident?.severity,
+    incident?.status,
+    (incident as any)?.description,
+    (incident as any)?.message,
+    rawId,
+    id,
+    currentIncidentTitle,
+    editedTitle,
+    editedSeverity,
+    editedStatus,
+    editedMessage,
+    editedObservables,
+    tasks,
+  ]);
   const [actionsMenuAnchor, setActionsMenuAnchor] =
     useState<null | HTMLElement>(null);
   const [showForwardDialog, setShowForwardDialog] = useState(false);
@@ -8815,17 +8837,31 @@ const IncidentDetailPage = () => {
       });
     }, 8000);
 
-    // Formulate prompt
-    const incidentRef = incident?.id ? `#${incident.id}` : "";
-    const incidentTitle = incident?.title || editedTitle || "Incident";
-    const taskTitle = task.title || "Untitled task";
-    const taskDesc = task.description
-      ? `\n\nTask details: ${task.description}`
-      : "";
-    const prompt =
-      task.aiPrompt && !reRun
-        ? task.aiPrompt
-        : `Please automatically handle and resolve the following task for incident ${incidentRef} ("${incidentTitle}"):\n\nTask: ${taskTitle}${taskDesc}\n\nPlease investigate, take any necessary actions, and report the results.`;
+    // Formulate comprehensive prompt with full incident context, observables, and sibling tasks
+    const incidentContextObj: ActiveIncidentPromptContext = {
+      id: incident?.id || rawId || id,
+      title: incident?.title || editedTitle || currentIncidentTitle || "Incident",
+      severity: editedSeverity || incident?.severity || "medium",
+      status: editedStatus || incident?.status || "open",
+      description: editedMessage || (incident as any)?.description || (incident as any)?.message || "",
+      observables: editedObservables,
+      tasks: tasks.map((t) => ({
+        id: String(t.id),
+        title: t.title,
+        status: (t as any).status || t.aiStatus || "todo",
+        category: t.category,
+        description: t.description,
+      })),
+    };
+
+    const needsFreshPrompt =
+      !task.aiPrompt ||
+      reRun ||
+      isLegacyTaskPrompt(task.aiPrompt);
+
+    const prompt = needsFreshPrompt
+      ? buildTaskAiPrompt(task, incidentContextObj, { reRun })
+      : task.aiPrompt;
 
     // 2. Assign task to AI Agent and record assignment history & execution state
     // Strictly one-by-one: ensure at most ONE single task can ever be mutated per invocation
@@ -8859,8 +8895,8 @@ const IncidentDetailPage = () => {
       user: actor,
       timestamp: now,
       content: reRun
-        ? `Re-ran task "${taskTitle}" with AI Agent`
-        : `Assigned task "${taskTitle}" to AI Agent`,
+        ? `Re-ran task "${task.title}" with AI Agent`
+        : `Assigned task "${task.title}" to AI Agent`,
       details: {
         taskId: targetTaskId,
         taskTitle: task.title,
@@ -8878,7 +8914,8 @@ const IncidentDetailPage = () => {
       source: "task-auto-assign",
       autoSubmit: true,
       taskId: targetTaskId,
-      incidentId: incident?.id,
+      incidentId: incident?.id || rawId || id,
+      incidentContext: incidentContextObj,
       resetExecution: true,
     });
   };
@@ -17812,9 +17849,8 @@ const IncidentDetailPage = () => {
             </Box>
           </Box>
 
-          {/* Right side actions — split into two rows so the title gets more
-              breathing room. Top row: Refresh + actions menu. Bottom row:
-              loaders + Ask agent. */}
+          {/* Right side actions. Top row: Refresh + actions menu. Bottom row:
+              loaders when active. */}
           <Box
             sx={{
               display: { xs: "none", sm: "flex" },
@@ -17826,568 +17862,52 @@ const IncidentDetailPage = () => {
               flexShrink: 0,
             }}
           >
-            {/* Bottom row group (loaders + Ask agent) — `order: 2` pushes it
+            {/* Bottom row group (loaders) — `order: 2` pushes it
                 below the top row even though it appears first in the DOM. */}
-            <Box
-              sx={{
-                order: 2,
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-                flexWrap: "wrap",
-                justifyContent: "flex-end",
-              }}
-            >
-              {isSaving && <CircularProgress size={18} />}
-              {isResyncing && (
-                <Box
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 0.75,
-                    px: 1.5,
-                    py: 0.5,
-                    borderRadius: 1,
-                    backgroundColor: "rgba(255, 102, 0, 0.08)",
-                    border: "1px solid rgba(255, 102, 0, 0.2)",
-                  }}
-                >
-                  <CircularProgress size={14} sx={{ color: "#ff6600" }} />
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: "#ff6600",
-                      fontWeight: 600,
-                      whiteSpace: "nowrap",
-                      lineHeight: 1,
-                      fontSize: "0.75rem",
-                    }}
-                  >
-                    {incident?.source
-                      ? `Resyncing from ${incident.source}…`
-                      : "Resyncing…"}
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Ask the AI agent — quick popover that posts an @AIAgent comment
-                into the Timeline. The existing agent handler picks it up.
-                Disabled on merged incidents — the primary is the writable one. */}
-              <Tooltip
-                title={
-                  primaryPointer
-                    ? "This incident is merged — open the primary to interact with the AI agent"
-                    : agentReadiness.isLoading
-                      ? "Checking AI agent status…"
-                      : agentReadiness.active
-                        ? "Ask the AI agent"
-                        : "AI agent is not enabled — click to set it up"
-                }
-              >
-                <span>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    disabled={!!primaryPointer}
-                    onClick={(e) => setAskAgentAnchor(e.currentTarget)}
-                    startIcon={<AgentIcon size={14} />}
-
-                    endIcon={
-                      !agentReadiness.isLoading ? (
-                        <Box
-                          sx={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: "50%",
-                            bgcolor: agentReadiness.active
-                              ? "hsl(var(--severity-low))"
-                              : "hsl(var(--severity-medium))",
-                            boxShadow: agentReadiness.active
-                              ? "0 0 6px hsl(var(--severity-low) / 0.6)"
-                              : "none",
-                          }}
-                        />
-                      ) : undefined
-                    }
-                    sx={{
-                      height: 32,
-                      textTransform: "none",
-                      borderRadius: 1,
-                      borderColor: "hsl(var(--border))",
-                      color: "hsl(var(--foreground))",
-                      fontWeight: 600,
-                      fontSize: "0.75rem",
-                      px: { xs: 0.75, sm: 1.25 },
-                      minWidth: { xs: 0, sm: 64 },
-                      background:
-                        "linear-gradient(135deg, rgba(255,133,68,0.08), rgba(236,81,124,0.08), rgba(156,90,242,0.08))",
-                      "& .MuiButton-startIcon": {
-                        mr: { xs: 0.25, sm: 1 },
-                        ml: 0,
-                      },
-                      "&:hover": {
-                        borderColor: "hsl(var(--primary))",
-                        background:
-                          "linear-gradient(135deg, rgba(255,133,68,0.16), rgba(236,81,124,0.16), rgba(156,90,242,0.16))",
-                      },
-                    }}
-                  >
-                    <Box
-                      component="span"
-                      sx={{ display: { xs: "none", sm: "inline" } }}
-                    >
-                      Ask agent
-                    </Box>
-                  </Button>
-                </span>
-              </Tooltip>
-
-              <Popover
-                open={Boolean(askAgentAnchor)}
-                anchorEl={askAgentAnchor}
-                onClose={() => {
-                  setAskAgentAnchor(null);
-                }}
-                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-                transformOrigin={{ vertical: "top", horizontal: "right" }}
-                PaperProps={{
-                  sx: {
-                    mt: 1,
-                    width: 380,
-                    bgcolor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: 2,
-                    p: 2,
-                  },
+            {(isSaving || isResyncing) && (
+              <Box
+                sx={{
+                  order: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  flexWrap: "wrap",
+                  justifyContent: "flex-end",
                 }}
               >
-                <Box
-                  sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}
-                >
-                  <AgentIcon size={16} />
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                    Ask the AI agent
-                  </Typography>
-                </Box>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "hsl(var(--muted-foreground))",
-                    display: "block",
-                    mb: 1.5,
-                  }}
-                >
-                  Your question is posted to the Timeline as @AIAgent and the
-                  agent will reply there. Observables, IOC matches,
-                  correlations, stakeholders and the top related incidents are
-                  auto-attached as context.
-                </Typography>
-                <Box sx={{ display: "flex", gap: 1, mb: 1.5 }}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => {
-                      setAskAgentAnchor(null);
-                      openAgentDrawer("permissions", { openToolPicker: true });
-                    }}
-                    sx={{
-                      flex: 1,
-                      height: 32,
-                      textTransform: "none",
-                      fontSize: "0.72rem",
-                      fontWeight: 600,
-                      borderColor: "hsl(var(--border))",
-                      color: "hsl(var(--foreground))",
-                      "&:hover": {
-                        borderColor: "hsl(var(--primary))",
-                        bgcolor: "hsl(var(--primary) / 0.06)",
-                      },
-                    }}
-                  >
-                    Assign tools
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => openAgentDrawer("localLLM")}
-                    sx={{
-                      flex: 1,
-                      height: 32,
-                      textTransform: "none",
-                      fontSize: "0.72rem",
-                      fontWeight: 600,
-                      borderColor: "hsl(var(--border))",
-                      color: "hsl(var(--foreground))",
-                      "&:hover": {
-                        borderColor: "hsl(var(--primary))",
-                        bgcolor: "hsl(var(--primary) / 0.06)",
-                      },
-                    }}
-                  >
-                    Shuffle AI
-                  </Button>
-                </Box>
-                {/* Currently assigned tools — mirrors the Permissions panel so it
-                  is clear what the agent can reach before asking. */}
-                <Box sx={{ mb: 1.5 }}>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      display: "block",
-                      color: "hsl(var(--muted-foreground))",
-                      fontWeight: 600,
-                      mb: 0.75,
-                    }}
-                  >
-                    Assigned tools (Incident Handler)
-                  </Typography>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-                    <Box
-                      sx={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 0.5,
-                        height: 24,
-                        px: 1,
-                        borderRadius: 1,
-                        border: "1px solid hsl(var(--border))",
-                        bgcolor: "hsl(var(--muted) / 0.5)",
-                      }}
-                    >
-                      <Typography
-                        sx={{
-                          fontSize: "0.7rem",
-                          fontWeight: 500,
-                          color: "hsl(var(--foreground))",
-                        }}
-                      >
-                        Shuffle Incidents
-                      </Typography>
-                      <Box
-                        sx={{
-                          fontSize: "0.58rem",
-                          fontWeight: 600,
-                          px: 0.5,
-                          py: 0.1,
-                          borderRadius: 0.5,
-                          bgcolor: "hsl(var(--primary) / 0.12)",
-                          color: "hsl(var(--primary))",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Default
-                      </Box>
-                    </Box>
-
-                    {askAgentTools
-                      .filter(
-                        (name) =>
-                          name.toLowerCase() !== "shuffle_incidents" &&
-                          name.toLowerCase() !== "shuffle incidents",
-                      )
-                      .map((name) => (
-                        <Box
-                          key={name}
-                          sx={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            height: 24,
-                            px: 1,
-                            borderRadius: 1,
-                            border: "1px solid hsl(var(--border))",
-                            bgcolor: "hsl(var(--muted) / 0.4)",
-                          }}
-                        >
-                          <Typography
-                            sx={{
-                              fontSize: "0.7rem",
-                              fontWeight: 500,
-                              color: "hsl(var(--foreground))",
-                            }}
-                          >
-                            {formatAgentToolName(name)}
-                          </Typography>
-                        </Box>
-                      ))}
-                  </Box>
-                </Box>
-                {!agentReadiness.isLoading && !agentReadiness.active && (
+                {isSaving && <CircularProgress size={18} />}
+                {isResyncing && (
                   <Box
                     sx={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 1,
-                      p: 1.25,
-                      mb: 1.5,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 0.75,
+                      px: 1.5,
+                      py: 0.5,
                       borderRadius: 1,
-                      border: "1px solid hsl(var(--severity-medium) / 0.4)",
-                      bgcolor: "hsl(var(--severity-medium) / 0.08)",
+                      backgroundColor: "rgba(255, 102, 0, 0.08)",
+                      border: "1px solid rgba(255, 102, 0, 0.2)",
                     }}
                   >
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          display: "block",
-                          fontWeight: 600,
-                          color: "hsl(var(--foreground))",
-                          mb: 0.25,
-                        }}
-                      >
-                        AI Agent is not enabled
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          display: "block",
-                          color: "hsl(var(--muted-foreground))",
-                          fontSize: "0.7rem",
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {!agentReadiness.hasWorkflow &&
-                        !agentReadiness.hasCategoryAutomation &&
-                        !agentReadiness.hasAiAgentAutomation
-                          ? 'Neither the "Run AI Agent" automation nor the "Assign & Escalate" workflow is wired up on Incidents.'
-                          : !agentReadiness.hasWorkflow
-                            ? 'The "Assign & Escalate" workflow is missing.'
-                            : 'The incident "Run workflow" automation is not pointing at the agent workflow.'}
-                      </Typography>
-                    </Box>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      disabled={agentReadiness.isEnabling}
-                      onClick={async () => {
-                        try {
-                          await agentReadiness.enable();
-                          toast.success("AI Agent enabled");
-                        } catch (err: any) {
-                          toast.error(
-                            err?.message || "Failed to enable AI Agent",
-                          );
-                        }
-                      }}
-                      startIcon={
-                        agentReadiness.isEnabling ? (
-                          <CircularProgress
-                            size={10}
-                            sx={{ color: "inherit" }}
-                          />
-                        ) : undefined
-                      }
+                    <CircularProgress size={14} sx={{ color: "#ff6600" }} />
+                    <Typography
+                      variant="caption"
                       sx={{
-                        height: 28,
-                        textTransform: "none",
-                        fontSize: "0.7rem",
+                        color: "#ff6600",
                         fontWeight: 600,
-                        bgcolor: "#ff6600",
-                        "&:hover": { bgcolor: "#e65c00" },
                         whiteSpace: "nowrap",
+                        lineHeight: 1,
+                        fontSize: "0.75rem",
                       }}
                     >
-                      {agentReadiness.isEnabling ? "Enabling…" : "Enable"}
-                    </Button>
+                      {incident?.source
+                        ? `Resyncing from ${incident.source}…`
+                        : "Resyncing…"}
+                    </Typography>
                   </Box>
                 )}
-                {agentReadiness.active ? (
-                  <>
-                    <TextField
-                      autoFocus
-                      multiline
-                      minRows={3}
-                      maxRows={8}
-                      fullWidth
-                      placeholder="What would you like the agent to do? e.g. Summarize this incident, look up the indicators, suggest next steps…"
-                      value={askAgentText}
-                      onChange={(e) => setAskAgentText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (
-                          e.key === "Enter" &&
-                          (e.metaKey || e.ctrlKey) &&
-                          askAgentText.trim() &&
-                          !askAgentSending &&
-                          agentReadiness.active
-                        ) {
-                          e.preventDefault();
-                          (async () => {
-                            setAskAgentSending(true);
-                            try {
-                              await handleAddComment(
-                                `@AIAgent ${askAgentText.trim()}${buildAskAgentContext()}`,
-                              );
-                              setAskAgentText("");
-                              setAskAgentAnchor(null);
-                              toast.success("Sent to the AI agent");
-                            } finally {
-                              setAskAgentSending(false);
-                            }
-                          })();
-                        }
-                      }}
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
-                          fontSize: "0.85rem",
-                          bgcolor: "hsl(var(--background))",
-                        },
-                      }}
-                    />
-                    <Box
-                      sx={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 0.5,
-                        mt: 1,
-                      }}
-                    >
-                      {[
-                        {
-                          label: "Summarize",
-                          prompt:
-                            "Summarize this incident in a few short bullet points: what happened, who/what is involved, and the current status.",
-                        },
-                        {
-                          label: "Investigate indicators",
-                          prompt:
-                            "Investigate every observable on this incident. Look up reputation, related incidents, and flag anything suspicious.",
-                        },
-                        {
-                          label: "Suggest next steps",
-                          prompt:
-                            "Based on the current state of this incident, suggest the next concrete response steps in priority order.",
-                        },
-                        {
-                          label: "Draft a response",
-                          prompt:
-                            "Draft a response message I can send to the reporter or affected user. Keep it clear, professional, and reassuring.",
-                        },
-                        {
-                          label: "Assess severity",
-                          prompt:
-                            "Assess the severity and potential impact of this incident, and explain the reasoning behind the rating.",
-                        },
-                        {
-                          label: "Find related incidents",
-                          prompt:
-                            "Look for past incidents that share observables, indicators, or patterns with this one and summarize the matches.",
-                        },
-                      ].map(({ label, prompt }) => (
-                        <Chip
-                          key={label}
-                          label={label}
-                          size="small"
-                          onClick={() => setAskAgentText(prompt)}
-                          sx={{
-                            height: 22,
-                            fontSize: "0.7rem",
-                            bgcolor: "hsl(var(--muted) / 0.4)",
-                            border: "1px solid hsl(var(--border))",
-                            cursor: "pointer",
-                            "&:hover": { bgcolor: "hsl(var(--muted) / 0.7)" },
-                          }}
-                        />
-                      ))}
-                    </Box>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        mt: 1.5,
-                      }}
-                    >
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          color: "hsl(var(--muted-foreground))",
-                          fontSize: "0.7rem",
-                        }}
-                      >
-                        ⌘/Ctrl + Enter to send
-                      </Typography>
-                      <Box sx={{ display: "flex", gap: 1 }}>
-                        <Button
-                          size="small"
-                          onClick={() => {
-                            setAskAgentAnchor(null);
-                          }}
-                          sx={{
-                            height: 32,
-                            textTransform: "none",
-                            color: "hsl(var(--muted-foreground))",
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="contained"
-                          disabled={
-                            !askAgentText.trim() ||
-                            askAgentSending ||
-                            !agentReadiness.active
-                          }
-                          onClick={async () => {
-                            setAskAgentSending(true);
-                            try {
-                              await handleAddComment(
-                                `@AIAgent ${askAgentText.trim()}${buildAskAgentContext()}`,
-                              );
-                              setAskAgentText("");
-                              setAskAgentAnchor(null);
-                              toast.success("Sent to the AI agent");
-                            } finally {
-                              setAskAgentSending(false);
-                            }
-                          }}
-                          startIcon={
-                            askAgentSending ? (
-                              <CircularProgress
-                                size={12}
-                                sx={{ color: "inherit" }}
-                              />
-                            ) : (
-                              <SendIcon size={14} />
-                            )
-                          }
-                          sx={{
-                            height: 32,
-                            textTransform: "none",
-                            fontWeight: 600,
-                            bgcolor: "#ff6600",
-                            "&:hover": { bgcolor: "#e65c00" },
-                          }}
-                        >
-                          Send
-                        </Button>
-                      </Box>
-                    </Box>
-                  </>
-                ) : (
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      mt: 1.5,
-                    }}
-                  >
-                    <Button
-                      size="small"
-                      onClick={() => {
-                        setAskAgentAnchor(null);
-                      }}
-                      sx={{
-                        height: 32,
-                        textTransform: "none",
-                        color: "hsl(var(--muted-foreground))",
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </Box>
-                )}
-              </Popover>
-            </Box>
+              </Box>
+            )}
             {/* Top row group (Refresh + Actions menu). */}
             <Box
               sx={{
@@ -18584,17 +18104,6 @@ const IncidentDetailPage = () => {
                     className={isRefreshing ? "animate-spin" : ""}
                   />
                   Refresh
-                </MenuItem>
-                {/* Ask the AI agent */}
-                <MenuItem
-                  onClick={() => {
-                    setAskAgentAnchor(actionsMenuAnchor);
-                    setActionsMenuAnchor(null);
-                  }}
-                  disabled={!!primaryPointer}
-                >
-                  <AgentIcon size={16} style={{ marginRight: "8px" }} />
-                  Ask the AI agent
                 </MenuItem>
                 <Divider />
                 {/* Generate Report */}

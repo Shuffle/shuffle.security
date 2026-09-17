@@ -10,6 +10,7 @@
 
 import { getCachedConnectedTools, mergeConnectedTools, MAX_AUTO_ASSIGNED_TOOLS } from './connectedSourcesService';
 import { composeDocPromptInput, isDocsRoute } from '@/lib/docsPromptContext';
+import { composeIncidentPromptInput } from '@/lib/incidentPromptContext';
 import { getDocGroup } from '@/lib/docGroups';
 
 export interface AgentContextApp {
@@ -469,6 +470,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
       const cleanId = formatEntityDisplayId(params.id);
       return `Investigate incident ${cleanId} and recommend next steps: `;
     },
+    composeInput: (raw) => composeIncidentPromptInput(raw),
     placeholder: 'Ask about this incident, triage observables, or correlate...',
     getStorageKey: (params) => `incident_${params.id}`,
     description: 'Focused on the currently viewed incident with Shuffle Incidents MCP',
@@ -493,6 +495,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
       const cleanId = formatEntityDisplayId(params.id);
       return `Investigate incident ${cleanId} and recommend next steps: `;
     },
+    composeInput: (raw) => composeIncidentPromptInput(raw),
     placeholder: 'Ask about this incident, triage observables, or correlate...',
     getStorageKey: (params) => `incident_${params.id}`,
     description: 'Focused on the currently viewed incident with Shuffle Incidents MCP',
@@ -515,6 +518,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
       const cleanId = formatEntityDisplayId(params.id);
       return `Investigate case ${cleanId} and recommend next steps: `;
     },
+    composeInput: (raw) => composeIncidentPromptInput(raw),
     placeholder: 'Review case evidence, correlate events, or recommend response actions...',
     getStorageKey: (params) => `case_${params.id}`,
     description: 'Focused on the currently viewed case with Shuffle Incidents MCP',

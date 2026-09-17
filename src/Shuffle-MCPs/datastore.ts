@@ -75,6 +75,7 @@ export interface DatastoreKeyExisted {
 export interface DatastoreResponse {
   success: boolean;
   data?: DatastoreItem[];
+  items?: DatastoreItem[];
   categoryConfig?: CategoryConfig;
   cursor?: string;
   totalAmount?: number;

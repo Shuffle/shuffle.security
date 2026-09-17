@@ -646,6 +646,7 @@ export const SimpleCaseLayout = ({
     >
       <Box
         ref={timelineColRef}
+        data-tour="incident-activity-feed"
         sx={{
           order: { xs: 2, md: 1 },
           position: { md: "sticky" },
@@ -781,6 +782,7 @@ export const SimpleCaseLayout = ({
         {emailThread && (
           <Box
             id="simple-case-email-thread"
+            data-tour="incident-email-thread"
             ref={(node: HTMLElement | null) => {
               refs.current.emailThread = node;
             }}
@@ -970,6 +972,8 @@ export const SimpleCaseLayout = ({
               <Fragment key={key}>
                 <Button
                   onClick={() => scrollTo(key)}
+                  data-tour={key === "correlations" ? "incident-tab-correlations" : undefined}
+                  data-active={isActive ? "true" : undefined}
                   sx={{
                     minHeight: 32,
                     justifyContent: "flex-start",

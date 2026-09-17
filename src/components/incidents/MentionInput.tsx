@@ -35,19 +35,33 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(({
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartPos, setMentionStartPos] = useState(-1);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const doFocus = () => {
+    let el = inputRef.current;
+    if (!el && containerRef.current) {
+      el = containerRef.current.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        'textarea:not([readonly]), input:not([readonly]), textarea, input',
+      );
+    }
+    if (!el) {
+      el = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        '[data-tour="incident-comment-input"] textarea:not([readonly]), [data-tour="incident-comment-input"] textarea',
+      );
+    }
+    if (el) {
+      el.focus();
+      try {
+        const len = (el.value || '').length;
+        el.setSelectionRange(len, len);
+      } catch {
+        /* ignore non-text inputs */
+      }
+    }
+  };
 
   useImperativeHandle(ref, () => ({
-    focus: () => {
-      if (inputRef.current) {
-        inputRef.current.focus({ preventScroll: true });
-        const len = inputRef.current.value?.length ?? 0;
-        try {
-          inputRef.current.setSelectionRange(len, len);
-        } catch {
-          /* ignore non-text inputs */
-        }
-      }
-    },
+    focus: doFocus,
     inputElement: inputRef.current,
   }));
 
@@ -157,7 +171,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(({
   };
 
   return (
-    <Box sx={{ position: 'relative', width: '100%' }}>
+    <Box ref={containerRef} sx={{ position: 'relative', width: '100%' }}>
       <Popover open={showSuggestions} onOpenChange={setShowSuggestions}>
         <PopoverAnchor asChild>
           <TextField

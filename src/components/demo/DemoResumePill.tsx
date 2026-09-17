@@ -8,7 +8,8 @@
  *  - They reached the final tour step or ran "Clean up demo data"
  */
 
-import { Box, Typography, Button, Tooltip, useTheme } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip, useTheme } from '@mui/material';
+import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation } from '@/lib/router-compat';
 import { useDemo } from '@/context/DemoContext';
@@ -93,26 +94,21 @@ export const DemoResumePill = () => {
         Continue demo
       </Typography>
       <Tooltip title="Hide until next demo">
-        <Button
+        <IconButton
           size="small"
           onClick={(e) => {
             e.stopPropagation();
             dismissResumePrompt();
           }}
           sx={{
-            minWidth: 'auto',
-            px: 0.75,
-            py: 0.25,
-            fontSize: '0.6875rem',
-            fontWeight: 600,
+            width: 24,
+            height: 24,
             color: 'hsl(var(--muted-foreground))',
-            textTransform: 'none',
-            borderRadius: 1,
             '&:hover': { color: 'hsl(var(--foreground))', bgcolor: 'hsl(var(--muted))' },
           }}
         >
-          Dismiss
-        </Button>
+          <X size={14} />
+        </IconButton>
       </Tooltip>
     </Box>
   );

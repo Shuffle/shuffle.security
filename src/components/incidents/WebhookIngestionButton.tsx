@@ -8,6 +8,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useDemo } from '@/context/DemoContext';
 
 import { EntityHealth } from '@/services/workflowHealth';
+import {
+  sendSampleIncidentAndValidate,
+  IngestionValidationResult,
+  IngestionStage,
+} from '@/services/incidentIngestValidation';
 
 export interface WebhookIngestionInfo {
   /** Webhook URL to display (null if workflow doesn't exist yet) */
@@ -78,6 +83,47 @@ export const WebhookIngestionButton = ({
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error('Failed to copy');
+    }
+  };
+
+  const isIncidentWebhook =
+    !workflowLabel ||
+    workflowLabel === 'Ingest Tickets_webhook' ||
+    workflowLabel.toLowerCase().includes('ticket') ||
+    (!workflowLabel.toLowerCase().includes('vulnerabilit') && !workflowLabel.toLowerCase().includes('asset'));
+
+  const [validationStage, setValidationStage] = useState<IngestionStage>('idle');
+  const [lastValidationResult, setLastValidationResult] = useState<IngestionValidationResult | null>(null);
+
+  const handleSendSampleIncident = async () => {
+    if (!webhook.url || !isEnabled || isBlocked || validationStage !== 'idle') return;
+    setValidationStage('sending');
+    setLastValidationResult(null);
+
+    try {
+      const result = await sendSampleIncidentAndValidate({
+        webhookUrl: webhook.url,
+        workflowId: webhook.workflowId,
+        onProgress: (p) => {
+          setValidationStage(p.stage);
+        },
+      });
+
+      setLastValidationResult(result);
+
+      if (result.success) {
+        const execSnippet = result.executionId ? ` (Execution ${result.executionId.slice(0, 8)})` : '';
+        toast.success(`Ingested test incident (${result.alert.sourceName})${execSnippet}`);
+        queryClient.invalidateQueries({ queryKey: ['incidents'] });
+        onToggled?.();
+      } else {
+        toast.error(result.errorMessage || 'Ingest validation encountered an issue');
+      }
+    } catch (error: any) {
+      console.error('Failed to validate ingest:', error);
+      toast.error(error?.message ? `Failed to send alert: ${error.message}` : 'Failed to send test incident to webhook');
+    } finally {
+      setValidationStage('idle');
     }
   };
 
@@ -291,6 +337,105 @@ export const WebhookIngestionButton = ({
               {copied ? <CheckIcon size={14} style={{ color: 'success.main' }} /> : <ContentCopyIcon size={14} />}
             </IconButton>
           </Box>
+        )}
+
+        {/* Send Test Incident button (incidents webhook only, above Disable Webhook) */}
+        {isIncidentWebhook && (
+          <Tooltip
+            title={
+              !isEnabled
+                ? 'Enable the webhook to send a test incident'
+                : !webhook.url
+                  ? 'Webhook URL is not yet available'
+                  : isBlocked
+                    ? 'Webhook runtime is offline'
+                    : 'Send a raw alert from a cybersecurity tool (CrowdStrike, Defender, SentinelOne, Wazuh, etc.) to the webhook'
+            }
+            placement="top"
+          >
+            <Box component="span" sx={{ display: 'block', width: '100%', mb: 1 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                fullWidth
+                disabled={!isEnabled || !webhook.url || isBlocked || validationStage !== 'idle'}
+                onClick={handleSendSampleIncident}
+                sx={{
+                  justifyContent: 'center',
+                  textTransform: 'none',
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  py: 0.6,
+                  borderRadius: 1,
+                  borderColor: 'hsl(var(--border))',
+                  color: 'hsl(var(--foreground))',
+                  bgcolor: 'hsl(var(--secondary) / 0.4)',
+                  '&:hover': {
+                    bgcolor: 'hsl(var(--secondary) / 0.8)',
+                    borderColor: 'hsl(var(--border))',
+                  },
+                  '&.Mui-disabled': {
+                    opacity: 0.45,
+                    borderColor: 'hsl(var(--border) / 0.5)',
+                    color: 'hsl(var(--muted-foreground))',
+                  },
+                }}
+              >
+                {validationStage === 'sending'
+                  ? 'Sending Alert…'
+                  : validationStage === 'validating'
+                    ? 'Validating Ingest…'
+                    : validationStage === 'polling'
+                      ? 'Polling Incident…'
+                      : 'Send Test Incident'}
+              </Button>
+
+              {/* Ingestion validation feedback */}
+              {lastValidationResult && (
+                <Box
+                  sx={{
+                    mt: 0.75,
+                    p: 0.75,
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: lastValidationResult.success
+                      ? 'hsl(140 60% 45% / 0.35)'
+                      : 'hsl(var(--destructive) / 0.4)',
+                    bgcolor: lastValidationResult.success
+                      ? 'hsl(140 60% 45% / 0.08)'
+                      : 'hsl(var(--destructive) / 0.08)',
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      fontWeight: 600,
+                      color: lastValidationResult.success ? 'hsl(140 60% 55%)' : 'hsl(var(--destructive))',
+                    }}
+                  >
+                    {lastValidationResult.success
+                      ? `Verified Ingestion: ${lastValidationResult.alert.sourceName}`
+                      : 'Ingestion Issue Detected'}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      color: 'hsl(var(--muted-foreground))',
+                      wordBreak: 'break-word',
+                      lineHeight: 1.25,
+                      mt: 0.25,
+                    }}
+                  >
+                    {lastValidationResult.success
+                      ? `${lastValidationResult.executionId ? `Execution ${lastValidationResult.executionId.slice(0, 8)} Passed` : 'Execution Passed'}${lastValidationResult.incidentKey ? ' • Incident Materialized' : ''}`
+                      : lastValidationResult.errorMessage || 'Execution encountered an error'}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Tooltip>
         )}
 
         {/* Enable / Disable button */}

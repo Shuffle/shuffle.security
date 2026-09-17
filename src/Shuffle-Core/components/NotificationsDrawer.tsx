@@ -449,7 +449,10 @@ const NotificationsDrawer = ({
                     displayEmpty: true,
                     onOpen: () => setWorkflowSelectOpen(true),
                     onClose: () => setWorkflowSelectOpen(false),
-                    MenuProps: { PaperProps: { sx: { maxHeight: 360 } } },
+                    MenuProps: {
+                      PaperProps: { sx: { maxHeight: 360 } },
+                      sx: { zIndex: `${drawerZIndex + 1} !important` },
+                    },
                   }}
                   sx={{
                     minWidth: 200,
@@ -839,7 +842,7 @@ const NotificationsDrawer = ({
             backgroundImage: 'none',
           },
         }}
-        sx={{ zIndex: 9999 }}
+        sx={{ zIndex: `${drawerZIndex + 1} !important` }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pr: 6 }}>
           <Box

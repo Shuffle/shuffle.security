@@ -198,7 +198,7 @@ export const TOUR_STEPS: TourStep[] = [
     title: 'Critical: same URL, two incidents',
     body: 'The exact lure URL Sarah Chen clicked in the phishing email is the same URL the Sliver C2 implant on FIN-LAPTOP-04 is now beaconing to. That is not a coincidence — it is a confirmed compromise. Open Correlations and pivot through the URL to the Wazuh incident.',
     bullets: [
-      'Open the Correlations tab',
+      'Open Correlations',
       'Find the red "Known IOC" row keyed by the lure URL',
       'Click the linked Sliver C2 incident chip to pivot',
     ],
@@ -209,7 +209,7 @@ export const TOUR_STEPS: TourStep[] = [
     subGoals: [
       {
         id: 'correlations:open-tab',
-        label: 'Open the Correlations tab',
+        label: 'Open Correlations',
         targetSelector: '[data-tour="incident-tab-correlations"]',
       },
       {

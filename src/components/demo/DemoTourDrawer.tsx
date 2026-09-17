@@ -19,7 +19,7 @@ import { useDemo, TOUR_STEPS } from '@/context/DemoContext';
 import { useEntityPreference } from '@/hooks/useEntityLabel';
 import { applyEntityTerminology } from '@/lib/entityTerminology';
 import { motion, AnimatePresence, useMotionValue, type PanInfo } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, Minus, PanelRight, PanelBottom } from 'lucide-react';
 
 // Persisted drag offset for the floating demo UI (anchor pill, minimized
 // pill, and expanded drawer all share one position so the user's preferred
@@ -613,63 +613,48 @@ export const DemoTourDrawer = () => {
                   </Typography>
                 </Box>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: isBottom ? 0 : 'auto' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, ml: isBottom ? 0 : 'auto' }}>
                 <Tooltip title={isBottom ? 'Dock to right' : 'Dock to bottom'} arrow slotProps={{ popper: { sx: { zIndex: 2147483647 } } }}>
-                  <Button
+                  <IconButton
                     onClick={toggleDock}
                     size="small"
                     sx={{
-                      minWidth: 'auto',
-                      px: 0.75,
-                      py: 0.25,
-                      fontSize: '0.6875rem',
-                      fontWeight: 600,
                       color: 'hsl(var(--muted-foreground))',
-                      textTransform: 'none',
+                      p: 0.5,
                       borderRadius: 1,
                       '&:hover': { color: 'hsl(var(--foreground))', backgroundColor: 'hsl(var(--muted) / 0.6)' },
                     }}
                   >
-                    {isBottom ? 'Right' : 'Bottom'}
-                  </Button>
+                    {isBottom ? <PanelRight size={16} /> : <PanelBottom size={16} />}
+                  </IconButton>
                 </Tooltip>
                 <Tooltip title="Minimize" arrow slotProps={{ popper: { sx: { zIndex: 2147483647 } } }}>
-                  <Button
+                  <IconButton
                     onClick={minimizeTour}
                     size="small"
                     sx={{
-                      minWidth: 'auto',
-                      px: 0.75,
-                      py: 0.25,
-                      fontSize: '0.6875rem',
-                      fontWeight: 600,
                       color: 'hsl(var(--muted-foreground))',
-                      textTransform: 'none',
+                      p: 0.5,
                       borderRadius: 1,
                       '&:hover': { color: 'hsl(var(--foreground))', backgroundColor: 'hsl(var(--muted) / 0.6)' },
                     }}
                   >
-                    Min
-                  </Button>
+                    <Minus size={16} />
+                  </IconButton>
                 </Tooltip>
                 <Tooltip title="Close demo mode" arrow slotProps={{ popper: { sx: { zIndex: 2147483647 } } }}>
-                  <Button
+                  <IconButton
                     onClick={closeTour}
                     size="small"
                     sx={{
-                      minWidth: 'auto',
-                      px: 0.75,
-                      py: 0.25,
-                      fontSize: '0.6875rem',
-                      fontWeight: 600,
                       color: 'hsl(var(--muted-foreground))',
-                      textTransform: 'none',
+                      p: 0.5,
                       borderRadius: 1,
                       '&:hover': { color: 'hsl(var(--foreground))', backgroundColor: 'hsl(var(--muted) / 0.6)' },
                     }}
                   >
-                    Close
-                  </Button>
+                    <X size={16} />
+                  </IconButton>
                 </Tooltip>
               </Box>
               {isBottom && (

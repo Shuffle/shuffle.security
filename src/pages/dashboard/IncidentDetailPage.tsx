@@ -213,6 +213,7 @@ import {
   isAIAssignee,
   deduplicateTasks,
   ensureTaskIds,
+  ensureActivityIds,
   htmlToPlainText,
   decodeHtmlEntities,
   decodeIfBase64,
@@ -751,6 +752,115 @@ const cleanInitialRevisionText = (
 };
 
 /**
+ * Parse resolution activity content into a structured reason badge (optional)
+ * and readable body notes.
+ *
+ * Prevents full rationale paragraphs from being incorrectly treated as the
+ * reason code, which would cause them to be truncated inside a green MUI Chip badge.
+ */
+const parseResolutionActivityContent = (
+  rawContent: string | undefined,
+): { reason?: string; notes?: string } => {
+  const content = decodeHtmlEntities(rawContent || "").trim();
+  if (!content) return {};
+
+  // Strip leading "Resolved:" or "Resolved -" prefix if present
+  const resolvedPrefixMatch = content.match(/^Resolved(?::|\s*-)\s*(.*)$/is);
+  const text = (resolvedPrefixMatch ? resolvedPrefixMatch[1] : content).trim();
+  if (!text) return {};
+
+  // 1. Check known resolution reasons (sorted by length descending so multi-part reasons like
+  // "True Positive - Remediated" take priority over any sub-parts)
+  const sortedReasons = [...RESOLUTION_REASONS].sort(
+    (a, b) => b.label.length - a.label.length,
+  );
+
+  for (const r of sortedReasons) {
+    const labelEscaped = r.label.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+    const labelPattern = new RegExp(
+      `^${labelEscaped}\\b(?:\\s*(?:-|:)\\s*(.*)|$)`,
+      "is",
+    );
+    const labelMatch = text.match(labelPattern);
+    if (labelMatch) {
+      return {
+        reason: r.label,
+        notes: labelMatch[1]?.trim() || undefined,
+      };
+    }
+
+    const valEscaped = r.value.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+    const valPattern = new RegExp(
+      `^${valEscaped}\\b(?:\\s*(?:-|:)\\s*(.*)|$)`,
+      "is",
+    );
+    const valMatch = text.match(valPattern);
+    if (valMatch) {
+      return {
+        reason: r.label,
+        notes: valMatch[1]?.trim() || undefined,
+      };
+    }
+  }
+
+  // Common aliases (case-insensitive)
+  const aliasMap: Record<string, string> = {
+    benign: "Benign",
+    fp: "False Positive",
+    tp: "True Positive",
+    duplicate: "Duplicate Incident",
+  };
+  for (const [alias, canonicalLabel] of Object.entries(aliasMap)) {
+    const aliasPattern = new RegExp(
+      `^${alias}\\b(?:\\s*(?:-|:)\\s+(.*)|$)`,
+      "is",
+    );
+    const aliasMatch = text.match(aliasPattern);
+    if (aliasMatch) {
+      return {
+        reason: canonicalLabel,
+        notes: aliasMatch[1]?.trim() || undefined,
+      };
+    }
+  }
+
+  // 2. Custom category label split: Only when explicitly formatted as "Category - Details"
+  // where the category is very short (<= 24 chars), 1-3 words, has no punctuation (. , : ; ? !),
+  // and is followed by notes.
+  const customSplitMatch = text.match(
+    /^([A-Za-z0-9 ]{2,24})\s*(?:-|:)\s+(.+)$/s,
+  );
+  if (customSplitMatch) {
+    const candidateReason = customSplitMatch[1].trim();
+    const candidateNotes = customSplitMatch[2].trim();
+    const words = candidateReason.split(/\s+/);
+    const looksLikeSentence = words.some((w) =>
+      /^(is|are|was|were|the|this|that|an|a|in|on|at|to|for|with|by|from|it|its|we|i|you|they|he|she)$/i.test(
+        w,
+      ),
+    );
+    if (
+      candidateReason &&
+      candidateNotes &&
+      words.length <= 3 &&
+      !looksLikeSentence
+    ) {
+      return {
+        reason: candidateReason,
+        notes: candidateNotes,
+      };
+    }
+  }
+
+  // 3. Otherwise, the full text is the resolution notes / rationale.
+  // Rendering it as notes ensures the full text is displayed legibly in normal body typography,
+  // rather than truncated inside a green category chip badge.
+  return {
+    notes: text,
+  };
+};
+
+/**
  * Resolve the "created" timestamp for an incident.
  * Priority: value.created_time → item.created (datastore envelope).
  */
@@ -860,13 +970,17 @@ const parseIncidentFromDatastore = (item: {
 
       // Convert comments to activity for display (legacy format support)
       const comments = customAttrs?.comments || [];
-      const activityFromComments: ActivityItem[] = comments.map((c, i) => ({
-        id: `comment-${i}`,
-        type: "comment" as const,
-        user: c.author,
-        timestamp: new Date(c.timestamp).getTime(),
-        content: c.text,
-      }));
+      const activityFromComments: ActivityItem[] = comments.map((c, i) => {
+        const ts = new Date(c.timestamp).getTime() || 0;
+        const hash = cheapHash(`${c.author || ""}-${c.text || ""}-${ts}`);
+        return {
+          id: `comment-${ts}-${hash || i}`,
+          type: "comment" as const,
+          user: c.author,
+          timestamp: ts,
+          content: c.text,
+        };
+      });
 
       // Use top-level/metadata activity if exists, otherwise fallback to comments
       const mergedActivity =
@@ -912,7 +1026,7 @@ const parseIncidentFromDatastore = (item: {
           (data as any).customFields ||
           (data as any).custom_fields,
         relatedFindings: ocsf.related_events,
-        activity: mergedActivity,
+        activity: ensureActivityIds(mergedActivity),
         tasks,
         rawOCSF: data, // Store raw data for updates
         labels: Array.isArray(ocsf.types) ? ocsf.types : [],
@@ -969,7 +1083,7 @@ const parseIncidentFromDatastore = (item: {
         ),
         customFields,
         relatedFindings: legacyData.related_findings,
-        activity: activity || [],
+        activity: ensureActivityIds(activity || []),
         tasks,
         rawOCSF: legacyData,
         labels: Array.isArray(findingInfo?.types) ? findingInfo.types : [],
@@ -1000,7 +1114,7 @@ const parseIncidentFromDatastore = (item: {
       enrichments: deduplicateEnrichments(item.enrichments, data.enrichments),
       customFields: data.customFields || {},
       relatedFindings: data.relatedFindings || [],
-      activity: data.activity || [],
+      activity: ensureActivityIds(data.activity || []),
       tasks: ensureTaskIds(data.tasks || []),
       rawOCSF: data,
     };
@@ -1727,8 +1841,8 @@ const IncidentDetailPage = () => {
         return Date.now() - (p.timestamp || 0) < 120_000;
       });
       pendingLocalActivityRef.current = stillPending;
-      if (stillPending.length === 0) return list;
-      return [...list, ...stillPending];
+      if (stillPending.length === 0) return ensureActivityIds(list);
+      return ensureActivityIds([...list, ...stillPending]);
     },
     [],
   );
@@ -1837,17 +1951,17 @@ const IncidentDetailPage = () => {
     const ta = (container?.querySelector("textarea:not([readonly])") ||
       document.querySelector("[data-tour='incident-comment-input'] textarea:not([readonly])") ||
       container?.querySelector("textarea") ||
-      document.querySelector("[data-tour='incident-comment-input'] textarea")) as HTMLTextAreaElement | null;
+      document.querySelector("[data-tour='incident-comment-input'] textarea") ||
+      document.querySelector(".incident-comment-box textarea")) as HTMLTextAreaElement | null;
 
     if (ta) {
-      ta.focus({ preventScroll: true });
+      ta.focus();
       const len = ta.value?.length ?? 0;
       try {
         ta.setSelectionRange(len, len);
       } catch {
         /* ignore non-text inputs */
       }
-      container?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       return document.activeElement === ta;
     }
     return false;
@@ -1858,14 +1972,16 @@ const IncidentDetailPage = () => {
   useEffect(() => {
     if (!replyingTo) return;
 
+    focusCommentInput();
+
     let count = 0;
     const interval = setInterval(() => {
       count += 1;
-      const isFocused = focusCommentInput();
-      if (isFocused || count >= 12) {
+      focusCommentInput();
+      if (count >= 15) {
         clearInterval(interval);
       }
-    }, 25);
+    }, 30);
 
     return () => clearInterval(interval);
   }, [replyingTo, focusCommentInput]);
@@ -2138,13 +2254,14 @@ const IncidentDetailPage = () => {
   };
   const displayActivity = useMemo(() => {
     const seenMergeKeys = new Set<string>();
-    return activity.filter((item) => {
+    const filtered = activity.filter((item) => {
       const key = getMergeActivityDisplayKey(item);
       if (!key) return true;
       if (seenMergeKeys.has(key)) return false;
       seenMergeKeys.add(key);
       return true;
     });
+    return ensureActivityIds(filtered);
   }, [activity]);
   const mergeActivity = displayActivity.filter(isMergeActivityItem);
   const commentActivity = displayActivity.filter(
@@ -2273,7 +2390,45 @@ const IncidentDetailPage = () => {
       return null;
     }
   };
+  // Helper to check whether the current incident is a Demo mode incident.
+  const isDemoIncidentKeyOrData = (key?: string | null, data?: unknown): boolean => {
+    if (
+      typeof key === "string" &&
+      (key.startsWith("demo-") || key.startsWith("demo_") || /^demo-inc-/i.test(key))
+    ) {
+      return true;
+    }
+    if (!data || typeof data !== "object") return false;
+    const rec = data as Record<string, unknown>;
+    if (typeof rec.id === "string" && (rec.id.startsWith("demo-") || rec.id.startsWith("demo_"))) return true;
+    if (typeof rec._key === "string" && (rec._key.startsWith("demo-") || rec._key.startsWith("demo_"))) return true;
+    const metadata = rec.metadata as Record<string, unknown> | undefined;
+    const metaExtensions = metadata?.extensions as Record<string, unknown> | undefined;
+    const metaCustomAttrs = metaExtensions?.custom_attributes as Record<string, unknown> | undefined;
+    if (metaCustomAttrs?.demo === true) return true;
+
+    const rawOCSF = rec.rawOCSF as Record<string, unknown> | undefined;
+    const rawMetadata = rawOCSF?.metadata as Record<string, unknown> | undefined;
+    const rawExtensions = rawMetadata?.extensions as Record<string, unknown> | undefined;
+    const rawCustomAttrs = rawExtensions?.custom_attributes as Record<string, unknown> | undefined;
+    if (rawCustomAttrs?.demo === true) return true;
+
+    const extensions = rec.extensions as Record<string, unknown> | undefined;
+    const customAttrs = extensions?.custom_attributes as Record<string, unknown> | undefined;
+    if (customAttrs?.demo === true) return true;
+    return false;
+  };
+
+  const isCurrentDemo =
+    isDemoIncidentKeyOrData(rawId, incident || listFallbackIncident) ||
+    (isDemoActive() && isDemoIncidentKeyOrData(rawId, incident || listFallbackIncident));
+
   const initialTab = (() => {
+    const isDemo =
+      isDemoIncidentKeyOrData(rawId, listFallbackIncident) ||
+      (isDemoActive() && isDemoIncidentKeyOrData(rawId, listFallbackIncident));
+    if (isDemo) return 7;
+
     const t = searchParams.get("tab");
     if (t) {
       const idx = TAB_NAMES.indexOf(t as any);
@@ -2294,6 +2449,17 @@ const IncidentDetailPage = () => {
   }
 
   useEffect(() => {
+    const isDemo =
+      isDemoIncidentKeyOrData(rawId, incident || listFallbackIncident) ||
+      (isDemoActive() && isDemoIncidentKeyOrData(rawId, incident || listFallbackIncident));
+
+    // When viewing a demo incident without manual tab interaction in this session,
+    // force it to open in Simple mode initially no matter what.
+    if (isDemo && !userInteractedTabRef.current) {
+      if (activeTab !== 7) setActiveTabState(7);
+      return;
+    }
+
     const requestedTab = searchParams.get("tab");
     if (requestedTab) {
       const idx = TAB_NAMES.indexOf(requestedTab as any);
@@ -2316,7 +2482,7 @@ const IncidentDetailPage = () => {
       // First-time visit for a support user with no stored preference: default to Simple
       if (activeTab !== 7) setActiveTabState(7);
     }
-  }, [activeTab, isSupportUser, searchParams]);
+  }, [activeTab, isSupportUser, searchParams, rawId, incident, listFallbackIncident]);
 
   const setActiveTab = (tab: number) => {
     userInteractedTabRef.current = true;
@@ -2344,7 +2510,7 @@ const IncidentDetailPage = () => {
       return tab;
     });
 
-    if (tab === 7 || tab === 0) {
+    if (!isCurrentDemo && (tab === 7 || tab === 0)) {
       try {
         localStorage.setItem(
           VIEW_MODE_STORAGE_KEY,
@@ -3997,13 +4163,14 @@ const IncidentDetailPage = () => {
     readIncidentTimestamp,
   ]);
 
-  // Auto-invoke thread merging when the org preference is enabled, OR when
-  // a draft is discovered in an existing thread.
-  // User directive: "If an email in the incident area is ever discovered to be
-  // a draft in an existing thread, merge and omit it."
+  // Auto-invoke thread merging when the org preference is enabled. Runs
+  // silently in the background whenever the current incident has visible
+  // thread siblings that are not already merged/linked. Guarded per
+  // thread_id so a single load only triggers one merge attempt.
   const autoMergeThreadEnabled = useAutoMergeThread();
   const autoMergedThreadsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
+    if (!autoMergeThreadEnabled) return;
     if (isPublicView) return;
     if (autoMergeBusy) return;
     if (!incident?.id || !incident.rawOCSF) return;
@@ -4027,15 +4194,6 @@ const IncidentDetailPage = () => {
       if (s === "merged" || inc.status_id === 6) return false;
       return true;
     });
-
-    const isCurrentDraft = isDraftOnlyIncident(incident.rawOCSF);
-    const hasDraftSibling = previewMergeable.some((inc) => isDraftOnlyIncident(inc.raw));
-    const hasNonDraftSibling = previewMergeable.some((inc) => !isDraftOnlyIncident(inc.raw));
-    const isDraftInExistingThread =
-      (isCurrentDraft && (hasNonDraftSibling || Boolean(relatedIncidents.primary?.id) || threadCorrelated.discoveredCount > 0)) ||
-      (hasDraftSibling && !isCurrentDraft);
-
-    if (!autoMergeThreadEnabled && !isDraftInExistingThread) return;
 
     // Trigger if either the preview has mergeable siblings OR the raw
     // correlation count exceeds what we've resolved locally — in the
@@ -9158,6 +9316,7 @@ const IncidentDetailPage = () => {
             >
               <DebouncedMentionInput
                 ref={debouncedCommentInputRef}
+                autoFocus={!!replyingTo}
                 value={newComment}
                 onChangeDebounced={setNewComment}
                 onSubmitValue={(text) => {
@@ -9610,6 +9769,8 @@ const IncidentDetailPage = () => {
           attrAfter?: any;
           addedTags?: string[];
           removedTags?: string[];
+          attrTs?: number;
+          attrRevIdx?: number;
         }
     ) & { isPreview?: boolean };
 
@@ -10244,11 +10405,12 @@ const IncidentDetailPage = () => {
               label = removedTags.length === 1 ? "Removed tag" : "Removed tags";
             }
 
+            const stepId = `step-attr-${lastEntry.ts + (lastEntry.fieldIdx || 0)}-${field}`;
             items.push({
               type: "step",
               kind: "attribute-changed",
               timestamp: lastEntry.ts + lastEntry.fieldIdx,
-              id: `step-attr-${lastEntry.idx}-${field}`,
+              id: stepId,
               label,
               actor: lastEntry.actor,
               attrField: "labels",
@@ -10256,6 +10418,8 @@ const IncidentDetailPage = () => {
               attrAfter: finalTags,
               addedTags,
               removedTags,
+              attrTs: lastEntry.ts,
+              attrRevIdx: lastEntry.idx,
             });
             return;
           }
@@ -10295,18 +10459,21 @@ const IncidentDetailPage = () => {
             detail = after;
           }
 
+          const stepId = `step-attr-${lastEntry.ts + (lastEntry.fieldIdx || 0)}-${field}`;
           items.push({
             type: "step",
             kind: "attribute-changed",
             // Stagger so multiple attributes changed in one save keep order.
             timestamp: lastEntry.ts + lastEntry.fieldIdx,
-            id: `step-attr-${lastEntry.idx}-${field}`,
+            id: stepId,
             label,
             detail,
             actor: lastEntry.actor,
             attrField: field,
             attrBefore: initialPrev,
             attrAfter: finalCurr,
+            attrTs: lastEntry.ts,
+            attrRevIdx: lastEntry.idx,
           });
         });
       });
@@ -10370,6 +10537,7 @@ const IncidentDetailPage = () => {
           attrField: opt.field,
           attrBefore: opt.prevRaw,
           attrAfter: opt.currRaw,
+          attrTs: opt.timestamp,
         });
       });
     }
@@ -11228,7 +11396,15 @@ const IncidentDetailPage = () => {
       if (it.type === "workflow-exec")
         return `wfexec-${it.data.execution_id || (it.data as any).id || it.timestamp}`;
       if (it.type === "step") return it.id;
-      return it.data.id;
+      const actId = it.data?.id || (it.data as any)?.activity_id || (it.data as any)?.uid;
+      if (actId && String(actId).trim()) return String(actId).trim();
+      const ts = it.data?.timestamp || it.timestamp || 0;
+      const hash = cheapHash(`${it.data?.user || ""}-${it.data?.type || ""}-${it.data?.content || ""}-${ts}`);
+      const fallbackId = `act-${ts}-${hash}`;
+      if (it.data && !it.data.id) {
+        it.data.id = fallbackId;
+      }
+      return fallbackId;
     };
     const getItemLabel = (it: TimelineItem): string => {
       if (it.type === "revision") {
@@ -11290,20 +11466,91 @@ const IncidentDetailPage = () => {
     // Lenient key matching for parent targets (handles legacy -idx suffixes,
     // execution_id substrings, and dynamic step id variations).
     const resolveParentKey = (rawParentId: string): string | null => {
-      if (!rawParentId) return null;
-      if (allKeys.has(rawParentId)) return rawParentId;
-      const stripped = rawParentId.replace(/-\d+$/, "");
+      if (
+        !rawParentId ||
+        rawParentId === "undefined" ||
+        rawParentId === "null" ||
+        !String(rawParentId).trim()
+      ) {
+        return null;
+      }
+      const pId = String(rawParentId).trim();
+
+      // 1. Exact match in allKeys
+      if (allKeys.has(pId)) return pId;
+
+      // 2. Strip trailing -idx or numeric suffix
+      const stripped = pId.replace(/-\d+$/, "");
       if (allKeys.has(stripped)) return stripped;
-      const stepAttrMatch = rawParentId.match(/^step-attr-\d+-(.+)$/);
+
+      // 3. Handle optimistic attribute parent: step-attr-opt-${field}-${timestamp}
+      const optAttrMatch = pId.match(/^step-attr-opt-([^-]+)-(\d+)$/);
+      if (optAttrMatch) {
+        const field = optAttrMatch[1];
+        const optTs = Number(optAttrMatch[2]);
+        let bestKey: string | null = null;
+        let minDiff = Infinity;
+        for (const it of items) {
+          if (it.type === "step" && it.kind === "attribute-changed" && it.attrField === field) {
+            const itTs = (it as any).attrTs || it.timestamp;
+            const diff = Math.abs(itTs - optTs);
+            if (diff < minDiff && diff < 120_000) {
+              minDiff = diff;
+              bestKey = getItemKey(it);
+            }
+          }
+        }
+        if (bestKey) return bestKey;
+      }
+
+      // 4. Handle step-attr-${something}-${field} (timestamp-based or legacy index-based)
+      const stepAttrMatch = pId.match(/^step-attr-(\d+)-(.+)$/);
       if (stepAttrMatch) {
-        const field = stepAttrMatch[1];
-        for (const k of allKeys) {
-          if (k.startsWith("step-attr-") && k.endsWith(`-${field}`)) return k;
+        const numPart = Number(stepAttrMatch[1]);
+        const field = stepAttrMatch[2];
+        if (numPart > 1_000_000_000_000) {
+          // numPart is an epoch timestamp
+          let bestKey: string | null = null;
+          let minDiff = Infinity;
+          for (const it of items) {
+            if (it.type === "step" && it.kind === "attribute-changed" && it.attrField === field) {
+              const itTs = (it as any).attrTs || it.timestamp;
+              const diff = Math.abs(itTs - numPart);
+              if (diff < minDiff) {
+                minDiff = diff;
+                bestKey = getItemKey(it);
+              }
+            }
+          }
+          if (bestKey) return bestKey;
+        } else {
+          // numPart is a revision index (legacy format)
+          for (const it of items) {
+            if (it.type === "step" && it.kind === "attribute-changed" && it.attrField === field) {
+              if ((it as any).attrRevIdx === numPart) {
+                return getItemKey(it);
+              }
+            }
+          }
+          // Fallback: match closest step item for this field
+          for (const it of items) {
+            if (it.type === "step" && it.kind === "attribute-changed" && it.attrField === field) {
+              return getItemKey(it);
+            }
+          }
         }
       }
-      for (const k of allKeys) {
-        if (k === rawParentId || k.startsWith(rawParentId) || rawParentId.startsWith(k)) return k;
+
+      // 5. Activity item ID matching (e.g. status-..., comment-..., act-...)
+      for (const it of items) {
+        if (it.type === "manual" && getItemKey(it) === pId) return getItemKey(it);
       }
+
+      // 6. Substring / prefix matches for workflows and agents
+      for (const k of allKeys) {
+        if (k === pId || k.startsWith(pId) || pId.startsWith(k)) return k;
+      }
+
       return null;
     };
 
@@ -11344,11 +11591,14 @@ const IncidentDetailPage = () => {
         label: getItemLabel(target),
         preview: getItemPreview(target),
       });
-      // Focus the comment box immediately and on next frame so the user can immediately type.
+      // Focus the comment box immediately and across subsequent frames
       focusCommentInput();
       requestAnimationFrame(() => {
         focusCommentInput();
       });
+      setTimeout(() => focusCommentInput(), 30);
+      setTimeout(() => focusCommentInput(), 100);
+      setTimeout(() => focusCommentInput(), 250);
     };
 
     // Group replies under their parent. Only manual items can *be* replies;
@@ -11458,11 +11708,16 @@ const IncidentDetailPage = () => {
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
+                (e.currentTarget as HTMLElement)?.blur();
                 startReplyTo(item);
               }}
               onMouseDown={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
+              }}
+              onMouseUp={(e) => {
+                e.stopPropagation();
+                (e.currentTarget as HTMLElement)?.blur();
               }}
               sx={{
                 width: compact ? 18 : 22,
@@ -14059,18 +14314,8 @@ const IncidentDetailPage = () => {
       // Status activities are system-generated resolution events.
       // Rendered with native resolution status dropdown and details.
       if (isStatusActivity) {
-        const contentRaw = decodeHtmlEntities(actItem.content || "");
-        let resReason: string | undefined;
-        let resNotes: string | undefined;
-        const resMatch = contentRaw.match(
-          /^Resolved:\s*([^-]+)(?:\s*-\s*(.*))?$/i,
-        );
-        if (resMatch) {
-          resReason = resMatch[1]?.trim();
-          resNotes = resMatch[2]?.trim();
-        } else if (contentRaw) {
-          resNotes = contentRaw;
-        }
+        const { reason: resReason, notes: resNotes } =
+          parseResolutionActivityContent(actItem.content);
 
         if (isSimple) {
           return (
@@ -14187,6 +14432,7 @@ const IncidentDetailPage = () => {
                 {resReason && (
                   <Chip
                     label={resReason}
+                    title={resReason}
                     size="small"
                     variant="outlined"
                     sx={{
@@ -14337,6 +14583,7 @@ const IncidentDetailPage = () => {
               {resReason && (
                 <Chip
                   label={resReason}
+                  title={resReason}
                   size="small"
                   variant="outlined"
                   sx={{
@@ -18723,33 +18970,59 @@ const IncidentDetailPage = () => {
                       correlationCount={visibleCorrelations.length}
                       relatedIncidents={relatedIncidents.linked}
                       resolution={(() => {
-                        const statusDetail = String(
-                          (incident.rawOCSF as any)?.status_detail || "",
-                        ).trim();
                         const isResolved =
                           (
                             editedStatus ||
                             incident.status ||
                             ""
                           ).toLowerCase() === "resolved";
-                        if (!isResolved || !statusDetail) return undefined;
-                        const sepIndex = statusDetail.indexOf(":");
-                        const rawReason =
-                          sepIndex >= 0
-                            ? statusDetail.slice(0, sepIndex).trim()
-                            : statusDetail;
-                        const notes =
-                          sepIndex >= 0
-                            ? statusDetail.slice(sepIndex + 1).trim()
-                            : "";
-                        const reasonLabel =
-                          RESOLUTION_REASONS.find((r) => r.value === rawReason)
-                            ?.label || rawReason;
+                        if (!isResolved) return undefined;
+                        const statusDetail = String(
+                          (incident.rawOCSF as any)?.status_detail || "",
+                        ).trim();
                         const statusEvent = [...activity]
                           .reverse()
                           .find((a) => a.type === "status");
+                        const parsedFromActivity = statusEvent?.content
+                          ? parseResolutionActivityContent(statusEvent.content)
+                          : undefined;
+
+                        let reasonLabel: string | undefined;
+                        let notes: string | undefined;
+
+                        if (statusDetail) {
+                          const sepIndex = statusDetail.indexOf(":");
+                          const rawReason =
+                            sepIndex >= 0
+                              ? statusDetail.slice(0, sepIndex).trim()
+                              : statusDetail;
+                          const rawNotes =
+                            sepIndex >= 0
+                              ? statusDetail.slice(sepIndex + 1).trim()
+                              : "";
+                          const matchedReason = RESOLUTION_REASONS.find(
+                            (r) => r.value === rawReason,
+                          );
+                          reasonLabel =
+                            matchedReason?.label ||
+                            (rawNotes ? rawReason : undefined);
+                          notes =
+                            rawNotes || (reasonLabel ? undefined : rawReason);
+                        }
+
+                        if (parsedFromActivity) {
+                          if (!reasonLabel && parsedFromActivity.reason) {
+                            reasonLabel = parsedFromActivity.reason;
+                          }
+                          if (!notes && parsedFromActivity.notes) {
+                            notes = parsedFromActivity.notes;
+                          }
+                        }
+
+                        if (!reasonLabel && !notes) return undefined;
+
                         return {
-                          reasonLabel,
+                          reasonLabel: reasonLabel || "Resolved",
                           notes: notes || undefined,
                           resolvedBy: statusEvent?.user || undefined,
                           resolvedAt: statusEvent?.timestamp || undefined,

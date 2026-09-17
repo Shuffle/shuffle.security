@@ -389,6 +389,35 @@ export function ensureTaskIds<T extends { id?: string; createdAt?: number }>(tas
 }
 
 /**
+ * Ensures that every activity item in the array has a non-empty, unique ID.
+ * If an activity lacks an ID or collides with another activity's ID, a deterministic unique ID is generated.
+ */
+export function ensureActivityIds<T extends { id?: string; timestamp?: number; content?: string; user?: string; type?: string }>(activities: T[]): T[] {
+  if (!Array.isArray(activities)) return [];
+  const seenIds = new Set<string>();
+  return activities.map((item, index) => {
+    if (!item || typeof item !== 'object') return item;
+    let id = item.id ? String(item.id).trim() : '';
+    if (!id || seenIds.has(id)) {
+      const ts = item.timestamp || 0;
+      const typeStr = item.type || 'act';
+      const contentStr = String(item.content || '');
+      let hash = 0;
+      for (let i = 0; i < contentStr.length; i++) {
+        hash = ((hash << 5) - hash) + contentStr.charCodeAt(i);
+        hash |= 0;
+      }
+      id = id && !seenIds.has(id) ? id : `${typeStr}-${ts || index}-${index}-${Math.abs(hash)}`;
+    }
+    seenIds.add(id);
+    return {
+      ...item,
+      id,
+    };
+  });
+}
+
+/**
  * Deduplicate tasks by exact match on title + category + description.
  * Keeps the first occurrence (preserving order and IDs).
  */

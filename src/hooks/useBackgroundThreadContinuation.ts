@@ -86,17 +86,15 @@ export const useBackgroundThreadContinuation = (
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (!enabled) return;
     if (busyRef.current) return;
     if (!incidents || incidents.length === 0) return;
 
     // Collect at most one candidate per thread in the current list view.
     // Non-draft candidates always win over draft candidates; existing anchors win;
     // otherwise the newest visible row starts the merge.
-    // If auto-merge is disabled org-wide, we still collect threads that contain
-    // a draft incident so drafts discovered in existing threads are merged and omitted.
     const now = Date.now();
     const byThread = new Map<string, ThreadCandidate>();
-    const threadHasDraft = new Set<string>();
 
     for (const inc of incidents) {
       const raw = inc.rawOCSF;
@@ -110,9 +108,6 @@ export const useBackgroundThreadContinuation = (
       const tid = extractThreadId(raw);
       if (!tid) continue;
       const threadKey = String(tid).toLowerCase();
-      if (isDraftOnlyIncident(raw)) {
-        threadHasDraft.add(threadKey);
-      }
 
       const linked = getLinkedPointers(raw).length;
       const key = linked > 0 ? `${threadKey}:${inc.id}` : `${threadKey}:new`;
@@ -146,12 +141,7 @@ export const useBackgroundThreadContinuation = (
       }
     }
 
-    // If auto-merge is not enabled org-wide, filter down to threads with drafts
-    let candidateList = Array.from(byThread.values());
-    if (!enabled) {
-      candidateList = candidateList.filter((c) => threadHasDraft.has(String(c.threadId).toLowerCase()));
-    }
-    const candidates = candidateList.slice(0, MAX_THREAD_GROUPS_PER_PASS);
+    const candidates = Array.from(byThread.values()).slice(0, MAX_THREAD_GROUPS_PER_PASS);
     if (candidates.length === 0) return;
 
     busyRef.current = true;
@@ -245,13 +235,6 @@ export const useBackgroundThreadContinuation = (
             { id: candidate.id, raw, title: raw?.title || raw?.finding_info_list?.[0]?.title || candidate.id, ts: readTs(raw) || candidate.createdTs || 0 },
             ...siblings.map((s) => ({ id: s.id, raw: s.raw, title: s.title, ts: readTs(s.raw) || 0 })),
           ];
-          const hasDraftInPool = fullPool.some((p) => isDraftOnlyIncident(p.raw));
-          const hasNonDraftInPool = fullPool.some((p) => !isDraftOnlyIncident(p.raw));
-          // If auto-merge preference is disabled, only proceed if this thread discovers
-          // a draft in an existing thread (both draft and non-draft members present).
-          if (!enabled && (!hasDraftInPool || !hasNonDraftInPool)) {
-            continue;
-          }
 
           // Primary selection order:
           //   1. Non-draft always wins over draft.

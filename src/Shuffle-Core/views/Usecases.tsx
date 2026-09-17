@@ -1390,7 +1390,13 @@ function getActiveOrgId(): string | null {
   }
 }
 
-const DEFAULT_INCIDENT_AI_AGENT_PROMPT = `Triage, investigate, and respond holistically to this incident. Choose the appropriate response path:
+const DEFAULT_INCIDENT_AI_AGENT_PROMPT = `Triage, investigate, and respond holistically to this incident.
+
+OPERATING POSTURE:
+- Simple, benign, or routine alerts (false positives, authorized scanners, duplicate noise): Act as an AUTONOMOUS RESOLVER. Verify technical evidence, document findings in activity, set status to "resolved", and close cleanly with zero open tasks.
+- Complex alerts and confirmed threats (malware, C2 beaconing, ransomware, lateral movement): Act as an ANALYST COPILOT. Do NOT attempt to close the incident autonomously. Your mission is to prepare the case and accelerate the human analyst by correlating telemetry, generating structured response tasks across categories, recommending containment actions with approval_required: true, and setting status to "in_progress" or "escalated".
+
+RESPONSE PATHWAYS:
 
 1. AUTO-RESOLVE / CLOSE (Benign, False Positive, Duplicate, or Test ONLY):
 - ONLY if this alert is definitively verified as a false positive, benign administrative activity, authorized test/scan, routine noise, or a duplicate of an existing incident.
@@ -1418,7 +1424,7 @@ const DEFAULT_INCIDENT_AI_AGENT_PROMPT = `Triage, investigate, and respond holis
 - If ongoing investigation, containment, or remediation is needed, set "status" to "in_progress" (or "escalated"). NEVER set "status" to "resolved" while open tasks exist.
 - For triage progress or investigation notes, use type "comment", NOT type "status": {"ai_handled": true, "id": "comment-\${timenow-unix}", "type": "comment", "user": "@AIAgent", "timestamp": \${timenow-unix}, "content": "Triage findings: [Summary of verified facts, indicators, and next steps]"}.
 - Generate structured tasks in JSON format: {"tasks": [{"assignee": "", "title": "Title of task", "category": "triage/investigation/containment/recovery/communication/documentation", "action": "isolate/block/revoke/query/tune/document/etc.", "source": "sentinelone/crowdstrike/okta/splunk/virustotal/manual/etc.", "completed": false, "createdBy": "ai-agent@shuffler.io"}]}.
-- Document findings, timeline, and MITRE ATT&CK techniques in activity and comments. Tackle tasks one by one, self-assigning and completing them as progress is made.
+- Document findings, timeline, and MITRE ATT&CK techniques in activity and comments. Leave generated tasks open (completed: false) for the analyst and incident response team to coordinate and track. Do NOT prematurely mark tasks completed or close the incident.
 
 Update the internal shuffle datastore with the same key and category 'shuffle-security_incidents'. CRITICAL: You MUST ONLY send the specific fields that require a change. NEVER send or echo unchanged fields (such as unchanged tasks, activity, severity, or metadata). Do NOT overwrite unrelated fields.`;
 

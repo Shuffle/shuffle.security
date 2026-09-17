@@ -86,6 +86,7 @@ declare module '@/components/common/ShuffleLogo' {
 declare module '@/context/AuthContext' {
   export function useAuth(...args: any[]): any;
   export function useOptionalAuth(...args: any[]): any;
+  export function AuthFallbackProvider(props: any): any;
 }
 
 declare module '@/context/ThemeContext' {

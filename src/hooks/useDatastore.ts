@@ -192,17 +192,59 @@ export const useDatastore = ({ category, orgId: overrideOrgId }: UseDatastoreOpt
     setHasMore(false);
   }, []);
 
-  // Demo Mode: if data was just seeded for our category, refetch so the open
-  // page updates live as the user advances through the tour.
+  // Reset state and re-fetch when overrideOrgId changes
+  const prevOrgIdRef = useRef(overrideOrgId);
+  useEffect(() => {
+    if (prevOrgIdRef.current !== overrideOrgId) {
+      prevOrgIdRef.current = overrideOrgId;
+      setItems([]);
+      setCursor(null);
+      setHasMore(false);
+      setTotalAmount(null);
+      setHasFetched(false);
+      hasFetchedRef.current = false;
+      fetchItems();
+    }
+  }, [overrideOrgId, fetchItems]);
+
+  // Listen to refresh, tenant change, and cross-tenant incident move events
   useEffect(() => {
     const onRefresh = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail?.category === category) {
+      if (!detail?.category || detail.category === category) {
         fetchItems();
       }
     };
+
+    const onOrgChange = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      const newOrgId = detail?.orgId;
+      if (!overrideOrgId || overrideOrgId === newOrgId) {
+        setItems([]);
+        setCursor(null);
+        setHasMore(false);
+        setTotalAmount(null);
+        setHasFetched(false);
+        hasFetchedRef.current = false;
+        fetchItems();
+      }
+    };
+
+    const onIncidentMoved = () => {
+      if (category === 'incidents' || category === 'cases') {
+        fetchItems();
+      }
+    };
+
     window.addEventListener('demo:refresh', onRefresh);
-    return () => window.removeEventListener('demo:refresh', onRefresh);
+    window.addEventListener('shuffle:org-change', onOrgChange);
+    window.addEventListener('shuffle:incident-moved', onIncidentMoved);
+
+    return () => {
+      window.removeEventListener('demo:refresh', onRefresh);
+      window.removeEventListener('shuffle:org-change', onOrgChange);
+      window.removeEventListener('shuffle:incident-moved', onIncidentMoved);
+    };
   }, [category, fetchItems, overrideOrgId]);
 
   const addItem = useCallback(async (key: string, value: string | object, skipRefresh = true): Promise<boolean> => {

@@ -1,4 +1,5 @@
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { toast } from '@/lib/toast';
 
 export interface ShuffleFile {
   id: string;
@@ -120,6 +121,17 @@ export const createAndUploadFile = async (
   const uploadResult = await uploadFile(createResult.id, file);
   if (!uploadResult.success) {
     return { success: false, reason: uploadResult.reason || 'Failed to upload file' };
+  }
+
+  // Cache local object URL for instant rendering without re-fetching
+  if (createResult.id && typeof window !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+    try {
+      const localUrl = URL.createObjectURL(file);
+      cacheFileBlob(`/api/v1/files/${createResult.id}/content`, localUrl);
+      cacheFileBlob(createResult.id, localUrl);
+    } catch {
+      /* ignore object URL failure */
+    }
   }
 
   // Return the file info
@@ -297,7 +309,7 @@ export const isShuffleFileUrl = (src?: string | null): boolean => {
 };
 
 /**
- * Resolves a file URL (which may be a relative /api/v1/files/... or absolute URL)
+ * Resolves a file URL (which may be a bare file ID, a relative /api/v1/files/... or absolute URL)
  * into a renderable URL. For Shuffle file endpoints requiring authentication,
  * fetches the content with auth headers and returns a local object URL.
  */
@@ -307,21 +319,37 @@ export const resolveFileUrl = async (src: string): Promise<string> => {
     return src;
   }
 
-  const cached = getCachedFileBlob(src);
+  // Normalize bare file IDs into file content endpoints
+  let normalizedSrc = src;
+  if (
+    !normalizedSrc.startsWith('http') &&
+    !normalizedSrc.startsWith('/') &&
+    !normalizedSrc.startsWith('data:') &&
+    !normalizedSrc.startsWith('blob:')
+  ) {
+    normalizedSrc = `/api/v1/files/${normalizedSrc}/content`;
+  }
+
+  const cached = getCachedFileBlob(normalizedSrc) || getCachedFileBlob(src);
   if (cached) return cached;
 
-  const key = normalizeFileKey(src);
-  const pending = pendingFetches.get(key) || pendingFetches.get(src);
+  const key = normalizeFileKey(normalizedSrc);
+  const pending =
+    pendingFetches.get(key) ||
+    pendingFetches.get(normalizedSrc) ||
+    pendingFetches.get(src);
   if (pending) return pending;
 
   // If not a Shuffle file endpoint and already absolute, return directly
-  if (!isShuffleFileUrl(src) && /^https?:\/\//i.test(src)) {
-    return src;
+  if (!isShuffleFileUrl(normalizedSrc) && /^https?:\/\//i.test(normalizedSrc)) {
+    return normalizedSrc;
   }
 
   const fetchPromise = (async () => {
     try {
-      const url = src.startsWith('http') ? src : getApiUrl(src);
+      const url = normalizedSrc.startsWith('http')
+        ? normalizedSrc
+        : getApiUrl(normalizedSrc);
       const res = await fetch(url, {
         credentials: 'include',
         headers: getAuthHeader(),
@@ -331,15 +359,47 @@ export const resolveFileUrl = async (src: string): Promise<string> => {
       }
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
+      cacheFileBlob(normalizedSrc, objectUrl);
       cacheFileBlob(src, objectUrl);
       return objectUrl;
     } finally {
       pendingFetches.delete(key);
+      pendingFetches.delete(normalizedSrc);
       pendingFetches.delete(src);
     }
   })();
 
   pendingFetches.set(key, fetchPromise);
+  pendingFetches.set(normalizedSrc, fetchPromise);
   pendingFetches.set(src, fetchPromise);
   return fetchPromise;
 };
+
+/**
+ * Triggers a browser download for a file given its ID or URL and filename.
+ */
+export const downloadFileAttachment = async (
+  fileIdOrUrl: string,
+  filename: string,
+): Promise<void> => {
+  try {
+    if (!fileIdOrUrl) {
+      throw new Error('No file identifier provided');
+    }
+    const blobUrl = await resolveFileUrl(fileIdOrUrl);
+    if (!blobUrl) {
+      throw new Error('Could not resolve file content');
+    }
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename || 'download';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (error) {
+    console.error('Failed to download file:', error);
+    toast.error(`Failed to download ${filename || 'file'}`);
+  }
+};
+

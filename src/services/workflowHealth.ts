@@ -82,7 +82,8 @@ export function getWorkflowRuntimeLocation(
   const isCloud =
     normalizedTarget === "cloud" ||
     normalizedTarget === "shuffle cloud" ||
-    (normalizedTarget === "default" && (!defaultEnv || defaultEnv.Type === "cloud"));
+    (normalizedTarget === "default" &&
+      (!defaultEnv || defaultEnv.Type === "cloud"));
 
   const isOnline = matchedEnv ? isRunning(matchedEnv) : isCloud;
 

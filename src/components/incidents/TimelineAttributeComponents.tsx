@@ -33,7 +33,9 @@ export const TimelineSeverityDropdown: React.FC<TimelineSeverityDropdownProps> =
   onChange,
   disabled = false,
 }) => {
-  const normalized = (value || 'medium').toLowerCase();
+  const VALID_SEVERITIES = ['critical', 'high', 'medium', 'low', 'informational'];
+  const lowerVal = String(value || '').toLowerCase().trim();
+  const normalized = VALID_SEVERITIES.includes(lowerVal) ? lowerVal : 'medium';
   const color = getSeverityColor(normalized);
   const isReadOnly = disabled || !onChange;
 

@@ -841,6 +841,7 @@ const IncidentsPage = () => {
 
   const { items: datastoreItems, isLoading, isRefreshing, hasFetched, error, lastDiagnostics, fetchItems, addItem, hasMore, fetchNextPage, categoryConfig, totalAmount } = useDatastore({
     category: DATASTORE_CATEGORIES.INCIDENTS,
+    orgId: currentOrgId,
   });
 
   const supportIncidentDebugRows = useMemo<Array<[string, string]>>(() => {
@@ -948,8 +949,22 @@ const IncidentsPage = () => {
   useEffect(() => {
     if (isParentOrg) {
       fetchSubOrgIncidents();
+    } else {
+      setSubOrgItems(new Map());
     }
-  }, [isParentOrg, fetchSubOrgIncidents]);
+  }, [isParentOrg, currentOrgId, fetchSubOrgIncidents]);
+
+  // Refetch when an incident is moved between tenants
+  useEffect(() => {
+    const handleIncidentMoved = () => {
+      fetchItems();
+      if (isParentOrg) {
+        fetchSubOrgIncidents();
+      }
+    };
+    window.addEventListener('shuffle:incident-moved', handleIncidentMoved);
+    return () => window.removeEventListener('shuffle:incident-moved', handleIncidentMoved);
+  }, [fetchItems, isParentOrg, fetchSubOrgIncidents]);
 
   // Auto-select all orgs when filter is empty and multi-tenant view is available
   useEffect(() => {
@@ -1742,7 +1757,13 @@ const IncidentsPage = () => {
     }
     const orgFilter = Array.isArray(filters.org) ? filters.org : filters.org ? [filters.org] : [];
     if (orgFilter.length > 0) {
-      result = result.filter(i => orgFilter.includes(i.orgId || ''));
+      result = result.filter(i => {
+        if (orgFilter.includes(i.orgId || '')) return true;
+        if (Array.isArray(i.sharedOrgs)) {
+          return i.sharedOrgs.some((so: any) => orgFilter.includes(so.id || so.orgId || ''));
+        }
+        return false;
+      });
     }
 
     // Merge any extra incidents loaded via remote correlations
@@ -3397,7 +3418,9 @@ const IncidentsPage = () => {
                   const localCount = sortedIncidents.length;
                   const activeTotal = activeIncidents.length;
                   const apiTotal = totalAmount ?? 0;
-                  const totalIncidents = Math.max(activeTotal, apiTotal, incidents.length);
+                  const totalIncidents = hasMore
+                    ? Math.max(activeTotal, apiTotal, incidents.length)
+                    : activeTotal;
                   const totalDisplay = hasMore ? `${totalIncidents}+` : `${totalIncidents}`;
                   const totalPages = Math.max(1, Math.ceil(localCount / ITEMS_PER_PAGE));
                   const isNarrowed = !isDefaultFilter && totalIncidents > localCount;

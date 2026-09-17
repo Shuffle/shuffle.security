@@ -1,12 +1,17 @@
 import { User as PersonIcon } from 'lucide-react';
-import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
+import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent, forwardRef, useImperativeHandle } from 'react';
 import { Box, TextField, TextFieldProps, Typography, Avatar } from '@mui/material';
 import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
 import { useUsers, User } from '@/hooks/useUsers';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
 import { isAIAssignee, AI_AGENT_HANDLE } from '@/lib/utils';
 
-interface MentionInputProps extends Omit<TextFieldProps, 'onChange'> {
+export interface MentionInputHandle {
+  focus: () => void;
+  inputElement: HTMLInputElement | HTMLTextAreaElement | null;
+}
+
+export interface MentionInputProps extends Omit<TextFieldProps, 'onChange'> {
   value: string;
   onChange: (value: string) => void;
   onSubmit?: () => void;
@@ -22,14 +27,29 @@ interface MentionSuggestion {
  * TextField with @mention autocomplete dropdown.
  * Shows user suggestions when typing @username.
  */
-export const MentionInput = ({ value, onChange, onSubmit, ...props }: MentionInputProps) => {
+export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(({ value, onChange, onSubmit, ...props }, ref) => {
   const { users } = useUsers();
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<MentionSuggestion[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartPos, setMentionStartPos] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      if (inputRef.current) {
+        inputRef.current.focus({ preventScroll: true });
+        const len = inputRef.current.value?.length ?? 0;
+        try {
+          inputRef.current.setSelectionRange(len, len);
+        } catch {
+          /* ignore non-text inputs */
+        }
+      }
+    },
+    inputElement: inputRef.current,
+  }));
 
   // All available users including AI Agent
   const allUsers: MentionSuggestion[] = [
@@ -221,6 +241,7 @@ export const MentionInput = ({ value, onChange, onSubmit, ...props }: MentionInp
       </Popover>
     </Box>
   );
-};
+});
+MentionInput.displayName = 'MentionInput';
 
 export default MentionInput;

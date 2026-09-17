@@ -14,7 +14,9 @@ import {
   createAndUploadFile, 
   deleteFile, 
   getFileDownloadUrl, 
-  formatFileSize 
+  formatFileSize,
+  resolveFileUrl,
+  downloadFileAttachment,
 } from '@/services/files';
 import { getAuthHeader } from '@/Shuffle-MCPs/api';
 import { toast } from '@/lib/toast';
@@ -58,22 +60,19 @@ const useImagePreview = (fileId: string, isImage: boolean) => {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isImage) return;
-    
-    const url = getFileDownloadUrl(fileId);
-    fetch(url, {
-      credentials: 'include',
-      headers: { ...getAuthHeader() },
-    })
-      .then(res => res.blob())
-      .then(blob => {
-        const objectUrl = URL.createObjectURL(blob);
-        setBlobUrl(objectUrl);
+    if (!isImage || !fileId) return;
+    let active = true;
+
+    resolveFileUrl(fileId)
+      .then((url) => {
+        if (active && url) {
+          setBlobUrl(url);
+        }
       })
       .catch(() => {});
 
     return () => {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      active = false;
     };
   }, [fileId, isImage]);
 
@@ -86,11 +85,13 @@ const ImageThumbnail = ({
   onDelete, 
   onDownload,
   deleting = false,
+  size = 64,
 }: { 
   attachment: FileAttachment; 
   onDelete: () => void; 
   onDownload: () => void;
   deleting?: boolean;
+  size?: number;
 }) => {
   const blobUrl = useImagePreview(attachment.id, true);
   const [showPreview, setShowPreview] = useState(false);
@@ -100,8 +101,8 @@ const ImageThumbnail = ({
       <Box
         sx={{
           position: 'relative',
-          width: 64,
-          height: 64,
+          width: size,
+          height: size,
           borderRadius: 1,
           overflow: 'hidden',
           bgcolor: 'action.hover',
@@ -290,39 +291,14 @@ export const FileAttachments = ({
   };
 
   const handleDownload = async (attachment: FileAttachment) => {
-    try {
-      const url = getFileDownloadUrl(attachment.id);
-      const res = await fetch(url, {
-        credentials: 'include',
-        headers: { ...getAuthHeader() },
-      });
-      if (!res.ok) throw new Error('Download failed');
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = attachment.filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-    } catch {
-      toast.error('Failed to download file');
-    }
+    await downloadFileAttachment(attachment.id, attachment.filename);
   };
 
   const handleOpen = async (attachment: FileAttachment) => {
     try {
-      const url = getFileDownloadUrl(attachment.id);
-      const res = await fetch(url, {
-        credentials: 'include',
-        headers: { ...getAuthHeader() },
-      });
-      if (!res.ok) throw new Error('Open failed');
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
+      const blobUrl = await resolveFileUrl(attachment.id);
+      if (!blobUrl) throw new Error('Open failed');
       window.open(blobUrl, '_blank');
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch {
       toast.error('Failed to open file');
     }
@@ -341,22 +317,39 @@ export const FileAttachments = ({
         
         {attachments.map((attachment) => {
           const isDeleting = deletingIds.has(attachment.id);
+          const isImage = isImageFile(attachment.filename);
+
+          if (isImage) {
+            return (
+              <ImageThumbnail
+                key={attachment.id}
+                attachment={attachment}
+                onDelete={() => handleDelete(attachment)}
+                onDownload={() => handleDownload(attachment)}
+                deleting={isDeleting}
+                size={48}
+              />
+            );
+          }
+
           return (
-            <Chip
-              key={attachment.id}
-              icon={isDeleting ? <CircularProgress size={12} sx={{ color: 'text.secondary' }} /> : getFileIcon(attachment.filename)}
-              label={attachment.filename}
-              size="small"
-              onDelete={isDeleting ? undefined : () => handleDelete(attachment)}
-              onClick={() => handleOpen(attachment)}
-              disabled={isDeleting}
-              sx={{
-                bgcolor: 'hsl(var(--muted) / 0.5)',
-                '&:hover': { bgcolor: 'hsl(var(--muted) / 0.8)' },
-                '& .MuiChip-icon': { color: 'text.secondary' },
-                opacity: isDeleting ? 0.6 : 1,
-              }}
-            />
+            <Tooltip key={attachment.id} title={`Download ${attachment.filename}`}>
+              <Chip
+                icon={isDeleting ? <CircularProgress size={12} sx={{ color: 'text.secondary' }} /> : getFileIcon(attachment.filename)}
+                label={attachment.filename}
+                size="small"
+                onDelete={isDeleting ? undefined : () => handleDelete(attachment)}
+                onClick={() => handleDownload(attachment)}
+                disabled={isDeleting}
+                sx={{
+                  bgcolor: 'hsl(var(--muted) / 0.5)',
+                  '&:hover': { bgcolor: 'hsl(var(--muted) / 0.8)' },
+                  '& .MuiChip-icon': { color: 'text.secondary' },
+                  opacity: isDeleting ? 0.6 : 1,
+                  cursor: 'pointer',
+                }}
+              />
+            </Tooltip>
           );
         })}
         

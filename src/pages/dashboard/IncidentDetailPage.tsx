@@ -207,6 +207,7 @@ import {
 } from "@/components/incidents/DeferredTextField";
 import { TaskDateTimePicker } from "@/components/incidents/TaskDateTimePicker";
 import { FileAttachments } from "@/components/incidents/FileAttachments";
+import { CommentAttachments } from "@/components/incidents/CommentAttachments";
 import { toast } from "@/lib/toast";
 import {
   isAIAssignee,
@@ -511,14 +512,16 @@ const timelineClampSingleLineSx = {
   overflow: "hidden",
   textOverflow: "ellipsis",
   maxWidth: "100%",
+  boxSizing: "border-box",
   cursor: "inherit",
   transition: "all 0.12s ease",
   "&:hover, .timeline-hover-row:hover &": {
     whiteSpace: "pre-wrap",
-    overflow: "visible",
+    overflow: "hidden",
     wordBreak: "break-word",
+    overflowWrap: "anywhere",
   },
-};
+} as const;
 
 const formatDuration = (ms: number): string => {
   // Guard against NaN/undefined/negative — callers sometimes pass a diff of
@@ -1824,6 +1827,49 @@ const IncidentDetailPage = () => {
     preview: string;
   } | null>(null);
   const commentInputRef = useRef<HTMLDivElement>(null);
+
+  const focusCommentInput = useCallback(() => {
+    // 1. Try imperative handle on DebouncedMentionInput
+    debouncedCommentInputRef.current?.focus();
+
+    // 2. Query the actual textarea inside the comment container or DOM
+    const container = commentInputRef.current;
+    const ta = (container?.querySelector("textarea:not([readonly])") ||
+      document.querySelector("[data-tour='incident-comment-input'] textarea:not([readonly])") ||
+      container?.querySelector("textarea") ||
+      document.querySelector("[data-tour='incident-comment-input'] textarea")) as HTMLTextAreaElement | null;
+
+    if (ta) {
+      ta.focus({ preventScroll: true });
+      const len = ta.value?.length ?? 0;
+      try {
+        ta.setSelectionRange(len, len);
+      } catch {
+        /* ignore non-text inputs */
+      }
+      container?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return document.activeElement === ta;
+    }
+    return false;
+  }, []);
+
+  // When a reply target is chosen, ensure the comment textarea is actively focused
+  // and ready for typing across all rendering and event phases.
+  useEffect(() => {
+    if (!replyingTo) return;
+
+    let count = 0;
+    const interval = setInterval(() => {
+      count += 1;
+      const isFocused = focusCommentInput();
+      if (isFocused || count >= 12) {
+        clearInterval(interval);
+      }
+    }, 25);
+
+    return () => clearInterval(interval);
+  }, [replyingTo, focusCommentInput]);
+
   // Simple-view timeline feed: tracks whether to auto-follow bottom on new entries.
   const simpleFeedRef = useRef<HTMLDivElement | null>(null);
   const followSimpleTimelineRef = useRef<boolean>(true);
@@ -1839,14 +1885,11 @@ const IncidentDetailPage = () => {
     );
   };
   const [commentUploading, setCommentUploading] = useState(false);
-  const handleCommentAttach = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const files = e.target.files;
+  const uploadCommentFiles = async (files: File[]) => {
     if (!files || files.length === 0) return;
     setCommentUploading(true);
     const newAttachments: FileAttachment[] = [];
-    for (const file of Array.from(files)) {
+    for (const file of files) {
       const result = await createAndUploadFile(
         file,
         "incidents",
@@ -1868,7 +1911,33 @@ const IncidentDetailPage = () => {
       setCommentAttachments((prev) => [...prev, ...newAttachments]);
     }
     setCommentUploading(false);
+  };
+
+  const handleCommentAttach = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = e.target.files;
+    if (files) {
+      await uploadCommentFiles(Array.from(files));
+    }
     if (commentFileInputRef.current) commentFileInputRef.current.value = "";
+  };
+
+  const handleCommentPaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === "file") {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      await uploadCommentFiles(files);
+    }
   };
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   // Tick used to re-render the timeline so the AI processing placeholder can
@@ -4170,15 +4239,31 @@ const IncidentDetailPage = () => {
 
     // Check if list page passed shared org IDs
     const sharedOrgParam = searchParams.get("shared_orgs");
-    const allKnownOrgs = [
-      {
-        id: userInfo.active_org!.id,
-        name: userInfo.active_org!.name || "",
-        image: userInfo.active_org!.image,
-      },
-      ...(subOrgs || []),
-      ...(parentOrg ? [parentOrg] : []),
-    ];
+    const seenOrgIds = new Set<string>();
+    const allKnownOrgs: Array<{
+      id: string;
+      name: string;
+      image?: string;
+      region_url?: string;
+      creator_org?: string;
+    }> = [];
+
+    const addKnownOrg = (org?: { id: string; name?: string; image?: string; region_url?: string; creator_org?: string } | null) => {
+      if (!org?.id || seenOrgIds.has(org.id)) return;
+      seenOrgIds.add(org.id);
+      allKnownOrgs.push({
+        id: org.id,
+        name: org.name || "",
+        image: org.image,
+        region_url: org.region_url,
+        creator_org: org.creator_org,
+      });
+    };
+
+    if (userInfo.active_org) addKnownOrg(userInfo.active_org);
+    if (parentOrg) addKnownOrg(parentOrg);
+    for (const so of subOrgs || []) addKnownOrg(so);
+    for (const uo of userInfo.orgs || []) addKnownOrg(uo);
 
     if (sharedOrgParam) {
       const sharedIds = sharedOrgParam.split(",").filter(Boolean);
@@ -4507,7 +4592,11 @@ const IncidentDetailPage = () => {
     // workflow runs have resolved. Workflow executions that spawned an agent
     // are filtered out below, so rendering before agent runs arrive makes
     // rows appear and then vanish (flicker).
-    if (agentRunsLoading || workflowRunsLoading) return [] as any[];
+    if (
+      (agentRunsLoading && (!agentRuns || agentRuns.length === 0)) ||
+      (workflowRunsLoading && (!allIncidentWorkflowRuns || allIncidentWorkflowRuns.length === 0))
+    )
+      return [] as any[];
     const agentIds = new Set((agentRuns || []).map((r: any) => r.execution_id));
 
     // Build [start, end] windows for every agent run on this incident. Any
@@ -4746,6 +4835,32 @@ const IncidentDetailPage = () => {
   // `workflow-run:open` window events are handled app-wide by
   // GlobalWorkflowRunDrawer, so no local listener is needed here.
 
+  /**
+   * Datastore options that address a tenant in its OWN region. A tenant in
+   * another region (ca./us./eu2.) is not reachable through the region this
+   * session is logged into — the Org-Id header does not cross regions — so
+   * every read/write/delete for it must be sent to that region's host.
+   * Returns undefined when the tenant lives in the current region.
+   */
+  const tenantRegionOptions = useCallback(
+    (orgId?: string | null): { regionUrl: string } | undefined => {
+      if (!orgId || isDevEnvironment()) return undefined;
+      const raw =
+        subOrgs.find((o) => o.id === orgId)?.region_url ||
+        (parentOrg?.id === orgId ? parentOrg.region_url : undefined) ||
+        (userInfo?.active_org?.id === orgId ? userInfo?.active_org?.region_url : undefined) ||
+        userInfo?.orgs?.find((o) => o.id === orgId)?.region_url;
+      if (!raw) return undefined;
+      const mapped = mapCloudRegionUrl(raw);
+      if (!mapped) return undefined;
+      const normalized = mapped.replace(/\/+$/, "");
+      const current = (API_CONFIG.baseUrl || "").replace(/\/+$/, "");
+      if (!normalized || normalized === current) return undefined;
+      return { regionUrl: normalized };
+    },
+    [subOrgs, parentOrg, userInfo?.active_org, userInfo?.orgs],
+  );
+
   // Load incident function (reusable for refresh)
   const loadIncident = useCallback(
     async (showLoading = true) => {
@@ -4775,7 +4890,7 @@ const IncidentDetailPage = () => {
               id,
               DATASTORE_CATEGORIES.INCIDENTS,
               crossOrgId || undefined,
-              { priority: true },
+              { priority: true, ...tenantRegionOptions(crossOrgId || undefined) },
             );
       } catch (err) {
         console.error("[IncidentDetail] Failed to fetch incident:", err);
@@ -5102,6 +5217,7 @@ const IncidentDetailPage = () => {
           if (crossOrgId) addProbe(activeId); // if URL had crossOrg, also try active
           if (parentOrg) addProbe(parentOrg.id);
           for (const so of subOrgs) addProbe(so.id);
+          for (const uo of userInfo?.orgs || []) addProbe(uo.id);
 
           if (probeTargets.length > 0) {
             try {
@@ -5112,6 +5228,7 @@ const IncidentDetailPage = () => {
                       id,
                       DATASTORE_CATEGORIES.INCIDENTS,
                       oid,
+                      tenantRegionOptions(oid),
                     );
                     const valLen = r.item?.value?.length || 0;
                     const stub =
@@ -7302,29 +7419,7 @@ const IncidentDetailPage = () => {
     ],
   );
 
-  /**
-   * Datastore options that address a tenant in its OWN region. A tenant in
-   * another region (ca./us./eu2.) is not reachable through the region this
-   * session is logged into — the Org-Id header does not cross regions — so
-   * every read/write/delete for it must be sent to that region's host.
-   * Returns undefined when the tenant lives in the current region.
-   */
-  const tenantRegionOptions = useCallback(
-    (orgId: string): { regionUrl: string } | undefined => {
-      if (!orgId || isDevEnvironment()) return undefined;
-      const raw =
-        subOrgs.find((o) => o.id === orgId)?.region_url ||
-        (parentOrg?.id === orgId ? parentOrg.region_url : undefined);
-      if (!raw) return undefined;
-      const mapped = mapCloudRegionUrl(raw);
-      if (!mapped) return undefined;
-      const normalized = mapped.replace(/\/+$/, "");
-      const current = (API_CONFIG.baseUrl || "").replace(/\/+$/, "");
-      if (!normalized || normalized === current) return undefined;
-      return { regionUrl: normalized };
-    },
-    [subOrgs, parentOrg],
-  );
+
 
   /**
    * Stamp the authoritative tenant set onto the payload we are about to write
@@ -7463,6 +7558,22 @@ const IncidentDetailPage = () => {
       nextParams.delete("shared_orgs");
       setSearchParams(nextParams, { replace: true });
     }
+
+    window.dispatchEvent(
+      new CustomEvent("shuffle:incident-moved", {
+        detail: {
+          incidentId: incident.id,
+          sourceOrgId,
+          targetOrgIds: [targetOrgId],
+        },
+      }),
+    );
+    window.dispatchEvent(
+      new CustomEvent("demo:refresh", {
+        detail: { category: DATASTORE_CATEGORIES.INCIDENTS },
+      }),
+    );
+
     if (targetOrgId !== sourceOrgId) {
       const activeId = userInfo?.active_org?.id;
       const newKey =
@@ -8513,6 +8624,26 @@ const IncidentDetailPage = () => {
     }
   };
 
+  const getActivityTypeTooltip = (type: string, isMerge?: boolean): string => {
+    if (isMerge) return "Incident merged";
+    switch (type) {
+      case "comment":
+        return "Comment";
+      case "change":
+        return "Incident updated";
+      case "status":
+        return "Incident resolved";
+      case "assignment":
+        return "Assignment changed";
+      case "created":
+        return "Incident created";
+      case "agent":
+        return "AI Agent run";
+      default:
+        return "Activity";
+    }
+  };
+
   // Agent runs are rendered separately using AgentActivityFeed component
 
   // Demo-aware self-heal: if loading finished without an incident, the URL
@@ -9022,6 +9153,7 @@ const IncidentDetailPage = () => {
               renderEnrichmentInlineCTA(true)}
             <Box
               data-tour="incident-comment-input"
+              onPaste={handleCommentPaste}
               sx={{ position: "relative" }}
             >
               <DebouncedMentionInput
@@ -9318,6 +9450,7 @@ const IncidentDetailPage = () => {
                 flex: 1,
                 minHeight: 0,
                 overflowY: "auto",
+                overflowX: "hidden",
                 overscrollBehavior: "contain",
                 pb: 1.25,
               }}
@@ -9479,6 +9612,43 @@ const IncidentDetailPage = () => {
           removedTags?: string[];
         }
     ) & { isPreview?: boolean };
+
+    const getStepIconTooltip = (
+      kind: StepKind,
+      isIoc: boolean,
+      attrField?: string,
+    ): string => {
+      if (isIoc) return "Known threat indicator (IOC)";
+      switch (kind) {
+        case "task-created":
+          return "Task created";
+        case "task-completed":
+          return "Task completed";
+        case "task-status-changed":
+          return "Task status changed";
+        case "task-assigned":
+          return "Task assigned";
+        case "task-deleted":
+          return "Task deleted";
+        case "observable-added":
+          return "Observable added";
+        case "correlation-found":
+          return "Correlation found";
+        case "incident-created":
+          return "Incident created";
+        case "routing-matched":
+          return "Routing rule matched";
+        case "attribute-changed":
+          if (attrField === "severity") return "Severity changed";
+          if (attrField === "status") return "Status changed";
+          if (attrField === "labels") return "Tags changed";
+          if (attrField === "assignee") return "Assignee changed";
+          if (attrField === "tlp") return "TLP changed";
+          return "Attribute changed";
+        default:
+          return "Event";
+      }
+    };
 
     const getItemFilterKey = (it: TimelineItem): TimelineFilterKey | null => {
       if (it.type === "revision") return "revisions";
@@ -9778,6 +9948,30 @@ const IncidentDetailPage = () => {
             rev.labels ??
             rev.metadata?.extensions?.custom_attributes?.types
           );
+        if (field === "severity") {
+          const sev =
+            rev.severity ??
+            rev.metadata?.extensions?.custom_attributes?.severity;
+          if (
+            sev &&
+            typeof sev === "string" &&
+            sev.trim() &&
+            sev.toLowerCase() !== "none" &&
+            sev.toLowerCase() !== "nothing"
+          ) {
+            return sev.toLowerCase().trim();
+          }
+          const sevId =
+            rev.severity_id ??
+            rev.metadata?.extensions?.custom_attributes?.severity_id;
+          if (sevId !== undefined && sevId !== null && sevId !== "") {
+            const mapped = mapOCSFSeverity(sevId);
+            if (mapped && mapped !== "none" && mapped !== "nothing") {
+              return mapped;
+            }
+          }
+          return undefined;
+        }
         return rev[field];
       };
       type AttrRawChange = {
@@ -9971,6 +10165,17 @@ const IncidentDetailPage = () => {
             const before = attributeText(prevRaw);
             const after = attributeText(currRaw);
             if (before === after) return;
+            if (
+              field === "severity" &&
+              (!currRaw ||
+                currRaw === "none" ||
+                currRaw === "nothing" ||
+                after === "none" ||
+                after === "nothing" ||
+                String(currRaw).trim() === "")
+            ) {
+              return;
+            }
           }
 
           const list = changesByField.get(field) || [];
@@ -10063,6 +10268,16 @@ const IncidentDetailPage = () => {
           let detail: string | undefined = after;
 
           if (field === "severity") {
+            if (
+              !finalCurr ||
+              finalCurr === "none" ||
+              finalCurr === "nothing" ||
+              after === "none" ||
+              after === "nothing" ||
+              String(finalCurr).trim() === ""
+            ) {
+              return;
+            }
             label = "Changed severity";
           } else if (field === "status") {
             const isResolved = String(finalCurr).toLowerCase() === "resolved";
@@ -10114,6 +10329,16 @@ const IncidentDetailPage = () => {
         let detail: string | undefined = attributeText(opt.currRaw);
 
         if (opt.field === "severity") {
+          if (
+            !opt.currRaw ||
+            opt.currRaw === "none" ||
+            opt.currRaw === "nothing" ||
+            attributeText(opt.currRaw) === "none" ||
+            attributeText(opt.currRaw) === "nothing" ||
+            String(opt.currRaw).trim() === ""
+          ) {
+            return;
+          }
           label = "Changed severity";
         } else if (opt.field === "status") {
           const isResolved =
@@ -10996,7 +11221,7 @@ const IncidentDetailPage = () => {
         const explicitId = rev?.revision_id || rev?.revisionId || rev?.id;
         const ts = normalizeToMs(rev?.edited ?? rev?.created) || 0;
         const valueHash = cheapHash(stableRevisionValueString(rev?.value));
-        return `rev-${explicitId || `${ts}-${valueHash}`}-${it.idx}`;
+        return `rev-${explicitId || `${ts}-${valueHash}`}`;
       }
       if (it.type === "agent")
         return `agent-${it.data.execution_id || (it.data as any).id || it.timestamp}`;
@@ -11061,20 +11286,47 @@ const IncidentDetailPage = () => {
     // Build canonical-id set first so reply targets can be resolved to the
     // root of their conversation.
     const allKeys = new Set(items.map(getItemKey));
+
+    // Lenient key matching for parent targets (handles legacy -idx suffixes,
+    // execution_id substrings, and dynamic step id variations).
+    const resolveParentKey = (rawParentId: string): string | null => {
+      if (!rawParentId) return null;
+      if (allKeys.has(rawParentId)) return rawParentId;
+      const stripped = rawParentId.replace(/-\d+$/, "");
+      if (allKeys.has(stripped)) return stripped;
+      const stepAttrMatch = rawParentId.match(/^step-attr-\d+-(.+)$/);
+      if (stepAttrMatch) {
+        const field = stepAttrMatch[1];
+        for (const k of allKeys) {
+          if (k.startsWith("step-attr-") && k.endsWith(`-${field}`)) return k;
+        }
+      }
+      for (const k of allKeys) {
+        if (k === rawParentId || k.startsWith(rawParentId) || rawParentId.startsWith(k)) return k;
+      }
+      return null;
+    };
+
     const parentByKey = new Map<string, string>();
     for (const it of items) {
       if (it.type !== "manual") continue;
-      const parentId = (it.data as any)?.replyToId;
-      if (parentId) parentByKey.set(getItemKey(it), String(parentId));
+      const rawParent = (it.data as any)?.replyToId;
+      if (rawParent) {
+        const matched = resolveParentKey(String(rawParent));
+        if (matched) parentByKey.set(getItemKey(it), matched);
+      }
     }
+
     // Simple mode allows a single level of replies only: replying to a reply
     // attaches to the conversation's root item instead of nesting deeper.
     const resolveRootKey = (key: string): string => {
       let cur = key;
       for (let i = 0; i < 20; i++) {
-        const parent = parentByKey.get(cur);
-        if (!parent || !allKeys.has(parent)) break;
-        cur = parent;
+        const rawParent = parentByKey.get(cur);
+        if (!rawParent) break;
+        const matched = resolveParentKey(rawParent);
+        if (!matched) break;
+        cur = matched;
       }
       return cur;
     };
@@ -11092,31 +11344,11 @@ const IncidentDetailPage = () => {
         label: getItemLabel(target),
         preview: getItemPreview(target),
       });
-      // Focus the comment box so the user can immediately type. The reply
-      // banner re-renders the input, so retry for a few frames until the
-      // textarea actually exists and takes focus.
-      let attempts = 0;
-      const tryFocus = () => {
-        attempts += 1;
-        const container = commentInputRef.current;
-        const ta = (container?.querySelector("textarea:not([readonly])") ||
-          container?.querySelector("textarea")) as HTMLTextAreaElement | null;
-        if (ta) {
-          ta.focus({ preventScroll: true });
-          const len = ta.value.length;
-          try {
-            ta.setSelectionRange(len, len);
-          } catch {
-            /* ignore */
-          }
-          if (document.activeElement === ta) {
-            container?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            return;
-          }
-        }
-        if (attempts < 20) setTimeout(tryFocus, 50);
-      };
-      setTimeout(tryFocus, 0);
+      // Focus the comment box immediately and on next frame so the user can immediately type.
+      focusCommentInput();
+      requestAnimationFrame(() => {
+        focusCommentInput();
+      });
     };
 
     // Group replies under their parent. Only manual items can *be* replies;
@@ -11126,11 +11358,13 @@ const IncidentDetailPage = () => {
     for (const it of items) {
       if (it.type !== "manual") continue;
       const rawParent = it.data.replyToId;
-      if (!rawParent || !allKeys.has(rawParent)) continue;
+      if (!rawParent) continue;
+      const matched = resolveParentKey(String(rawParent));
+      if (!matched) continue;
       const parentId =
         variant === "simple"
-          ? resolveRootKey(String(rawParent))
-          : String(rawParent);
+          ? resolveRootKey(matched)
+          : matched;
       if (parentId === getItemKey(it)) continue;
       const arr = repliesByParent.get(parentId) || [];
       arr.push(it);
@@ -11144,27 +11378,36 @@ const IncidentDetailPage = () => {
 
     // Top-level items = anything that isn't a reply with a known parent.
     const topLevel = items.filter((it) => {
+      // Hide any "changed severity" item where severity is empty, none, or nothing
+      if (
+        it.type === "step" &&
+        it.kind === "attribute-changed" &&
+        it.attrField === "severity" &&
+        (!it.attrAfter ||
+          it.attrAfter === "none" ||
+          it.attrAfter === "nothing" ||
+          String(it.attrAfter).trim() === "" ||
+          String(it.attrAfter).toLowerCase().trim() === "none" ||
+          String(it.attrAfter).toLowerCase().trim() === "nothing")
+      ) {
+        return false;
+      }
       if (it.type !== "manual") return true;
-      const parentId = it.data.replyToId;
-      return !parentId || !allKeys.has(parentId);
+      const rawParent = it.data.replyToId;
+      if (!rawParent) return true;
+      const matched = resolveParentKey(String(rawParent));
+      return !matched;
     });
 
-    // Simple mode reads oldest-first, so a conversation that just received an
-    // answer moves to the bottom: order threads by their newest reply.
+    // In simple mode, maintain strict chronological ordering so the feed
+    // stays stable and never reshuffles or jumps when receiving a reply.
     if (variant === "simple") {
-      const threadTs = (it: TimelineItem): number => {
-        const replies = repliesByParent.get(getItemKey(it)) || [];
-        return replies.reduce(
-          (max, r) => Math.max(max, r.timestamp),
-          it.timestamp,
-        );
-      };
       topLevel.sort((a, b) => {
         const aCreate = isCreationItem(a);
         const bCreate = isCreationItem(b);
         if (aCreate && !bCreate) return -1;
         if (bCreate && !aCreate) return 1;
-        return threadTs(a) - threadTs(b);
+        return a.timestamp - b.timestamp;
       });
     }
 
@@ -11219,6 +11462,7 @@ const IncidentDetailPage = () => {
               }}
               onMouseDown={(e) => {
                 e.stopPropagation();
+                e.preventDefault();
               }}
               sx={{
                 width: compact ? 18 : 22,
@@ -11386,19 +11630,50 @@ const IncidentDetailPage = () => {
             <Box
               sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}
             >
-              {!isSimple && (
-                <Avatar
-                  sx={{
-                    width: 24,
-                    height: 24,
-                    bgcolor: "hsl(var(--muted) / 0.6)",
-                  }}
+              {!isSimple ? (
+                <Tooltip
+                  title={
+                    showAsCreation
+                      ? "Incident created"
+                      : `Revision #${revisionNumber(item.idx)}`
+                  }
+                  arrow
+                  placement="top"
                 >
-                  <HistoryIcon
-                    size={14}
-                    style={{ color: "hsl(var(--muted-foreground))" }}
-                  />
-                </Avatar>
+                  <Avatar
+                    sx={{
+                      width: 24,
+                      height: 24,
+                      bgcolor: "hsl(var(--muted) / 0.6)",
+                    }}
+                  >
+                    <HistoryIcon
+                      size={14}
+                      style={{ color: "hsl(var(--muted-foreground))" }}
+                    />
+                  </Avatar>
+                </Tooltip>
+              ) : (
+                <Tooltip
+                  title={
+                    showAsCreation
+                      ? "Incident created"
+                      : `Revision #${revisionNumber(item.idx)}`
+                  }
+                  arrow
+                  placement="top"
+                >
+                  <Box
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      color: "hsl(var(--muted-foreground))",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <HistoryIcon size={13} />
+                  </Box>
+                </Tooltip>
               )}
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Box
@@ -11822,22 +12097,28 @@ const IncidentDetailPage = () => {
                   },
               }}
             >
-              <Box
-                className="agent-icon"
-                sx={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  flexShrink: 0,
-                  color: isFailed
-                    ? "hsl(var(--destructive) / 0.75)"
-                    : hasWarning
-                      ? "hsl(var(--severity-medium) / 0.85)"
-                      : "text.secondary",
-                  transition: "color 0.15s ease",
-                }}
+              <Tooltip
+                title={`AI Agent run${status ? ` · ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}` : ""}`}
+                arrow
+                placement="top"
               >
-                <AgentIcon size={13} />
-              </Box>
+                <Box
+                  className="agent-icon"
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    flexShrink: 0,
+                    color: isFailed
+                      ? "hsl(var(--destructive) / 0.75)"
+                      : hasWarning
+                        ? "hsl(var(--severity-medium) / 0.85)"
+                        : "text.secondary",
+                    transition: "color 0.15s ease",
+                  }}
+                >
+                  <AgentIcon size={13} />
+                </Box>
+              </Tooltip>
               <Typography
                 sx={{
                   fontSize: "0.7rem",
@@ -11979,16 +12260,22 @@ const IncidentDetailPage = () => {
                 />
               </Tooltip>
             )}
-            <Box
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                flexShrink: 0,
-                opacity: skip.skipped ? 0.6 : isQuiet ? 0.7 : 1,
-              }}
+            <Tooltip
+              title={`AI Agent run${status ? ` · ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}` : ""}`}
+              arrow
+              placement="top"
             >
-              <AgentIcon size={14} />
-            </Box>
+              <Box
+                sx={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  flexShrink: 0,
+                  opacity: skip.skipped ? 0.6 : isQuiet ? 0.7 : 1,
+                }}
+              >
+                <AgentIcon size={14} />
+              </Box>
+            </Tooltip>
             <Typography
               sx={{
                 fontSize: "0.8125rem",
@@ -12232,11 +12519,13 @@ const IncidentDetailPage = () => {
                   title={
                     isFailed
                       ? failReason
-                        ? `Failed: ${failReason}`
+                        ? `Workflow execution failed: ${failReason}`
                         : "Workflow execution failed"
                       : isWarning
-                        ? warnTitle
-                        : exactTs || wfName
+                        ? `Workflow execution: ${warnTitle}`
+                        : isRunning
+                          ? "Workflow execution (running)"
+                          : `Workflow execution${status ? ` · ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}` : ""}`
                   }
                   arrow
                   placement="top"
@@ -12454,11 +12743,13 @@ const IncidentDetailPage = () => {
                 title={
                   isFailed
                     ? failReason
-                      ? `Failed: ${failReason}`
+                      ? `Workflow execution failed: ${failReason}`
                       : "Workflow execution failed"
                     : isWarning
-                      ? warnTitle
-                      : exactTs || wfName
+                      ? `Workflow execution: ${warnTitle}`
+                      : isRunning
+                        ? "Workflow execution (running)"
+                        : `Workflow execution${status ? ` · ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}` : ""}`
                 }
                 arrow
                 placement="top"
@@ -12777,6 +13068,11 @@ const IncidentDetailPage = () => {
           pillObsKey = item.id.slice("step-corr-obs-".length).toLowerCase();
         }
         const isIocPill = !!pillObsKey && iocObservableKeys.has(pillObsKey);
+        const stepIconTooltip = getStepIconTooltip(
+          item.kind,
+          isIocPill,
+          item.attrField,
+        );
         // IOC pills override the neutral scheme with the destructive token
         // so the user immediately sees that *this* observable is known-bad.
         const pillColor = isIocPill
@@ -12873,6 +13169,8 @@ const IncidentDetailPage = () => {
               width: "100%",
               maxWidth: "100%",
               minWidth: 0,
+              boxSizing: "border-box",
+              overflow: "hidden",
               px: isHighlighted ? 0.75 : 0,
               py: 0.35,
               borderRadius: 1,
@@ -12919,16 +13217,18 @@ const IncidentDetailPage = () => {
                 gap: 0.75,
               }}
             >
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  color: pillColor,
-                  flexShrink: 0,
-                }}
-              >
-                {isIocPill ? <WarningAmberIcon size={12} /> : cfg.icon}
-              </Box>
+              <Tooltip title={stepIconTooltip} arrow placement="top">
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    color: pillColor,
+                    flexShrink: 0,
+                  }}
+                >
+                  {isIocPill ? <WarningAmberIcon size={12} /> : cfg.icon}
+                </Box>
+              </Tooltip>
 
               <Box
                 sx={{
@@ -12943,7 +13243,8 @@ const IncidentDetailPage = () => {
                 {item.actor && (
                   <UserHoverCard username={item.actor} maxChars={12} />
                 )}
-                {item.label && item.kind !== "observable-added" && (
+                {item.label &&
+                  (item.kind !== "observable-added" || !item.obsValue) && (
                   <Typography
                     sx={{
                       fontSize: "0.7rem",
@@ -13052,8 +13353,9 @@ const IncidentDetailPage = () => {
                   display: "flex",
                   alignItems: "center",
                   gap: 0.75,
-                  width: "100%",
+                  maxWidth: "100%",
                   minWidth: 0,
+                  boxSizing: "border-box",
                   pl: 2.25,
                   mt: 0.25,
                 }}
@@ -13095,8 +13397,44 @@ const IncidentDetailPage = () => {
                   {item.obsValue}
                 </Typography>
               </Box>
+            ) : item.kind === "observable-added" && item.detail ? (
+              <Box
+                sx={{
+                  maxWidth: "100%",
+                  minWidth: 0,
+                  boxSizing: "border-box",
+                  pl: 2.25,
+                  mt: 0.25,
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: "0.75rem",
+                    color: isIocPill
+                      ? "hsl(var(--destructive))"
+                      : "hsl(var(--foreground))",
+                    lineHeight: 1.4,
+                    minWidth: 0,
+                    maxWidth: "100%",
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
+                    whiteSpace: "normal",
+                  }}
+                  title={item.detail}
+                >
+                  {item.detail}
+                </Typography>
+              </Box>
             ) : item.kind === "attribute-changed" ? (
-              <Box sx={{ width: "100%", minWidth: 0, pl: 2.25, mt: 0.25 }}>
+              <Box
+                sx={{
+                  maxWidth: "100%",
+                  minWidth: 0,
+                  boxSizing: "border-box",
+                  pl: 2.25,
+                  mt: 0.25,
+                }}
+              >
                 {item.attrField === "severity" ? (
                   <TimelineSeverityDropdown
                     value={String(item.attrAfter || "medium")}
@@ -13226,7 +13564,15 @@ const IncidentDetailPage = () => {
                   </Typography>
                 </Box>
               ) : (
-                <Box sx={{ width: "100%", minWidth: 0, pl: 2.25, mt: 0.25 }}>
+                <Box
+                  sx={{
+                    maxWidth: "100%",
+                    minWidth: 0,
+                    boxSizing: "border-box",
+                    pl: 2.25,
+                    mt: 0.25,
+                  }}
+                >
                   <Typography
                     sx={{
                       fontSize: "0.75rem",
@@ -13308,17 +13654,20 @@ const IncidentDetailPage = () => {
                 },
             }}
           >
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                color: pillColor,
-                flexShrink: 0,
-              }}
-            >
-              {isIocPill ? <WarningAmberIcon size={12} /> : cfg.icon}
-            </Box>
-            {item.label && item.kind !== "observable-added" && (
+            <Tooltip title={stepIconTooltip} arrow placement="top">
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  color: pillColor,
+                  flexShrink: 0,
+                }}
+              >
+                {isIocPill ? <WarningAmberIcon size={12} /> : cfg.icon}
+              </Box>
+            </Tooltip>
+            {item.label &&
+              (item.kind !== "observable-added" || !item.obsValue) && (
               <Typography
                 sx={{
                   fontSize: "0.7rem",
@@ -13643,13 +13992,17 @@ const IncidentDetailPage = () => {
 
       const isAgentAct =
         (actItem as any).is_agent === true || isAIAssignee(actItem.user);
+      const isMergeAct = isMergeActivityItem(actItem);
       const avatarNode = (() => {
         const avatarInfo = resolveUserAvatar(
           actItem.user,
           users,
           isAgentAct,
         );
-        return (
+        const hasUserImage = !!(!isDeleted && avatarInfo.src);
+        const isComment = actItem.type === "comment";
+
+        const rawAvatar = (
           <Avatar
             src={!isDeleted && avatarInfo.src ? avatarInfo.src : undefined}
             sx={{
@@ -13660,7 +14013,7 @@ const IncidentDetailPage = () => {
                 ? "hsl(var(--border-subtle))"
                 : isSimple
                   ? "hsl(var(--muted) / 0.6)"
-                  : actItem.type === "comment"
+                  : isComment
                     ? "rgba(255, 102, 0, 0.2)"
                     : "rgba(255,255,255,0.08)",
             }}
@@ -13671,6 +14024,35 @@ const IncidentDetailPage = () => {
                 ? <CheckCircleIcon size={14} />
                 : getActivityIcon(actItem.type)}
           </Avatar>
+        );
+
+        if (!isDeleted && (hasUserImage || (isComment && actItem.user))) {
+          return (
+            <UserHoverCard username={actItem.user} isAgent={isAgentAct}>
+              {rawAvatar}
+            </UserHoverCard>
+          );
+        }
+
+        const tooltipTitle = isDeleted
+          ? "Deleted comment"
+          : isStatusActivity
+            ? "Incident resolved"
+            : getActivityTypeTooltip(actItem.type, isMergeAct);
+
+        return (
+          <Tooltip title={tooltipTitle} arrow placement="top">
+            <Box
+              component="span"
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                flexShrink: 0,
+              }}
+            >
+              {rawAvatar}
+            </Box>
+          </Tooltip>
         );
       })();
 
@@ -13999,10 +14381,7 @@ const IncidentDetailPage = () => {
           ? actItem.id.match(/^merge-in-(.+)-(\d+)$/)
           : null;
       const mergeSourceIdFromId = mergeInMatch ? mergeInMatch[1] : null;
-      const isMergeItem =
-        (actItem.type as string) === "system" &&
-        typeof actItem.id === "string" &&
-        (actItem.id.startsWith("merge-in-") || actItem.id.startsWith("merge-"));
+      const isMergeItem = !!mergeSourceIdFromId;
 
       return (
         <Box
@@ -14110,28 +14489,54 @@ const IncidentDetailPage = () => {
                   : formatRelativeTime(actItem.timestamp)}
               </Typography>
               {previewBadge}
-              {isReply && actItem.replyToLabel && (
-                <Chip
-                  icon={<ReplyIcon size={11} />}
-                  label={actItem.replyToLabel}
-                  size="small"
-                  variant="outlined"
-                  sx={{
-                    height: 18,
-                    fontSize: "0.6rem",
-                    bgcolor: "transparent",
-                    borderColor: isSimple
-                      ? "hsl(var(--border-subtle))"
-                      : "rgba(255, 102, 0, 0.3)",
-                    color: "text.secondary",
-                    "& .MuiChip-icon": {
-                      color: isSimple
-                        ? "hsl(var(--muted-foreground))"
-                        : "#ff6600",
-                      ml: 0.5,
-                    },
-                  }}
-                />
+              {actItem.replyToLabel && (
+                <Tooltip
+                  title={
+                    actItem.replyToPreview
+                      ? `Replying to: ${actItem.replyToPreview}`
+                      : `Replying to ${actItem.replyToLabel}`
+                  }
+                  arrow
+                >
+                  <Chip
+                    icon={<ReplyIcon size={11} />}
+                    label={actItem.replyToLabel}
+                    size="small"
+                    variant="outlined"
+                    onClick={
+                      actItem.replyToId
+                        ? () => {
+                            const matchedKey = resolveParentKey(actItem.replyToId!);
+                            const targetEl = document.querySelector(
+                              `[data-timeline-key="${matchedKey || actItem.replyToId}"]`,
+                            );
+                            if (targetEl) {
+                              targetEl.scrollIntoView({
+                                behavior: "smooth",
+                                block: "center",
+                              });
+                            }
+                          }
+                        : undefined
+                    }
+                    sx={{
+                      height: 18,
+                      fontSize: "0.6rem",
+                      bgcolor: "transparent",
+                      borderColor: isSimple
+                        ? "hsl(var(--border-subtle))"
+                        : "rgba(255, 102, 0, 0.3)",
+                      color: "text.secondary",
+                      cursor: actItem.replyToId ? "pointer" : "default",
+                      "& .MuiChip-icon": {
+                        color: isSimple
+                          ? "hsl(var(--muted-foreground))"
+                          : "#ff6600",
+                        ml: 0.5,
+                      },
+                    }}
+                  />
+                </Tooltip>
               )}
             </Box>
             {isDeleted ? (
@@ -14148,7 +14553,11 @@ const IncidentDetailPage = () => {
             ) : (
               <>
                 <CollapsibleContent
-                  maxHeight={240}
+                  maxHeight={
+                    actItem.attachments && actItem.attachments.length > 0
+                      ? 360
+                      : 240
+                  }
                   storageKey={`incident-comment-expand::${rawId || ""}::${actItem.id || ""}`}
                 >
                   <MentionText
@@ -14168,30 +14577,7 @@ const IncidentDetailPage = () => {
                     }}
                   />
                   {actItem.attachments && actItem.attachments.length > 0 && (
-                    <Box
-                      sx={{
-                        mt: 1,
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 0.5,
-                      }}
-                    >
-                      {actItem.attachments.map((att, ai) => (
-                        <Chip
-                          key={ai}
-                          label={att.filename}
-                          size="small"
-                          variant="outlined"
-                          sx={{
-                            height: 20,
-                            fontSize: "0.65rem",
-                            bgcolor: "transparent",
-                            borderColor: "rgba(59, 130, 246, 0.4)",
-                            color: "#3b82f6",
-                          }}
-                        />
-                      ))}
-                    </Box>
+                    <CommentAttachments attachments={actItem.attachments} />
                   )}
                 </CollapsibleContent>
               </>
@@ -22291,22 +22677,51 @@ const IncidentDetailPage = () => {
               nameLookup.set(so.id, so.name || so.id);
             if (crossOrgId && crossOrgInfo?.name)
               nameLookup.set(crossOrgId, crossOrgInfo.name);
+            if (userInfo?.orgs) {
+              for (const uo of userInfo.orgs) {
+                if (uo?.id && !nameLookup.has(uo.id)) {
+                  nameLookup.set(uo.id, uo.name || uo.id);
+                }
+              }
+            }
 
             const seen = new Set<string>();
-            const candidates: { id: string; name: string }[] = [];
-            const addCandidate = (id: string, fallback?: string) => {
+            const candidates: { id: string; name: string; relation?: string }[] = [];
+            const addCandidate = (id: string, fallback?: string, relation?: string) => {
               if (!id || seen.has(id)) return;
               seen.add(id);
               candidates.push({
                 id,
                 name: nameLookup.get(id) || fallback || id,
+                relation,
               });
             };
-            if (sourceOrgId) addCandidate(sourceOrgId);
-            for (const so of sharedOrgs) addCandidate(so.id, so.name);
-            if (activeId) addCandidate(activeId, userInfo?.active_org?.name);
-            if (parentOrg) addCandidate(parentOrg.id, parentOrg.name);
-            for (const so of subOrgs) addCandidate(so.id, so.name);
+            if (sourceOrgId) addCandidate(sourceOrgId, undefined, "Current Tenant");
+            for (const so of sharedOrgs) addCandidate(so.id, so.name, "Shared Tenant");
+            if (activeId) addCandidate(activeId, userInfo?.active_org?.name, "Active Tenant");
+            if (parentOrg) addCandidate(parentOrg.id, parentOrg.name, "Parent Tenant");
+            for (const so of subOrgs) addCandidate(so.id, so.name, "Sub Tenant");
+            if (userInfo?.orgs) {
+              for (const uo of userInfo.orgs) {
+                if (uo?.id) {
+                  const isParent = parentOrg && uo.id === parentOrg.id;
+                  const isSibling =
+                    (parentOrg && uo.creator_org === parentOrg.id) ||
+                    (userInfo?.active_org?.creator_org &&
+                      uo.creator_org === userInfo.active_org.creator_org &&
+                      uo.id !== userInfo?.active_org?.id);
+                  const isSub = subOrgs.some((s) => s.id === uo.id);
+                  const relation = isParent
+                    ? "Parent Tenant"
+                    : isSub
+                      ? "Sub Tenant"
+                      : isSibling
+                        ? "Sibling Tenant"
+                        : "Accessible Tenant";
+                  addCandidate(uo.id, uo.name, relation);
+                }
+              }
+            }
 
             const presentSet = new Set<string>();
             if (sourceOrgId) presentSet.add(sourceOrgId);
@@ -22376,7 +22791,7 @@ const IncidentDetailPage = () => {
                           >
                             {opt.name}
                           </Typography>
-                          {presentSet.has(opt.id) && (
+                          {presentSet.has(opt.id) ? (
                             <Chip
                               size="small"
                               label="Currently here"
@@ -22387,7 +22802,18 @@ const IncidentDetailPage = () => {
                                 color: "hsl(var(--muted-foreground))",
                               }}
                             />
-                          )}
+                          ) : opt.relation ? (
+                            <Chip
+                              size="small"
+                              label={opt.relation}
+                              sx={{
+                                height: 20,
+                                fontSize: "0.65rem",
+                                bgcolor: "hsl(var(--muted))",
+                                color: "hsl(var(--muted-foreground))",
+                              }}
+                            />
+                          ) : null}
                         </Box>
                       </li>
                     )}
@@ -22727,6 +23153,17 @@ const IncidentDetailPage = () => {
                       name: so.name || so.id,
                       image: so.image,
                     });
+                  if (userInfo?.orgs) {
+                    for (const uo of userInfo.orgs) {
+                      if (uo?.id && !knownOrgLookup.has(uo.id)) {
+                        knownOrgLookup.set(uo.id, {
+                          id: uo.id,
+                          name: uo.name || uo.id,
+                          image: uo.image,
+                        });
+                      }
+                    }
+                  }
                   const nextSharedOrgs = Array.from(selected)
                     .filter((oid) => oid !== stayingOrgId)
                     .map(
@@ -22737,6 +23174,22 @@ const IncidentDetailPage = () => {
                         },
                     );
                   setSharedOrgs(nextSharedOrgs);
+
+                  // Dispatch move events to sync datastore hooks and open lists
+                  window.dispatchEvent(
+                    new CustomEvent("shuffle:incident-moved", {
+                      detail: {
+                        incidentId: incident.id,
+                        sourceOrgId,
+                        targetOrgIds: Array.from(selected),
+                      },
+                    }),
+                  );
+                  window.dispatchEvent(
+                    new CustomEvent("demo:refresh", {
+                      detail: { category: DATASTORE_CATEGORIES.INCIDENTS },
+                    }),
+                  );
 
                   // Strip the stale shared_orgs URL param so a later reload
                   // doesn't seed the old presence set back into state.
@@ -22761,6 +23214,8 @@ const IncidentDetailPage = () => {
                     } else {
                       navigate(entityBasePath, { replace: true });
                     }
+                  } else {
+                    void loadIncident(false);
                   }
                 } catch (err: any) {
                   console.error("[MoveTenant] failed", err);

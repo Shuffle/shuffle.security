@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { TextField, TextFieldProps } from '@mui/material';
-import { MentionInput } from '@/components/incidents/MentionInput';
+import { MentionInput, MentionInputHandle } from '@/components/incidents/MentionInput';
 
 /**
  * Text inputs that keep their own draft state while the user types and only
@@ -40,7 +40,7 @@ export const DeferredTextField = ({ value, onCommit, onFocus, onBlur, ...props }
   );
 };
 
-type DeferredMentionInputProps = Omit<TextFieldProps, 'value' | 'onChange' | 'onSubmit'> & {
+type DeferredMentionInputProps = Omit<TextFieldProps, 'value' | 'onChange' | 'onSubmit' | 'ref'> & {
   value: string;
   onCommit: (value: string) => void;
 };
@@ -75,6 +75,7 @@ export interface DebouncedMentionInputHandle {
   submit: () => void;
   clear: () => void;
   getValue: () => string;
+  focus: () => void;
 }
 
 export type DebouncedMentionInputProps = Omit<TextFieldProps, 'value' | 'onChange' | 'onSubmit'> & {
@@ -101,6 +102,7 @@ export const DebouncedMentionInput = forwardRef<DebouncedMentionInputHandle, Deb
   const draftRef = useRef(value);
   const dirty = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mentionInputRef = useRef<MentionInputHandle>(null);
 
   // If value is explicitly cleared by parent (e.g. comment sent or reset), immediately reset draft
   useEffect(() => {
@@ -161,10 +163,14 @@ export const DebouncedMentionInput = forwardRef<DebouncedMentionInputHandle, Deb
     submit: doSubmit,
     clear: doClear,
     getValue: () => draftRef.current,
+    focus: () => {
+      mentionInputRef.current?.focus();
+    },
   }));
 
   return (
     <MentionInput
+      ref={mentionInputRef}
       {...props}
       value={draft}
       onChange={(next) => {

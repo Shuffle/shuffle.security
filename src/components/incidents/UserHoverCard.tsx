@@ -37,6 +37,11 @@ interface UserHoverCardProps {
    * so shortening never loses information.
    */
   maxChars?: number;
+  /**
+   * Optional custom trigger element (e.g. an Avatar). When supplied, this element
+   * is wrapped as the hover trigger instead of rendering the text username.
+   */
+  children?: React.ReactNode;
 }
 
 /** Shorten a username for dense layouts, keeping it recognisable. */
@@ -77,7 +82,7 @@ export const resolveUserAvatar = (
   };
 };
 
-export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHoverCardProps) => {
+export const UserHoverCard = ({ username, isAgent, className, maxChars, children }: UserHoverCardProps) => {
   const { users } = useUsers();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -104,8 +109,19 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
     }
   };
 
-  // Plain text for unknown users (no hover card, no click).
+  // Plain text / trigger for unknown users (no hover card, no click).
   if (!verifiedAgent && !realUser) {
+    if (children) {
+      return (
+        <Box
+          component="span"
+          title={username}
+          sx={{ display: 'inline-flex', alignItems: 'center' }}
+        >
+          {children}
+        </Box>
+      );
+    }
     return (
       <Typography
         component="span"
@@ -129,28 +145,32 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
             display: 'inline-flex',
             alignItems: 'center',
             cursor: 'pointer',
-            borderRadius: 0.75,
-            px: 0.4,
-            mx: -0.4,
-            transition: 'background-color 0.15s',
-            '&:hover': {
-              bgcolor: 'hsl(var(--muted) / 0.6)',
-            },
+            borderRadius: children ? undefined : 0.75,
+            px: children ? 0 : 0.4,
+            mx: children ? 0 : -0.4,
+            transition: 'opacity 0.15s, background-color 0.15s',
+            '&:hover': children
+              ? { opacity: 0.85 }
+              : {
+                  bgcolor: 'hsl(var(--muted) / 0.6)',
+                },
           }}
         >
-          <Typography
-            component="span"
-            variant="caption"
-            className={className}
-            sx={{
-              fontWeight: 600,
-              fontSize: '0.75rem',
-              color: 'text.primary',
-            }}
-            title={displayName}
-          >
-            {shortenName(displayName, maxChars)}
-          </Typography>
+          {children || (
+            <Typography
+              component="span"
+              variant="caption"
+              className={className}
+              sx={{
+                fontWeight: 600,
+                fontSize: '0.75rem',
+                color: 'text.primary',
+              }}
+              title={displayName}
+            >
+              {shortenName(displayName, maxChars)}
+            </Typography>
+          )}
         </Box>
       </HoverCardTrigger>
       <HoverCardContent

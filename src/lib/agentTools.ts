@@ -54,7 +54,42 @@ export interface AgentToolsEntry {
   agent: string;
   actionType: string;
   tools: ToolRef[];
+  updatedAt?: number;
 }
+
+export interface AgentToolsCachePayload {
+  version: number;
+  updatedAt: number;
+  entries: AgentToolsEntry[];
+}
+
+let localWriteSeq = 0;
+let lastLocalWriteTime = 0;
+let pendingWritePayload: AgentToolsCachePayload | null = null;
+let isWritingToDatastore = false;
+let writeQueuePromise: Promise<boolean> | null = null;
+
+export const getAgentToolsLastLocalWriteTime = (): number => lastLocalWriteTime;
+
+const getActiveOrgId = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw =
+      localStorage.getItem('shuffle_user_info') ||
+      localStorage.getItem('userinfo') ||
+      localStorage.getItem('user_info');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed.active_org?.id || parsed.org_id || parsed.active_org_id || null;
+  } catch {
+    return null;
+  }
+};
+
+const getStorageKey = (orgId?: string | null): string => {
+  const resolved = orgId || getActiveOrgId();
+  return resolved ? `${STORAGE_KEY}_${resolved}` : STORAGE_KEY;
+};
 
 const coerceTool = (raw: unknown): ToolRef | null => {
   if (typeof raw === 'string') {
@@ -73,8 +108,15 @@ const coerceTool = (raw: unknown): ToolRef | null => {
 };
 
 const sanitize = (parsed: unknown): AgentToolsEntry[] => {
-  if (!Array.isArray(parsed)) return [];
-  return parsed
+  let target = parsed;
+  if (target && typeof target === 'object' && !Array.isArray(target)) {
+    const obj = target as Record<string, unknown>;
+    if (Array.isArray(obj.entries)) {
+      target = obj.entries;
+    }
+  }
+  if (!Array.isArray(target)) return [];
+  return target
     .filter((e: any) => e && typeof e.agent === 'string' && typeof e.actionType === 'string' && Array.isArray(e.tools))
     .map((e: any) => ({
       agent: e.agent,
@@ -82,57 +124,245 @@ const sanitize = (parsed: unknown): AgentToolsEntry[] => {
       tools: (e.tools as unknown[])
         .map(coerceTool)
         .filter((t): t is ToolRef => !!t),
+      updatedAt: typeof e.updatedAt === 'number' ? e.updatedAt : undefined,
     }));
 };
 
-const readAll = (): AgentToolsEntry[] => {
+const extractUpdatedAt = (parsed: unknown): number => {
+  if (parsed && typeof parsed === 'object') {
+    const obj = parsed as Record<string, unknown>;
+    if (typeof obj.updatedAt === 'number') return obj.updatedAt;
+  }
+  return 0;
+};
+
+interface CacheRecord {
+  entries: AgentToolsEntry[];
+  updatedAt: number;
+}
+
+const readCacheRecord = (): CacheRecord => {
+  if (typeof window === 'undefined') return { entries: [], updatedAt: 0 };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return sanitize(JSON.parse(raw));
+    const key = getStorageKey();
+    let raw = localStorage.getItem(key);
+    if (!raw && key !== STORAGE_KEY) {
+      raw = localStorage.getItem(STORAGE_KEY);
+    }
+    if (!raw) return { entries: [], updatedAt: 0 };
+    const parsed = JSON.parse(raw);
+    const entries = sanitize(parsed);
+    const updatedAt =
+      extractUpdatedAt(parsed) || entries.reduce((max, e) => Math.max(max, e.updatedAt || 0), 0);
+    return { entries, updatedAt };
   } catch {
-    return [];
+    return { entries: [], updatedAt: 0 };
   }
 };
 
-const writeCache = (entries: AgentToolsEntry[]) => {
+const readAll = (): AgentToolsEntry[] => readCacheRecord().entries;
+
+const writeCache = (entries: AgentToolsEntry[], explicitUpdatedAt?: number) => {
+  if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-    window.dispatchEvent(new CustomEvent(AGENT_TOOLS_CHANGED_EVENT));
+    const updatedAt = explicitUpdatedAt ?? Date.now();
+    const payload: AgentToolsCachePayload = {
+      version: 1,
+      updatedAt,
+      entries,
+    };
+    const serialized = JSON.stringify(payload);
+    const orgKey = getStorageKey();
+    localStorage.setItem(orgKey, serialized);
+    if (orgKey !== STORAGE_KEY) {
+      localStorage.setItem(STORAGE_KEY, serialized);
+    }
+    window.dispatchEvent(
+      new CustomEvent(AGENT_TOOLS_CHANGED_EVENT, { detail: { updatedAt, entries } }),
+    );
   } catch {
     /* ignore */
   }
 };
 
-const persistToDatastore = (entries: AgentToolsEntry[]) => {
-  // Fire-and-forget: UI already updated from cache. Failures are logged
-  // so users can see them in the console but do not block interaction.
-  setDatastoreItem(DATASTORE_KEY, entries, DATASTORE_CATEGORY).catch((err) => {
-    console.warn('[agentTools] Failed to persist to datastore:', err);
-  });
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const executeDatastoreWrite = async (payload: AgentToolsCachePayload): Promise<boolean> => {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await setDatastoreItem(DATASTORE_KEY, payload, DATASTORE_CATEGORY);
+      if (res && res.success) {
+        return true;
+      }
+      if (attempt === maxAttempts) {
+        try {
+          const fallbackRes = await setDatastoreItem(
+            'agent_tools_config',
+            payload,
+            'shuffle-security_configuration',
+          );
+          if (fallbackRes && fallbackRes.success) {
+            return true;
+          }
+        } catch {
+          /* ignore fallback */
+        }
+      }
+      console.warn(`[agentTools] Datastore write attempt ${attempt} failed:`, res?.error || 'Unknown error');
+    } catch (err) {
+      console.warn(`[agentTools] Datastore write attempt ${attempt} threw:`, err);
+    }
+    if (attempt < maxAttempts) {
+      await sleep(attempt * 500);
+    }
+  }
+  return false;
 };
 
-const writeAll = (entries: AgentToolsEntry[]) => {
-  writeCache(entries);
-  persistToDatastore(entries);
+const flushDatastoreQueue = async (): Promise<boolean> => {
+  if (isWritingToDatastore) {
+    return writeQueuePromise || Promise.resolve(false);
+  }
+  isWritingToDatastore = true;
+  writeQueuePromise = (async () => {
+    let finalSuccess = true;
+    try {
+      while (pendingWritePayload) {
+        const toWrite = pendingWritePayload;
+        pendingWritePayload = null;
+        const ok = await executeDatastoreWrite(toWrite);
+        if (!ok) finalSuccess = false;
+      }
+    } finally {
+      isWritingToDatastore = false;
+      writeQueuePromise = null;
+    }
+    return finalSuccess;
+  })();
+  return writeQueuePromise;
+};
+
+export const persistToDatastore = (
+  entries: AgentToolsEntry[],
+  updatedAt?: number,
+): Promise<boolean> => {
+  const ts = updatedAt ?? Date.now();
+  pendingWritePayload = {
+    version: 1,
+    updatedAt: ts,
+    entries,
+  };
+  return flushDatastoreQueue();
+};
+
+const mergeEntries = (
+  base: AgentToolsEntry[],
+  incoming: AgentToolsEntry[],
+  preferIncoming: boolean,
+): AgentToolsEntry[] => {
+  const map = new Map<string, AgentToolsEntry>();
+  const makeKey = (e: AgentToolsEntry) => `${e.agent}:::${e.actionType}`;
+
+  for (const e of base) {
+    map.set(makeKey(e), { ...e, tools: dedupeTools(e.tools) });
+  }
+
+  for (const inc of incoming) {
+    const key = makeKey(inc);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...inc, tools: dedupeTools(inc.tools) });
+    } else if (preferIncoming) {
+      map.set(key, { ...inc, tools: dedupeTools(inc.tools) });
+    } else {
+      const incTs = inc.updatedAt || 0;
+      const existTs = existing.updatedAt || 0;
+      if (incTs >= existTs) {
+        map.set(key, { ...inc, tools: dedupeTools(inc.tools) });
+      }
+    }
+  }
+
+  return Array.from(map.values());
 };
 
 /**
  * Hydrate the local cache from the datastore. Call once on app startup
- * (e.g. from DashboardLayout). Safe to call repeatedly — last write wins.
+ * (e.g. from DashboardLayout). Uses monotonic sequencing and timestamp-based
+ * reconciliation so stale network reads never overwrite fresh local modifications.
  */
 export const loadAgentToolsFromDatastore = async (): Promise<AgentToolsEntry[]> => {
+  localWriteSeq++;
+  const requestSeq = localWriteSeq;
+  const requestStartTime = Date.now();
+
   try {
-    const res = await getDatastoreItem(DATASTORE_KEY, DATASTORE_CATEGORY);
-    if (!res.success || !res.item) return readAll();
-    let value: unknown = res.item.value;
-    if (typeof value === 'string') {
-      try { value = JSON.parse(value); } catch { /* fall through */ }
+    let res = await getDatastoreItem(DATASTORE_KEY, DATASTORE_CATEGORY);
+    if (!res.success || !res.item) {
+      try {
+        const fb = await getDatastoreItem('agent_tools_config', 'shuffle-security_configuration');
+        if (fb.success && fb.item) {
+          res = fb;
+        }
+      } catch {
+        /* ignore */
+      }
     }
-    const entries = sanitize(value);
-    writeCache(entries);
-    return entries;
-  } catch {
+
+    const localRecord = readCacheRecord();
+    const localEntries = localRecord.entries;
+    const localUpdatedAt = localRecord.updatedAt;
+
+    if (!res.success || !res.item) {
+      if (localEntries.length > 0 && localWriteSeq === requestSeq) {
+        persistToDatastore(localEntries, localUpdatedAt);
+      }
+      return localEntries;
+    }
+
+    let remoteValue: unknown = res.item.value;
+    if (typeof remoteValue === 'string') {
+      try {
+        remoteValue = JSON.parse(remoteValue);
+      } catch {
+        /* fall through */
+      }
+    }
+
+    const remoteEntries = sanitize(remoteValue);
+    const remoteUpdatedAt =
+      extractUpdatedAt(remoteValue) ||
+      remoteEntries.reduce((max, e) => Math.max(max, e.updatedAt || 0), 0);
+
+    // If local writes happened during in-flight fetch, local changes win
+    if (localWriteSeq > requestSeq || lastLocalWriteTime > requestStartTime) {
+      const merged = mergeEntries(remoteEntries, localEntries, true);
+      writeCache(merged, Math.max(localUpdatedAt, Date.now()));
+      persistToDatastore(merged);
+      return merged;
+    }
+
+    // If server returned empty array but local cache has tools, retain and sync up
+    if (remoteEntries.length === 0 && localEntries.length > 0) {
+      persistToDatastore(localEntries, localUpdatedAt);
+      return localEntries;
+    }
+
+    // If local cache is newer than server, retain local
+    if (localUpdatedAt > remoteUpdatedAt && localEntries.length > 0) {
+      const merged = mergeEntries(remoteEntries, localEntries, true);
+      writeCache(merged, localUpdatedAt);
+      persistToDatastore(merged, localUpdatedAt);
+      return merged;
+    }
+
+    // Server is newer or equal: reconcile and update cache
+    const merged = mergeEntries(localEntries, remoteEntries, false);
+    writeCache(merged, remoteUpdatedAt || Date.now());
+    return merged;
+  } catch (err) {
+    console.warn('[agentTools] Error in loadAgentToolsFromDatastore:', err);
     return readAll();
   }
 };
@@ -173,14 +403,24 @@ export const setAgentTools = (
   tools: ToolRef[],
   agent: string = DEFAULT_AGENT,
   actionType: string = DEFAULT_ACTION_TYPE,
-) => {
+): AgentToolsEntry[] => {
+  localWriteSeq++;
+  const now = Date.now();
+  lastLocalWriteTime = now;
+
   const all = readAll();
   const dedup = dedupeTools(tools.filter((t) => t && typeof t.name === 'string' && t.name.trim().length > 0));
 
   const setEntry = (targetAgent: string) => {
     const idx = all.findIndex((e) => e.agent === targetAgent && e.actionType === actionType);
-    if (idx >= 0) all[idx] = { agent: targetAgent, actionType, tools: dedup };
-    else all.push({ agent: targetAgent, actionType, tools: dedup });
+    const entry: AgentToolsEntry = {
+      agent: targetAgent,
+      actionType,
+      tools: dedup,
+      updatedAt: now,
+    };
+    if (idx >= 0) all[idx] = entry;
+    else all.push(entry);
   };
 
   setEntry(agent);
@@ -190,7 +430,20 @@ export const setAgentTools = (
     setEntry('incident-handler');
   }
 
-  writeAll(all);
+  writeCache(all, now);
+  persistToDatastore(all, now);
+  return all;
+};
+
+export const saveAgentTools = async (
+  tools: ToolRef[],
+  agent: string = DEFAULT_AGENT,
+  actionType: string = DEFAULT_ACTION_TYPE,
+): Promise<{ success: boolean; entries: AgentToolsEntry[] }> => {
+  const entries = setAgentTools(tools, agent, actionType);
+  const now = lastLocalWriteTime;
+  const success = await persistToDatastore(entries, now);
+  return { success, entries };
 };
 
 /** Get tools assigned to a given skill/preset (e.g. 'incident-handler', 'vulnerability', etc.) */

@@ -289,13 +289,26 @@ const AssignedToolsSection = ({
     return 'incident-handler';
   });
 
+  useEffect(() => {
+    if (agent && agent !== DEFAULT_AGENT && agent !== selectedSkill) {
+      setSelectedSkill(agent);
+    }
+  }, [agent, selectedSkill]);
+
   const activeSkillDef = useMemo(() => {
     return AGENT_SKILLS.find((s) => s.id === selectedSkill) || AGENT_SKILLS[0];
   }, [selectedSkill]);
 
   const [tools, setTools] = useState<ToolRef[]>(() => getAgentTools(selectedSkill, actionType));
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const appDetail = useAppDetailOptional();
+
+  useEffect(() => {
+    if (saveStatus === 'idle') return;
+    const timer = setTimeout(() => setSaveStatus('idle'), 2500);
+    return () => clearTimeout(timer);
+  }, [saveStatus]);
 
   useEffect(() => {
     const refresh = () => setTools(getAgentTools(selectedSkill, actionType));
@@ -312,6 +325,18 @@ const AssignedToolsSection = ({
     setSelectedSkill(newSkill);
     setTools(getAgentTools(newSkill, actionType));
     if (onSkillChange) onSkillChange(newSkill);
+  };
+
+  const handleRemoveTool = (toolId: string) => {
+    removeAgentTool(toolId, selectedSkill, actionType);
+    setTools((prev) =>
+      prev.filter(
+        (t) =>
+          (t.id || '').toLowerCase() !== toolId.toLowerCase() &&
+          t.name.toLowerCase() !== toolId.toLowerCase(),
+      ),
+    );
+    setSaveStatus('saved');
   };
 
   useEffect(() => {
@@ -441,6 +466,19 @@ const AssignedToolsSection = ({
                 })}
               </Select>
 
+              {saveStatus !== 'idle' && (
+                <Typography
+                  sx={{
+                    fontSize: '0.72rem',
+                    color: 'hsl(var(--muted-foreground))',
+                    fontWeight: 500,
+                    mr: 0.5,
+                  }}
+                >
+                  {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
+                </Typography>
+              )}
+
               <Button
                 size="small"
                 startIcon={<Plus size={14} />}
@@ -493,7 +531,7 @@ const AssignedToolsSection = ({
                 key={t.id || t.name}
                 name={t.name}
                 icon={icons[t.name]}
-                onRemove={() => removeAgentTool(t.id || t.name, selectedSkill, actionType)}
+                onRemove={() => handleRemoveTool(t.id || t.name)}
                 onOpen={appDetail ? () => appDetail.openApp(t.name) : undefined}
               />
             ))}
@@ -511,18 +549,20 @@ const AssignedToolsSection = ({
 
       <AppSearchDrawer
         open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
+        onClose={() => {
+          setPickerOpen(false);
+          setTools(getAgentTools(selectedSkill, actionType));
+        }}
         title={`Assign tools to ${activeSkillDef.label}`}
         subtitle={`Pick the apps ${activeSkillDef.label} is allowed to use`}
         multiSelect
         selectedApps={pickerSelectedApps}
         pinnedApps={pinnedSnapshot}
         onSelectionChange={(apps: Array<{ name: string; id: string | null; icon: string; categories: string[] }>) => {
-          setAgentTools(
-            apps.map((a: Array<{ name: string; id: string | null; icon: string; categories: string[] }>[number]) => ({ name: a.name, id: a.id || a.name })),
-            selectedSkill,
-            actionType,
-          );
+          const nextTools = apps.map((a) => ({ name: a.name, id: a.id || a.name }));
+          setTools(nextTools);
+          setAgentTools(nextTools, selectedSkill, actionType);
+          setSaveStatus('saved');
         }}
       />
     </>

@@ -11,10 +11,8 @@
  *  - Palo Alto Networks Cortex XDR
  *  - Okta Identity Cloud
  *
- * IMPORTANT:
- * Alerts are intentionally NOT pre-standardised into OCSF.
- * The payload forwards the authentic raw alert JSON exactly as the source vendor would emit it,
- * allowing the Shuffle ingestion webhook workflow to execute real normalization and translation.
+ * Each alert JSON includes a top-level "source" field naming the tool/source,
+ * allowing the ingestion webhook and frontend to resolve and load the matching logo image.
  */
 
 export interface SampleAlert {
@@ -42,6 +40,7 @@ const ALERT_BUILDERS: AlertBuilder[] = [
   () => {
     const findingUid = getUniqueFindingUid('cs-falcon');
     const rawPayload = {
+      source: 'CrowdStrike Falcon',
       metadata: {
         customerIDString: 'c8d8f0e1a2b3c4d5e6f7',
         offset: 10245,
@@ -87,6 +86,7 @@ const ALERT_BUILDERS: AlertBuilder[] = [
     const findingUid = getUniqueFindingUid('mde');
     const nowIso = new Date().toISOString();
     const rawPayload = {
+      source: 'Microsoft Defender for Endpoint',
       id: `da-${Date.now()}-def`,
       provider: 'Microsoft Defender for Endpoint',
       title: 'Living-off-the-Land Binary (Certutil) Remote Payload Download',
@@ -128,6 +128,7 @@ const ALERT_BUILDERS: AlertBuilder[] = [
     const findingUid = getUniqueFindingUid('s1');
     const nowIso = new Date().toISOString();
     const rawPayload = {
+      source: 'SentinelOne Singularity',
       threatInfo: {
         threatId: `S1-THREAT-${Date.now().toString().slice(-6)}`,
         threatName: 'Ransomware.ShadowCopy.Delete',
@@ -164,10 +165,10 @@ const ALERT_BUILDERS: AlertBuilder[] = [
     const findingUid = getUniqueFindingUid('guardduty');
     const nowIso = new Date().toISOString();
     const rawPayload = {
+      source: 'AWS GuardDuty',
       version: '0',
       id: `gd-${Date.now().toString().slice(-6)}-2026`,
       'detail-type': 'GuardDuty Finding',
-      source: 'aws.guardduty',
       account: '982341123901',
       time: nowIso,
       region: 'us-east-1',
@@ -219,6 +220,7 @@ const ALERT_BUILDERS: AlertBuilder[] = [
     const findingUid = getUniqueFindingUid('wazuh');
     const nowIso = new Date().toISOString();
     const rawPayload = {
+      source: 'Wazuh',
       timestamp: nowIso,
       rule: {
         id: '100221',
@@ -266,6 +268,7 @@ const ALERT_BUILDERS: AlertBuilder[] = [
   () => {
     const findingUid = getUniqueFindingUid('splunk-es');
     const rawPayload = {
+      source: 'Splunk Enterprise Security',
       sid: `scheduler__admin__SplunkEnterpriseSecuritySuite__RMD${Date.now().toString().slice(-6)}`,
       search_name: 'Notable Event - Impossible Travel Activity Detected',
       app: 'SplunkEnterpriseSecuritySuite',
@@ -297,6 +300,7 @@ const ALERT_BUILDERS: AlertBuilder[] = [
   () => {
     const findingUid = getUniqueFindingUid('cortex-xdr');
     const rawPayload = {
+      source: 'Palo Alto Networks Cortex XDR',
       incident: {
         incident_id: `XDR-INC-${Date.now().toString().slice(-5)}`,
         incident_name: 'Suspicious Memory Injection into LSASS.exe',
@@ -338,6 +342,7 @@ const ALERT_BUILDERS: AlertBuilder[] = [
     const findingUid = getUniqueFindingUid('okta');
     const nowIso = new Date().toISOString();
     const rawPayload = {
+      source: 'Okta',
       eventId: `targets-okta-${Date.now().toString().slice(-6)}`,
       eventType: 'user.mfa.push.spam_detected',
       published: nowIso,

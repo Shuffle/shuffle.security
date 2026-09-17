@@ -18039,21 +18039,53 @@ const IncidentDetailPage = () => {
                       mb: 0.75,
                     }}
                   >
-                    Assigned tools
+                    Assigned tools (Incident Handler)
                   </Typography>
-                  {askAgentTools.length === 0 ? (
-                    <Typography
-                      variant="caption"
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                    <Box
                       sx={{
-                        color: "hsl(var(--muted-foreground))",
-                        fontSize: "0.7rem",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                        height: 24,
+                        px: 1,
+                        borderRadius: 1,
+                        border: "1px solid hsl(var(--border))",
+                        bgcolor: "hsl(var(--muted) / 0.5)",
                       }}
                     >
-                      No tools assigned — the agent will answer without apps.
-                    </Typography>
-                  ) : (
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-                      {askAgentTools.map((name) => (
+                      <Typography
+                        sx={{
+                          fontSize: "0.7rem",
+                          fontWeight: 500,
+                          color: "hsl(var(--foreground))",
+                        }}
+                      >
+                        Shuffle Incidents
+                      </Typography>
+                      <Box
+                        sx={{
+                          fontSize: "0.58rem",
+                          fontWeight: 600,
+                          px: 0.5,
+                          py: 0.1,
+                          borderRadius: 0.5,
+                          bgcolor: "hsl(var(--primary) / 0.12)",
+                          color: "hsl(var(--primary))",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Default
+                      </Box>
+                    </Box>
+
+                    {askAgentTools
+                      .filter(
+                        (name) =>
+                          name.toLowerCase() !== "shuffle_incidents" &&
+                          name.toLowerCase() !== "shuffle incidents",
+                      )
+                      .map((name) => (
                         <Box
                           key={name}
                           sx={{
@@ -18077,8 +18109,7 @@ const IncidentDetailPage = () => {
                           </Typography>
                         </Box>
                       ))}
-                    </Box>
-                  )}
+                  </Box>
                 </Box>
                 {!agentReadiness.isLoading && !agentReadiness.active && (
                   <Box

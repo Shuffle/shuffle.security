@@ -93,6 +93,7 @@ import ShuffleMarkdown from '@/Shuffle-MCPs/components/Markdown';
 
 import safeHandler from '@/Shuffle-MCPs/safeHandler';
 import AgentPresets, { AGENT_PRESETS, filterAgentPresets, isRequiredPresetApp, isSupportUser, type AgentPreset } from '@/Shuffle-MCPs/components/AgentPresets';
+import { getToolsForSkill, AGENT_TOOLS_CHANGED_EVENT } from '@/lib/agentTools';
 
 import { useAgentPromptPrefix } from '@/Shuffle-MCPs/useAgentPromptPrefix';
 import { runAgent, resolveAgentNodeId } from '@/Shuffle-MCPs/agentRun';
@@ -171,6 +172,19 @@ const readPresetAppsOverride = (presetId: string): Array<{ name: string; id?: st
   } catch {
     return null;
   }
+};
+
+const resolvePresetApps = (preset: AgentPreset): Array<{ name: string; id?: string; icon?: string }> => {
+  const baseApps = (preset.defaultApps || []).map((app) => ({ name: app.name, id: app.id, icon: app.icon }));
+  const assigned = getToolsForSkill(preset.id);
+  const merged = [...baseApps];
+  for (const t of assigned) {
+    const key = (t.id || t.name).toLowerCase();
+    if (!merged.some((m) => (m.id || m.name).toLowerCase() === key)) {
+      merged.push({ name: t.name, id: t.id, icon: (t as any).icon || undefined });
+    }
+  }
+  return merged;
 };
 
 const writePresetAppsOverride = (presetId: string, apps: Array<{ name: string; id?: string; icon?: string }>) => {
@@ -2344,8 +2358,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
         if (override) {
           // An empty override is a real choice ("I removed every tool") — honor it.
           setChosenApps(override);
-        } else if (match.defaultApps && match.defaultApps.length > 0) {
-          setChosenApps(match.defaultApps.map((app) => ({ name: app.name, id: app.id, icon: app.icon })));
+        } else {
+          setChosenApps(resolvePresetApps(match));
         }
       }
       seededPresetIdRef.current = match.id;
@@ -2353,6 +2367,19 @@ const AgentUI: React.FC<AgentUIProps> = ({
       /* ignore storage errors */
     }
   }, [presets, defaultInput, isEffectiveSupport, initialPresetId, defaultApps, apps]);
+
+  useEffect(() => {
+    const handleToolsChanged = () => {
+      if (selectedPreset) {
+        const override = readPresetAppsOverride(selectedPreset.id);
+        if (!override) {
+          setChosenApps(resolvePresetApps(selectedPreset));
+        }
+      }
+    };
+    window.addEventListener(AGENT_TOOLS_CHANGED_EVENT, handleToolsChanged);
+    return () => window.removeEventListener(AGENT_TOOLS_CHANGED_EVENT, handleToolsChanged);
+  }, [selectedPreset]);
 
 
 
@@ -2725,10 +2752,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
     const override = readPresetAppsOverride(preset.id);
     if (override && override.length > 0) {
       setChosenApps(override);
-    } else if (preset.defaultApps && preset.defaultApps.length > 0) {
-      setChosenApps(preset.defaultApps.map((app) => ({ name: app.name, id: app.id, icon: app.icon })));
     } else {
-      setChosenApps([]);
+      setChosenApps(resolvePresetApps(preset));
     }
     seededPresetIdRef.current = preset.id;
 

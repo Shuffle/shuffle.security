@@ -232,7 +232,7 @@ RESPONSE PATHWAYS:
 
 Update the internal shuffle datastore with the same key and category 'shuffle-security_incidents'. CRITICAL: You MUST ONLY send the specific fields that require a change. NEVER send or echo unchanged fields (such as unchanged tasks, activity, severity, or metadata). Do NOT overwrite unrelated fields.`,
 ];
-const DEFAULT_INCIDENT_AI_APPS: string[][] = [['48793430d21468f9e371ace402efcd8e', 'b82668d868f6dc7ac1dc14caa92c674b']];
+const DEFAULT_INCIDENT_AI_APPS: string[][] = [['48793430d21468f9e371ace402efcd8e']];
 
 const DEFAULT_VULNERABILITY_AI_PROMPTS: string[] = [
   `Review, analyze, and remediate this vulnerability. Follow this evaluation process:

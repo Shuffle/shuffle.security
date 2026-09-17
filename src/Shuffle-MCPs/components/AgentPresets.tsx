@@ -83,7 +83,7 @@ export const AGENT_PRESETS: AgentPreset[] = [
     icon: <ShieldAlert size={16} />,
     enabled: true,
     tag: 'Beta',
-    defaultApps: [{ name: 'shuffle_incidents' }, { name: 'shuffle_datastore' }],
+    defaultApps: [{ name: 'shuffle_incidents' }],
   },
   {
     id: 'host-monitor-control',

@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Typography, IconButton, Tooltip, Button } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip, Button, Select, MenuItem } from '@mui/material';
 import { Plus, X, Wrench, AppWindow } from 'lucide-react';
 import { AppSearchDrawer } from '@/Shuffle-MCPs';
 import { AGENT_TOOL_PICKER_OPEN_EVENT } from '@/lib/agentDrawer';
@@ -26,10 +26,57 @@ import {
   type ToolRef,
 } from '@/lib/agentTools';
 
+export interface SkillDefinition {
+  id: string;
+  label: string;
+  description: string;
+  builtInApps: string[];
+}
+
+export const AGENT_SKILLS: SkillDefinition[] = [
+  {
+    id: 'incident-handler',
+    label: 'Incident Handler',
+    description: 'Investigates alerts, triages threats, correlates observables, and coordinates response.',
+    builtInApps: ['shuffle_incidents'],
+  },
+  {
+    id: 'vulnerability',
+    label: 'Vulnerability Agent',
+    description: 'Demystifies CVEs, reviews affected packages, and guides remediation.',
+    builtInApps: ['shuffle_vulnerabilities', 'shuffle_software_and_packages'],
+  },
+  {
+    id: 'build-workflows',
+    label: 'Build Workflow',
+    description: 'Designs and builds automations, wires app actions, and iterates on workflows.',
+    builtInApps: ['shuffle_workflows_builder', 'shuffle_apps'],
+  },
+  {
+    id: 'host-monitor-control',
+    label: 'Computer Use',
+    description: 'Controls hosts, executes commands, and inspects remote endpoints.',
+    builtInApps: ['shuffle_host_monitors'],
+  },
+  {
+    id: 'support',
+    label: 'Support Agent',
+    description: 'Answers platform questions, inspects settings, and assists users.',
+    builtInApps: ['shuffle_tools'],
+  },
+  {
+    id: 'detection',
+    label: 'Detection Agent',
+    description: 'Creates and tunes detection rules (Sigma, pipelines) and validates coverage.',
+    builtInApps: ['shuffle_detection'],
+  },
+];
+
 interface Props {
   agent?: string;
   actionType?: string;
   compact?: boolean;
+  onSkillChange?: (skillId: string) => void;
 }
 
 const norm = (s: string) => (s || '').toLowerCase().replace(/[\s-]+/g, '_');
@@ -73,6 +120,87 @@ const useAppIcons = (names: string[]) => {
   }, [key]);
 
   return icons;
+};
+
+const BuiltInToolPill = ({
+  name,
+  icon,
+  onOpen,
+  skillLabel,
+}: {
+  name: string;
+  icon?: string;
+  onOpen?: () => void;
+  skillLabel: string;
+}) => {
+  const display = formatToolName(name);
+  return (
+    <Tooltip title={`Built-in default app for ${skillLabel} (always available)`} arrow>
+      <Box
+        onClick={onOpen}
+        sx={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 0.75,
+          height: 30,
+          pl: 0.75,
+          pr: 1,
+          borderRadius: 1.5,
+          border: '1px solid hsl(var(--border))',
+          bgcolor: 'hsl(var(--muted) / 0.5)',
+          cursor: onOpen ? 'pointer' : 'default',
+          transition: 'all 120ms ease',
+          '&:hover': onOpen
+            ? {
+                bgcolor: 'hsl(var(--muted) / 0.8)',
+                borderColor: 'hsl(var(--primary) / 0.4)',
+              }
+            : undefined,
+        }}
+      >
+        <Box
+          sx={{
+            width: 20,
+            height: 20,
+            borderRadius: 0.75,
+            bgcolor: 'hsl(var(--primary) / 0.12)',
+            color: 'hsl(var(--primary))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '0.65rem',
+            fontWeight: 700,
+            overflow: 'hidden',
+            flexShrink: 0,
+          }}
+        >
+          {icon ? (
+            <img src={icon} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          ) : (
+            display.charAt(0).toUpperCase()
+          )}
+        </Box>
+        <Typography sx={{ fontSize: '0.78rem', fontWeight: 500, color: 'hsl(var(--foreground))' }}>
+          {display}
+        </Typography>
+        <Box
+          sx={{
+            fontSize: '0.62rem',
+            fontWeight: 600,
+            px: 0.6,
+            py: 0.15,
+            borderRadius: 0.75,
+            bgcolor: 'hsl(var(--primary) / 0.12)',
+            color: 'hsl(var(--primary))',
+            textTransform: 'uppercase',
+            letterSpacing: '0.03em',
+          }}
+        >
+          Default
+        </Box>
+      </Box>
+    </Tooltip>
+  );
 };
 
 const ToolPill = ({
@@ -154,17 +282,23 @@ const AssignedToolsSection = ({
   agent = DEFAULT_AGENT,
   actionType = DEFAULT_ACTION_TYPE,
   compact = false,
+  onSkillChange,
 }: Props) => {
-  const [tools, setTools] = useState<ToolRef[]>(() => getAgentTools(agent, actionType));
+  const [selectedSkill, setSelectedSkill] = useState<string>(() => {
+    if (agent && agent !== DEFAULT_AGENT) return agent;
+    return 'incident-handler';
+  });
+
+  const activeSkillDef = useMemo(() => {
+    return AGENT_SKILLS.find((s) => s.id === selectedSkill) || AGENT_SKILLS[0];
+  }, [selectedSkill]);
+
+  const [tools, setTools] = useState<ToolRef[]>(() => getAgentTools(selectedSkill, actionType));
   const [pickerOpen, setPickerOpen] = useState(false);
-  // Same drawer the global INTEGRATIONS strip uses, so clicking an
-  // assigned-tool pill opens the catalog detail page for that app
-  // instead of doing nothing — matching the behaviour from elsewhere
-  // in the app.
   const appDetail = useAppDetailOptional();
 
   useEffect(() => {
-    const refresh = () => setTools(getAgentTools(agent, actionType));
+    const refresh = () => setTools(getAgentTools(selectedSkill, actionType));
     refresh();
     window.addEventListener(AGENT_TOOLS_CHANGED_EVENT, refresh);
     window.addEventListener('storage', refresh);
@@ -172,27 +306,31 @@ const AssignedToolsSection = ({
       window.removeEventListener(AGENT_TOOLS_CHANGED_EVENT, refresh);
       window.removeEventListener('storage', refresh);
     };
-  }, [agent, actionType]);
+  }, [selectedSkill, actionType]);
 
-  // Allow callers (e.g. the incident "Assign tools" action) to jump straight
-  // into the app picker instead of making the user click "Add tool" again.
+  const handleSkillSelect = (newSkill: string) => {
+    setSelectedSkill(newSkill);
+    setTools(getAgentTools(newSkill, actionType));
+    if (onSkillChange) onSkillChange(newSkill);
+  };
+
   useEffect(() => {
     const openPicker = () => setPickerOpen(true);
     window.addEventListener(AGENT_TOOL_PICKER_OPEN_EVENT, openPicker);
     return () => window.removeEventListener(AGENT_TOOL_PICKER_OPEN_EVENT, openPicker);
   }, []);
 
+  const allNamesToResolve = useMemo(() => {
+    return Array.from(new Set([...activeSkillDef.builtInApps, ...tools.map((t) => t.name)]));
+  }, [activeSkillDef.builtInApps, tools]);
 
-  const icons = useAppIcons(useMemo(() => tools.map((t) => t.name), [tools]));
+  const icons = useAppIcons(allNamesToResolve);
 
-  // Apps to highlight as already-assigned inside the picker.
   const pickerSelectedApps = useMemo(
     () => tools.map((t) => ({ name: t.name, id: t.id || null, icon: icons[t.name] || '' })),
     [tools, icons],
   );
 
-  // Snapshot taken when the picker OPENS so assigned apps sort first on the
-  // initial load only (later toggles do not reshuffle the list).
   const [pinnedSnapshot, setPinnedSnapshot] = useState<
     Array<{ name: string; image_url: string; objectID?: string }>
   >([]);
@@ -208,12 +346,6 @@ const AssignedToolsSection = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickerOpen]);
 
-
-  const labelText =
-    agent === DEFAULT_AGENT
-      ? 'Apps the default agent is allowed to use'
-      : `Apps "${agent}" is allowed to use`;
-
   return (
     <>
       <Box
@@ -225,12 +357,12 @@ const AssignedToolsSection = ({
           overflow: 'hidden',
         }}
       >
-        {/* Header row — matches PermissionsPanel category headers */}
+        {/* Header row */}
         <Box
           sx={{
             display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
+            flexDirection: 'column',
+            gap: 1.25,
             px: compact ? 2 : 2.5,
             py: 1.5,
             borderBottom: '1px solid hsl(var(--border))',
@@ -239,81 +371,140 @@ const AssignedToolsSection = ({
         >
           <Box
             sx={{
-              width: 32,
-              height: 32,
-              borderRadius: 1.25,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              bgcolor: 'hsl(var(--primary) / 0.12)',
-              color: 'hsl(var(--primary))',
-              flexShrink: 0,
+              justifyContent: 'space-between',
+              gap: 1.5,
+              flexWrap: 'wrap',
             }}
           >
-            <Wrench size={16} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 1.25,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: 'hsl(var(--primary) / 0.12)',
+                  color: 'hsl(var(--primary))',
+                  flexShrink: 0,
+                }}
+              >
+                <Wrench size={16} />
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: compact ? '0.82rem' : '0.9rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+                  Assigned Tools
+                </Typography>
+                <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))' }}>
+                  Agent Skill: <strong style={{ color: 'hsl(var(--foreground))' }}>{activeSkillDef.label}</strong>
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
+              <Select
+                size="small"
+                value={selectedSkill}
+                onChange={(e) => handleSkillSelect(String(e.target.value))}
+                sx={{
+                  height: 30,
+                  minWidth: 150,
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  bgcolor: 'hsl(var(--background))',
+                  color: 'hsl(var(--foreground))',
+                  borderRadius: 1.25,
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'hsl(var(--border))' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'hsl(var(--muted-foreground) / 0.3)' },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'hsl(var(--primary))' },
+                  '& .MuiSelect-select': { py: 0.5, px: 1 },
+                }}
+              >
+                {AGENT_SKILLS.map((skill) => {
+                  const isIncident = skill.id === 'incident-handler';
+                  return (
+                    <MenuItem
+                      key={skill.id}
+                      value={skill.id}
+                      disabled={!isIncident}
+                      sx={{
+                        fontSize: '0.78rem',
+                        opacity: isIncident ? 1 : 0.5,
+                      }}
+                    >
+                      {skill.label} {!isIncident ? '(Coming soon)' : ''}
+                    </MenuItem>
+                  );
+                })}
+              </Select>
+
+              <Button
+                size="small"
+                startIcon={<Plus size={14} />}
+                onClick={() => setPickerOpen(true)}
+                sx={{
+                  height: 30,
+                  px: 1.25,
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 1.25,
+                  color: 'hsl(var(--foreground))',
+                  bgcolor: 'hsl(var(--background))',
+                  textTransform: 'none',
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                  '&:hover': {
+                    bgcolor: 'hsl(var(--primary) / 0.08)',
+                    borderColor: 'hsl(var(--primary) / 0.4)',
+                    color: 'hsl(var(--primary))',
+                  },
+                }}
+              >
+                Add tool
+              </Button>
+            </Box>
           </Box>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: compact ? '0.82rem' : '0.9rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
-              Assigned tools
-            </Typography>
-            <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))', mt: 0.25 }}>
-              {labelText}
-            </Typography>
-          </Box>
-          <Button
-            size="small"
-            startIcon={<Plus size={14} />}
-            onClick={() => setPickerOpen(true)}
-            sx={{
-              height: 30,
-              px: 1.25,
-              border: '1px solid hsl(var(--border))',
-              borderRadius: 1.25,
-              color: 'hsl(var(--foreground))',
-              bgcolor: 'hsl(var(--background))',
-              textTransform: 'none',
-              fontSize: '0.75rem',
-              fontWeight: 500,
-              '&:hover': {
-                bgcolor: 'hsl(var(--primary) / 0.08)',
-                borderColor: 'hsl(var(--primary) / 0.4)',
-                color: 'hsl(var(--primary))',
-              },
-            }}
-          >
-            Add tool
-          </Button>
+
+          <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))' }}>
+            {activeSkillDef.description}
+          </Typography>
         </Box>
 
         {/* Body */}
         <Box sx={{ px: compact ? 2 : 2.5, py: 1.75 }}>
-          {tools.length === 0 ? (
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                py: 1,
-                color: 'hsl(var(--muted-foreground))',
-              }}
-            >
-              <AppWindow size={16} style={{ opacity: 0.6 }} />
-              <Typography sx={{ fontSize: '0.78rem' }}>
-                No tools assigned yet — the agent will have nothing to call.
-              </Typography>
-            </Box>
-          ) : (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-              {tools.map((t) => (
-                <ToolPill
-                  key={t.id || t.name}
-                  name={t.name}
-                  icon={icons[t.name]}
-                  onRemove={() => removeAgentTool(t.id || t.name, agent, actionType)}
-                  onOpen={appDetail ? () => appDetail.openApp(t.name) : undefined}
-                />
-              ))}
-            </Box>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+            {/* Built-in default apps for this skill */}
+            {activeSkillDef.builtInApps.map((appName) => (
+              <BuiltInToolPill
+                key={`builtin-${appName}`}
+                name={appName}
+                icon={icons[appName]}
+                skillLabel={activeSkillDef.label}
+                onOpen={appDetail ? () => appDetail.openApp(appName) : undefined}
+              />
+            ))}
+
+            {/* Custom assigned tools */}
+            {tools.map((t) => (
+              <ToolPill
+                key={t.id || t.name}
+                name={t.name}
+                icon={icons[t.name]}
+                onRemove={() => removeAgentTool(t.id || t.name, selectedSkill, actionType)}
+                onOpen={appDetail ? () => appDetail.openApp(t.name) : undefined}
+              />
+            ))}
+          </Box>
+
+          {tools.length === 0 && (
+            <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))', mt: 1 }}>
+              {activeSkillDef.builtInApps.length > 0
+                ? `Only built-in default apps are active. Click Add tool to connect integrations (EDR, SIEM, Threat Intel, Firewall) for ${activeSkillDef.label}.`
+                : `No tools assigned yet — click Add tool to assign apps for ${activeSkillDef.label}.`}
+            </Typography>
           )}
         </Box>
       </Box>
@@ -321,21 +512,19 @@ const AssignedToolsSection = ({
       <AppSearchDrawer
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        title="Assign tools"
-        subtitle="Pick the apps the agent is allowed to use"
+        title={`Assign tools to ${activeSkillDef.label}`}
+        subtitle={`Pick the apps ${activeSkillDef.label} is allowed to use`}
         multiSelect
         selectedApps={pickerSelectedApps}
         pinnedApps={pinnedSnapshot}
         onSelectionChange={(apps: Array<{ name: string; id: string | null; icon: string; categories: string[] }>) => {
           setAgentTools(
             apps.map((a: Array<{ name: string; id: string | null; icon: string; categories: string[] }>[number]) => ({ name: a.name, id: a.id || a.name })),
-            agent,
+            selectedSkill,
             actionType,
           );
         }}
       />
-
-
     </>
   );
 };

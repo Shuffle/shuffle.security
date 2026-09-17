@@ -137,12 +137,24 @@ export const loadAgentToolsFromDatastore = async (): Promise<AgentToolsEntry[]> 
   }
 };
 
+export const INCIDENT_HANDLER_SKILL = 'incident-handler';
+
 export const getAgentTools = (
   agent: string = DEFAULT_AGENT,
   actionType: string = DEFAULT_ACTION_TYPE,
 ): ToolRef[] => {
   const all = readAll();
-  return all.find((e) => e.agent === agent && e.actionType === actionType)?.tools ?? [];
+  const entry = all.find((e) => e.agent === agent && e.actionType === actionType);
+  if (entry && entry.tools && entry.tools.length > 0) {
+    return entry.tools;
+  }
+  if (agent === 'incident-handler' || agent === 'incident-response') {
+    return all.find((e) => e.agent === DEFAULT_AGENT && e.actionType === actionType)?.tools ?? [];
+  }
+  if (agent === DEFAULT_AGENT) {
+    return all.find((e) => (e.agent === 'incident-handler' || e.agent === 'incident-response') && e.actionType === actionType)?.tools ?? [];
+  }
+  return [];
 };
 
 const dedupeTools = (tools: ToolRef[]): ToolRef[] => {
@@ -163,11 +175,33 @@ export const setAgentTools = (
   actionType: string = DEFAULT_ACTION_TYPE,
 ) => {
   const all = readAll();
-  const idx = all.findIndex((e) => e.agent === agent && e.actionType === actionType);
   const dedup = dedupeTools(tools.filter((t) => t && typeof t.name === 'string' && t.name.trim().length > 0));
-  if (idx >= 0) all[idx] = { agent, actionType, tools: dedup };
-  else all.push({ agent, actionType, tools: dedup });
+
+  const setEntry = (targetAgent: string) => {
+    const idx = all.findIndex((e) => e.agent === targetAgent && e.actionType === actionType);
+    if (idx >= 0) all[idx] = { agent: targetAgent, actionType, tools: dedup };
+    else all.push({ agent: targetAgent, actionType, tools: dedup });
+  };
+
+  setEntry(agent);
+  if (agent === 'incident-handler' || agent === 'incident-response') {
+    setEntry(DEFAULT_AGENT);
+  } else if (agent === DEFAULT_AGENT) {
+    setEntry('incident-handler');
+  }
+
   writeAll(all);
+};
+
+/** Get tools assigned to a given skill/preset (e.g. 'incident-handler', 'vulnerability', etc.) */
+export const getToolsForSkill = (skillOrPresetId: string): ToolRef[] => {
+  const normalized = (skillOrPresetId || '').toLowerCase().trim();
+  if (normalized === 'incident-handler' || normalized === 'incident-response' || normalized === 'default') {
+    const ih = getAgentTools('incident-handler');
+    if (ih.length > 0) return ih;
+    return getAgentTools(DEFAULT_AGENT);
+  }
+  return getAgentTools(normalized);
 };
 
 export const addAgentTool = (

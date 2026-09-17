@@ -1460,7 +1460,7 @@ export const setAiAgentIncidentAutomation = async (enabled: boolean): Promise<bo
           description: 'Runs an AI Agent to process the updated value. Uses built-in ShuffleAI configs. Learn more: https://shuffler.io/docs/AI',
           type: 'singul',
           enabled: true,
-          options: [{ key: 'action', value: DEFAULT_INCIDENT_AI_AGENT_PROMPT, apps: '48793430d21468f9e371ace402efcd8e,b82668d868f6dc7ac1dc14caa92c674b' }],
+          options: [{ key: 'action', value: DEFAULT_INCIDENT_AI_AGENT_PROMPT, apps: '48793430d21468f9e371ace402efcd8e' }],
         },
       ];
     }

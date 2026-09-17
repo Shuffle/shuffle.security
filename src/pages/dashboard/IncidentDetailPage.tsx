@@ -1121,8 +1121,17 @@ const parseIncidentFromDatastore = (item: {
         meaningfulField(data.desc, data) ||
         meaningfulField(data.message, data),
       source: normalizeSourceLabel(meaningfulField(data.source, data)),
-      severity: data.severity || "medium",
-      status: normalizeStatus(data.status),
+      severity: data.severity
+        ? String(data.severity).toLowerCase()
+        : typeof data.severity_id === "number"
+          ? mapOCSFSeverity(data.severity_id)
+          : "medium",
+      status: normalizeStatus(
+        data.status ||
+          (typeof data.status_id === "number"
+            ? mapOCSFStatus(data.status_id)
+            : "new"),
+      ),
       assignee: meaningfulField(data.assignee, data, "From") || null,
       created: formatTimestamp(resolveCreatedTs(data, item.created)),
       createdTs: resolveCreatedTs(data, item.created),
@@ -1528,6 +1537,8 @@ const IncidentDetailPage = () => {
     }>
   >([]);
   const autoProgressedStatusRef = useRef<boolean>(false);
+  const manualStatusChangedRef = useRef<boolean>(false);
+  const manualSeverityChangedRef = useRef<boolean>(false);
 
   const handleManualTitleChange = useCallback(
     (nextTitle: string) => {
@@ -1556,6 +1567,7 @@ const IncidentDetailPage = () => {
   const handleManualStatusChange = useCallback(
     (nextStatus: string) => {
       autoProgressedStatusRef.current = false;
+      manualStatusChangedRef.current = true;
       const prevStatus = (editedStatus || incident?.status || "new").trim();
       const newStatusTrimmed = (nextStatus || "").trim();
       setEditedStatus(nextStatus);
@@ -1600,6 +1612,30 @@ const IncidentDetailPage = () => {
   }, [currentIncidentTitle, rawId]);
   const [editedMessage, setEditedMessage] = useState("");
   const [editedSeverity, setEditedSeverity] = useState("");
+
+  const handleManualSeverityChange = useCallback(
+    (nextSeverity: string) => {
+      manualSeverityChangedRef.current = true;
+      const prevSeverity = (editedSeverity || incident?.severity || "medium").trim();
+      const newSeverityTrimmed = (nextSeverity || "").trim();
+      setEditedSeverity(nextSeverity);
+      if (newSeverityTrimmed && newSeverityTrimmed !== prevSeverity) {
+        setOptimisticAttrChanges((prev) => [
+          ...prev.filter(
+            (p) => p.field !== "severity" || Date.now() - p.timestamp > 20000,
+          ),
+          {
+            field: "severity",
+            prevRaw: prevSeverity,
+            currRaw: newSeverityTrimmed,
+            timestamp: Date.now(),
+            actor: currentUsername || "You",
+          },
+        ]);
+      }
+    },
+    [editedSeverity, incident?.severity, currentUsername],
+  );
   const [editedAssignee, setEditedAssignee] = useState("");
   const [editedTlp, setEditedTlp] = useState("TLP:AMBER");
   const [editedReferences, setEditedReferences] = useState<string[]>([]);
@@ -2218,9 +2254,17 @@ const IncidentDetailPage = () => {
     "observables",
     "correlations",
   ];
+  // Simple incident view defaults: excludes Workflow runs, AI Agents, and
+  // Changes by default so automation noise and revision diffs do not clutter the triage feed.
+  const DEFAULT_SIMPLE_TIMELINE_FILTERS: TimelineFilterKey[] = [
+    "manual",
+    "tasks",
+    "observables",
+    "correlations",
+  ];
+  const MOBILE_DEFAULT_SIMPLE_TIMELINE_FILTERS: TimelineFilterKey[] = ["manual"];
+
   const DEFAULT_TIMELINE_FILTERS: TimelineFilterKey[] = [
-    "agent",
-    "workflows",
     "manual",
     "tasks",
     "observables",
@@ -2235,8 +2279,12 @@ const IncidentDetailPage = () => {
     typeof window !== "undefined" &&
     window.matchMedia("(max-width: 599.95px)").matches;
   const TIMELINE_FILTER_STORAGE_KEY = isMobileViewport
-    ? "shuffle-incident-timeline-filters-mobile-v1"
-    : "shuffle-incident-timeline-filters-v5";
+    ? "shuffle-incident-timeline-filters-mobile-v2"
+    : "shuffle-incident-timeline-filters-v6";
+  const SIMPLE_TIMELINE_FILTER_STORAGE_KEY = isMobileViewport
+    ? "shuffle-incident-simple-timeline-filters-mobile-v1"
+    : "shuffle-incident-simple-timeline-filters-v1";
+
   const [activeTimelineFilters, setActiveTimelineFilters] = useState<
     Set<TimelineFilterKey>
   >(() => {
@@ -2268,16 +2316,69 @@ const IncidentDetailPage = () => {
       /* ignore quota */
     }
   }, [activeTimelineFilters]);
-  const toggleTimelineFilter = (key: TimelineFilterKey) => {
-    setActiveTimelineFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+
+  const [activeSimpleTimelineFilters, setActiveSimpleTimelineFilters] = useState<
+    Set<TimelineFilterKey>
+  >(() => {
+    const defaults = isMobileViewport
+      ? MOBILE_DEFAULT_SIMPLE_TIMELINE_FILTERS
+      : DEFAULT_SIMPLE_TIMELINE_FILTERS;
+    if (typeof window === "undefined") return new Set(defaults);
+    try {
+      const raw = localStorage.getItem(SIMPLE_TIMELINE_FILTER_STORAGE_KEY);
+      if (!raw) return new Set(defaults);
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return new Set(defaults);
+      const valid = arr.filter((k): k is TimelineFilterKey =>
+        ALL_TIMELINE_FILTERS.includes(k),
+      );
+      return new Set(valid);
+    } catch {
+      return new Set(defaults);
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        SIMPLE_TIMELINE_FILTER_STORAGE_KEY,
+        JSON.stringify(Array.from(activeSimpleTimelineFilters)),
+      );
+    } catch {
+      /* ignore quota */
+    }
+  }, [activeSimpleTimelineFilters]);
+
+  const toggleTimelineFilter = (
+    key: TimelineFilterKey,
+    isSimpleContext?: boolean,
+  ) => {
+    const isSimple = isSimpleContext ?? (activeTab === 7);
+    if (isSimple) {
+      setActiveSimpleTimelineFilters((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+    } else {
+      setActiveTimelineFilters((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+    }
   };
-  const isFilterActive = (key: TimelineFilterKey) =>
-    activeTimelineFilters.has(key);
+  const isFilterActive = (
+    key: TimelineFilterKey,
+    isSimpleContext?: boolean,
+  ) => {
+    const isSimple = isSimpleContext ?? (activeTab === 7);
+    const active = isSimple
+      ? activeSimpleTimelineFilters
+      : activeTimelineFilters;
+    return active.has(key);
+  };
   // Merge/threading audit entries live inside `activity` but should be
   // filed under their own "Threading" filter — they are not user comments.
   // Emitted by src/lib/incidentRelations.ts as { type: 'system', id: 'merge-…' | 'merge-in-…' }.
@@ -2319,12 +2420,6 @@ const IncidentDetailPage = () => {
   const commentActivity = displayActivity.filter(
     (a) => !isMergeActivityItem(a),
   );
-  // Legacy compatibility shim — a few render branches used to special-case
-  // the single-select "revisions" tab to relabel the oldest revision as
-  // "Incident created". The equivalent in the new multi-select model is
-  // "only the Changes filter is enabled".
-  const isOnlyRevisionsFilter =
-    activeTimelineFilters.size === 1 && activeTimelineFilters.has("revisions");
   // Timeline expand/collapse — same UX as Email Thread / Description sections.
   // Persisted per-browser so the choice survives navigation.
   const TIMELINE_COLLAPSED_STORAGE_KEY = "shuffle-incident-timeline-collapsed";
@@ -2377,8 +2472,15 @@ const IncidentDetailPage = () => {
     maxTs: number;
   } | null>(null);
 
-  const handleFilterHover = (key: TimelineFilterKey | null) => {
-    if (key && !activeTimelineFilters.has(key)) {
+  const handleFilterHover = (
+    key: TimelineFilterKey | null,
+    isSimpleContext?: boolean,
+  ) => {
+    const isSimple = isSimpleContext ?? (activeTab === 7);
+    const activeFilters = isSimple
+      ? activeSimpleTimelineFilters
+      : activeTimelineFilters;
+    if (key && !activeFilters.has(key)) {
       const container = simpleFeedRef.current || defaultFeedRef.current;
       if (container) {
         const cTop = container.scrollTop;
@@ -2519,6 +2621,17 @@ const IncidentDetailPage = () => {
     currentIncidentIdRef.current = rawId;
     userInteractedTabRef.current = false;
   }
+
+  // Legacy compatibility shim — a few render branches used to special-case
+  // the single-select "revisions" tab to relabel the oldest revision as
+  // "Incident created". The equivalent in the new multi-select model is
+  // "only the Changes filter is enabled".
+  const isOnlyRevisionsFilter =
+    (activeTab === 7 ? activeSimpleTimelineFilters : activeTimelineFilters)
+      .size === 1 &&
+    (activeTab === 7 ? activeSimpleTimelineFilters : activeTimelineFilters).has(
+      "revisions",
+    );
 
   useEffect(() => {
     const isDemo =
@@ -6196,6 +6309,30 @@ const IncidentDetailPage = () => {
     setEditedStakeholders(reParsed.stakeholders || []);
     setEditedLabels(reParsed.labels || []);
     setActivity(mergePendingActivity(reParsed.activity || []));
+    const normalizedTasks = ensureTaskIds(reParsed.tasks || []);
+    setTasks(normalizedTasks);
+
+    // Update initial snapshot so auto-save doesn't fire from OCSF recovery fallback
+    initialValuesRef.current = {
+      title: reParsed.title ?? "",
+      message: htmlToPlainText(
+        rawDecoded !== rawDesc
+          ? rawDecoded
+          : decodeIfBase64(htmlToPlainText(rawDesc)),
+      ),
+      severity: reParsed.severity,
+      assignee: isAIAssignee(rawAssignee) ? "AI Agent" : rawAssignee,
+      status: reParsed.status,
+      tlp: reParsed.tlp || "TLP:AMBER",
+      references: JSON.stringify(
+        Array.isArray(reParsed.references) ? reParsed.references : [],
+      ),
+      observables: JSON.stringify(reParsed.observables || []),
+      customFields: JSON.stringify(reParsed.customFields || {}),
+      stakeholders: JSON.stringify(reParsed.stakeholders || []),
+      tasks: JSON.stringify(normalizedTasks),
+      labels: JSON.stringify(reParsed.labels || []),
+    };
 
     // Compute what is STILL missing after we folded revisions into the base
     // and overlaid live edits. Only these should surface as "missing" in the
@@ -6398,35 +6535,52 @@ const IncidentDetailPage = () => {
             }
             if (added === 0) return prev;
             // Fire-and-forget persist of the tiny first-seen map. We update
-            // ONLY the correlation_first_seen field — everything else is
-            // copied through verbatim so we don't clobber concurrent edits.
-            const snap = incidentRef.current?.rawOCSF as
-              Record<string, unknown> | undefined;
-            if (snap && id) {
-              const meta =
-                (snap.metadata as Record<string, unknown> | undefined) || {};
-              const exts =
-                (meta.extensions as Record<string, unknown> | undefined) || {};
-              const custom =
-                (exts.custom_attributes as
-                  Record<string, unknown> | undefined) || {};
-              const updated = {
-                ...snap,
-                metadata: {
-                  ...meta,
-                  extensions: {
-                    ...exts,
-                    custom_attributes: {
-                      ...custom,
-                      correlation_first_seen: next,
+            // ONLY the correlation_first_seen field on fresh datastore data so
+            // we don't clobber concurrent edits with a stale snapshot.
+            if (id) {
+              (async () => {
+                try {
+                  const res = await getDatastoreItem(
+                    id,
+                    DATASTORE_CATEGORIES.INCIDENTS,
+                    crossOrgId || undefined,
+                  );
+                  const base =
+                    res.success && res.item?.value
+                      ? JSON.parse(res.item.value)
+                      : (incidentRef.current?.rawOCSF as
+                          | Record<string, unknown>
+                          | undefined);
+                  if (!base) return;
+
+                  const meta =
+                    (base.metadata as Record<string, unknown> | undefined) ||
+                    {};
+                  const exts =
+                    (meta.extensions as Record<string, unknown> | undefined) ||
+                    {};
+                  const custom =
+                    (exts.custom_attributes as
+                      | Record<string, unknown>
+                      | undefined) || {};
+                  const updated = {
+                    ...base,
+                    metadata: {
+                      ...meta,
+                      extensions: {
+                        ...exts,
+                        custom_attributes: {
+                          ...custom,
+                          correlation_first_seen: next,
+                        },
+                      },
                     },
-                  },
-                },
-              };
-              writeIncidentSafe(id, updated, crossOrgId || undefined).catch(
-                (err) =>
-                  console.warn("[Correlations] persist first-seen failed", err),
-              );
+                  };
+                  await writeIncidentSafe(id, updated, crossOrgId || undefined);
+                } catch (err) {
+                  console.warn("[Correlations] persist first-seen failed", err);
+                }
+              })();
             }
             // Anchor the timeline pill at the earliest stamp we know about.
             const earliest = Math.min(...Object.values(next));
@@ -6722,11 +6876,40 @@ const IncidentDetailPage = () => {
           }
         }
 
+        // ─ Severity: adopt from server if not dirty ───────────────────────
+        const severityDirty =
+          manualSeverityChangedRef.current &&
+          editedSeverity !== initialValuesRef.current?.severity;
+        if (!severityDirty) {
+          const serverSeverity = reParsed.severity || "medium";
+          if (
+            serverSeverity !== editedSeverity ||
+            serverSeverity !== initialValuesRef.current?.severity
+          ) {
+            setEditedSeverity(serverSeverity);
+            if (initialValuesRef.current) {
+              initialValuesRef.current.severity = serverSeverity;
+            }
+          }
+        }
+
         // ─ Status: adopt from server if not dirty ─────────────────────────
-        const statusDirty = editedStatus !== initialValuesRef.current?.status;
-        if (!statusDirty) {
+        const isServerTerminalStatus =
+          reParsed.status === "resolved" ||
+          reParsed.status === "merged" ||
+          reParsed.status === "closed";
+        const statusDirty =
+          manualStatusChangedRef.current &&
+          editedStatus !== initialValuesRef.current?.status;
+        if (
+          !statusDirty ||
+          (isServerTerminalStatus && !manualStatusChangedRef.current)
+        ) {
           const serverStatus = reParsed.status || "open";
-          if (serverStatus !== initialValuesRef.current?.status) {
+          if (
+            serverStatus !== editedStatus ||
+            serverStatus !== initialValuesRef.current?.status
+          ) {
             setEditedStatus(serverStatus);
             if (initialValuesRef.current) {
               initialValuesRef.current.status = serverStatus;
@@ -6988,10 +7171,44 @@ const IncidentDetailPage = () => {
     setIsSaving(true);
     pendingSaveRef.current = false;
 
+    let effectiveStatus = editedStatus;
+    const currentIsResolvedOrMerged =
+      incident.status === "resolved" ||
+      incident.status === "merged" ||
+      incident.rawOCSF?.status_id === 3 ||
+      incident.rawOCSF?.status_id === 6 ||
+      incident.rawOCSF?.status === "Resolved" ||
+      incident.rawOCSF?.status === "Merged";
+
+    if (
+      currentIsResolvedOrMerged &&
+      !manualStatusChangedRef.current &&
+      editedStatus !== incident.status
+    ) {
+      effectiveStatus = incident.status;
+      setEditedStatus(effectiveStatus);
+      if (initialValuesRef.current) {
+        initialValuesRef.current.status = effectiveStatus;
+      }
+    }
+
+    let effectiveSeverity = editedSeverity;
+    if (
+      !manualSeverityChangedRef.current &&
+      incident.severity &&
+      editedSeverity !== incident.severity
+    ) {
+      effectiveSeverity = incident.severity;
+      setEditedSeverity(effectiveSeverity);
+      if (initialValuesRef.current) {
+        initialValuesRef.current.severity = effectiveSeverity;
+      }
+    }
+
     const severityOption = severityOptions.find(
-      (s) => s.value === editedSeverity,
+      (s) => s.value === effectiveSeverity,
     );
-    const { label: statusLabel, id: statusId } = getOCSFStatus(editedStatus);
+    const { label: statusLabel, id: statusId } = getOCSFStatus(effectiveStatus);
 
     // Get existing finding info from list (new) or direct (legacy)
     const existingFindingInfo =
@@ -7081,6 +7298,10 @@ const IncidentDetailPage = () => {
       autoProgressedStatusRef.current = false;
     }
 
+    if (manualStatusChangedRef.current) {
+      (updatedData as any)._user_manual_status_change = true;
+    }
+
     try {
       const saveResult = await writeIncidentSafe(
         incident.id,
@@ -7092,6 +7313,8 @@ const IncidentDetailPage = () => {
         toast.error("Failed to save changes");
         return;
       }
+      manualStatusChangedRef.current = false;
+      manualSeverityChangedRef.current = false;
 
       // Sync to shared orgs (fire-and-forget to avoid blocking primary save)
       if (sharedOrgs.length > 0) {
@@ -9396,7 +9619,7 @@ const IncidentDetailPage = () => {
         label: "Changes",
         count: visibleRevisionCount,
       },
-      { key: "agent" as const, label: "Agent", count: agentRuns.length },
+      { key: "agent" as const, label: "AI Agents", count: agentRuns.length },
       {
         key: "workflows" as const,
         label: "Workflow runs",
@@ -9426,9 +9649,12 @@ const IncidentDetailPage = () => {
     ];
     const totalCount = filterDefs.reduce((sum, f) => sum + f.count, 0);
     const shownCount = filterDefs
-      .filter((f) => isFilterActive(f.key))
+      .filter((f) => isFilterActive(f.key, simple))
       .reduce((sum, f) => sum + f.count, 0);
-    const allActive = activeTimelineFilters.size === filterDefs.length;
+    const activeFilters = simple
+      ? activeSimpleTimelineFilters
+      : activeTimelineFilters;
+    const allActive = activeFilters.size === filterDefs.length;
     return (
       <Tooltip title="Filter timeline" arrow>
         <Chip
@@ -9805,12 +10031,12 @@ const IncidentDetailPage = () => {
           open={Boolean(timelineFilterAnchor)}
           onClose={() => {
             setTimelineFilterAnchor(null);
-            handleFilterHover(null);
+            handleFilterHover(null, isSimple);
           }}
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
           transformOrigin={{ vertical: "top", horizontal: "right" }}
           PaperProps={{
-            onMouseLeave: () => handleFilterHover(null),
+            onMouseLeave: () => handleFilterHover(null, isSimple),
             sx: {
               bgcolor: "hsl(var(--card))",
               border: "1px solid hsl(var(--border))",
@@ -9827,7 +10053,7 @@ const IncidentDetailPage = () => {
             },
             {
               key: "agent" as const,
-              label: "Agent",
+              label: "AI Agents",
               count: agentRuns.length,
               icon: <AgentIcon size={14} />,
             },
@@ -9868,14 +10094,14 @@ const IncidentDetailPage = () => {
               icon: <Network size={14} />,
             },
           ].map(({ key, label, count, icon }) => {
-            const active = isFilterActive(key);
+            const active = isFilterActive(key, isSimple);
             const isHovered = hoveredTimelineFilter === key;
             return (
               <MenuItem
                 key={key}
                 dense
-                onClick={() => toggleTimelineFilter(key)}
-                onMouseEnter={() => handleFilterHover(key)}
+                onClick={() => toggleTimelineFilter(key, isSimple)}
+                onMouseEnter={() => handleFilterHover(key, isSimple)}
                 onMouseLeave={() =>
                   setHoveredTimelineFilter((prev) =>
                     prev === key ? null : prev,
@@ -10075,6 +10301,11 @@ const IncidentDetailPage = () => {
     variant: "sidebar" | "inline" | "simple" = "sidebar",
   ) => {
     const isSimple = variant === "simple";
+    const currentActiveFilters = isSimple
+      ? activeSimpleTimelineFilters
+      : activeTimelineFilters;
+    const isOnlyRevisions =
+      currentActiveFilters.size === 1 && currentActiveFilters.has("revisions");
     type StepKind =
       | "task-created"
       | "task-completed"
@@ -10397,7 +10628,7 @@ const IncidentDetailPage = () => {
     // "Incident created" full-height card so users get the full creation
     // context (title, source, click-to-open email/description) regardless
     // of filter state.
-    const revisionsFilterOn = isFilterActive("revisions");
+    const revisionsFilterOn = isFilterActive("revisions", isSimple);
 
     // ── Datastore revisions ───────────────────────────────────────────────
     parsedRevisions.forEach((rev, idx) => {
@@ -10902,7 +11133,7 @@ const IncidentDetailPage = () => {
       }
     }
 
-    if (isFilterActive("agent")) {
+    if (isFilterActive("agent", isSimple)) {
       // Skipped runs (workflow-level decision_string.success === false) are
       // rendered quietly (greyed card + "Skipped" badge) rather than hidden —
       // the Agent filter count includes them, so hiding them made the count
@@ -10915,7 +11146,7 @@ const IncidentDetailPage = () => {
     // Non-agent workflow executions that touched this incident. Independent
     // "Workflow runs" toggle so users can hide automation noise without also
     // hiding agent activity.
-    if (isFilterActive("workflows")) {
+    if (isFilterActive("workflows", isSimple)) {
       workflowOnlyRuns.forEach((run: any) => {
         const ts = normalizeToMs(run.started_at);
         items.push({ type: "workflow-exec", timestamp: ts, data: run });
@@ -10925,7 +11156,7 @@ const IncidentDetailPage = () => {
     // Routing rule matches — synthetic step pills anchored to incident creation
     // so they appear at the bottom of the (newest-first) timeline. Rides along
     // with the Agent filter since routing decisions are automation events.
-    if (isFilterActive("agent") && routingMatches.length > 0) {
+    if (isFilterActive("agent", isSimple) && routingMatches.length > 0) {
       const ts = incident?.createdTs
         ? normalizeToMs(incident.createdTs)
         : Date.now();
@@ -10955,7 +11186,7 @@ const IncidentDetailPage = () => {
     // so users can hide auto-merge noise without also hiding conversation.
     displayActivity.forEach((item) => {
       const isMerge = isMergeActivityItem(item);
-      if (isMerge ? !isFilterActive("merges") : !isFilterActive("manual"))
+      if (isMerge ? !isFilterActive("merges", isSimple) : !isFilterActive("manual", isSimple))
         return;
       items.push({
         type: "manual",
@@ -10971,9 +11202,9 @@ const IncidentDetailPage = () => {
     // type gates on its own filter so the user can hide e.g. observables
     // without also hiding tasks.
     if (
-      isFilterActive("tasks") ||
-      isFilterActive("observables") ||
-      isFilterActive("correlations")
+      isFilterActive("tasks", isSimple) ||
+      isFilterActive("observables", isSimple) ||
+      isFilterActive("correlations", isSimple)
     ) {
       const fallbackTs = incident?.createdTs
         ? normalizeToMs(incident.createdTs)
@@ -11008,7 +11239,7 @@ const IncidentDetailPage = () => {
         taskStatuses.find((s) => s.key === key)?.label ||
         (key === "done" ? "Done" : key.replace(/[_-]+/g, " "));
 
-      if (isFilterActive("tasks")) {
+      if (isFilterActive("tasks", isSimple)) {
         visibleTasks.forEach((t) => {
           // Current lane for the task, mirroring TaskKanbanBoard.getLane: an
           // explicit `_lane` wins, completed tasks are Done, everything else
@@ -11189,7 +11420,7 @@ const IncidentDetailPage = () => {
           });
       }
 
-      if (isFilterActive("observables")) {
+      if (isFilterActive("observables", isSimple)) {
         // Observables — manual entries + automated enrichments. Dedupe by
         // type+value so the same indicator does not appear twice. Bulk
         // observables added within a ~3s window into a single summary pill so
@@ -11329,7 +11560,7 @@ const IncidentDetailPage = () => {
       // itself so the user can see the match next to the indicator that
       // triggered it instead of as a separate timeline row.
       if (
-        isFilterActive("correlations") &&
+        isFilterActive("correlations", isSimple) &&
         correlationsDiscoveredAt &&
         visibleCorrelations.length > 0
       ) {
@@ -11348,7 +11579,7 @@ const IncidentDetailPage = () => {
     // ── On-the-fly injection for hovered inactive filters ──────────────────
     if (
       hoveredTimelineFilter &&
-      !activeTimelineFilters.has(hoveredTimelineFilter)
+      !currentActiveFilters.has(hoveredTimelineFilter)
     ) {
       const candidates: TimelineItem[] = [];
 
@@ -11659,7 +11890,7 @@ const IncidentDetailPage = () => {
     }
 
     if (items.length === 0) {
-      const allHidden = activeTimelineFilters.size === 0;
+      const allHidden = currentActiveFilters.size === 0;
       return (
         <Box
           sx={{
@@ -11683,9 +11914,13 @@ const IncidentDetailPage = () => {
               label="Show all"
               size="small"
               variant="outlined"
-              onClick={() =>
-                setActiveTimelineFilters(new Set(ALL_TIMELINE_FILTERS))
-              }
+              onClick={() => {
+                if (isSimple) {
+                  setActiveSimpleTimelineFilters(new Set(ALL_TIMELINE_FILTERS));
+                } else {
+                  setActiveTimelineFilters(new Set(ALL_TIMELINE_FILTERS));
+                }
+              }}
               sx={{
                 height: 22,
                 fontSize: "0.7rem",
@@ -11712,7 +11947,7 @@ const IncidentDetailPage = () => {
           ? d.added.length + d.removed.length + d.changed.length
           : 0;
         const hidden =
-          !isOnlyRevisionsFilter &&
+          !isOnlyRevisions &&
           i !== revisions.length - 1 &&
           !!d &&
           total === 0;
@@ -11757,7 +11992,7 @@ const IncidentDetailPage = () => {
     };
     const getItemLabel = (it: TimelineItem): string => {
       if (it.type === "revision") {
-        if (it.idx === revisions.length - 1 && !isOnlyRevisionsFilter)
+        if (it.idx === revisions.length - 1 && !isOnlyRevisions)
           return "Incident created";
         return `Change #${revisionNumber(it.idx)}`;
       }
@@ -12116,10 +12351,10 @@ const IncidentDetailPage = () => {
           ? diff.added.length + diff.removed.length + diff.changed.length
           : 0;
 
-        if (!isOnlyRevisionsFilter && !isFirst && diff && totalChanges === 0)
+        if (!isOnlyRevisions && !isFirst && diff && totalChanges === 0)
           return null;
 
-        const showAsCreation = isFirst && !isOnlyRevisionsFilter;
+        const showAsCreation = isFirst && !isOnlyRevisions;
         const initialTitle = showAsCreation
           ? cleanInitialRevisionText(
               item.parsedCurrent?.title,
@@ -12299,7 +12534,9 @@ const IncidentDetailPage = () => {
                     display: "flex",
                     alignItems: "center",
                     gap: 0.75,
-                    flexWrap: "wrap",
+                    flexWrap: isSimple ? "nowrap" : "wrap",
+                    minWidth: 0,
+                    width: "100%",
                   }}
                 >
                   {isSimple && rev.updated_by && (
@@ -12314,6 +12551,8 @@ const IncidentDetailPage = () => {
                       fontWeight: isSimple ? 500 : 600,
                       fontSize: "0.73rem",
                       color: isSimple ? "text.secondary" : undefined,
+                      minWidth: 0,
+                      flexShrink: 1,
                       ...timelineClampSingleLineSx,
                     }}
                   >
@@ -12684,9 +12923,12 @@ const IncidentDetailPage = () => {
               className="timeline-hover-row"
               sx={{
                 display: "flex",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: 0.5,
+                flexDirection: "column",
+                width: "100%",
+                maxWidth: "100%",
+                minWidth: 0,
+                boxSizing: "border-box",
+                overflow: "hidden",
                 px: isHighlighted ? 0.75 : 0.5,
                 py: 0.25,
                 borderRadius: 1,
@@ -12713,7 +12955,7 @@ const IncidentDetailPage = () => {
                   "& .agent-verb": {
                     color: isFailed
                       ? "hsl(var(--destructive))"
-                      : hasWarning
+                      : (hasWarning || isRunning)
                         ? "hsl(var(--severity-medium))"
                         : "text.primary",
                   },
@@ -12725,89 +12967,107 @@ const IncidentDetailPage = () => {
                   },
               }}
             >
-              <Tooltip
-                title={
-                  isFailed
-                    ? failureInfo?.reason
-                      ? `AI Agent run failed: ${failureInfo.reason}`
-                      : "AI Agent run failed"
-                    : hasWarning
-                      ? outputDiagnosis?.title
-                        ? `AI Agent run: ${outputDiagnosis.title}`
-                        : "AI Agent run needs attention"
-                      : isRunning
-                        ? "AI Agent run (executing)"
-                        : `AI Agent run${status ? ` · ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}` : ""}${detailText ? ` — ${detailText}` : ""}`
-                }
-                arrow
-                placement="top"
-              >
-                <Box
-                  className="agent-icon"
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    flexShrink: 0,
-                    color: isFailed
-                      ? "hsl(var(--destructive) / 0.75)"
-                      : hasWarning
-                        ? "hsl(var(--severity-medium) / 0.85)"
-                        : "text.secondary",
-                    transition: "color 0.15s ease",
-                  }}
-                >
-                  <AgentIcon size={13} />
-                </Box>
-              </Tooltip>
-              <Typography
-                sx={{
-                  fontSize: "0.7rem",
-                  fontWeight: 600,
-                  color: "text.secondary",
-                  ...timelineClampSingleLineSx,
-                }}
-              >
-                {actorName}
-              </Typography>
-              <Typography
-                className="agent-verb"
-                sx={{
-                  fontSize: "0.7rem",
-                  fontWeight: 500,
-                  color: isFailed
-                    ? "hsl(var(--destructive) / 0.75)"
-                    : hasWarning
-                      ? "hsl(var(--severity-medium) / 0.85)"
-                      : "text.secondary",
-                  flexShrink: 0,
-                  transition: "color 0.15s ease",
-                }}
-              >
-                {verb}
-              </Typography>
-              {previewBadge}
+              {/* Row 1: Execution header */}
               <Box
                 sx={{
                   display: "flex",
                   alignItems: "center",
+                  width: "100%",
+                  minWidth: 0,
                   gap: 0.5,
-                  ml: "auto",
-                  flexShrink: 0,
                 }}
               >
-                {timeText && (
-                  <Typography
+                <Tooltip
+                  title={
+                    isFailed
+                      ? failureInfo?.reason
+                        ? `AI Agent run failed: ${failureInfo.reason}`
+                        : "AI Agent run failed"
+                      : hasWarning
+                        ? outputDiagnosis?.title
+                          ? `AI Agent run: ${outputDiagnosis.title}`
+                          : "AI Agent run needs attention"
+                        : isRunning
+                          ? "AI Agent run (executing)"
+                          : `AI Agent run${status ? ` · ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}` : ""}${detailText ? ` — ${detailText}` : ""}`
+                  }
+                  arrow
+                  placement="top"
+                >
+                  <Box
+                    className="agent-icon"
                     sx={{
-                      fontSize: "0.6rem",
-                      color: "text.disabled",
-                      whiteSpace: "nowrap",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      flexShrink: 0,
+                      color: isFailed
+                        ? "hsl(var(--destructive) / 0.75)"
+                        : (hasWarning || isRunning)
+                          ? "hsl(var(--severity-medium) / 0.85)"
+                          : "text.secondary",
+                      transition: "color 0.15s ease",
                     }}
                   >
-                    {timeText}
-                  </Typography>
-                )}
-                {replyButtonCompact}
+                    <AgentIcon size={13} />
+                  </Box>
+                </Tooltip>
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    color: "text.secondary",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    minWidth: 0,
+                    flexShrink: 1,
+                  }}
+                  title={actorName}
+                >
+                  {actorName}
+                </Typography>
+                <Typography
+                  className="agent-verb"
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 500,
+                    color: isFailed
+                      ? "hsl(var(--destructive) / 0.75)"
+                      : (hasWarning || isRunning)
+                        ? "hsl(var(--severity-medium) / 0.85)"
+                        : "text.secondary",
+                    flexShrink: 0,
+                    whiteSpace: "nowrap",
+                    transition: "color 0.15s ease",
+                  }}
+                >
+                  {verb}
+                </Typography>
+                {previewBadge}
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                    ml: "auto",
+                    flexShrink: 0,
+                  }}
+                >
+                  {timeText && (
+                    <Typography
+                      sx={{
+                        fontSize: "0.6rem",
+                        color: "text.disabled",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {timeText}
+                    </Typography>
+                  )}
+                  {replyButtonCompact}
+                </Box>
               </Box>
+              {/* Row 2: Secondary detail text */}
               {detailText && (
                 <Typography
                   className="timeline-exec-detail"
@@ -12816,9 +13076,10 @@ const IncidentDetailPage = () => {
                     color: isFailed
                       ? "hsl(var(--destructive))"
                       : "hsl(var(--foreground))",
-                    flex: "1 1 100%",
-                    order: 2,
-                    pl: 1.25,
+                    width: "100%",
+                    minWidth: 0,
+                    pl: 2.25,
+                    mt: 0.25,
                     lineHeight: 1.4,
                     display: "none",
                     ".timeline-hover-row:hover &, .timeline-hover-row:focus-within &":
@@ -12941,11 +13202,14 @@ const IncidentDetailPage = () => {
                     : "hsl(var(--foreground))",
                 flexShrink: 1,
                 minWidth: 0,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
                 '[data-timeline-quiet="true"]:hover &': {
                   color: "hsl(var(--foreground))",
                 },
-                ...timelineClampSingleLineSx,
               }}
+              title={title}
             >
               {title}
             </Typography>
@@ -13100,8 +13364,18 @@ const IncidentDetailPage = () => {
               data-timeline-dimmed={isDimmed ? "true" : undefined}
               data-timeline-preview={item.isPreview ? "true" : undefined}
               className="timeline-hover-row"
-              sx={{ display: "flex", flexDirection: "column" }}
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                width: "100%",
+                maxWidth: "100%",
+                minWidth: 0,
+                boxSizing: "border-box",
+                overflow: "hidden",
+                mb: 1.25,
+              }}
             >
+              {/* Row 1: Execution header */}
               <Box
                 onClick={async () => {
                   if (run.execution_id)
@@ -13112,7 +13386,8 @@ const IncidentDetailPage = () => {
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  flexWrap: "wrap",
+                  width: "100%",
+                  minWidth: 0,
                   gap: 0.5,
                   px: isHighlighted ? 0.75 : 0.5,
                   py: 0.25,
@@ -13131,7 +13406,6 @@ const IncidentDetailPage = () => {
                   opacity: isDimmed ? 0.35 : 1,
                   transition:
                     "opacity 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease",
-                  mb: 1.25,
                   cursor: run.execution_id || execUrl ? "pointer" : "default",
                   "&:hover": {
                     bgcolor: isHighlighted
@@ -13140,14 +13414,14 @@ const IncidentDetailPage = () => {
                     "& .wf-icon": {
                       color: isFailed
                         ? "hsl(var(--destructive))"
-                        : isWarning
+                        : isWarning || isRunning
                           ? "hsl(var(--severity-medium))"
                           : "hsl(var(--muted-foreground))",
                     },
                     "& .wf-icon svg": {
                       color: isFailed
                         ? "hsl(var(--destructive)) !important"
-                        : isWarning
+                        : isWarning || isRunning
                           ? "hsl(var(--severity-medium)) !important"
                           : "hsl(var(--muted-foreground)) !important",
                     },
@@ -13159,7 +13433,7 @@ const IncidentDetailPage = () => {
                     "& .wf-verb": {
                       color: isFailed
                         ? "hsl(var(--destructive))"
-                        : isWarning
+                        : isWarning || isRunning
                           ? "hsl(var(--severity-medium))"
                           : "text.primary",
                     },
@@ -13196,7 +13470,7 @@ const IncidentDetailPage = () => {
                       flexShrink: 0,
                       color: isFailed
                         ? "hsl(var(--destructive) / 0.5)"
-                        : isWarning
+                        : isWarning || isRunning
                           ? "hsl(var(--severity-medium) / 0.65)"
                           : "hsl(var(--muted-foreground))",
                       transition: "color 0.15s ease",
@@ -13210,8 +13484,13 @@ const IncidentDetailPage = () => {
                     fontSize: "0.7rem",
                     fontWeight: 600,
                     color: "text.secondary",
-                    ...timelineClampSingleLineSx,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    minWidth: 0,
+                    flexShrink: 1,
                   }}
+                  title={wfName}
                 >
                   {wfName}
                 </Typography>
@@ -13222,10 +13501,11 @@ const IncidentDetailPage = () => {
                     fontWeight: 500,
                     color: isFailed
                       ? "hsl(var(--destructive) / 0.75)"
-                      : isWarning
+                      : isWarning || isRunning
                         ? "hsl(var(--severity-medium) / 0.85)"
                         : "text.secondary",
                     flexShrink: 0,
+                    whiteSpace: "nowrap",
                     transition: "color 0.15s ease",
                   }}
                 >
@@ -13254,31 +13534,40 @@ const IncidentDetailPage = () => {
                   )}
                   {replyButtonCompact}
                 </Box>
-                {detailText && (
-                  <Typography
-                    className="timeline-exec-detail"
-                    sx={{
-                      fontSize: "0.72rem",
-                      color: isFailed
-                        ? "hsl(var(--destructive))"
-                        : "hsl(var(--foreground))",
-                      flex: "1 1 100%",
-                      order: 2,
-                      pl: 1.25,
-                      lineHeight: 1.4,
-                      display: "none",
-                      ".timeline-hover-row:hover &, .timeline-hover-row:focus-within &":
-                        {
-                          display: "block",
-                        },
-                      ...timelineClampSingleLineSx,
-                    }}
-                    title={detailText}
-                  >
-                    {detailText}
-                  </Typography>
-                )}
               </Box>
+              {/* Row 2: Secondary detail text */}
+              {detailText && (
+                <Typography
+                  className="timeline-exec-detail"
+                  onClick={async () => {
+                    if (run.execution_id)
+                      setSelectedWorkflowExecutionId(String(run.execution_id));
+                    else if (execUrl)
+                      await navigateToShuffleCore(execUrl, { newTab: true });
+                  }}
+                  sx={{
+                    fontSize: "0.72rem",
+                    color: isFailed
+                      ? "hsl(var(--destructive))"
+                      : "hsl(var(--foreground))",
+                    width: "100%",
+                    minWidth: 0,
+                    pl: 2.25,
+                    mt: 0.25,
+                    lineHeight: 1.4,
+                    display: "none",
+                    ...timelineClampSingleLineSx,
+                    cursor: run.execution_id || execUrl ? "pointer" : "default",
+                    ".timeline-hover-row:hover &, .timeline-hover-row:focus-within &":
+                      {
+                        display: "block",
+                      },
+                  }}
+                  title={detailText}
+                >
+                  {detailText}
+                </Typography>
+              )}
               {questionNotif && (
                 <InlineAgentQuestion
                   notification={questionNotif}
@@ -13470,8 +13759,11 @@ const IncidentDetailPage = () => {
                       : "hsl(var(--muted-foreground))",
                   minWidth: 0,
                   flexShrink: 1,
-                  ...timelineClampSingleLineSx,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
                 }}
+                title={wfName ? `${wfName}${shortId ? ` · ${shortId}` : ""}` : undefined}
               >
                 {wfName}
                 {shortId ? ` · ${shortId}` : ""}
@@ -13499,12 +13791,15 @@ const IncidentDetailPage = () => {
                 <Tooltip title={failReason} arrow placement="top">
                   <Typography
                     sx={{
-                      ...timelineClampSingleLineSx,
                       fontSize: "0.7rem",
                       color: "hsl(var(--destructive) / 0.8)",
                       maxWidth: 260,
                       ml: 0.5,
                       flexShrink: 1,
+                      minWidth: 0,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                       cursor: "help",
                       "&:hover": {
                         color: "hsl(var(--destructive))",
@@ -14112,7 +14407,7 @@ const IncidentDetailPage = () => {
                     value={String(item.attrAfter || "medium")}
                     onChange={(newSev) => {
                       autoProgressStatus();
-                      setEditedSeverity(newSev);
+                      handleManualSeverityChange(newSev);
                     }}
                     disabled={isPublicView}
                   />
@@ -14457,7 +14752,7 @@ const IncidentDetailPage = () => {
                   value={String(item.attrAfter || "medium")}
                   onChange={(newSev) => {
                     autoProgressStatus();
-                    setEditedSeverity(newSev);
+                    handleManualSeverityChange(newSev);
                   }}
                   disabled={isPublicView}
                 />
@@ -16312,7 +16607,7 @@ const IncidentDetailPage = () => {
     });
     const showAgentPrediction =
       agentReadiness.active &&
-      activeTimelineFilters.has("agent") &&
+      currentActiveFilters.has("agent") &&
       Number.isFinite(incidentAgeMs) &&
       incidentAgeMs < AGENT_PREDICTION_WINDOW_MS &&
       !hasAgentActivity;
@@ -17341,7 +17636,9 @@ const IncidentDetailPage = () => {
                 <FormControl size="small" variant="standard">
                   <Select
                     value={editedSeverity}
-                    onChange={(e) => setEditedSeverity(e.target.value)}
+                    onChange={(e) =>
+                      handleManualSeverityChange(e.target.value)
+                    }
                     disableUnderline
                     sx={{
                       fontSize: "0.7rem",
@@ -18933,7 +19230,9 @@ const IncidentDetailPage = () => {
                       >
                         <Select
                           value={editedSeverity}
-                          onChange={(e) => setEditedSeverity(e.target.value)}
+                          onChange={(e) =>
+                            handleManualSeverityChange(e.target.value)
+                          }
                           disableUnderline
                           sx={{
                             fontSize: "0.78rem",

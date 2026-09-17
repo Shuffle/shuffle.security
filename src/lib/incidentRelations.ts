@@ -1313,6 +1313,44 @@ export const preserveRelationFields = (existing: any, next: any): any => {
     if (!out.merged_into && existing.merged_into) out.merged_into = existing.merged_into;
     if (!out.merged_at && existing.merged_at) out.merged_at = existing.merged_at;
   }
+
+  // Preserve terminal resolution on server if caller did not explicitly manually change status
+  const existingIsResolved =
+    existing.status_id === 3 ||
+    String(existing.status || '').toLowerCase() === 'resolved';
+  if (
+    existingIsResolved &&
+    out.status_id !== 3 &&
+    (out._auto_status_progressed || !out._user_manual_status_change)
+  ) {
+    out.status_id = existing.status_id;
+    out.status = existing.status;
+    if (existing.status_detail && !out.status_detail) {
+      out.status_detail = existing.status_detail;
+    }
+  }
+
+  // Preserve concurrent server activity items that may be absent from a stale client snapshot
+  if (Array.isArray(existing.activity) && existing.activity.length > 0) {
+    const outActivity = Array.isArray(out.activity) ? out.activity : [];
+    const seen = new Set(
+      outActivity.map((a: any) =>
+        a?.id
+          ? String(a.id)
+          : `${a?.timestamp}-${a?.user}-${String(a?.content || '').slice(0, 30)}`,
+      ),
+    );
+    const missingFromOut = existing.activity.filter((a: any) => {
+      const key = a?.id
+        ? String(a.id)
+        : `${a?.timestamp}-${a?.user}-${String(a?.content || '').slice(0, 30)}`;
+      return !seen.has(key);
+    });
+    if (missingFromOut.length > 0) {
+      out.activity = [...outActivity, ...missingFromOut];
+    }
+  }
+
   return enforceMergedStatusInvariant(out);
 };
 

@@ -2,7 +2,6 @@ import { Plus as AddIcon, Trash as DeleteOutlineIcon, GripVertical as DragIndica
 import { useState, useMemo } from 'react';
 import { Box, Typography, Chip, IconButton, TextField, Button, CircularProgress } from '@mui/material';
 import { IncidentTask, taskCategories } from '@/config/ocsfIncidentSchema';
-import { isAIAssignee } from '@/lib/utils';
 import { TaskAiAssignButton } from './TaskAiAssignButton';
 import { useTaskStatuses } from '@/hooks/useEntityLabel';
 import { TaskAssigneeChip } from './TaskAssigneeChip';

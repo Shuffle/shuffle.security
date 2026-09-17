@@ -1237,6 +1237,7 @@ export const deleteDatastoreItems = async (
 // Category constants for consistency
 export const DATASTORE_CATEGORIES = {
   INCIDENTS: 'shuffle-security_incidents',
+  EVENTS: 'shuffle-security_events',
   VULNERABILITIES: 'shuffle-security_vulns',
   VULNS: 'shuffle-security_vulns',
   ASSETS: 'shuffle-security_assets',

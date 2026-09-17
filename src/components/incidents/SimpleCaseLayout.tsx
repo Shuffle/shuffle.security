@@ -1,12 +1,13 @@
 import {
   Fragment,
+  isValidElement,
   useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
-import { Box, Button, Typography } from "@mui/material";
+import { Box, Button, Collapse, Typography } from "@mui/material";
 import {
   FileText,
   ListChecks,
@@ -14,16 +15,27 @@ import {
   Fingerprint,
   Network,
   Mail,
+  ChevronDown,
+  EyeOff,
+  Activity,
 } from "lucide-react";
 import { useNavigate } from "@/lib/router-compat";
 import type { IncidentTask } from "@/config/ocsfIncidentSchema";
 import type { LinkedIncidentSummary } from "@/hooks/useRelatedIncidents";
 import { groupTasksByCategory, UNCATEGORIZED_KEY } from "./taskCategoryUtils";
+import { SimpleSlaOverview, type SimpleSlaData } from "./SimpleSlaOverview";
 
 const TIMELINE_WIDTH_STORAGE_KEY = "shuffle_simple_timeline_width";
 const DEFAULT_TIMELINE_WIDTH = 260;
 const MIN_TIMELINE_WIDTH = 180;
 const MAX_TIMELINE_WIDTH = 500;
+
+export interface SimpleCustomFieldItem {
+  key: string;
+  name: string;
+  type?: string;
+  required?: boolean;
+}
 
 interface SimpleCaseLayoutProps {
   narrativeLabel: string;
@@ -39,10 +51,20 @@ interface SimpleCaseLayoutProps {
   customFields?: ReactNode;
   observables: ReactNode;
   correlations: ReactNode;
+  /** Optional events block, rendered below Correlations when the case has events. */
+  events?: ReactNode;
+  eventsCount?: number;
+  /** Optional hidden fields block, rendered below Correlations when the case has unmapped original data. */
+  hiddenFields?: ReactNode;
+  hiddenFieldsCount?: number;
   /** Configuration controls (share access, actions menu) shown above Overview. */
   contentsActions?: ReactNode;
   taskItems: IncidentTask[];
   customFieldsCount?: number;
+  /** Individual custom field definitions, rendered in the Overview rail when expandable. */
+  customFieldItems?: SimpleCustomFieldItem[];
+  /** Minimum count of custom fields to treat as "many" and offer expandable list in Overview rail. Defaults to 3. */
+  manyCustomFieldsThreshold?: number;
   observableCount: number;
   correlationCount: number;
   /** Incidents merged into this one, shown at the bottom of the Overview rail. */
@@ -54,6 +76,8 @@ interface SimpleCaseLayoutProps {
     resolvedBy?: string;
     resolvedAt?: number;
   };
+  /** SLA tracking shown in the Overview rail. */
+  sla?: SimpleSlaData | ReactNode;
   /** Section currently hovered in the simple timeline, to highlight in the center and Overview rail. */
   highlightSection?: SectionKey | "overview" | null;
 }
@@ -65,6 +89,8 @@ const SECTIONS = [
   "customFields",
   "observables",
   "correlations",
+  "events",
+  "hiddenFields",
 ] as const;
 type SectionKey = (typeof SECTIONS)[number];
 
@@ -75,6 +101,8 @@ const SECTION_ICONS: Record<SectionKey, typeof FileText> = {
   customFields: SlidersHorizontal,
   observables: Fingerprint,
   correlations: Network,
+  events: Activity,
+  hiddenFields: EyeOff,
 };
 
 const getScrollContainer = (el: HTMLElement | null): HTMLElement | null => {
@@ -107,13 +135,20 @@ export const SimpleCaseLayout = ({
   customFields,
   observables,
   correlations,
+  events,
+  eventsCount,
+  hiddenFields,
+  hiddenFieldsCount,
   contentsActions,
   taskItems,
   customFieldsCount,
+  customFieldItems,
+  manyCustomFieldsThreshold = 3,
   observableCount,
   correlationCount,
   relatedIncidents,
   resolution,
+  sla,
   highlightSection = null,
 }: SimpleCaseLayoutProps) => {
   const navigate = useNavigate();
@@ -122,6 +157,15 @@ export const SimpleCaseLayout = ({
     emailThread ? "emailThread" : "narrative",
   );
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeCustomField, setActiveCustomField] = useState<string | null>(
+    null,
+  );
+  const [customFieldsExpanded, setCustomFieldsExpanded] =
+    useState<boolean>(false);
+
+  const hasManyCustomFields =
+    (customFieldItems?.length ?? customFieldsCount ?? 0) >
+    manyCustomFieldsThreshold;
   const refs = useRef<Record<SectionKey, HTMLElement | null>>({
     emailThread: null,
     narrative: null,
@@ -129,6 +173,8 @@ export const SimpleCaseLayout = ({
     customFields: null,
     observables: null,
     correlations: null,
+    events: null,
+    hiddenFields: null,
   });
 
   const categoryGroups = useMemo(
@@ -243,6 +289,32 @@ export const SimpleCaseLayout = ({
         }
       } else {
         setActiveCategory(null);
+      }
+
+      if (currentKey === "customFields") {
+        const fieldEls = document.querySelectorAll<HTMLElement>(
+          "[data-simple-custom-field]",
+        );
+        if (fieldEls.length > 0) {
+          let matchedField: string | null = fieldEls[0].getAttribute(
+            "data-simple-custom-field",
+          );
+          for (let i = 0; i < fieldEls.length; i++) {
+            const r = fieldEls[i].getBoundingClientRect();
+            if (r.top <= triggerLine) {
+              matchedField = fieldEls[i].getAttribute(
+                "data-simple-custom-field",
+              );
+            } else {
+              break;
+            }
+          }
+          if (matchedField) {
+            setActiveCustomField(matchedField);
+          }
+        }
+      } else {
+        setActiveCustomField(null);
       }
     };
 
@@ -368,6 +440,14 @@ export const SimpleCaseLayout = ({
     if (key === "tasks" && !taskId && categoryGroups.length > 0) {
       setActiveCategory(categoryGroups[0].categoryKey);
     }
+    if (
+      key === "customFields" &&
+      hasManyCustomFields &&
+      customFieldItems &&
+      customFieldItems.length > 0
+    ) {
+      setActiveCustomField(customFieldItems[0].key);
+    }
     if (!(target instanceof HTMLElement)) return;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -386,6 +466,46 @@ export const SimpleCaseLayout = ({
       return;
     }
     target.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const scrollToCustomField = (fieldKey: string) => {
+    const target = document.querySelector(
+      `[data-simple-custom-field="${CSS.escape(fieldKey)}"]`,
+    );
+    focusSection("customFields", 1500);
+    allowScrollJump();
+    setActiveCustomField(fieldKey);
+    if (!(target instanceof HTMLElement)) {
+      refs.current.customFields?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      return;
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    try {
+      target.animate(
+        [
+          {
+            outline: "2px solid hsl(var(--primary))",
+            backgroundColor: "hsl(var(--primary) / 0.08)",
+          },
+          {
+            outline: "2px solid transparent",
+            backgroundColor: "transparent",
+          },
+        ],
+        { duration: 1600, easing: "ease-out" },
+      );
+    } catch {
+      // Ignore if animate is unavailable
+    }
+    const input = target.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+      "input, textarea, select",
+    );
+    if (input && typeof input.focus === "function") {
+      input.focus({ preventScroll: true });
+    }
   };
 
   /** Shared props so interacting anywhere inside a section highlights it. */
@@ -478,7 +598,10 @@ export const SimpleCaseLayout = ({
           {
             key: "customFields" as SectionKey,
             label: "Custom Fields",
-            count: customFieldsCount !== undefined ? customFieldsCount : 1,
+            count:
+              customFieldsCount !== undefined
+                ? customFieldsCount
+                : (customFieldItems?.length ?? 1),
             icon: SECTION_ICONS.customFields,
           },
         ]
@@ -495,6 +618,26 @@ export const SimpleCaseLayout = ({
       count: correlationCount,
       icon: SECTION_ICONS.correlations,
     },
+    ...(events && (eventsCount ?? 0) > 0
+      ? [
+          {
+            key: "events" as SectionKey,
+            label: "Events",
+            count: eventsCount,
+            icon: SECTION_ICONS.events,
+          },
+        ]
+      : []),
+    ...(hiddenFields && (hiddenFieldsCount ?? 0) > 0
+      ? [
+          {
+            key: "hiddenFields" as SectionKey,
+            label: "Hidden fields",
+            count: hiddenFieldsCount,
+            icon: SECTION_ICONS.hiddenFields,
+          },
+        ]
+      : []),
   ];
 
   const [timelineWidth, setTimelineWidth] = useState<number>(() => {
@@ -803,21 +946,6 @@ export const SimpleCaseLayout = ({
           sx={{ ...sectionSx, ...getSectionHighlightSx("narrative") }}
           {...sectionActivation("narrative")}
         >
-          <Typography
-            component="h2"
-            sx={{
-              fontSize: "1.15rem",
-              fontWeight: 700,
-              mb: 2.5,
-              color:
-                highlightSection === "narrative"
-                  ? "hsl(var(--primary))"
-                  : "inherit",
-              transition: "color 0.2s ease",
-            }}
-          >
-            {narrativeLabel}
-          </Typography>
           {narrative}
         </Box>
         <Box
@@ -908,7 +1036,11 @@ export const SimpleCaseLayout = ({
             refs.current.correlations = node;
           }}
           data-simple-section="correlations"
-          sx={{ ...sectionSx, pb: 0, ...getSectionHighlightSx("correlations") }}
+          sx={{
+            ...sectionSx,
+            pb: hiddenFields ? { xs: 4, md: 7 } : 0,
+            ...getSectionHighlightSx("correlations"),
+          }}
           {...sectionActivation("correlations")}
         >
           <Typography
@@ -928,6 +1060,54 @@ export const SimpleCaseLayout = ({
           </Typography>
           {correlations}
         </Box>
+        {events && (eventsCount ?? 0) > 0 && (
+          <Box
+            id="simple-case-events"
+            ref={(node: HTMLElement | null) => {
+              refs.current.events = node;
+            }}
+            data-simple-section="events"
+            sx={{
+              ...sectionSx,
+              ...getSectionHighlightSx("events"),
+            }}
+            {...sectionActivation("events")}
+          >
+            <Typography
+              component="h2"
+              sx={{
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                color:
+                  highlightSection === "events"
+                    ? "hsl(var(--primary))"
+                    : "inherit",
+                transition: "color 0.2s ease",
+                mb: 1.5,
+              }}
+            >
+              Events ({eventsCount})
+            </Typography>
+            {events}
+          </Box>
+        )}
+        {hiddenFields && (
+          <Box
+            id="simple-case-hidden-fields"
+            ref={(node: HTMLElement | null) => {
+              refs.current.hiddenFields = node;
+            }}
+            data-simple-section="hiddenFields"
+            sx={{
+              ...sectionSx,
+              pb: 0,
+              ...getSectionHighlightSx("hiddenFields"),
+            }}
+            {...sectionActivation("hiddenFields")}
+          >
+            {hiddenFields}
+          </Box>
+        )}
       </Box>
 
       <Box
@@ -968,11 +1148,21 @@ export const SimpleCaseLayout = ({
         >
           {sectionData.map(({ key, label, count, icon: Icon }) => {
             const isActive = activeSection === key || highlightSection === key;
+            const isCustomFields = key === "customFields";
             return (
               <Fragment key={key}>
                 <Button
-                  onClick={() => scrollTo(key)}
-                  data-tour={key === "correlations" ? "incident-tab-correlations" : undefined}
+                  onClick={() => {
+                    scrollTo(key);
+                    if (isCustomFields && hasManyCustomFields) {
+                      setCustomFieldsExpanded(true);
+                    }
+                  }}
+                  data-tour={
+                    key === "correlations"
+                      ? "incident-tab-correlations"
+                      : undefined
+                  }
                   data-active={isActive ? "true" : undefined}
                   sx={{
                     minHeight: 32,
@@ -999,7 +1189,62 @@ export const SimpleCaseLayout = ({
                   <Box component="span" sx={{ flex: 1, textAlign: "left" }}>
                     {label}
                   </Box>
-                  {count !== undefined && <span>{count}</span>}
+                  {count !== undefined && (
+                    <Box
+                      component="span"
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                        color: "inherit",
+                      }}
+                    >
+                      <span>{count}</span>
+                      {isCustomFields && hasManyCustomFields && (
+                        <Box
+                          component="span"
+                          role="button"
+                          aria-label={
+                            customFieldsExpanded
+                              ? "Collapse custom fields"
+                              : "Expand custom fields"
+                          }
+                          title={
+                            customFieldsExpanded
+                              ? "Collapse custom fields"
+                              : "Expand custom fields"
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCustomFieldsExpanded((prev) => !prev);
+                          }}
+                          sx={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            p: 0.25,
+                            borderRadius: 0.5,
+                            cursor: "pointer",
+                            color: "hsl(var(--muted-foreground))",
+                            "&:hover": {
+                              color: "hsl(var(--foreground))",
+                              bgcolor: "hsl(var(--muted) / 0.6)",
+                            },
+                          }}
+                        >
+                          <ChevronDown
+                            size={13}
+                            style={{
+                              transform: customFieldsExpanded
+                                ? "rotate(0deg)"
+                                : "rotate(-90deg)",
+                              transition: "transform 0.15s ease",
+                            }}
+                          />
+                        </Box>
+                      )}
+                    </Box>
+                  )}
                 </Button>
 
                 {/* Category Sub-areas under Tasks */}
@@ -1075,10 +1320,103 @@ export const SimpleCaseLayout = ({
                     })}
                   </Box>
                 )}
+
+                {/* Individual Custom Fields list */}
+                {isCustomFields && hasManyCustomFields && customFieldItems && (
+                  <Collapse
+                    in={customFieldsExpanded}
+                    timeout={200}
+                    unmountOnExit
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        pl: 2.75,
+                        pr: 0.5,
+                        py: 0.25,
+                        gap: 0.25,
+                        maxHeight: 280,
+                        overflowY: "auto",
+                        scrollbarWidth: "thin",
+                      }}
+                    >
+                      {customFieldItems.map((field) => {
+                        const isFieldActive =
+                          isActive && activeCustomField === field.key;
+                        return (
+                          <Button
+                            key={field.key}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              scrollToCustomField(field.key);
+                            }}
+                            title={field.name}
+                            sx={{
+                              minHeight: 26,
+                              justifyContent: "flex-start",
+                              px: 1,
+                              py: 0.25,
+                              textTransform: "none",
+                              fontSize: "0.73rem",
+                              fontWeight: isFieldActive ? 600 : 400,
+                              color: isFieldActive
+                                ? "hsl(var(--foreground))"
+                                : "hsl(var(--muted-foreground))",
+                              borderRadius: 0.75,
+                              borderLeft: isFieldActive
+                                ? "2px solid hsl(var(--primary))"
+                                : "2px solid transparent",
+                              "&:hover": {
+                                bgcolor: "hsl(var(--muted) / 0.35)",
+                                color: "hsl(var(--foreground))",
+                              },
+                            }}
+                          >
+                            <Box
+                              component="span"
+                              sx={{
+                                flex: 1,
+                                textAlign: "left",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {field.name}
+                            </Box>
+                            {field.type && (
+                              <Typography
+                                component="span"
+                                sx={{
+                                  fontSize: "0.65rem",
+                                  color: isFieldActive
+                                    ? "hsl(var(--primary))"
+                                    : "hsl(var(--muted-foreground) / 0.7)",
+                                  fontWeight: 500,
+                                  ml: 0.5,
+                                  textTransform: "lowercase",
+                                }}
+                              >
+                                {field.type}
+                              </Typography>
+                            )}
+                          </Button>
+                        );
+                      })}
+                    </Box>
+                  </Collapse>
+                )}
               </Fragment>
             );
           })}
         </Box>
+        {sla &&
+          (isValidElement(sla) ? (
+            sla
+          ) : (
+            <SimpleSlaOverview {...(sla as SimpleSlaData)} />
+          ))}
         {resolution && (
           <Box sx={{ mt: 3 }}>
             <Typography

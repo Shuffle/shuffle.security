@@ -236,14 +236,22 @@ export const useDatastore = ({ category, orgId: overrideOrgId }: UseDatastoreOpt
       }
     };
 
+    const onIncidentRefresh = () => {
+      if (category === 'incidents' || category === 'cases') {
+        fetchItems();
+      }
+    };
+
     window.addEventListener('demo:refresh', onRefresh);
     window.addEventListener('shuffle:org-change', onOrgChange);
     window.addEventListener('shuffle:incident-moved', onIncidentMoved);
+    window.addEventListener('incident:refresh', onIncidentRefresh);
 
     return () => {
       window.removeEventListener('demo:refresh', onRefresh);
       window.removeEventListener('shuffle:org-change', onOrgChange);
       window.removeEventListener('shuffle:incident-moved', onIncidentMoved);
+      window.removeEventListener('incident:refresh', onIncidentRefresh);
     };
   }, [category, fetchItems, overrideOrgId]);
 

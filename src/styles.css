@@ -584,22 +584,22 @@
   clip-path: inset(0 0 0 var(--app-sidebar-right, 0px));
 }
 
-/* MUI overlay hierarchy. App sidebars/drawers use z-index 9999, so every
-   interactive surface they launch must live on a deterministic tier above
-   them. Keep dialogs below their own menus/poppers, and tooltips highest. */
+/* MUI overlay hierarchy baseline fallbacks.
+   Dynamic layer assignments managed at runtime by overlayLayer will override
+   these via element inline styles so new surfaces always open over older surfaces. */
 .MuiDialog-root {
-  z-index: 10010 !important;
+  z-index: 10010;
 }
 
 .MuiPopover-root,
 .MuiMenu-root,
 .MuiAutocomplete-popper,
 .MuiPopper-root:not(.MuiTooltip-popper) {
-  z-index: 10020 !important;
+  z-index: 10020;
 }
 
 .MuiTooltip-popper {
-  z-index: 10030 !important;
+  z-index: 10030;
 }
 
 .MuiTooltip-popper .MuiTooltip-tooltip {

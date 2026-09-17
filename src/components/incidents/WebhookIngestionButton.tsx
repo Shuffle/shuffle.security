@@ -1,6 +1,6 @@
-import { Webhook as WebhookIcon, Copy as ContentCopyIcon, Check as CheckIcon, CheckCircle as CheckCircleOutlineIcon, Ban as BlockIcon } from 'lucide-react';
+import { Webhook as WebhookIcon, Copy as ContentCopyIcon, Check as CheckIcon, CheckCircle as CheckCircleOutlineIcon, Ban as BlockIcon, Send as SendIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Box, IconButton, Popover, Typography, Tooltip, InputBase, Button, Chip } from '@mui/material';
+import { Box, IconButton, Popover, Typography, Tooltip, InputBase, Button, Chip, CircularProgress } from '@mui/material';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import { trackPredefinedEvent, GA_EVENTS } from '@/lib/analytics';
 import { toast } from '@/lib/toast';
@@ -339,123 +339,133 @@ export const WebhookIngestionButton = ({
           </Box>
         )}
 
-        {/* Send Test Incident button (incidents webhook only, above Disable Webhook) */}
-        {isIncidentWebhook && (
-          <Tooltip
-            title={
-              !isEnabled
-                ? 'Enable the webhook to send a test incident'
-                : !webhook.url
-                  ? 'Webhook URL is not yet available'
-                  : isBlocked
-                    ? 'Webhook runtime is offline'
-                    : 'Send a raw alert from a cybersecurity tool (CrowdStrike, Defender, SentinelOne, Wazuh, etc.) to the webhook'
-            }
-            placement="top"
-          >
-            <Box component="span" sx={{ display: 'block', width: '100%', mb: 1 }}>
-              <Button
-                size="small"
-                variant="outlined"
-                fullWidth
-                disabled={!isEnabled || !webhook.url || isBlocked || validationStage !== 'idle'}
-                onClick={handleSendSampleIncident}
-                sx={{
-                  justifyContent: 'center',
-                  textTransform: 'none',
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  py: 0.6,
-                  borderRadius: 1,
-                  borderColor: 'hsl(var(--border))',
-                  color: 'hsl(var(--foreground))',
-                  bgcolor: 'hsl(var(--secondary) / 0.4)',
-                  '&:hover': {
-                    bgcolor: 'hsl(var(--secondary) / 0.8)',
-                    borderColor: 'hsl(var(--border))',
-                  },
-                  '&.Mui-disabled': {
-                    opacity: 0.45,
-                    borderColor: 'hsl(var(--border) / 0.5)',
-                    color: 'hsl(var(--muted-foreground))',
-                  },
-                }}
-              >
-                {validationStage === 'sending'
-                  ? 'Sending Alert…'
-                  : validationStage === 'validating'
-                    ? 'Validating Ingest…'
-                    : validationStage === 'polling'
-                      ? 'Polling Incident…'
-                      : 'Send Test Incident'}
-              </Button>
-
-              {/* Ingestion validation feedback */}
-              {lastValidationResult && (
-                <Box
+        {/* Action buttons stack */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+          {/* Send Test Incident button (incidents webhook only, above Disable Webhook) */}
+          {isIncidentWebhook && (
+            <Tooltip
+              title={
+                !isEnabled
+                  ? 'Enable the webhook to send a test incident'
+                  : !webhook.url
+                    ? 'Webhook URL is not yet available'
+                    : isBlocked
+                      ? 'Webhook runtime is offline'
+                      : 'Send a raw alert from a cybersecurity tool (CrowdStrike, Defender, SentinelOne, Wazuh, etc.) to the webhook'
+              }
+              placement="top"
+            >
+              <Box component="span" sx={{ display: 'block', width: '100%' }}>
+                <Button
+                  size="small"
+                  fullWidth
+                  startIcon={
+                    validationStage !== 'idle' ? (
+                      <CircularProgress size={14} sx={{ color: 'inherit' }} />
+                    ) : (
+                      <SendIcon size={14} />
+                    )
+                  }
+                  disabled={!isEnabled || !webhook.url || isBlocked || validationStage !== 'idle'}
+                  onClick={handleSendSampleIncident}
                   sx={{
-                    mt: 0.75,
-                    p: 0.75,
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    fontSize: '0.75rem',
+                    color: 'hsl(var(--foreground))',
+                    px: 1,
+                    py: 0.5,
                     borderRadius: 1,
-                    border: '1px solid',
-                    borderColor: lastValidationResult.success
-                      ? 'hsl(140 60% 45% / 0.35)'
-                      : 'hsl(var(--destructive) / 0.4)',
-                    bgcolor: lastValidationResult.success
-                      ? 'hsl(140 60% 45% / 0.08)'
-                      : 'hsl(var(--destructive) / 0.08)',
+                    '&:hover': {
+                      bgcolor: 'hsl(var(--accent) / 0.5)',
+                    },
+                    '&.Mui-disabled': {
+                      opacity: 0.45,
+                      color: 'hsl(var(--muted-foreground))',
+                    },
                   }}
                 >
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      display: 'block',
-                      fontWeight: 600,
-                      color: lastValidationResult.success ? 'hsl(140 60% 55%)' : 'hsl(var(--destructive))',
-                    }}
-                  >
-                    {lastValidationResult.success
-                      ? `Verified Ingestion: ${lastValidationResult.alert.sourceName}`
-                      : 'Ingestion Issue Detected'}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      display: 'block',
-                      color: 'hsl(var(--muted-foreground))',
-                      wordBreak: 'break-word',
-                      lineHeight: 1.25,
-                      mt: 0.25,
-                    }}
-                  >
-                    {lastValidationResult.success
-                      ? `${lastValidationResult.executionId ? `Execution ${lastValidationResult.executionId.slice(0, 8)} Passed` : 'Execution Passed'}${lastValidationResult.incidentKey ? ' • Incident Materialized' : ''}`
-                      : lastValidationResult.errorMessage || 'Execution encountered an error'}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          </Tooltip>
-        )}
+                  {validationStage === 'sending'
+                    ? 'Sending alert…'
+                    : validationStage === 'validating'
+                      ? 'Validating ingest…'
+                      : validationStage === 'polling'
+                        ? 'Polling incident…'
+                        : 'Send Test Incident'}
+                </Button>
+              </Box>
+            </Tooltip>
+          )}
 
-        {/* Enable / Disable button */}
-        <Button
-          size="small"
-          startIcon={isEnabled ? <BlockIcon size={14} /> : <CheckCircleOutlineIcon size={14} />}
-          onClick={handleToggle}
-          sx={{
-            justifyContent: 'flex-start',
-            textTransform: 'none',
-            fontSize: '0.75rem',
-            color: isEnabled ? 'hsl(var(--destructive))' : 'hsl(var(--severity-low))',
-            px: 1,
-            py: 0.5,
-            borderRadius: 1,
-            '&:hover': { bgcolor: isEnabled ? 'hsl(var(--destructive) / 0.1)' : 'hsl(var(--severity-low) / 0.1)' },
-          }}
-        >
-          {isEnabled ? 'Disable Webhook' : 'Enable Webhook'}
-        </Button>
+          {/* Enable / Disable button */}
+          <Button
+            size="small"
+            fullWidth
+            startIcon={isEnabled ? <BlockIcon size={14} /> : <CheckCircleOutlineIcon size={14} />}
+            onClick={handleToggle}
+            sx={{
+              justifyContent: 'flex-start',
+              textTransform: 'none',
+              fontSize: '0.75rem',
+              color: isEnabled ? 'hsl(var(--destructive))' : 'hsl(var(--severity-low))',
+              px: 1,
+              py: 0.5,
+              borderRadius: 1,
+              '&:hover': {
+                bgcolor: isEnabled
+                  ? 'hsl(var(--destructive) / 0.1)'
+                  : 'hsl(var(--severity-low) / 0.1)',
+              },
+            }}
+          >
+            {isEnabled ? 'Disable Webhook' : 'Enable Webhook'}
+          </Button>
+        </Box>
+
+        {/* Ingestion validation feedback */}
+        {isIncidentWebhook && lastValidationResult && (
+          <Box
+            sx={{
+              mt: 1,
+              p: 0.75,
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: lastValidationResult.success
+                ? 'hsl(140 60% 45% / 0.35)'
+                : 'hsl(var(--destructive) / 0.4)',
+              bgcolor: lastValidationResult.success
+                ? 'hsl(140 60% 45% / 0.08)'
+                : 'hsl(var(--destructive) / 0.08)',
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                display: 'block',
+                fontWeight: 600,
+                color: lastValidationResult.success ? 'hsl(140 60% 55%)' : 'hsl(var(--destructive))',
+              }}
+            >
+              {lastValidationResult.success
+                ? `Verified Ingestion: ${lastValidationResult.alert.sourceName}`
+                : 'Ingestion Issue Detected'}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                display: 'block',
+                color: 'hsl(var(--muted-foreground))',
+                wordBreak: 'break-word',
+                lineHeight: 1.25,
+                mt: 0.25,
+              }}
+            >
+              {lastValidationResult.success
+                ? `${lastValidationResult.executionId ? `Execution ${lastValidationResult.executionId.slice(0, 8)} Passed` : 'Execution Passed'}${lastValidationResult.incidentKey ? ' • Incident Materialized' : ''}`
+                : lastValidationResult.errorMessage || 'Execution encountered an error'}
+            </Typography>
+          </Box>
+        )}
       </Popover>
     </Box>
   );

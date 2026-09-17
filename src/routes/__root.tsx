@@ -21,6 +21,7 @@ import { toast as hostToast } from "@/lib/toast";
 import { trackReferralParams, initAnalytics } from "@/lib/analytics";
 import { installLocalStorageQuotaGuard } from "@/utils/safeLocalStorage";
 import { installWorkflowFetchGate } from "@/lib/workflowFetchGate";
+import { installGlobalOverlayAutoLayer } from "@/Shuffle-MCPs/drawerLayer";
 import { reportLovableError } from "@/lib/lovable-error-reporting";
 import ExternalLinkConfirmDialog from "@/components/common/ExternalLinkConfirmDialog";
 import { ScrollToTop } from "@/components/ScrollToTop";
@@ -66,6 +67,7 @@ setToastImpl((arg, opts) => {
 if (typeof window !== "undefined") {
   installLocalStorageQuotaGuard();
   installWorkflowFetchGate();
+  installGlobalOverlayAutoLayer();
 
   // Clean up any legacy Service Workers silently in the background (web browsers only).
   // Never reload the page, which causes infinite loops in WKWebView / private mode.

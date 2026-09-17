@@ -471,6 +471,55 @@ export function isAIAssignee(assignee?: string | null): boolean {
 }
 
 /**
+ * Determines whether a task has actually been assigned to or run by the AI Agent.
+ * A task is only considered AI-assigned if an AI execution has been dispatched or recorded:
+ * - Active or pending status (`aiStatus`)
+ * - Active background run (`aiWorking === true`)
+ * - Dispatched workflow run ID (`aiRunId`)
+ * - Explicit prompt assigned (`aiPrompt`)
+ * - Recorded start timestamp (`aiRunAt`)
+ *
+ * Simply having an assignee string like "AI Agent" (e.g. from a default ingestion schema)
+ * without any AI execution state does NOT constitute an active AI assignment.
+ */
+export function isTaskAiAssigned(task?: {
+  assignee?: string | null;
+  aiStatus?: string | null;
+  aiWorking?: boolean;
+  aiRunId?: string | null;
+  aiPrompt?: string | null;
+  aiRunAt?: number | null;
+} | null): boolean {
+  if (!task) return false;
+  if (task.aiWorking) return true;
+  if (task.aiStatus && task.aiStatus !== '') return true;
+  if (task.aiRunId && task.aiRunId !== '') return true;
+  if (typeof task.aiRunAt === 'number' && task.aiRunAt > 0) return true;
+  if (task.aiPrompt && task.aiPrompt.trim() !== '') return true;
+  return false;
+}
+
+/**
+ * Determines whether a task was handled/completed by the AI Agent.
+ * Only returns true if the task completed under AI execution (`aiStatus === 'completed'`
+ * or the task is marked completed and has an associated AI execution record).
+ */
+export function isTaskAiHandled(task?: {
+  completed?: boolean;
+  assignee?: string | null;
+  aiStatus?: string | null;
+  aiWorking?: boolean;
+  aiRunId?: string | null;
+  aiPrompt?: string | null;
+  aiRunAt?: number | null;
+} | null): boolean {
+  if (!task) return false;
+  if (task.aiStatus === 'completed') return true;
+  if (Boolean(task.completed) && isTaskAiAssigned(task)) return true;
+  return false;
+}
+
+/**
  * Deep-merge two incident data objects with conflict resolution:
  * - Scalars: keep the value from whichever object was edited most recently
  * - Objects: recursively merge keys

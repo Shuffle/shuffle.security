@@ -49,7 +49,7 @@ import {
 import { getApiUrl, getAuthHeader, getShuffleCoreUrl, getShuffleCoreWorkflowUrl } from '../api';
 import { navigateToShuffleCore } from '@/lib/authHandoff';
 import NotificationsDrawer from './NotificationsDrawer';
-import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
+import { useDrawerLayer, useOverlayLayer } from '@/Shuffle-MCPs/drawerLayer';
 import { AppFallbackIcon } from '@/Shuffle-MCPs/components/AppFallbackIcon';
 import shuffleLogo from '@/assets/shuffle-logo.png';
 import singulAgentIcon from '@/assets/singul-agent-icon.png';
@@ -187,6 +187,8 @@ const [exec, setExec] = useState<WorkflowExecution | null>(null);
   const [loading, setLoading] = useState(true);
   const [aborting, setAborting] = useState(false);
   const [debugResult, setDebugResult] = useState<any | null>(null);
+  const debugModalOpen = Boolean(debugResult);
+  const debugModalZIndex = useOverlayLayer(debugModalOpen);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -777,15 +779,22 @@ const openInShuffle = async () => {
 
 
       <Dialog
-        open={Boolean(debugResult)}
+        open={debugModalOpen}
         onClose={() => setDebugResult(null)}
         maxWidth="lg"
         fullWidth
+        sx={{
+          zIndex: debugModalZIndex,
+          '& .MuiBackdrop-root': {
+            zIndex: debugModalZIndex,
+          },
+        }}
         PaperProps={{
           sx: {
             bgcolor: 'hsl(var(--card))',
             color: 'hsl(var(--foreground))',
             border: '1px solid hsl(var(--border))',
+            zIndex: debugModalZIndex,
           },
         }}
       >

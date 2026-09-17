@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, ButtonBase, CircularProgress, Tooltip, type SxProps, type Theme } from "@mui/material";
 import { type IncidentTask } from "@/config/ocsfIncidentSchema";
-import { isAIAssignee } from "@/lib/utils";
+import { isAIAssignee, isTaskAiAssigned, isTaskAiHandled } from "@/lib/utils";
 import { openAgentDrawer } from "@/lib/agentDrawer";
 
 export interface TaskAiAssignButtonProps {
@@ -21,7 +21,7 @@ export interface TaskAiAssignButtonProps {
  * - Compact height (22px - 24px)
  * - Status indicators instead of logo:
  *   • Circular loader while running (isAssigning or aiStatus === 'running')
- *   • Green dot for handled (task.completed or aiStatus === 'completed')
+ *   • Green dot for handled (isTaskAiHandled)
  *   • Red dot for failed (aiStatus === 'failed')
  *   • Amber dot when assigned but idle
  *   • Clean "Assign AI" text when unassigned
@@ -36,16 +36,18 @@ export const TaskAiAssignButton: React.FC<TaskAiAssignButtonProps> = ({
   className,
   sx,
 }) => {
-  const isAssigned = isAIAssignee(task.assignee);
-  const isFailed = task.aiStatus === "failed";
-  const isHandled = Boolean(task.completed || task.aiStatus === "completed");
   const isRunning = Boolean(isAssigning || task.aiStatus === "running" || task.aiWorking);
+  const isFailed = task.aiStatus === "failed";
+  const isHandled = isTaskAiHandled(task);
+  const isAssigned = Boolean(
+    isTaskAiAssigned(task) && !isRunning && !isHandled && !isFailed
+  );
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (readOnly) return;
 
-    if (isAssigned || isRunning) {
+    if (isAssigned || isRunning || isHandled || isFailed) {
       // Open Agent Drawer with contextual instructions and task scope
       openAgentDrawer("run", {
         defaultInput: task.aiPrompt,
@@ -94,41 +96,29 @@ export const TaskAiAssignButton: React.FC<TaskAiAssignButtonProps> = ({
           minHeight: 22,
           height: 22,
           borderRadius: "9999px",
-          bgcolor: "hsl(var(--card))",
-          color: "hsl(var(--card-foreground))",
-          border: "1px solid",
-          borderColor: isRunning
-            ? "hsl(var(--primary))"
-            : isFailed
-              ? "#ef4444"
-              : isHandled
-                ? "#22c55e"
-                : isAssigned
-                  ? "hsl(var(--primary) / 0.5)"
-                  : "hsl(var(--border))",
-          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
+          bgcolor: "hsl(var(--background))",
+          color: "hsl(var(--muted-foreground))",
+          border: "1px solid hsl(var(--border))",
+          boxShadow: "none",
           cursor: readOnly ? "default" : "pointer",
           userSelect: "none",
           fontSize: "0.7rem",
-          fontWeight: 600,
+          fontWeight: 500,
           lineHeight: 1,
           transition: "all 140ms cubic-bezier(0.4, 0, 0.2, 1)",
-          backdropFilter: "blur(6px)",
-          opacity: isRunning || isAssigned ? 1 : { xs: 1, md: 0 },
+          opacity: isRunning || isAssigned || isHandled || isFailed ? 1 : { xs: 1, md: 0 },
           "&:hover":
             !readOnly
               ? {
-                  bgcolor: "hsl(var(--accent))",
-                  color: "hsl(var(--accent-foreground))",
-                  borderColor: "hsl(var(--primary))",
-                  boxShadow: "0 2px 6px rgba(0, 0, 0, 0.12)",
-                  transform: "translateY(-1px)",
+                  bgcolor: "hsl(var(--muted) / 0.5)",
+                  color: "hsl(var(--foreground))",
+                  borderColor: "hsl(var(--border))",
                 }
               : undefined,
           "&:active":
             !readOnly
               ? {
-                  transform: "translateY(0px)",
+                  bgcolor: "hsl(var(--muted))",
                 }
               : undefined,
           ...sx,
@@ -148,7 +138,6 @@ export const TaskAiAssignButton: React.FC<TaskAiAssignButtonProps> = ({
               height: 6,
               borderRadius: "50%",
               bgcolor: "#ef4444",
-              boxShadow: "0 0 5px rgba(239, 68, 68, 0.6)",
               flexShrink: 0,
             }}
           />
@@ -159,7 +148,6 @@ export const TaskAiAssignButton: React.FC<TaskAiAssignButtonProps> = ({
               height: 6,
               borderRadius: "50%",
               bgcolor: "#22c55e",
-              boxShadow: "0 0 5px rgba(34, 197, 94, 0.6)",
               flexShrink: 0,
             }}
           />
@@ -170,7 +158,6 @@ export const TaskAiAssignButton: React.FC<TaskAiAssignButtonProps> = ({
               height: 6,
               borderRadius: "50%",
               bgcolor: "#f59e0b",
-              boxShadow: "0 0 5px rgba(245, 158, 11, 0.5)",
               flexShrink: 0,
             }}
           />

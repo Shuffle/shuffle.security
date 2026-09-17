@@ -1409,14 +1409,14 @@ const DEFAULT_INCIDENT_AI_AGENT_PROMPT = `Triage, investigate, and respond holis
 - For disruptive actions, set approval_required: true and request analyst confirmation.
 
 4. FIX SPAMMY DETECTIONS:
-- If this alert is from a noisy or misconfigured detection rule firing repeatedly on benign operations, propose specific rule tuning/exclusions in the activity log or create a task: {"assignee": "AI Agent", "title": "Tune detection rule: [Rule Name] to exclude [Pattern]", "category": "triage", "completed": false, "createdBy": "ai-agent@shuffler.io"}.
+- If this alert is from a noisy or misconfigured detection rule firing repeatedly on benign operations, propose specific rule tuning/exclusions in the activity log or create a task: {"assignee": "", "title": "Tune detection rule: [Rule Name] to exclude [Pattern]", "category": "triage", "completed": false, "createdBy": "ai-agent@shuffler.io"}.
 
 5. TOOL REQUESTS:
 - Utilize available tools (shuffle-datastore, shuffle_incidents, etc.). If an essential tool (EDR, SIEM, Threat Intel, Firewall) is missing or unauthenticated, explicitly state what tool is required, why, and the specific query/action needed.
 
 6. INVESTIGATION & DOCUMENTATION:
 - If ongoing investigation is needed, set "status" to "in_progress" and update "severity" to info/low/medium/high/critical.
-- Generate structured tasks in JSON format: {"tasks": [{"assignee": "AI Agent", "title": "Title of task", "category": "triage/investigation/containment/recovery/communication/documentation", "completed": false, "createdBy": "ai-agent@shuffler.io"}]}.
+- Generate structured tasks in JSON format: {"tasks": [{"assignee": "", "title": "Title of task", "category": "triage/investigation/containment/recovery/communication/documentation", "completed": false, "createdBy": "ai-agent@shuffler.io"}]}.
 - Document findings, timeline, and MITRE ATT&CK techniques in activity and comments. Tackle tasks one by one, self-assigning and completing them as progress is made.
 
 Update the internal shuffle datastore with the same key and category 'shuffle-security_incidents'. CRITICAL: You MUST ONLY send the specific fields that require a change. NEVER send or echo unchanged fields (such as unchanged tasks, activity, severity, or metadata). Do NOT overwrite unrelated fields.`;

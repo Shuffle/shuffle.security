@@ -2201,6 +2201,24 @@ const AgentUI: React.FC<AgentUIProps> = ({
     return h;
   }, [apiKey, orgId]);
   const hasApiKey = !!apiKey || !!API_CONFIG.apiKey;
+
+  const resolvedIncidentId = propIncidentId || (
+    contextCategory === 'incidents' ? contextParams?.id : undefined
+  ) || (
+    typeof window !== 'undefined' ? (window as any).__shuffleActiveIncidentId : undefined
+  );
+
+  const resolvedVulnerabilityId = propVulnerabilityId || (
+    contextCategory === 'vulnerabilities' ? contextParams?.id : undefined
+  ) || (
+    typeof window !== 'undefined' ? (window as any).__shuffleActiveVulnerabilityId : undefined
+  );
+
+  const resolvedWorkflowId = propWorkflowId || (
+    contextCategory === 'workflows' ? contextParams?.id : undefined
+  ) || (
+    typeof window !== 'undefined' ? (window as any).__shuffleActiveWorkflowId : undefined
+  );
   // Phone-sized viewports get a condensed starter block: no hero icon,
   // smaller title, tighter vertical rhythm. Desktop is unchanged.
   // When mobileView is explicitly provided, it overrides the viewport check.
@@ -3851,23 +3869,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
       }, { replace: true });
     }
 
-    const resolvedIncidentId = propIncidentId || (
-      contextCategory === 'incidents' ? contextParams?.id : undefined
-    ) || (
-      typeof window !== 'undefined' ? (window as any).__shuffleActiveIncidentId : undefined
-    );
-
-    const resolvedVulnerabilityId = propVulnerabilityId || (
-      contextCategory === 'vulnerabilities' ? contextParams?.id : undefined
-    ) || (
-      typeof window !== 'undefined' ? (window as any).__shuffleActiveVulnerabilityId : undefined
-    );
-
-    const resolvedWorkflowId = propWorkflowId || (
-      contextCategory === 'workflows' ? contextParams?.id : undefined
-    ) || (
-      typeof window !== 'undefined' ? (window as any).__shuffleActiveWorkflowId : undefined
-    );
 
     const result = await runAgent({
       input: composed.trim(),
@@ -3965,6 +3966,13 @@ const AgentUI: React.FC<AgentUIProps> = ({
       // Seed an EXECUTING stub so the poll effect starts immediately,
       // then kick off the first fetch. The poller continues until terminal.
       activeExecutionIdRef.current = eid;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('shuffle:agent_execution_status', {
+            detail: { executionId: eid, status: 'running', incidentId: resolvedIncidentId },
+          }),
+        );
+      }
       if (contextStorageKey) {
         setPageContextChoice(contextStorageKey, {
           draftPrompt: '',
@@ -4719,17 +4727,30 @@ const AgentUI: React.FC<AgentUIProps> = ({
     if (status === 'FINISHED' || status === 'SUCCESS') {
       window.dispatchEvent(
         new CustomEvent('shuffle:agent_execution_status', {
-          detail: { executionId: eid, status: 'completed' },
+          detail: { executionId: eid, status: 'completed', incidentId: resolvedIncidentId },
         }),
       );
+      if (resolvedIncidentId) {
+        window.dispatchEvent(
+          new CustomEvent('incident:refresh', {
+            detail: { id: resolvedIncidentId, incidentId: resolvedIncidentId, executionId: eid },
+          }),
+        );
+      }
     } else if (['FAILURE', 'ABORTED', 'CANCELLED', 'CANCELED'].includes(status)) {
       window.dispatchEvent(
         new CustomEvent('shuffle:agent_execution_status', {
-          detail: { executionId: eid, status: 'failed' },
+          detail: { executionId: eid, status: 'failed', incidentId: resolvedIncidentId },
+        }),
+      );
+    } else if (['RUNNING', 'EXECUTING', 'IN_PROGRESS', 'WAITING'].includes(status)) {
+      window.dispatchEvent(
+        new CustomEvent('shuffle:agent_execution_status', {
+          detail: { executionId: eid, status: 'running', incidentId: resolvedIncidentId },
         }),
       );
     }
-  }, [execution?.execution_id, execution?.status, agentData?.status]);
+  }, [execution?.execution_id, execution?.status, agentData?.status, resolvedIncidentId]);
 
   // Auto-focus the continuation field when the run finishes, so it is obvious
   // the execution can be continued.

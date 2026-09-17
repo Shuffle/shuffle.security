@@ -17,7 +17,7 @@ import {
   Divider,
 } from '@mui/material';
 import { IncidentTask, taskCategories } from '@/config/ocsfIncidentSchema';
-import { isAIAssignee } from '@/lib/utils';
+import { isAIAssignee, isTaskAiAssigned } from '@/lib/utils';
 import { openAgentDrawer } from '@/lib/agentDrawer';
 import { TaskAssigneeChip } from './TaskAssigneeChip';
 import { TaskDateTimePicker } from './TaskDateTimePicker';
@@ -538,7 +538,7 @@ export const TaskEditDialog = ({
         <Divider />
 
         {/* ---- AI AGENT EXECUTION ---- */}
-        {(isAIAssignee(task.assignee) || task.aiPrompt) && (
+        {isTaskAiAssigned(task) && (
           <>
             <Box sx={{ px: 3, py: 2, bgcolor: 'hsl(var(--muted) / 0.15)' }}>
               <Box
@@ -564,7 +564,13 @@ export const TaskEditDialog = ({
                       mb: 0.75,
                     }}
                   >
-                    {task.aiStatus === 'running' ? 'Running' : 'Assigned'}
+                    {task.aiStatus === 'completed' || task.completed
+                      ? 'Handled'
+                      : task.aiStatus === 'failed'
+                        ? 'Failed'
+                        : task.aiStatus === 'running'
+                          ? 'Running'
+                          : 'Assigned'}
                   </Typography>
                 </Box>
                 {task.aiRunAt ? (

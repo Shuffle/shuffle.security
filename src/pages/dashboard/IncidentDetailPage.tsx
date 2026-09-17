@@ -211,6 +211,7 @@ import { CommentAttachments } from "@/components/incidents/CommentAttachments";
 import { toast } from "@/lib/toast";
 import {
   isAIAssignee,
+  isTaskAiAssigned,
   deduplicateTasks,
   ensureTaskIds,
   ensureActivityIds,
@@ -240,6 +241,9 @@ import { useSourceAppImage } from "@/hooks/useSourceAppImage";
 import { AgentExecutionDrawer } from "@/Shuffle-MCPs";
 import { extractPendingAgentQuestions } from "@/Shuffle-MCPs/components/AgentUI";
 import { WorkflowRunExplorerDrawer } from "@/Shuffle-Core";
+import { IncidentEventsPanel } from "@/components/incidents/IncidentEventsPanel";
+import { loadIncidentEvents } from "@/services/incidentEventsService";
+import type { IncidentEvent } from "@/config/ocsfIncidentSchema";
 
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import AgentRunDiagnosisBanner from "@/components/agent/AgentRunDiagnosisBanner";
@@ -313,6 +317,11 @@ import EmailThreadPanel, {
   getEmailMessageCount,
 } from "@/components/incidents/EmailThreadPanel";
 import SimpleCaseLayout from "@/components/incidents/SimpleCaseLayout";
+import { HiddenFieldsSection } from "@/components/incidents/HiddenFieldsSection";
+import {
+  extractHiddenFields,
+  type HiddenFieldItem,
+} from "@/utils/hiddenFieldsExtractor";
 import SimpleTasksView from "@/components/incidents/SimpleTasksView";
 import {
   isDraftOnlyIncident,
@@ -900,7 +909,9 @@ const getLocalEmailThreadMessageCount = (raw: any): number => {
     const resolved = resolveEmailThread(raw);
     if (resolved?.messages?.length) {
       const nonDrafts = resolved.messages.filter((m) => !m.isDraft);
-      counts.push(nonDrafts.length > 0 ? nonDrafts.length : resolved.messages.length);
+      counts.push(
+        nonDrafts.length > 0 ? nonDrafts.length : resolved.messages.length,
+      );
     }
   } catch {
     /* ignore malformed provider payloads */
@@ -908,23 +919,30 @@ const getLocalEmailThreadMessageCount = (raw: any): number => {
   const unmapped = raw.unmapped_original;
   if (Array.isArray(unmapped?.messages)) {
     const nonDrafts = unmapped.messages.filter(
-      (m: any) => m?.isDraft !== true && !m?.labelIds?.includes?.("DRAFT")
+      (m: any) => m?.isDraft !== true && !m?.labelIds?.includes?.("DRAFT"),
     );
-    counts.push(nonDrafts.length > 0 ? nonDrafts.length : unmapped.messages.length);
+    counts.push(
+      nonDrafts.length > 0 ? nonDrafts.length : unmapped.messages.length,
+    );
   }
   if (Array.isArray(unmapped?.emails)) {
     const nonDrafts = unmapped.emails.filter(
-      (m: any) => m?.isDraft !== true && m?.is_draft !== true
+      (m: any) => m?.isDraft !== true && m?.is_draft !== true,
     );
-    counts.push(nonDrafts.length > 0 ? nonDrafts.length : unmapped.emails.length);
+    counts.push(
+      nonDrafts.length > 0 ? nonDrafts.length : unmapped.emails.length,
+    );
   }
   if (Array.isArray(raw.email?.messages)) {
-    const nonDrafts = raw.email.messages.filter((m: any) => m?.isDraft !== true);
-    counts.push(nonDrafts.length > 0 ? nonDrafts.length : raw.email.messages.length);
+    const nonDrafts = raw.email.messages.filter(
+      (m: any) => m?.isDraft !== true,
+    );
+    counts.push(
+      nonDrafts.length > 0 ? nonDrafts.length : raw.email.messages.length,
+    );
   }
   return counts.length ? Math.max(...counts) : 0;
 };
-
 
 const parseIncidentFromDatastore = (item: {
   key: string;
@@ -965,7 +983,9 @@ const parseIncidentFromDatastore = (item: {
       const topLevelActivity = (data as any).activity;
       const metadataTasks = customAttrs?.tasks;
       const metadataActivity = (customAttrs as any)?.activity;
-      const tasks = ensureTaskIds<IncidentTask>(topLevelTasks || metadataTasks || []);
+      const tasks = ensureTaskIds<IncidentTask>(
+        topLevelTasks || metadataTasks || [],
+      );
       const activity = topLevelActivity || metadataActivity || [];
 
       // Convert comments to activity for display (legacy format support)
@@ -1039,7 +1059,9 @@ const parseIncidentFromDatastore = (item: {
       const customAttrs = legacyData.metadata?.extensions?.custom_attributes;
       const tlp = customAttrs?.tlp || legacyData.tlp;
       const pap = customAttrs?.pap || legacyData.pap;
-      const tasks = ensureTaskIds<IncidentTask>(customAttrs?.tasks || legacyData.tasks || []);
+      const tasks = ensureTaskIds<IncidentTask>(
+        customAttrs?.tasks || legacyData.tasks || [],
+      );
       const activity = customAttrs?.activity || legacyData.activity;
       const customFields =
         customAttrs?.customFields ||
@@ -1250,7 +1272,11 @@ const getWorkflowFailureReason = (run: any): string | null => {
   }
 
   // 2. Explicit failure_reason
-  if (run.failure_reason && typeof run.failure_reason === "string" && run.failure_reason.trim()) {
+  if (
+    run.failure_reason &&
+    typeof run.failure_reason === "string" &&
+    run.failure_reason.trim()
+  ) {
     return run.failure_reason.trim();
   }
 
@@ -1258,7 +1284,9 @@ const getWorkflowFailureReason = (run: any): string | null => {
   if (Array.isArray(run.results)) {
     const failedAction = run.results.find((r: any) => {
       const s = String(r?.status || "").toUpperCase();
-      return s === "FAILURE" || s === "FAILED" || s === "ERROR" || s === "ABORTED";
+      return (
+        s === "FAILURE" || s === "FAILED" || s === "ERROR" || s === "ABORTED"
+      );
     });
 
     if (failedAction) {
@@ -1269,7 +1297,10 @@ const getWorkflowFailureReason = (run: any): string | null => {
         "Action";
 
       let errorMsg = "";
-      if (typeof failedAction.result === "string" && failedAction.result.trim()) {
+      if (
+        typeof failedAction.result === "string" &&
+        failedAction.result.trim()
+      ) {
         try {
           const parsed = JSON.parse(failedAction.result);
           errorMsg =
@@ -1307,7 +1338,12 @@ const getWorkflowFailureReason = (run: any): string | null => {
           status === "FAILURE" ||
           status === "ERROR" ||
           status === "ABORTED";
-        if (isFailedStatus && run.result.length < 200 && !run.result.startsWith("{") && !run.result.startsWith("[")) {
+        if (
+          isFailedStatus &&
+          run.result.length < 200 &&
+          !run.result.startsWith("{") &&
+          !run.result.startsWith("[")
+        ) {
           return run.result.trim();
         }
       }
@@ -1324,7 +1360,8 @@ const getWorkflowFailureReason = (run: any): string | null => {
 
   const status = String(run.status || "").toUpperCase();
   if (status === "ABORTED") return "Execution aborted";
-  if (status === "FAILED" || status === "FAILURE" || status === "ERROR") return "Execution failed";
+  if (status === "FAILED" || status === "FAILURE" || status === "ERROR")
+    return "Execution failed";
 
   return null;
 };
@@ -1660,7 +1697,9 @@ const IncidentDetailPage = () => {
       attrField?: string | null;
     } | null>(null);
 
-  const hoverScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const scheduleGentleScroll = (target: {
     section?:
@@ -1949,10 +1988,14 @@ const IncidentDetailPage = () => {
     // 2. Query the actual textarea inside the comment container or DOM
     const container = commentInputRef.current;
     const ta = (container?.querySelector("textarea:not([readonly])") ||
-      document.querySelector("[data-tour='incident-comment-input'] textarea:not([readonly])") ||
+      document.querySelector(
+        "[data-tour='incident-comment-input'] textarea:not([readonly])",
+      ) ||
       container?.querySelector("textarea") ||
       document.querySelector("[data-tour='incident-comment-input'] textarea") ||
-      document.querySelector(".incident-comment-box textarea")) as HTMLTextAreaElement | null;
+      document.querySelector(
+        ".incident-comment-box textarea",
+      )) as HTMLTextAreaElement | null;
 
     if (ta) {
       ta.focus();
@@ -2087,7 +2130,9 @@ const IncidentDetailPage = () => {
 
   // Tasks
   const [tasks, setTasks] = useState<IncidentTask[]>([]);
-  const [assigningTaskIds, setAssigningTaskIds] = useState<Record<string, boolean>>({});
+  const [assigningTaskIds, setAssigningTaskIds] = useState<
+    Record<string, boolean>
+  >({});
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
@@ -2112,6 +2157,9 @@ const IncidentDetailPage = () => {
   const [showResolveDialog, setShowResolveDialog] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeAiExecutions, setActiveAiExecutions] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [actionsMenuAnchor, setActionsMenuAnchor] =
     useState<null | HTMLElement>(null);
   const [showForwardDialog, setShowForwardDialog] = useState(false);
@@ -2137,7 +2185,11 @@ const IncidentDetailPage = () => {
     "file",
     "original",
     "simple",
+    "events",
   ] as const;
+
+  const [incidentEvents, setIncidentEvents] = useState<IncidentEvent[]>([]);
+  const [incidentEventsLoading, setIncidentEventsLoading] = useState(false);
   const isSupportUser = useIsSupport();
   // Timeline filter — multi-select. Each key can be toggled independently.
   // Defaults: everything EXCEPT "Changes" (revisions). Revisions are noisy
@@ -2391,37 +2443,57 @@ const IncidentDetailPage = () => {
     }
   };
   // Helper to check whether the current incident is a Demo mode incident.
-  const isDemoIncidentKeyOrData = (key?: string | null, data?: unknown): boolean => {
+  const isDemoIncidentKeyOrData = (
+    key?: string | null,
+    data?: unknown,
+  ): boolean => {
     if (
       typeof key === "string" &&
-      (key.startsWith("demo-") || key.startsWith("demo_") || /^demo-inc-/i.test(key))
+      (key.startsWith("demo-") ||
+        key.startsWith("demo_") ||
+        /^demo-inc-/i.test(key))
     ) {
       return true;
     }
     if (!data || typeof data !== "object") return false;
     const rec = data as Record<string, unknown>;
-    if (typeof rec.id === "string" && (rec.id.startsWith("demo-") || rec.id.startsWith("demo_"))) return true;
-    if (typeof rec._key === "string" && (rec._key.startsWith("demo-") || rec._key.startsWith("demo_"))) return true;
+    if (
+      typeof rec.id === "string" &&
+      (rec.id.startsWith("demo-") || rec.id.startsWith("demo_"))
+    )
+      return true;
+    if (
+      typeof rec._key === "string" &&
+      (rec._key.startsWith("demo-") || rec._key.startsWith("demo_"))
+    )
+      return true;
     const metadata = rec.metadata as Record<string, unknown> | undefined;
-    const metaExtensions = metadata?.extensions as Record<string, unknown> | undefined;
-    const metaCustomAttrs = metaExtensions?.custom_attributes as Record<string, unknown> | undefined;
+    const metaExtensions = metadata?.extensions as
+      Record<string, unknown> | undefined;
+    const metaCustomAttrs = metaExtensions?.custom_attributes as
+      Record<string, unknown> | undefined;
     if (metaCustomAttrs?.demo === true) return true;
 
     const rawOCSF = rec.rawOCSF as Record<string, unknown> | undefined;
-    const rawMetadata = rawOCSF?.metadata as Record<string, unknown> | undefined;
-    const rawExtensions = rawMetadata?.extensions as Record<string, unknown> | undefined;
-    const rawCustomAttrs = rawExtensions?.custom_attributes as Record<string, unknown> | undefined;
+    const rawMetadata = rawOCSF?.metadata as
+      Record<string, unknown> | undefined;
+    const rawExtensions = rawMetadata?.extensions as
+      Record<string, unknown> | undefined;
+    const rawCustomAttrs = rawExtensions?.custom_attributes as
+      Record<string, unknown> | undefined;
     if (rawCustomAttrs?.demo === true) return true;
 
     const extensions = rec.extensions as Record<string, unknown> | undefined;
-    const customAttrs = extensions?.custom_attributes as Record<string, unknown> | undefined;
+    const customAttrs = extensions?.custom_attributes as
+      Record<string, unknown> | undefined;
     if (customAttrs?.demo === true) return true;
     return false;
   };
 
   const isCurrentDemo =
     isDemoIncidentKeyOrData(rawId, incident || listFallbackIncident) ||
-    (isDemoActive() && isDemoIncidentKeyOrData(rawId, incident || listFallbackIncident));
+    (isDemoActive() &&
+      isDemoIncidentKeyOrData(rawId, incident || listFallbackIncident));
 
   const initialTab = (() => {
     const isDemo =
@@ -2451,7 +2523,8 @@ const IncidentDetailPage = () => {
   useEffect(() => {
     const isDemo =
       isDemoIncidentKeyOrData(rawId, incident || listFallbackIncident) ||
-      (isDemoActive() && isDemoIncidentKeyOrData(rawId, incident || listFallbackIncident));
+      (isDemoActive() &&
+        isDemoIncidentKeyOrData(rawId, incident || listFallbackIncident));
 
     // When viewing a demo incident without manual tab interaction in this session,
     // force it to open in Simple mode initially no matter what.
@@ -2482,7 +2555,14 @@ const IncidentDetailPage = () => {
       // First-time visit for a support user with no stored preference: default to Simple
       if (activeTab !== 7) setActiveTabState(7);
     }
-  }, [activeTab, isSupportUser, searchParams, rawId, incident, listFallbackIncident]);
+  }, [
+    activeTab,
+    isSupportUser,
+    searchParams,
+    rawId,
+    incident,
+    listFallbackIncident,
+  ]);
 
   const setActiveTab = (tab: number) => {
     userInteractedTabRef.current = true;
@@ -2545,7 +2625,10 @@ const IncidentDetailPage = () => {
       if (!typeValueKey) return;
       setFlashedObsKey(typeValueKey);
       if (flashedObsTimerRef.current) clearTimeout(flashedObsTimerRef.current);
-      flashedObsTimerRef.current = setTimeout(() => setFlashedObsKey(null), 2200);
+      flashedObsTimerRef.current = setTimeout(
+        () => setFlashedObsKey(null),
+        2200,
+      );
       setTimeout(() => {
         try {
           const escaped =
@@ -2554,7 +2637,10 @@ const IncidentDetailPage = () => {
               : typeValueKey.toLowerCase();
           const el = (document.querySelector(
             `[data-simple-obs-key="${escaped}"]`,
-          ) || document.getElementById("simple-case-observables")) as HTMLElement | null;
+          ) ||
+            document.getElementById(
+              "simple-case-observables",
+            )) as HTMLElement | null;
           if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
         } catch {}
       }, 50);
@@ -2588,7 +2674,8 @@ const IncidentDetailPage = () => {
     if (activeTab === 7) {
       if (!taskId) return;
       setFlashedTaskId(taskId);
-      if (flashedTaskTimerRef.current) clearTimeout(flashedTaskTimerRef.current);
+      if (flashedTaskTimerRef.current)
+        clearTimeout(flashedTaskTimerRef.current);
       flashedTaskTimerRef.current = setTimeout(
         () => setFlashedTaskId(null),
         2200,
@@ -2601,7 +2688,8 @@ const IncidentDetailPage = () => {
               : taskId;
           const el = (document.querySelector(
             `[data-simple-task-id="${escaped}"]`,
-          ) || document.getElementById("simple-case-tasks")) as HTMLElement | null;
+          ) ||
+            document.getElementById("simple-case-tasks")) as HTMLElement | null;
           if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
         } catch {}
       }, 50);
@@ -4329,6 +4417,32 @@ const IncidentDetailPage = () => {
     if (routingRulesOrgId) fetchRoutingRules();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routingRulesOrgId]);
+
+  // ── Incident Events (decoupled in shuffle-security_events) ──
+  const viewingEventsOrgId = crossOrgId || userInfo?.active_org?.id;
+  useEffect(() => {
+    if (!id) {
+      setIncidentEvents([]);
+      return;
+    }
+    let isMounted = true;
+    setIncidentEventsLoading(true);
+    loadIncidentEvents(id, viewingEventsOrgId)
+      .then((res) => {
+        if (isMounted) {
+          setIncidentEvents(res.events || []);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load incident events:", err);
+      })
+      .finally(() => {
+        if (isMounted) setIncidentEventsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [id, viewingEventsOrgId]);
   const routingRules: RoutingRule[] = useMemo(() => {
     const out: RoutingRule[] = [];
     for (const it of routingRuleItems) {
@@ -4406,7 +4520,15 @@ const IncidentDetailPage = () => {
       creator_org?: string;
     }> = [];
 
-    const addKnownOrg = (org?: { id: string; name?: string; image?: string; region_url?: string; creator_org?: string } | null) => {
+    const addKnownOrg = (
+      org?: {
+        id: string;
+        name?: string;
+        image?: string;
+        region_url?: string;
+        creator_org?: string;
+      } | null,
+    ) => {
       if (!org?.id || seenOrgIds.has(org.id)) return;
       seenOrgIds.add(org.id);
       allKnownOrgs.push({
@@ -4752,7 +4874,8 @@ const IncidentDetailPage = () => {
     // rows appear and then vanish (flicker).
     if (
       (agentRunsLoading && (!agentRuns || agentRuns.length === 0)) ||
-      (workflowRunsLoading && (!allIncidentWorkflowRuns || allIncidentWorkflowRuns.length === 0))
+      (workflowRunsLoading &&
+        (!allIncidentWorkflowRuns || allIncidentWorkflowRuns.length === 0))
     )
       return [] as any[];
     const agentIds = new Set((agentRuns || []).map((r: any) => r.execution_id));
@@ -5006,7 +5129,9 @@ const IncidentDetailPage = () => {
       const raw =
         subOrgs.find((o) => o.id === orgId)?.region_url ||
         (parentOrg?.id === orgId ? parentOrg.region_url : undefined) ||
-        (userInfo?.active_org?.id === orgId ? userInfo?.active_org?.region_url : undefined) ||
+        (userInfo?.active_org?.id === orgId
+          ? userInfo?.active_org?.region_url
+          : undefined) ||
         userInfo?.orgs?.find((o) => o.id === orgId)?.region_url;
       if (!raw) return undefined;
       const mapped = mapCloudRegionUrl(raw);
@@ -5048,7 +5173,10 @@ const IncidentDetailPage = () => {
               id,
               DATASTORE_CATEGORIES.INCIDENTS,
               crossOrgId || undefined,
-              { priority: true, ...tenantRegionOptions(crossOrgId || undefined) },
+              {
+                priority: true,
+                ...tenantRegionOptions(crossOrgId || undefined),
+              },
             );
       } catch (err) {
         console.error("[IncidentDetail] Failed to fetch incident:", err);
@@ -6145,17 +6273,38 @@ const IncidentDetailPage = () => {
   // the detail view reflects the change immediately instead of waiting for
   // the 30s poll.
   useEffect(() => {
+    let timer1: number | undefined;
+    let timer2: number | undefined;
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { id?: string } | undefined;
+      const detail = (e as CustomEvent).detail as
+        { id?: string; incidentId?: string; executionId?: string } | undefined;
       if (!id) return;
-      if (detail?.id && String(detail.id) !== String(id)) return;
+      const targetId = detail?.id || detail?.incidentId;
+      if (targetId && String(targetId) !== String(id)) return;
       if (pendingSaveRef.current || isSaving) return;
-      loadIncident(false);
+      loadIncidentRef.current?.(false);
+
+      // Staggered follow-up checks to catch any backend datastore write propagation delay
+      window.clearTimeout(timer1);
+      window.clearTimeout(timer2);
+      timer1 = window.setTimeout(() => {
+        if (!pendingSaveRef.current && !isSaving) {
+          loadIncidentRef.current?.(false);
+        }
+      }, 1500);
+      timer2 = window.setTimeout(() => {
+        if (!pendingSaveRef.current && !isSaving) {
+          loadIncidentRef.current?.(false);
+        }
+      }, 3500);
     };
     window.addEventListener("incident:refresh", handler as EventListener);
-    return () =>
+    return () => {
       window.removeEventListener("incident:refresh", handler as EventListener);
-  }, [id, loadIncident, isSaving]);
+      window.clearTimeout(timer1);
+      window.clearTimeout(timer2);
+    };
+  }, [id, isSaving]);
 
   // Fetch correlations — extracted into a callback so the "Re-run" button on
   // the Correlations tab header can refresh on demand. Deferred until the
@@ -6385,10 +6534,17 @@ const IncidentDetailPage = () => {
   // page reload. Carefully avoids touching any field the user is editing.
   useEffect(() => {
     if (!incident || !id || isPublicView || loading) return;
-    // Poll faster while the incident is "fresh" (just created), then slow
-    // down to a gentle background heartbeat for the rest of the session.
+    // Poll faster while an AI agent is executing or tasks are assigned to AI (3s),
+    // or while the incident is "fresh" (5s), then slow down to a gentle background
+    // heartbeat (15s) for the rest of the session.
     const ageMs = Date.now() - (incident.createdTs || 0);
-    const intervalMs = ageMs < FRESH_OBS_WINDOW_MS ? 5000 : 15000;
+    const hasActiveAi =
+      tasks.some((t) => t.aiWorking) || activeAiExecutions.size > 0;
+    const intervalMs = hasActiveAi
+      ? 3000
+      : ageMs < FRESH_OBS_WINDOW_MS
+        ? 5000
+        : 15000;
 
     let cancelled = false;
     const tick = async () => {
@@ -6512,6 +6668,84 @@ const IncidentDetailPage = () => {
           return newActivity;
         });
 
+        // ─ Description: adopt from server if user is not editing ─────────
+        const isDescDirty =
+          isEditingDescription ||
+          editedMessage !== initialValuesRef.current?.message;
+        if (!isDescDirty) {
+          const rawServerDesc =
+            reParsed.rawOCSF?.desc || reParsed.rawOCSF?.message || "";
+          const rawDecoded = decodeIfBase64(rawServerDesc);
+          const htmlSource =
+            rawDecoded !== rawServerDesc ? rawDecoded : rawServerDesc;
+          const processedDesc =
+            rawDecoded !== rawServerDesc
+              ? rawDecoded
+              : decodeIfBase64(htmlToPlainText(rawServerDesc));
+          const plainDesc = htmlToPlainText(processedDesc);
+
+          if (plainDesc !== initialValuesRef.current?.message) {
+            setRawDescriptionHtml(htmlSource);
+            setEditedMessage(plainDesc);
+            if (initialValuesRef.current) {
+              initialValuesRef.current.message = plainDesc;
+            }
+          }
+        }
+
+        // ─ Tasks: adopt from server if user has not edited tasks locally ───
+        const tasksDirty =
+          tasksJsonRef.current !== initialValuesRef.current?.tasks;
+        if (!tasksDirty) {
+          const serverTasks = reParsed.tasks || [];
+          const normalizedServerTasks =
+            ensureTaskIds<IncidentTask>(serverTasks);
+          const serverTasksJson = JSON.stringify(normalizedServerTasks);
+          if (serverTasksJson !== initialValuesRef.current?.tasks) {
+            setTasks(normalizedServerTasks);
+            if (initialValuesRef.current) {
+              initialValuesRef.current.tasks = serverTasksJson;
+            }
+          }
+        }
+
+        // ─ Assignee: adopt from server if not dirty ───────────────────────
+        const assigneeDirty =
+          editedAssignee !== initialValuesRef.current?.assignee;
+        if (!assigneeDirty) {
+          const serverAssignee = reParsed.assignee || "";
+          if (serverAssignee !== initialValuesRef.current?.assignee) {
+            setEditedAssignee(serverAssignee);
+            if (initialValuesRef.current) {
+              initialValuesRef.current.assignee = serverAssignee;
+            }
+          }
+        }
+
+        // ─ Status: adopt from server if not dirty ─────────────────────────
+        const statusDirty = editedStatus !== initialValuesRef.current?.status;
+        if (!statusDirty) {
+          const serverStatus = reParsed.status || "open";
+          if (serverStatus !== initialValuesRef.current?.status) {
+            setEditedStatus(serverStatus);
+            if (initialValuesRef.current) {
+              initialValuesRef.current.status = serverStatus;
+            }
+          }
+        }
+
+        // ─ Title: adopt from server if not dirty ──────────────────────────
+        const titleDirty = editedTitle !== initialValuesRef.current?.title;
+        if (!titleDirty) {
+          const serverTitle = reParsed.title || "";
+          if (serverTitle !== initialValuesRef.current?.title) {
+            setEditedTitle(serverTitle);
+            if (initialValuesRef.current) {
+              initialValuesRef.current.title = serverTitle;
+            }
+          }
+        }
+
         // ─ incident.editedTs / lightweight metadata refresh ────────────
         setIncident((curr) => {
           if (!curr) return curr;
@@ -6519,6 +6753,7 @@ const IncidentDetailPage = () => {
           // Only refresh server-managed fields; preserve any in-flight user edits.
           return {
             ...curr,
+            ...reParsed,
             editedTs: reParsed.editedTs,
             enrichments: newEnrichments,
             observables: obsDirty ? curr.observables : newObs,
@@ -6549,6 +6784,13 @@ const IncidentDetailPage = () => {
     isSaving,
     FRESH_OBS_WINDOW_MS,
     incident?.createdTs,
+    tasks,
+    activeAiExecutions.size,
+    isEditingDescription,
+    editedMessage,
+    editedAssignee,
+    editedStatus,
+    editedTitle,
   ]);
 
   // Fetch per-observable correlations as soon as the incident is loaded.
@@ -7577,8 +7819,6 @@ const IncidentDetailPage = () => {
     ],
   );
 
-
-
   /**
    * Stamp the authoritative tenant set onto the payload we are about to write
    * and log the move in the incident timeline. The stamp is what lets the
@@ -8175,7 +8415,9 @@ const IncidentDetailPage = () => {
     let toggledCount = 0;
     setTasks(
       tasks.map((task) => {
-        const matches = String(task.id) === String(taskId) || (task.title === taskId && !task.id);
+        const matches =
+          String(task.id) === String(taskId) ||
+          (task.title === taskId && !task.id);
         if (toggledCount > 0 || !matches) return task;
         toggledCount++;
         const becomingDone = !task.completed;
@@ -8227,7 +8469,10 @@ const IncidentDetailPage = () => {
           completed: becomingDone,
           completedAt: becomingDone ? task.completedAt || now : 0,
           aiWorking: becomingDone ? false : task.aiWorking,
-          aiStatus: becomingDone && isAIAssignee(task.assignee) ? "completed" : task.aiStatus,
+          aiStatus:
+            becomingDone && isTaskAiAssigned(task)
+              ? "completed"
+              : task.aiStatus,
           _lane: nextLane,
           statusHistory: nextHistory,
         };
@@ -8239,7 +8484,11 @@ const IncidentDetailPage = () => {
     let updated = false;
     setTasks(
       tasks.map((task) => {
-        if (!updated && (String(task.id) === String(taskId) || (task.title === taskId && !task.id))) {
+        if (
+          !updated &&
+          (String(task.id) === String(taskId) ||
+            (task.title === taskId && !task.id))
+        ) {
           updated = true;
           const isAi = isAIAssignee(assignee);
           return {
@@ -8347,7 +8596,9 @@ const IncidentDetailPage = () => {
     const incidentRef = incident?.id ? `#${incident.id}` : "";
     const incidentTitle = incident?.title || editedTitle || "Incident";
     const taskTitle = task.title || "Untitled task";
-    const taskDesc = task.description ? `\n\nTask details: ${task.description}` : "";
+    const taskDesc = task.description
+      ? `\n\nTask details: ${task.description}`
+      : "";
     const prompt =
       task.aiPrompt && !reRun
         ? task.aiPrompt
@@ -8411,13 +8662,33 @@ const IncidentDetailPage = () => {
 
   // Listen for AI Agent task execution and completion events to update task state and persist execution ID
   useEffect(() => {
+    let timer1: number | undefined;
+    let timer2: number | undefined;
+
     const handleTaskAiExecution = (e: Event) => {
-      const detail = (e as CustomEvent<{
-        taskId: string;
-        executionId: string;
-        status?: "running" | "completed" | "failed";
-      }>).detail;
+      const detail = (
+        e as CustomEvent<{
+          taskId: string;
+          executionId: string;
+          status?: "running" | "completed" | "failed";
+        }>
+      ).detail;
       if (!detail?.taskId || !detail?.executionId) return;
+
+      if (detail.status === "running") {
+        setActiveAiExecutions((prev) => {
+          const next = new Set(prev);
+          next.add(detail.executionId);
+          return next;
+        });
+      } else if (detail.status === "completed" || detail.status === "failed") {
+        setActiveAiExecutions((prev) => {
+          if (!prev.has(detail.executionId)) return prev;
+          const next = new Set(prev);
+          next.delete(detail.executionId);
+          return next;
+        });
+      }
 
       setTasks((prev) =>
         prev.map((t) => {
@@ -8425,43 +8696,118 @@ const IncidentDetailPage = () => {
             return {
               ...t,
               aiRunId: detail.executionId,
-              aiWorking: detail.status === "completed" || detail.status === "failed" ? false : true,
+              aiWorking:
+                detail.status === "completed" || detail.status === "failed"
+                  ? false
+                  : true,
               aiStatus: detail.status || "running",
             };
           }
           return t;
         }),
       );
+
+      if (detail.status === "completed") {
+        if (!pendingSaveRef.current && !isSaving) {
+          loadIncidentRef.current?.(false);
+        }
+        window.clearTimeout(timer1);
+        window.clearTimeout(timer2);
+        timer1 = window.setTimeout(() => {
+          if (!pendingSaveRef.current && !isSaving) {
+            loadIncidentRef.current?.(false);
+          }
+        }, 1500);
+        timer2 = window.setTimeout(() => {
+          if (!pendingSaveRef.current && !isSaving) {
+            loadIncidentRef.current?.(false);
+          }
+        }, 3500);
+      }
     };
 
     const handleAgentExecutionStatus = (e: Event) => {
-      const detail = (e as CustomEvent<{
-        executionId: string;
-        status: "completed" | "failed";
-      }>).detail;
+      const detail = (
+        e as CustomEvent<{
+          executionId: string;
+          status: "running" | "completed" | "failed";
+          incidentId?: string;
+        }>
+      ).detail;
       if (!detail?.executionId) return;
+
+      const targetIncidentId = detail.incidentId;
+      const isCurrentIncident =
+        !targetIncidentId || String(targetIncidentId) === String(id);
+
+      if (detail.status === "running") {
+        setActiveAiExecutions((prev) => {
+          const next = new Set(prev);
+          next.add(detail.executionId);
+          return next;
+        });
+      } else {
+        setActiveAiExecutions((prev) => {
+          if (!prev.has(detail.executionId)) return prev;
+          const next = new Set(prev);
+          next.delete(detail.executionId);
+          return next;
+        });
+      }
 
       setTasks((prev) =>
         prev.map((t) => {
           if (t.aiRunId === detail.executionId) {
             return {
               ...t,
-              aiWorking: false,
+              aiWorking: detail.status === "running",
               aiStatus: detail.status,
             };
           }
           return t;
         }),
       );
+
+      if (detail.status === "completed" && isCurrentIncident) {
+        if (!pendingSaveRef.current && !isSaving) {
+          loadIncidentRef.current?.(false);
+        }
+        window.clearTimeout(timer1);
+        window.clearTimeout(timer2);
+        timer1 = window.setTimeout(() => {
+          if (!pendingSaveRef.current && !isSaving) {
+            loadIncidentRef.current?.(false);
+          }
+        }, 1500);
+        timer2 = window.setTimeout(() => {
+          if (!pendingSaveRef.current && !isSaving) {
+            loadIncidentRef.current?.(false);
+          }
+        }, 3500);
+      }
     };
 
-    window.addEventListener("shuffle:task_ai_execution", handleTaskAiExecution as EventListener);
-    window.addEventListener("shuffle:agent_execution_status", handleAgentExecutionStatus as EventListener);
+    window.addEventListener(
+      "shuffle:task_ai_execution",
+      handleTaskAiExecution as EventListener,
+    );
+    window.addEventListener(
+      "shuffle:agent_execution_status",
+      handleAgentExecutionStatus as EventListener,
+    );
     return () => {
-      window.removeEventListener("shuffle:task_ai_execution", handleTaskAiExecution as EventListener);
-      window.removeEventListener("shuffle:agent_execution_status", handleAgentExecutionStatus as EventListener);
+      window.removeEventListener(
+        "shuffle:task_ai_execution",
+        handleTaskAiExecution as EventListener,
+      );
+      window.removeEventListener(
+        "shuffle:agent_execution_status",
+        handleAgentExecutionStatus as EventListener,
+      );
+      window.clearTimeout(timer1);
+      window.clearTimeout(timer2);
     };
-  }, []);
+  }, [id, isSaving]);
 
   const handleApplyTemplate = async (template: CaseTemplate) => {
     autoProgressStatus();
@@ -8470,16 +8816,17 @@ const IncidentDetailPage = () => {
         id: `task-${Date.now()}-${index}`,
         title: t.title,
         description: t.description || "",
-      category: t.category || "",
-      completed: false,
-      completedAt: 0,
-      assignee: t.assignee || "",
-      dependsOn: t.dependsOn || "",
-      dueDate: "",
-      createdAt: Date.now(),
-      createdBy: currentUsername,
-      attachments: [],
-    })));
+        category: t.category || "",
+        completed: false,
+        completedAt: 0,
+        assignee: t.assignee || "",
+        dependsOn: t.dependsOn || "",
+        dueDate: "",
+        createdAt: Date.now(),
+        createdBy: currentUsername,
+        attachments: [],
+      })),
+    );
     setTasks([...tasks, ...newTasks]);
     setShowTemplateMenu(false);
     await trackTemplateUsage(template.id);
@@ -8644,7 +8991,17 @@ const IncidentDetailPage = () => {
       field.description || `Enter ${field.name.toLowerCase()}`;
 
     const wrap = (input: React.ReactNode) => (
-      <Box key={field.key}>
+      <Box
+        key={field.key}
+        id={`simple-custom-field-${field.key}`}
+        data-simple-custom-field={field.key}
+        sx={{
+          scrollMarginTop: 110,
+          borderRadius: 1,
+          p: 0.5,
+          transition: "outline 0.3s ease, background-color 0.3s ease",
+        }}
+      >
         {FieldLabel}
         {input}
         {field.description && (
@@ -8737,26 +9094,23 @@ const IncidentDetailPage = () => {
           />,
         );
       case "boolean":
-        return (
-          <Box key={field.key}>
-            {FieldLabel}
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={Boolean(value)}
-                  onChange={(e) =>
-                    handleCustomFieldChange(field, e.target.checked)
-                  }
-                />
-              }
-              label={
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  {value ? "Enabled" : "Disabled"}
-                </Typography>
-              }
-              sx={{ color: "hsl(var(--foreground))", ml: 0 }}
-            />
-          </Box>
+        return wrap(
+          <FormControlLabel
+            control={
+              <Switch
+                checked={Boolean(value)}
+                onChange={(e) =>
+                  handleCustomFieldChange(field, e.target.checked)
+                }
+              />
+            }
+            label={
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                {value ? "Enabled" : "Disabled"}
+              </Typography>
+            }
+            sx={{ color: "hsl(var(--foreground))", ml: 0 }}
+          />,
         );
       default:
         return null;
@@ -10172,8 +10526,7 @@ const IncidentDetailPage = () => {
 
         // 2. Title repairs (repairCorruptedOcsfFields recovery in browser)
         if (field === "title") {
-          const prevStr =
-            typeof prevRaw === "string" ? prevRaw.trim() : "";
+          const prevStr = typeof prevRaw === "string" ? prevRaw.trim() : "";
           if (
             looksLikeTranslationExpr(prevStr) ||
             prevStr.includes("$['") ||
@@ -10195,8 +10548,7 @@ const IncidentDetailPage = () => {
 
         // 3. Assignee repairs
         if (field === "assignee") {
-          const prevStr =
-            typeof prevRaw === "string" ? prevRaw.trim() : "";
+          const prevStr = typeof prevRaw === "string" ? prevRaw.trim() : "";
           if (
             looksLikeTranslationExpr(prevStr) ||
             prevStr.includes("$['") ||
@@ -10288,13 +10640,7 @@ const IncidentDetailPage = () => {
 
           // Suppress auto-changed attributes from the browser recovery system
           if (
-            isAutoChangedAttribute(
-              field,
-              prevRaw,
-              currRaw,
-              current,
-              previous,
-            )
+            isAutoChangedAttribute(field, prevRaw, currRaw, current, previous)
           ) {
             return;
           }
@@ -10508,14 +10854,11 @@ const IncidentDetailPage = () => {
           }
           label = "Changed severity";
         } else if (opt.field === "status") {
-          const isResolved =
-            String(opt.currRaw).toLowerCase() === "resolved";
+          const isResolved = String(opt.currRaw).toLowerCase() === "resolved";
           label = isResolved ? "Resolved incident" : "Changed status";
         } else if (opt.field === "assignee") {
           const isUnassigned = !opt.currRaw || opt.currRaw === "none";
-          label = isUnassigned
-            ? "Unassigned incident"
-            : "Changed assignment";
+          label = isUnassigned ? "Unassigned incident" : "Changed assignment";
         } else if (opt.field === "tlp") {
           label = "Changed TLP";
         } else if (opt.field === "title") {
@@ -11251,7 +11594,10 @@ const IncidentDetailPage = () => {
             curCluster.push(item);
           } else {
             const clusterStart = curCluster[0];
-            if (item.timestamp - clusterStart.timestamp <= TIMELINE_DEDUP_WINDOW_MS) {
+            if (
+              item.timestamp - clusterStart.timestamp <=
+              TIMELINE_DEDUP_WINDOW_MS
+            ) {
               curCluster.push(item);
             } else {
               if (curCluster.length > 1) {
@@ -11396,10 +11742,13 @@ const IncidentDetailPage = () => {
       if (it.type === "workflow-exec")
         return `wfexec-${it.data.execution_id || (it.data as any).id || it.timestamp}`;
       if (it.type === "step") return it.id;
-      const actId = it.data?.id || (it.data as any)?.activity_id || (it.data as any)?.uid;
+      const actId =
+        it.data?.id || (it.data as any)?.activity_id || (it.data as any)?.uid;
       if (actId && String(actId).trim()) return String(actId).trim();
       const ts = it.data?.timestamp || it.timestamp || 0;
-      const hash = cheapHash(`${it.data?.user || ""}-${it.data?.type || ""}-${it.data?.content || ""}-${ts}`);
+      const hash = cheapHash(
+        `${it.data?.user || ""}-${it.data?.type || ""}-${it.data?.content || ""}-${ts}`,
+      );
       const fallbackId = `act-${ts}-${hash}`;
       if (it.data && !it.data.id) {
         it.data.id = fallbackId;
@@ -11491,7 +11840,11 @@ const IncidentDetailPage = () => {
         let bestKey: string | null = null;
         let minDiff = Infinity;
         for (const it of items) {
-          if (it.type === "step" && it.kind === "attribute-changed" && it.attrField === field) {
+          if (
+            it.type === "step" &&
+            it.kind === "attribute-changed" &&
+            it.attrField === field
+          ) {
             const itTs = (it as any).attrTs || it.timestamp;
             const diff = Math.abs(itTs - optTs);
             if (diff < minDiff && diff < 120_000) {
@@ -11513,7 +11866,11 @@ const IncidentDetailPage = () => {
           let bestKey: string | null = null;
           let minDiff = Infinity;
           for (const it of items) {
-            if (it.type === "step" && it.kind === "attribute-changed" && it.attrField === field) {
+            if (
+              it.type === "step" &&
+              it.kind === "attribute-changed" &&
+              it.attrField === field
+            ) {
               const itTs = (it as any).attrTs || it.timestamp;
               const diff = Math.abs(itTs - numPart);
               if (diff < minDiff) {
@@ -11526,7 +11883,11 @@ const IncidentDetailPage = () => {
         } else {
           // numPart is a revision index (legacy format)
           for (const it of items) {
-            if (it.type === "step" && it.kind === "attribute-changed" && it.attrField === field) {
+            if (
+              it.type === "step" &&
+              it.kind === "attribute-changed" &&
+              it.attrField === field
+            ) {
               if ((it as any).attrRevIdx === numPart) {
                 return getItemKey(it);
               }
@@ -11534,7 +11895,11 @@ const IncidentDetailPage = () => {
           }
           // Fallback: match closest step item for this field
           for (const it of items) {
-            if (it.type === "step" && it.kind === "attribute-changed" && it.attrField === field) {
+            if (
+              it.type === "step" &&
+              it.kind === "attribute-changed" &&
+              it.attrField === field
+            ) {
               return getItemKey(it);
             }
           }
@@ -11543,7 +11908,8 @@ const IncidentDetailPage = () => {
 
       // 5. Activity item ID matching (e.g. status-..., comment-..., act-...)
       for (const it of items) {
-        if (it.type === "manual" && getItemKey(it) === pId) return getItemKey(it);
+        if (it.type === "manual" && getItemKey(it) === pId)
+          return getItemKey(it);
       }
 
       // 6. Substring / prefix matches for workflows and agents
@@ -11611,10 +11977,7 @@ const IncidentDetailPage = () => {
       if (!rawParent) continue;
       const matched = resolveParentKey(String(rawParent));
       if (!matched) continue;
-      const parentId =
-        variant === "simple"
-          ? resolveRootKey(matched)
-          : matched;
+      const parentId = variant === "simple" ? resolveRootKey(matched) : matched;
       if (parentId === getItemKey(it)) continue;
       const arr = repliesByParent.get(parentId) || [];
       arr.push(it);
@@ -12311,6 +12674,9 @@ const IncidentDetailPage = () => {
               data-timeline-timestamp={item.timestamp}
               data-timeline-filter="agent"
               data-timeline-compact="true"
+              data-timeline-quiet={isQuiet ? "true" : undefined}
+              data-timeline-failed={isFailed ? "true" : undefined}
+              data-timeline-warning={hasWarning ? "true" : undefined}
               data-timeline-highlighted={isHighlighted ? "true" : undefined}
               data-timeline-dimmed={isDimmed ? "true" : undefined}
               data-timeline-preview={item.isPreview ? "true" : undefined}
@@ -12321,9 +12687,9 @@ const IncidentDetailPage = () => {
                 alignItems: "center",
                 flexWrap: "wrap",
                 gap: 0.5,
-                px: isHighlighted ? 0.75 : 0,
+                px: isHighlighted ? 0.75 : 0.5,
                 py: 0.25,
-                borderRadius: isHighlighted ? 1 : 0,
+                borderRadius: 1,
                 bgcolor: isHighlighted
                   ? "hsl(var(--primary) / 0.12)"
                   : "transparent",
@@ -12338,12 +12704,19 @@ const IncidentDetailPage = () => {
                 opacity: isDimmed ? 0.35 : 1,
                 transition:
                   "opacity 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease",
-                mb: 1.375,
+                mb: 1.25,
                 cursor: "pointer",
                 "&:hover": {
                   bgcolor: isHighlighted
                     ? "hsl(var(--primary) / 0.18)"
                     : "hsl(var(--muted) / 0.25)",
+                  "& .agent-verb": {
+                    color: isFailed
+                      ? "hsl(var(--destructive))"
+                      : hasWarning
+                        ? "hsl(var(--severity-medium))"
+                        : "text.primary",
+                  },
                 },
                 "&:hover .timeline-reply-btn, &:focus-within .timeline-reply-btn":
                   {
@@ -12353,7 +12726,19 @@ const IncidentDetailPage = () => {
               }}
             >
               <Tooltip
-                title={`AI Agent run${status ? ` · ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}` : ""}`}
+                title={
+                  isFailed
+                    ? failureInfo?.reason
+                      ? `AI Agent run failed: ${failureInfo.reason}`
+                      : "AI Agent run failed"
+                    : hasWarning
+                      ? outputDiagnosis?.title
+                        ? `AI Agent run: ${outputDiagnosis.title}`
+                        : "AI Agent run needs attention"
+                      : isRunning
+                        ? "AI Agent run (executing)"
+                        : `AI Agent run${status ? ` · ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}` : ""}${detailText ? ` — ${detailText}` : ""}`
+                }
                 arrow
                 placement="top"
               >
@@ -12385,11 +12770,17 @@ const IncidentDetailPage = () => {
                 {actorName}
               </Typography>
               <Typography
+                className="agent-verb"
                 sx={{
                   fontSize: "0.7rem",
                   fontWeight: 500,
-                  color: "text.secondary",
+                  color: isFailed
+                    ? "hsl(var(--destructive) / 0.75)"
+                    : hasWarning
+                      ? "hsl(var(--severity-medium) / 0.85)"
+                      : "text.secondary",
                   flexShrink: 0,
+                  transition: "color 0.15s ease",
                 }}
               >
                 {verb}
@@ -12419,13 +12810,21 @@ const IncidentDetailPage = () => {
               </Box>
               {detailText && (
                 <Typography
+                  className="timeline-exec-detail"
                   sx={{
-                    fontSize: "0.75rem",
-                    color: "hsl(var(--foreground))",
+                    fontSize: "0.72rem",
+                    color: isFailed
+                      ? "hsl(var(--destructive))"
+                      : "hsl(var(--foreground))",
                     flex: "1 1 100%",
                     order: 2,
                     pl: 1.25,
                     lineHeight: 1.4,
+                    display: "none",
+                    ".timeline-hover-row:hover &, .timeline-hover-row:focus-within &":
+                      {
+                        display: "block",
+                      },
                     ...timelineClampSingleLineSx,
                   }}
                   title={detailText}
@@ -12715,9 +13114,9 @@ const IncidentDetailPage = () => {
                   alignItems: "center",
                   flexWrap: "wrap",
                   gap: 0.5,
-                  px: isHighlighted ? 0.75 : 0,
+                  px: isHighlighted ? 0.75 : 0.5,
                   py: 0.25,
-                  borderRadius: isHighlighted ? 1 : 0,
+                  borderRadius: 1,
                   bgcolor: isHighlighted
                     ? "hsl(var(--primary) / 0.12)"
                     : "transparent",
@@ -12732,7 +13131,7 @@ const IncidentDetailPage = () => {
                   opacity: isDimmed ? 0.35 : 1,
                   transition:
                     "opacity 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease",
-                  mb: 1.375,
+                  mb: 1.25,
                   cursor: run.execution_id || execUrl ? "pointer" : "default",
                   "&:hover": {
                     bgcolor: isHighlighted
@@ -12753,7 +13152,9 @@ const IncidentDetailPage = () => {
                           : "hsl(var(--muted-foreground)) !important",
                     },
                     "& .wf-icon svg *": {
-                      stroke: isFailed ? "hsl(var(--destructive)) !important" : undefined,
+                      stroke: isFailed
+                        ? "hsl(var(--destructive)) !important"
+                        : undefined,
                     },
                     "& .wf-verb": {
                       color: isFailed
@@ -12779,8 +13180,10 @@ const IncidentDetailPage = () => {
                       : isWarning
                         ? `Workflow execution: ${warnTitle}`
                         : isRunning
-                          ? "Workflow execution (running)"
-                          : `Workflow execution${status ? ` · ${status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}` : ""}`
+                          ? shortId
+                            ? `Workflow execution (running · ${shortId})`
+                            : "Workflow execution (running)"
+                          : `Workflow execution${shortId ? ` · ${shortId}` : ""}${status ? ` (${status.toLowerCase()})` : ""}`
                   }
                   arrow
                   placement="top"
@@ -12853,15 +13256,21 @@ const IncidentDetailPage = () => {
                 </Box>
                 {detailText && (
                   <Typography
+                    className="timeline-exec-detail"
                     sx={{
-                      fontSize: "0.75rem",
+                      fontSize: "0.72rem",
                       color: isFailed
-                        ? "hsl(var(--destructive) / 0.85)"
+                        ? "hsl(var(--destructive))"
                         : "hsl(var(--foreground))",
                       flex: "1 1 100%",
                       order: 2,
                       pl: 1.25,
                       lineHeight: 1.4,
+                      display: "none",
+                      ".timeline-hover-row:hover &, .timeline-hover-row:focus-within &":
+                        {
+                          display: "block",
+                        },
                       ...timelineClampSingleLineSx,
                     }}
                     title={detailText}
@@ -12962,7 +13371,9 @@ const IncidentDetailPage = () => {
                         : "hsl(var(--muted-foreground)) !important",
                   },
                   "& .wf-status-icon svg *": {
-                    stroke: isFailed ? "hsl(var(--destructive)) !important" : undefined,
+                    stroke: isFailed
+                      ? "hsl(var(--destructive)) !important"
+                      : undefined,
                   },
                   "& .wf-status-text": {
                     color: isFailed
@@ -13500,21 +13911,21 @@ const IncidentDetailPage = () => {
                 )}
                 {item.label &&
                   (item.kind !== "observable-added" || !item.obsValue) && (
-                  <Typography
-                    sx={{
-                      fontSize: "0.7rem",
-                      fontWeight: 500,
-                      color: "text.secondary",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      minWidth: 0,
-                    }}
-                    title={item.label}
-                  >
-                    {stepVerbLabel(item.label, !!item.actor)}
-                  </Typography>
-                )}
+                    <Typography
+                      sx={{
+                        fontSize: "0.7rem",
+                        fontWeight: 500,
+                        color: "text.secondary",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        minWidth: 0,
+                      }}
+                      title={item.label}
+                    >
+                      {stepVerbLabel(item.label, !!item.actor)}
+                    </Typography>
+                  )}
               </Box>
 
               {previewBadge}
@@ -13667,7 +14078,13 @@ const IncidentDetailPage = () => {
                     fontSize: "0.75rem",
                     color: isIocPill
                       ? "hsl(var(--destructive))"
-                      : "hsl(var(--foreground))",
+                      : "text.secondary",
+                    ".timeline-hover-row:hover &, .timeline-hover-row:focus-within &":
+                      {
+                        color: isIocPill
+                          ? "hsl(var(--destructive))"
+                          : "hsl(var(--foreground))",
+                      },
                     lineHeight: 1.4,
                     minWidth: 0,
                     maxWidth: "100%",
@@ -13749,7 +14166,13 @@ const IncidentDetailPage = () => {
                       fontSize: "0.75rem",
                       color: isIocPill
                         ? "hsl(var(--destructive))"
-                        : "hsl(var(--foreground))",
+                        : "text.secondary",
+                      ".timeline-hover-row:hover &, .timeline-hover-row:focus-within &":
+                        {
+                          color: isIocPill
+                            ? "hsl(var(--destructive))"
+                            : "hsl(var(--foreground))",
+                        },
                       lineHeight: 1.4,
                       minWidth: 0,
                       ...timelineClampSingleLineSx,
@@ -13833,7 +14256,13 @@ const IncidentDetailPage = () => {
                       fontSize: "0.75rem",
                       color: isIocPill
                         ? "hsl(var(--destructive))"
-                        : "hsl(var(--foreground))",
+                        : "text.secondary",
+                      ".timeline-hover-row:hover &, .timeline-hover-row:focus-within &":
+                        {
+                          color: isIocPill
+                            ? "hsl(var(--destructive))"
+                            : "hsl(var(--foreground))",
+                        },
                       lineHeight: 1.4,
                       minWidth: 0,
                       ...timelineClampSingleLineSx,
@@ -13923,19 +14352,19 @@ const IncidentDetailPage = () => {
             </Tooltip>
             {item.label &&
               (item.kind !== "observable-added" || !item.obsValue) && (
-              <Typography
-                sx={{
-                  fontSize: "0.7rem",
-                  fontWeight: 600,
-                  color: pillColor,
-                  flexShrink: 1,
-                  minWidth: 0,
-                  ...timelineClampSingleLineSx,
-                }}
-              >
-                {stepVerbLabel(item.label, !!item.actor)}
-              </Typography>
-            )}
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    color: pillColor,
+                    flexShrink: 1,
+                    minWidth: 0,
+                    ...timelineClampSingleLineSx,
+                  }}
+                >
+                  {stepVerbLabel(item.label, !!item.actor)}
+                </Typography>
+              )}
             {previewBadge}
             {isIocPill && (
               <Typography
@@ -14249,11 +14678,7 @@ const IncidentDetailPage = () => {
         (actItem as any).is_agent === true || isAIAssignee(actItem.user);
       const isMergeAct = isMergeActivityItem(actItem);
       const avatarNode = (() => {
-        const avatarInfo = resolveUserAvatar(
-          actItem.user,
-          users,
-          isAgentAct,
-        );
+        const avatarInfo = resolveUserAvatar(actItem.user, users, isAgentAct);
         const hasUserImage = !!(!isDeleted && avatarInfo.src);
         const isComment = actItem.type === "comment";
 
@@ -14273,11 +14698,11 @@ const IncidentDetailPage = () => {
                     : "rgba(255,255,255,0.08)",
             }}
           >
-            {avatarInfo.src
-              ? null
-              : isStatusActivity
-                ? <CheckCircleIcon size={14} />
-                : getActivityIcon(actItem.type)}
+            {avatarInfo.src ? null : isStatusActivity ? (
+              <CheckCircleIcon size={14} />
+            ) : (
+              getActivityIcon(actItem.type)
+            )}
           </Avatar>
         );
 
@@ -14640,7 +15065,12 @@ const IncidentDetailPage = () => {
           data-timeline-highlighted={isHighlighted ? "true" : undefined}
           data-timeline-dimmed={isDimmed ? "true" : undefined}
           data-timeline-preview={item.isPreview ? "true" : undefined}
-          className={isActHighlighted ? "incident-new-flash" : undefined}
+          className={[
+            "timeline-hover-row",
+            isActHighlighted ? "incident-new-flash" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           onClick={
             isMergeItem
               ? () => focusRelatedIncident(mergeSourceIdFromId)
@@ -14753,7 +15183,9 @@ const IncidentDetailPage = () => {
                     onClick={
                       actItem.replyToId
                         ? () => {
-                            const matchedKey = resolveParentKey(actItem.replyToId!);
+                            const matchedKey = resolveParentKey(
+                              actItem.replyToId!,
+                            );
                             const targetEl = document.querySelector(
                               `[data-timeline-key="${matchedKey || actItem.replyToId}"]`,
                             );
@@ -14819,7 +15251,7 @@ const IncidentDetailPage = () => {
                     })()}
                     sx={{
                       fontSize: "0.8rem",
-                      color: "text.secondary",
+                      color: "hsl(var(--foreground))",
                       whiteSpace: "pre-wrap",
                     }}
                   />
@@ -18220,6 +18652,15 @@ const IncidentDetailPage = () => {
                       ? visibleCorrelations.length
                       : undefined,
                 },
+                {
+                  value: "8",
+                  label: "Events",
+                  dataTour: "incident-tab-events",
+                  count:
+                    incidentEvents.length > 0
+                      ? incidentEvents.length
+                      : undefined,
+                },
               ]}
             />
 
@@ -18514,11 +18955,34 @@ const IncidentDetailPage = () => {
                             },
                           }}
                         >
-                          <MenuItem value="critical" sx={{ color: getSeverityColor("critical") }}>Critical</MenuItem>
-                          <MenuItem value="high" sx={{ color: getSeverityColor("high") }}>High</MenuItem>
-                          <MenuItem value="medium" sx={{ color: getSeverityColor("medium") }}>Medium</MenuItem>
-                          <MenuItem value="low" sx={{ color: getSeverityColor("low") }}>Low</MenuItem>
-                          <MenuItem value="informational" sx={{ color: getSeverityColor("informational") }}>
+                          <MenuItem
+                            value="critical"
+                            sx={{ color: getSeverityColor("critical") }}
+                          >
+                            Critical
+                          </MenuItem>
+                          <MenuItem
+                            value="high"
+                            sx={{ color: getSeverityColor("high") }}
+                          >
+                            High
+                          </MenuItem>
+                          <MenuItem
+                            value="medium"
+                            sx={{ color: getSeverityColor("medium") }}
+                          >
+                            Medium
+                          </MenuItem>
+                          <MenuItem
+                            value="low"
+                            sx={{ color: getSeverityColor("low") }}
+                          >
+                            Low
+                          </MenuItem>
+                          <MenuItem
+                            value="informational"
+                            sx={{ color: getSeverityColor("informational") }}
+                          >
                             Informational
                           </MenuItem>
                         </Select>
@@ -18937,6 +19401,45 @@ const IncidentDetailPage = () => {
                   </>
                 );
 
+                const simpleHiddenFieldItems = extractHiddenFields({
+                  rawOCSF: incident.rawOCSF,
+                  incident: {
+                    title: editedTitle,
+                    description: editedMessage,
+                    source: incident.source,
+                    severity: editedSeverity,
+                    status: editedStatus,
+                    assignee: editedAssignee,
+                    labels: editedLabels,
+                    references: (incident as any).references,
+                  },
+                  customFields: editedCustomFields,
+                  observables: editedObservables,
+                  translationContent: fileContent,
+                });
+
+                const handleAddHiddenFieldToCustomFields = (
+                  field: HiddenFieldItem,
+                ) => {
+                  const key = field.leafKey;
+                  setEditedCustomFields((prev) => ({
+                    ...prev,
+                    [key]: field.value,
+                  }));
+                  toast.success(`Added "${field.label}" to Custom Fields`);
+                };
+
+                const simpleHiddenFields =
+                  simpleHiddenFieldItems.length > 0 ? (
+                    <HiddenFieldsSection
+                      fields={simpleHiddenFieldItems}
+                      highlightSection={
+                        hoveredSimpleTimelineTarget?.section || undefined
+                      }
+                      onAddToCustomFields={handleAddHiddenFieldToCustomFields}
+                    />
+                  ) : null;
+
                 return (
                   <>
                     <SimpleCaseLayout
@@ -18962,8 +19465,27 @@ const IncidentDetailPage = () => {
                       tasks={simpleTasks}
                       customFields={simpleCustomFields}
                       customFieldsCount={simpleCustomFieldDefs.length}
+                      customFieldItems={simpleCustomFieldDefs}
                       observables={simpleObservables}
                       correlations={simpleCorrelations}
+                      events={
+                        incidentEvents.length > 0 ? (
+                          <IncidentEventsPanel
+                            incidentId={id}
+                            events={incidentEvents}
+                            unmappedOriginal={unmappedOriginal}
+                            defaultSource={incident?.source}
+                            onEventsChange={setIncidentEvents}
+                            onNavigateToIncident={(targetId) =>
+                              navigate(`/incidents/${targetId}`)
+                            }
+                            readOnly={isPublicView}
+                          />
+                        ) : undefined
+                      }
+                      eventsCount={incidentEvents.length}
+                      hiddenFields={simpleHiddenFields}
+                      hiddenFieldsCount={simpleHiddenFieldItems.length}
                       contentsActions={simpleContentsActions}
                       taskItems={visibleTasks}
                       observableCount={visibleObservablesCount}
@@ -19028,6 +19550,32 @@ const IncidentDetailPage = () => {
                           resolvedAt: statusEvent?.timestamp || undefined,
                         };
                       })()}
+                      sla={{
+                        created:
+                          incident.createdTs ||
+                          incident.created ||
+                          (incident.rawOCSF as any)?.time,
+                        severity: editedSeverity || incident.severity,
+                        status: editedStatus || incident.status,
+                        assignee: editedAssignee,
+                        activity: activity,
+                        resolution: (() => {
+                          const isResolved =
+                            (
+                              editedStatus ||
+                              incident.status ||
+                              ""
+                            ).toLowerCase() === "resolved";
+                          if (!isResolved) return undefined;
+                          const statusEvent = [...activity]
+                            .reverse()
+                            .find((a) => a.type === "status");
+                          return {
+                            resolvedBy: statusEvent?.user || undefined,
+                            resolvedAt: statusEvent?.timestamp || undefined,
+                          };
+                        })(),
+                      }}
                     />
                     {simpleShareItem && (
                       <ShareAccessModal
@@ -19144,7 +19692,10 @@ const IncidentDetailPage = () => {
                       </IconButton>
                     </Box>
                     {isEditingDescription ? (
-                      <Box sx={{ maxHeight: 350, overflow: "auto" }} data-incident-field="description">
+                      <Box
+                        sx={{ maxHeight: 350, overflow: "auto" }}
+                        data-incident-field="description"
+                      >
                         <MentionInput
                           value={editedMessage}
                           onChange={setEditedMessage}
@@ -22599,6 +23150,20 @@ const IncidentDetailPage = () => {
               </Box>
             )}
 
+            {activeTab === 8 && (
+              <IncidentEventsPanel
+                incidentId={id}
+                events={incidentEvents}
+                unmappedOriginal={unmappedOriginal}
+                defaultSource={incident?.source}
+                onEventsChange={setIncidentEvents}
+                onNavigateToIncident={(targetId) =>
+                  navigate(`/incidents/${targetId}`)
+                }
+                readOnly={isPublicView}
+              />
+            )}
+
             {/* Changes tab content removed — revisions now in Activity sidebar */}
           </Box>
           {/* End isPublicView pointer-events wrapper */}
@@ -22959,8 +23524,16 @@ const IncidentDetailPage = () => {
             }
 
             const seen = new Set<string>();
-            const candidates: { id: string; name: string; relation?: string }[] = [];
-            const addCandidate = (id: string, fallback?: string, relation?: string) => {
+            const candidates: {
+              id: string;
+              name: string;
+              relation?: string;
+            }[] = [];
+            const addCandidate = (
+              id: string,
+              fallback?: string,
+              relation?: string,
+            ) => {
               if (!id || seen.has(id)) return;
               seen.add(id);
               candidates.push({
@@ -22969,11 +23542,20 @@ const IncidentDetailPage = () => {
                 relation,
               });
             };
-            if (sourceOrgId) addCandidate(sourceOrgId, undefined, "Current Tenant");
-            for (const so of sharedOrgs) addCandidate(so.id, so.name, "Shared Tenant");
-            if (activeId) addCandidate(activeId, userInfo?.active_org?.name, "Active Tenant");
-            if (parentOrg) addCandidate(parentOrg.id, parentOrg.name, "Parent Tenant");
-            for (const so of subOrgs) addCandidate(so.id, so.name, "Sub Tenant");
+            if (sourceOrgId)
+              addCandidate(sourceOrgId, undefined, "Current Tenant");
+            for (const so of sharedOrgs)
+              addCandidate(so.id, so.name, "Shared Tenant");
+            if (activeId)
+              addCandidate(
+                activeId,
+                userInfo?.active_org?.name,
+                "Active Tenant",
+              );
+            if (parentOrg)
+              addCandidate(parentOrg.id, parentOrg.name, "Parent Tenant");
+            for (const so of subOrgs)
+              addCandidate(so.id, so.name, "Sub Tenant");
             if (userInfo?.orgs) {
               for (const uo of userInfo.orgs) {
                 if (uo?.id) {

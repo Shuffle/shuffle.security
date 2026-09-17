@@ -16,7 +16,7 @@ import { DeferredTextField } from "./DeferredTextField";
 import { MarkdownDescriptionEditor } from "./MarkdownDescriptionEditor";
 import { TaskAssigneeChip } from "./TaskAssigneeChip";
 import { taskCategories, type IncidentTask } from "@/config/ocsfIncidentSchema";
-import { isAIAssignee } from "@/lib/utils";
+import { isAIAssignee, isTaskAiAssigned } from "@/lib/utils";
 import { openAgentDrawer } from "@/lib/agentDrawer";
 import { TaskAiAssignButton } from "./TaskAiAssignButton";
 import {
@@ -406,7 +406,7 @@ export const SimpleTasksView = ({
                         }}
                       >
                         {/* AI Agent Execution Panel */}
-                        {isAIAssignee(task.assignee) && (
+                        {isTaskAiAssigned(task) && (
                           <Box
                             sx={{
                               p: 1.25,

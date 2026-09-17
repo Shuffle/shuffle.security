@@ -307,6 +307,58 @@ export const convertLegacyTlp = (tlp: string | number | undefined): number => {
 };
 
 // ============================================================================
+// Incident Event Interface (Stored in shuffle-security_events datastore)
+// ============================================================================
+export interface IncidentEvent {
+  /** Composite key in datastore: ${incident_id}_${id} */
+  key?: string;
+  id: string; // Unique event ID within incident (e.g. evt_xxxx or source UID)
+  incident_id: string; // Incident finding ID / key it belongs to
+  incident_ids?: string[]; // Correlated incidents that reference this event
+  fingerprint?: string; // Deterministic hash/signature for cross-incident correlation
+  time?: string | number; // ISO string or unix epoch ms
+  source?: string; // Reporting source / product (e.g. "CrowdStrike", "Okta", "Sentinel")
+  type?: string; // Event category / class (e.g. "process_creation", "authentication")
+  action?: string; // Human-readable summary (e.g. "Suspicious PowerShell Execution")
+  severity?: 'informational' | 'low' | 'medium' | 'high' | 'critical';
+  severity_id?: number;
+  status: 'relevant' | 'excluded' | 'investigating'; // Analyst verdict (modifiable)
+  tags?: string[]; // Tags / labels
+  message?: string; // Message / details
+  notes?: string; // Analyst notes
+  raw?: Record<string, unknown> | string; // Original raw event JSON
+  attributes?: Record<string, unknown>; // Parsed entity fields (ip, user, host, hash)
+  correlated_incident_ids?: string[]; // Other incidents sharing this event fingerprint or entities
+}
+
+/** Formats a composite datastore key for an incident event */
+export const createEventKey = (incidentId: string, eventId: string): string => {
+  return `${incidentId}_${eventId}`;
+};
+
+/** Parses incidentId and eventId from a composite datastore key */
+export const parseEventKey = (key: string): { incidentId: string; eventId: string } | null => {
+  if (!key || typeof key !== 'string') return null;
+  const firstUnderscore = key.indexOf('_');
+  if (firstUnderscore <= 0 || firstUnderscore >= key.length - 1) return null;
+  return {
+    incidentId: key.slice(0, firstUnderscore),
+    eventId: key.slice(firstUnderscore + 1),
+  };
+};
+
+/** Deterministic event fingerprint for auto-correlation */
+export const generateEventFingerprint = (event: Partial<IncidentEvent>): string => {
+  const parts = [
+    (event.source || '').trim().toLowerCase(),
+    (event.type || '').trim().toLowerCase(),
+    (event.action || '').trim().toLowerCase(),
+    (event.message || '').trim().toLowerCase(),
+  ];
+  return parts.filter(Boolean).join('|');
+};
+
+// ============================================================================
 // Helper: Generate unique finding ID
 // ============================================================================
 export const generateFindingUid = (): string => {
@@ -319,3 +371,4 @@ export const generateFindingUid = (): string => {
   }
   return result;
 };
+

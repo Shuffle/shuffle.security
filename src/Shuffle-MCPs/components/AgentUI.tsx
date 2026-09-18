@@ -6149,6 +6149,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   ) : null;
 
   // Continuation form (after a finish decision)
+  const continuationMultiline = continuationText.includes('\n') || continuationText.length > 80;
   const continuationElement = (finishDecisionId && !optimisticRunning) ? (
     <Box sx={{ width: '100%', maxWidth: 640, mx: 'auto' }}>
       <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))', mb: 0.75, textAlign: 'center' }}>
@@ -6163,11 +6164,16 @@ const AgentUI: React.FC<AgentUIProps> = ({
           }
         }}
         sx={{
-          display: 'flex', alignItems: 'flex-end', gap: 1,
-          p: 1.25, borderRadius: 999,
+          display: 'flex',
+          alignItems: continuationMultiline ? 'flex-end' : 'center',
+          gap: 1,
+          borderRadius: isPhone ? (continuationMultiline ? '20px' : '28px') : '28px',
           border: '1.5px solid hsl(var(--border))',
           bgcolor: 'hsl(var(--card))',
-          transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+          px: isPhone ? 1.5 : 2.25,
+          py: isPhone ? (continuationMultiline ? 1.25 : 1) : 1,
+          boxSizing: 'border-box',
+          transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
           '&:focus-within': {
             borderColor: 'hsl(var(--primary))',
             boxShadow: '0 0 0 3px hsla(var(--primary) / 0.12)',
@@ -6189,7 +6195,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
           value={continuationText}
           onChange={(e) => setContinuationText(e.target.value)}
           onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            if (e.nativeEvent.isComposing) return;
+            if ((e.key === 'Enter' && !e.shiftKey) || ((e.metaKey || e.ctrlKey) && e.key === 'Enter')) {
               e.preventDefault();
               if (continuationText.trim() && !agentRequestLoading) {
                 submitQuestions(finishDecisionId, { continue: continuationText }, true);
@@ -6197,20 +6204,45 @@ const AgentUI: React.FC<AgentUIProps> = ({
             }
           }}
           disabled={agentRequestLoading}
-          sx={{ fontSize: '0.9rem', color: 'hsl(var(--foreground))', px: 2 }}
-        />
-        <IconButton
-          type="submit"
-          disabled={!continuationText.trim() || agentRequestLoading}
           sx={{
-            width: 36, height: 36,
-            bgcolor: continuationText.trim() && !agentRequestLoading ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
-            color: continuationText.trim() && !agentRequestLoading ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))',
-            '&:hover': continuationText.trim() && !agentRequestLoading ? { filter: 'brightness(1.1)', bgcolor: 'hsl(var(--primary))' } : {},
+            fontSize: '0.9rem',
+            color: 'hsl(var(--foreground))',
+            py: 0,
+            flex: '1 1 auto',
+            minWidth: 0,
+            '& .MuiInputBase-input': {
+              pt: '5px',
+              pb: '6px',
+              lineHeight: 1.5,
+            },
+            '& textarea::placeholder': {
+              color: 'hsl(var(--muted-foreground))',
+              opacity: 0.7,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            },
           }}
-        >
-          {agentRequestLoading ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : <SendIcon size={18} />}
-        </IconButton>
+        />
+        <Tooltip title={submitTooltip === '⌘+Enter to send' ? 'Enter to send, Shift+Enter for new line' : submitTooltip} placement="top" arrow>
+          <span>
+            <IconButton
+              type="submit"
+              disabled={!continuationText.trim() || agentRequestLoading}
+              sx={{
+                width: 32,
+                height: 32,
+                flexShrink: 0,
+                bgcolor: continuationText.trim() && !agentRequestLoading ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
+                color: continuationText.trim() && !agentRequestLoading ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))',
+                '&:hover': continuationText.trim() && !agentRequestLoading ? { filter: 'brightness(1.1)', bgcolor: 'hsl(var(--primary))' } : {},
+                '&.Mui-disabled': { bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' },
+              }}
+            >
+              {agentRequestLoading ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : (submitIcon ?? <PlayArrowRoundedIcon />)}
+            </IconButton>
+          </span>
+        </Tooltip>
       </Box>
     </Box>
   ) : null;

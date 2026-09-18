@@ -29,7 +29,7 @@ export interface AskAiButtonProps {
   isBeta?: boolean;
   /** Current URL pathname. Automatically disables button on /agents and /agent */
   pathname?: string;
-  /** Custom button label. Default: "Ask AI". */
+  /** Custom button label. Default: "Ask Shuffle". */
   label?: string;
   /** Tag label in the button. When undefined, defaults to "Beta" if isBeta is true, else "Support". Set to null to hide tag. */
   tagLabel?: string | null;
@@ -50,7 +50,7 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
   requireSupport = true,
   isBeta = false,
   pathname,
-  label = 'Ask AI',
+  label = 'Ask Shuffle',
   tagLabel,
   contextHint,
   tooltipTitle,
@@ -97,11 +97,11 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
   const effectiveTooltip =
     tooltipTitle !== undefined
       ? tooltipTitle
-      : label !== 'Ask AI'
+      : label !== 'Ask AI' && label !== 'Ask Shuffle'
         ? label
         : contextHint
-          ? `Ask AI (${contextHint})`
-          : 'Ask AI • Context-aware assistant';
+          ? `Ask Shuffle (${contextHint})`
+          : 'Ask Shuffle • Context-aware assistant';
 
   return (
     <Box

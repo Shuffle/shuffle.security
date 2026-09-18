@@ -133,7 +133,12 @@ export {
 } from '@/Shuffle-MCPs/components/AskAiSidePanel';
 export const AskAiWidget = withMcpTheme(AskAiWidgetRaw as React.ComponentType<any>, 'AskAiWidget');
 export type { AskAiWidgetProps } from '@/Shuffle-MCPs/components/AskAiWidget';
-export { useContextAwareAgent } from '@/Shuffle-MCPs/components/AskAiWidget';
+export {
+  useContextAwareAgent,
+  AGENT_DRAWER_OPEN_EVENT,
+  AGENT_DRAWER_CLOSE_EVENT,
+  AGENT_DRAWER_STATE_EVENT,
+} from '@/Shuffle-MCPs/components/AskAiWidget';
 export {
   registerAgentContextRule,
   getAgentContextRules,

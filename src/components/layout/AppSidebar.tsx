@@ -359,15 +359,22 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
   const visuallyCollapsed = collapsed && !hoverExpanded;
 
   const handleMouseEnter = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
     if (!collapsed) return;
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     setHoverExpanded(true);
+    setOrgSelectOpen(false);
   };
 
   const handleMouseLeave = () => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => {
       setHoverExpanded(false);
+      setOrgSelectOpen(false);
+      setToolMenuAnchor(null);
+      setUserMenuAnchor(null);
     }, hoverCollapseDelay);
   };
 
@@ -413,6 +420,29 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
       window.removeEventListener("close-tenant-autocomplete", handleClose);
   }, []);
 
+  // Ensure tenant popover and floating menus close when sidebar collapses or re-opens
+  useEffect(() => {
+    setOrgSelectOpen(false);
+    setToolMenuAnchor(null);
+    setUserMenuAnchor(null);
+  }, [collapsed]);
+
+  // When visually collapsed (e.g. hover ends), guarantee tenant popover is closed
+  useEffect(() => {
+    if (visuallyCollapsed) {
+      setOrgSelectOpen(false);
+      setToolMenuAnchor(null);
+      setUserMenuAnchor(null);
+    }
+  }, [visuallyCollapsed]);
+
+  // Close tenant popover and floating menus on route change
+  useEffect(() => {
+    setOrgSelectOpen(false);
+    setToolMenuAnchor(null);
+    setUserMenuAnchor(null);
+  }, [location.pathname]);
+
   const handleExpand = (label: string) => {
     // Only allow one expanded item at a time - toggle off if already open, otherwise switch to new one
     setExpandedItems((prev) => (prev.includes(label) ? [] : [label]));
@@ -441,6 +471,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
 
   const handleOrgChange = async (org: { id: string; name: string } | null) => {
     if (org) {
+      setOrgSelectOpen(false);
       setChangingOrg(true);
       await setActiveOrg(org.id);
     }
@@ -476,7 +507,12 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
 
       {/* Toggle button - fixed position outside sidebar to avoid clipping */}
       <IconButton
-        onClick={onToggle}
+        onClick={() => {
+          setOrgSelectOpen(false);
+          setToolMenuAnchor(null);
+          setUserMenuAnchor(null);
+          onToggle();
+        }}
         size="small"
         sx={{
           position: "fixed",
@@ -1155,8 +1191,9 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
           {!visuallyCollapsed ? (
             <Box sx={{ p: 2 }}>
               <Autocomplete
-                open={orgSelectOpen}
+                open={orgSelectOpen && !visuallyCollapsed && !collapsed}
                 onOpen={() => {
+                  if (visuallyCollapsed || collapsed) return;
                   setOrgSelectOpen(true);
                   // Scroll the currently-selected tenant into the middle of the
                   // listbox so users in deeply-nested child tenants don't have
@@ -1185,6 +1222,12 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                 size="small"
                 disableClearable
                 PaperComponent={TenantAutocompletePaper}
+                slotProps={{
+                  paper: {
+                    onMouseEnter: handleMouseEnter,
+                    onMouseLeave: handleMouseLeave,
+                  },
+                }}
                 renderInput={(params) => {
                   // Find the full org data from the list to get region_url
                   const fullOrgData = organizations.find(

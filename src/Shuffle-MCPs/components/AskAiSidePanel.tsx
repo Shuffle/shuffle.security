@@ -652,7 +652,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       <Box
         ref={panelRef}
         component="aside"
-        aria-label="Ask AI"
+        aria-label="Ask Shuffle"
         aria-hidden={!isVisible}
         className={themeScope?.scopeClassName}
         sx={[
@@ -690,7 +690,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
           onTouchStart={handleTouchResizeStart}
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize Ask AI panel"
+          aria-label="Resize Ask Shuffle panel"
           sx={{
             position: 'absolute',
             top: 0,
@@ -760,7 +760,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                   ? 'Local LLM Settings'
                   : (context.headerTitleFn ? context.headerTitleFn(entityTitle) : context.headerTitle) ||
                     (context.buttonLabelFn ? context.buttonLabelFn(entityTitle) : context.buttonLabel) ||
-                    'Ask AI'}
+                    'Ask Shuffle'}
             </Typography>
             <Box
               sx={{
@@ -785,7 +785,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
             <IconButton
               onClick={onClose}
               size="small"
-              aria-label="Close Ask AI panel"
+              aria-label="Close Ask Shuffle panel"
               sx={{
                 color: 'hsl(var(--muted-foreground))',
                 p: 0.75,

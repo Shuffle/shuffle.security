@@ -20,6 +20,8 @@ import LocalLLMConfig from '@/Shuffle-MCPs/components/LocalLLMConfig';
 import { useTheme } from '@/context/ThemeContext';
 import {
   AGENT_DRAWER_OPEN_EVENT,
+  AGENT_DRAWER_CLOSE_EVENT,
+  AGENT_DRAWER_STATE_EVENT,
   type AgentDrawerOpenDetail,
 } from '@/lib/agentDrawer';
 import { useScheduleAgentRun } from '@/hooks/useScheduleAgentRun';
@@ -114,6 +116,34 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
       } catch { /* ignore */ }
     }
   }, [isAgentDisabled, open]);
+
+  // Broadcast Ask AI drawer open state so other UI elements (like DemoResumePill) reactively hide/show
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (window as any).__shuffleAskAiOpen = open;
+    try {
+      if (open) {
+        document.documentElement.dataset.askAiOpen = 'true';
+      } else {
+        delete document.documentElement.dataset.askAiOpen;
+      }
+      window.dispatchEvent(
+        new CustomEvent(AGENT_DRAWER_STATE_EVENT, { detail: { open } }),
+      );
+    } catch { /* ignore */ }
+  }, [open]);
+
+  // Listen for closeAgentDrawer events
+  useEffect(() => {
+    const handleClose = () => {
+      setOpen(false);
+      try {
+        localStorage.setItem('shuffle_agent_drawer_open', 'false');
+      } catch { /* ignore */ }
+    };
+    window.addEventListener(AGENT_DRAWER_CLOSE_EVENT, handleClose);
+    return () => window.removeEventListener(AGENT_DRAWER_CLOSE_EVENT, handleClose);
+  }, []);
 
   // Legacy: ?openPermissions=1 still works from any non-agent page.
   useEffect(() => {

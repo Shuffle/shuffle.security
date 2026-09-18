@@ -85,8 +85,8 @@ export interface CategoryAutomationsDialogProps {
    *  storage) when omitted — pass this explicitly on hosts that don't use
    *  that storage key (e.g. shaffuru). */
   orgId?: string | null;
-  /** Which view to start on: 'automations' or 'settings'. Defaults to 'automations'. */
-  initialView?: 'automations' | 'settings';
+  /** Which view to start on: 'automations', 'settings', or 'routing'. Defaults to 'automations'. */
+  initialView?: 'automations' | 'settings' | 'routing';
   /** Whether to show the top-right swap icon button to toggle between views. Defaults to true. */
   showViewToggle?: boolean;
 }
@@ -1080,13 +1080,14 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth="sm"
+      maxWidth={currentView === 'routing' ? 'lg' : 'sm'}
       fullWidth
       PaperProps={{
         sx: {
           background: 'hsl(var(--card))',
           border: '1px solid hsl(var(--border))',
           borderRadius: 2,
+          transition: 'max-width 0.2s ease-in-out',
         },
       }}
     >

@@ -6,6 +6,7 @@
  *  - Demo mode is currently active (the tour drawer is in charge)
  *  - The user explicitly dismissed it via the X icon
  *  - They reached the final tour step or ran "Clean up demo data"
+ *  - Ask AI is open
  */
 
 import { Box, Typography, IconButton, Tooltip, useTheme } from '@mui/material';
@@ -13,12 +14,14 @@ import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation } from '@/lib/router-compat';
 import { useDemo } from '@/context/DemoContext';
+import { useAskAiOpen } from '@/lib/agentDrawer';
 
 export const DemoResumePill = () => {
   const theme = useTheme();
   const primaryColor = theme.palette.primary.main;
   const { drawerOpen, wasStarted, resumeDismissed, resumeTour, dismissResumePrompt } = useDemo();
   const location = useLocation();
+  const isAskAiOpen = useAskAiOpen(location.pathname);
 
   // Mirror DemoTourDrawer's "on demo object" detection: hide this pill
   // whenever the user is viewing a demo-seeded object, because the glowing
@@ -40,7 +43,8 @@ export const DemoResumePill = () => {
   // Show whenever a demo run was started but the drawer is not currently
   // visible (e.g. after a page refresh — `shuffle_demo_active` survives but
   // `drawerOpen` resets to false).
-  if (drawerOpen || !wasStarted || resumeDismissed || onDemoObject) return null;
+  // Also hidden when Ask AI is open so two floating widgets don't clash.
+  if (drawerOpen || !wasStarted || resumeDismissed || onDemoObject || isAskAiOpen) return null;
 
   return (
     <Box

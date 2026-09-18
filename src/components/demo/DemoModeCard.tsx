@@ -6,7 +6,7 @@
  *   - Active:   live counts + "Continue Tour" + "Clean up demo data"
  */
 
-import { Box, Typography, Button, Chip, CircularProgress, Tooltip } from '@mui/material';
+import { Box, Typography, Button, Chip, CircularProgress, Tooltip, SxProps, Theme } from '@mui/material';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { useDemo } from '@/context/DemoContext';
@@ -19,7 +19,7 @@ import { countDemoIncidents } from '@/services/demoMode';
 import { useAuth } from '@/context/AuthContext';
 
 /** Returns the total number of incidents in the org's datastore. */
-const useIncidentCount = (orgId: string | null | undefined) => {
+export const useIncidentCount = (orgId: string | null | undefined) => {
   return useQuery<number>({
     queryKey: ['demo-card', 'incident-count', orgId],
     enabled: !!orgId,
@@ -66,25 +66,32 @@ const useLeftoverDemoCount = (active: boolean) => {
   });
 };
 
-export const DemoModeCard = ({ compact = false }: { compact?: boolean } = {}) => {
+export interface DemoModeCardProps {
+  compact?: boolean;
+  incidentCount?: number;
+  sx?: SxProps<Theme>;
+}
+
+export const DemoModeCard = ({ compact = false, incidentCount: incidentCountProp, sx: customSx }: DemoModeCardProps = {}) => {
   const { active, isSeeding, isCleaning, stats, startDemo, openTour, cleanup } = useDemo();
   const { userInfo } = useAuth();
   const { data: workflows } = useWorkflows();
-  const { data: incidentCount = 0 } = useIncidentCount(userInfo?.active_org?.id);
+  const { data: fetchedIncidentCount = 0 } = useIncidentCount(userInfo?.active_org?.id);
+  const incidentCount = incidentCountProp !== undefined ? incidentCountProp : fetchedIncidentCount;
   const { data: leftoverDemoCount = 0 } = useLeftoverDemoCount(active);
   const { singular: entitySingular, plural: entityPlural } = useEntityPreference();
   const t = (s: string) => applyEntityTerminology(s, entitySingular, entityPlural);
   const entityPluralLower = entityPlural.toLowerCase();
   const entitySingularLower = entitySingular.toLowerCase();
 
-  // Allow demo mode when the account is still light on real incidents (≤ 10).
+  // Allow demo mode when the account is still light on real incidents (<= 10).
   // Host monitors are NOT considered — production deployments often have them.
   const ingestWorkflow = workflows ? findIngestTicketsWorkflow(workflows) : null;
   const hasIngest = !!ingestWorkflow && !isWorkflowScheduleStopped(ingestWorkflow);
-  const tooManyIncidents = incidentCount >= INCIDENT_THRESHOLD;
-  // Don't block — just warn. Users with real data still deserve to try the tour.
+  const hasExistingIncidents = incidentCount > 0;
+  // Don't block — just inform. Users with real data still deserve to try the tour.
   const disableStart = false;
-  const warnReason = tooManyIncidents
+  const warnReason = hasExistingIncidents
     ? `You already have ${incidentCount} ${entityPluralLower}. Demo mode will add a few seeded ${entityPluralLower} you can clean up afterwards.`
     : '';
   // Show the Clean Up button whenever demo data exists, even if the demo
@@ -110,6 +117,7 @@ export const DemoModeCard = ({ compact = false }: { compact?: boolean } = {}) =>
           flexDirection: { xs: 'column', md: 'row' },
           gap: compact ? { xs: 1.25, md: 1.5 } : { xs: 1.5, md: 2 },
           textAlign: compact ? 'center' : 'left',
+          ...customSx,
         }}
       >
 

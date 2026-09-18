@@ -39,7 +39,7 @@ import { useWorkflows } from '@/hooks/useWorkflows';
 import { findIngestTicketsWorkflow } from '@/Shuffle-MCPs/ingestionDetection';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import { toast } from '@/lib/toast';
-import { DemoModeCard } from '@/components/demo/DemoModeCard';
+import { DemoModeCard, useIncidentCount } from '@/components/demo/DemoModeCard';
 import { useDatastore } from '@/hooks/useDatastore';
 import { DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
 import { useVulnerabilities } from '@/hooks/useVulnerabilities';
@@ -644,9 +644,10 @@ const DashboardPage = () => {
   const isViewingChild = !!viewOrgId && viewOrgId !== currentOrgId;
 
   // Default datastore/vulnerability hooks — only used when viewing the active org.
-  const { items: incidentItems, isLoading: incidentsLoadingDefault, fetchItems: fetchIncidents, hasFetched: incidentsFetched, hasMore: incidentsHasMoreDefault } = useDatastore({
+  const { items: incidentItems, isLoading: incidentsLoadingDefault, fetchItems: fetchIncidents, hasFetched: incidentsFetched, hasMore: incidentsHasMoreDefault, totalAmount: incidentTotalAmount } = useDatastore({
     category: DATASTORE_CATEGORIES.INCIDENTS,
   });
+  const { data: datastoreIncidentCount = 0 } = useIncidentCount(effectiveOrgId);
   const { severityCounts: vulnSeverityCountsDefault, isLoading: vulnLoadingDefault } = useVulnerabilities({ tab: 'assets' });
 
   // Trigger initial fetch (the hook does not auto-fetch)
@@ -911,15 +912,14 @@ const DashboardPage = () => {
 
   // ── Derive setup step statuses ──────────────────────────────────────────────
 
+  const workflowList = useMemo(() => Array.isArray(workflows) ? workflows : [], [workflows]);
+  const hasIngest = useMemo(() => !!findIngestTicketsWorkflow(workflowList), [workflowList]);
+
   const setupSteps = useMemo((): SetupStep[] => {
     const activatedApps = authenticatedApps.filter(a => a.active);
     const validatedApps = authenticatedApps.filter(a => a.validation?.valid);
     const hasActivatedApps = activatedApps.length > 0;
     const hasAuthenticatedApps = validatedApps.length > 0;
-
-    const workflowList = Array.isArray(workflows) ? workflows : [];
-    const ingestWorkflow = findIngestTicketsWorkflow(workflowList);
-    const hasIngest = !!ingestWorkflow;
 
     // Detection: check for a running sensor (fetched via useEffect)
     const hasDetection = hasRunningSensor === true;
@@ -970,7 +970,7 @@ const DashboardPage = () => {
     steps.sort((a, b) => a.priority - b.priority);
 
     return steps;
-  }, [authenticatedApps, workflows, hasRunningSensor, hasHostMonitor]);
+  }, [authenticatedApps, workflowList, hasIngest, hasRunningSensor, hasHostMonitor]);
 
   const handleIgnoreStep = (id: string) => {
     const next = [...ignoredSteps, id];
@@ -993,6 +993,15 @@ const DashboardPage = () => {
   const progressPercent = totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 100;
   const allComplete = completedCount === totalSteps;
   const setupLoading = authLoading || workflowsLoading;
+
+  const effectiveIncidentCount = (incidentTotalAmount !== null && incidentTotalAmount > 0)
+    ? incidentTotalAmount
+    : Math.max(overviewIncidents.length, effectiveIncidentItems.length, datastoreIncidentCount);
+
+  const hasIngestedIncidents = effectiveIncidentCount > 0;
+  const hasVulnData = (vulnSeverityCounts.critical + vulnSeverityCounts.high + vulnSeverityCounts.medium + vulnSeverityCounts.low + vulnSeverityCounts.info) > 0;
+  const hasIngestedData = hasIngestedIncidents || hasIngest || hasVulnData;
+  const isInitialIngestionLoading = (workflowsLoading || (!incidentsFetched && incidentsLoadingDefault)) && !hasIngestedData;
 
   // Auto-collapse Setup Guide once when fully complete
   useEffect(() => {
@@ -1104,8 +1113,10 @@ const DashboardPage = () => {
           Get started by completing the setup steps below, then monitor agent activity.
         </Typography>
 
-        {/* ── Demo Mode CTA ────────────────────────────────────────────────────── */}
-        <DemoModeCard />
+        {/* ── Demo Mode CTA (shown at top only when no data has been ingested yet) ── */}
+        {!hasIngestedData && !isInitialIngestionLoading && (
+          <DemoModeCard incidentCount={effectiveIncidentCount} />
+        )}
 
         {/* Overview is shown to all users. When the Setup Guide is incomplete
           it renders BELOW the guide; once complete it moves to the top. */}
@@ -1438,7 +1449,7 @@ const DashboardPage = () => {
           </Box>
 
           {/* ── Setup Checklist ──────────────────────────────────────────────────── */}
-          <Box sx={{ mt: 5, mb: allComplete ? 4 : 0, order: allComplete ? 2 : 1 }}>
+          <Box sx={{ mt: hasIngestedData && !allComplete ? 2 : 5, mb: allComplete ? 4 : 0, order: allComplete ? 2 : 1 }}>
             <Box
               sx={{
                 display: 'flex',
@@ -1553,6 +1564,13 @@ const DashboardPage = () => {
                 </Box>
               )}
             </>)}
+
+            {/* When data is already ingested, Demo Mode CTA is positioned below the Setup Guide area */}
+            {hasIngestedData && (
+              <Box sx={{ mt: setupCollapsed ? 2.5 : 3.5, mb: allComplete ? 0 : 2 }}>
+                <DemoModeCard incidentCount={effectiveIncidentCount} sx={{ mb: 0 }} />
+              </Box>
+            )}
           </Box>
         </Box>
       </Box>

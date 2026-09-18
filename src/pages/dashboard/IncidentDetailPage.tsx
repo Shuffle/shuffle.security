@@ -3369,7 +3369,7 @@ const IncidentDetailPage = () => {
   // this incident lives in (primary + shared). Populated by the effect further
   // down that probes for shared copies across sub-tenants.
   const [sharedOrgs, setSharedOrgs] = useState<
-    Array<{ id: string; name: string; image?: string }>
+    Array<{ id: string; name: string; image?: string; region_url?: string }>
   >([]);
 
   // Validate automation status against every tenant this incident lives in
@@ -4532,9 +4532,15 @@ const IncidentDetailPage = () => {
   const crossOrgInfo = useMemo(() => {
     if (!crossOrgId) return null;
     if (parentOrg && parentOrg.id === crossOrgId)
-      return { name: parentOrg.name, image: parentOrg.image };
+      return {
+        name: parentOrg.name,
+        image: parentOrg.image,
+        region_url: parentOrg.region_url,
+      };
     const found = subOrgs.find((o) => o.id === crossOrgId);
-    return found ? { name: found.name, image: found.image } : null;
+    return found
+      ? { name: found.name, image: found.image, region_url: found.region_url }
+      : null;
   }, [crossOrgId, subOrgs, parentOrg]);
 
   // ── Routing rule matches (powers both the preview banner AND timeline pills) ──
@@ -4693,7 +4699,12 @@ const IncidentDetailPage = () => {
         .map((oid) => {
           const org = allKnownOrgs.find((o) => o.id === oid);
           return org
-            ? { id: org.id, name: org.name, image: org.image }
+            ? {
+                id: org.id,
+                name: org.name,
+                image: org.image,
+                region_url: org.region_url,
+              }
             : { id: oid, name: oid.slice(0, 8) + "…" };
         });
       if (others.length > 0) {
@@ -4713,7 +4724,12 @@ const IncidentDetailPage = () => {
         .map((oid) => {
           const org = knownOrgById.get(oid);
           return org
-            ? { id: org.id, name: org.name, image: org.image }
+            ? {
+                id: org.id,
+                name: org.name,
+                image: org.image,
+                region_url: org.region_url,
+              }
             : { id: oid, name: oid.slice(0, 8) + "…" };
         });
       setSharedOrgs(stamped);
@@ -5271,7 +5287,9 @@ const IncidentDetailPage = () => {
         (userInfo?.active_org?.id === orgId
           ? userInfo?.active_org?.region_url
           : undefined) ||
-        userInfo?.orgs?.find((o) => o.id === orgId)?.region_url;
+        userInfo?.orgs?.find((o) => o.id === orgId)?.region_url ||
+        sharedOrgs.find((o) => o.id === orgId)?.region_url ||
+        (crossOrgId === orgId ? (crossOrgInfo as any)?.region_url : undefined);
       if (!raw) return undefined;
       const mapped = mapCloudRegionUrl(raw);
       if (!mapped) return undefined;
@@ -5280,7 +5298,15 @@ const IncidentDetailPage = () => {
       if (!normalized || normalized === current) return undefined;
       return { regionUrl: normalized };
     },
-    [subOrgs, parentOrg, userInfo?.active_org, userInfo?.orgs],
+    [
+      subOrgs,
+      parentOrg,
+      userInfo?.active_org,
+      userInfo?.orgs,
+      sharedOrgs,
+      crossOrgId,
+      crossOrgInfo,
+    ],
   );
 
   // Load incident function (reusable for refresh)
@@ -5583,12 +5609,16 @@ const IncidentDetailPage = () => {
             (repairedRaw.metadata.extensions as any).auto_recovered_fields =
               repairedFieldNames;
 
-            writeIncidentSafe(id, repairedRaw, crossOrgId || undefined).catch(
-              (err) =>
-                console.warn(
-                  "[IncidentDetail] Failed to persist repaired translation fields:",
-                  err,
-                ),
+            writeIncidentSafe(
+              id,
+              repairedRaw,
+              crossOrgId || undefined,
+              tenantRegionOptions(crossOrgId || undefined),
+            ).catch((err) =>
+              console.warn(
+                "[IncidentDetail] Failed to persist repaired translation fields:",
+                err,
+              ),
             );
           }
           // Details is now tab 0 (default), no auto-switch needed
@@ -6068,7 +6098,12 @@ const IncidentDetailPage = () => {
       `[IncidentRelations] Reconciled from revisions: ${before} -> ${after} linked pointers`,
     );
     setIncident((prev) => (prev ? { ...prev, rawOCSF: reconciled } : prev));
-    writeIncidentSafe(id, reconciled, crossOrgId || undefined).catch((err) =>
+    writeIncidentSafe(
+      id,
+      reconciled,
+      crossOrgId || undefined,
+      tenantRegionOptions(crossOrgId || undefined),
+    ).catch((err) =>
       console.warn("[IncidentRelations] persist reconciliation failed:", err),
     );
   }, [id, incident, revisionsLoaded, revisions, isPublicView, crossOrgId]);
@@ -6172,7 +6207,12 @@ const IncidentDetailPage = () => {
     }
     if (Array.isArray(nextRaw.activity)) setActivity(nextRaw.activity as any);
 
-    writeIncidentSafe(id, nextRaw, crossOrgId || undefined).catch((err) =>
+    writeIncidentSafe(
+      id,
+      nextRaw,
+      crossOrgId || undefined,
+      tenantRegionOptions(crossOrgId || undefined),
+    ).catch((err) =>
       console.warn("[IncidentDetail] Failed to persist timestamp repair:", err),
     );
   }, [id, incident, loading, isPublicView, crossOrgId]);
@@ -6602,7 +6642,12 @@ const IncidentDetailPage = () => {
                       },
                     },
                   };
-                  await writeIncidentSafe(id, updated, crossOrgId || undefined);
+                  await writeIncidentSafe(
+                    id,
+                    updated,
+                    crossOrgId || undefined,
+                    tenantRegionOptions(crossOrgId || undefined),
+                  );
                 } catch (err) {
                   console.warn("[Correlations] persist first-seen failed", err);
                 }
@@ -7329,34 +7374,89 @@ const IncidentDetailPage = () => {
     }
 
     try {
+      const primaryRegion = tenantRegionOptions(crossOrgId || undefined);
       const saveResult = await writeIncidentSafe(
         incident.id,
         updatedData,
         crossOrgId || undefined,
+        primaryRegion,
       );
       const saveSuccess = saveResult.success;
       if (!saveSuccess) {
-        toast.error("Failed to save changes");
+        toast.error(saveResult.error || "Failed to save changes");
         return;
       }
+
+      // Read-back validation: ensure the primary save actually persisted in the datastore (even cross-region)
+      const verifyPrimary = await getDatastoreItem(
+        incident.id,
+        DATASTORE_CATEGORIES.INCIDENTS,
+        crossOrgId || undefined,
+        primaryRegion,
+      );
+      let primaryValidated = false;
+      if (verifyPrimary?.success && verifyPrimary.item?.value) {
+        try {
+          const parsed =
+            typeof verifyPrimary.item.value === "string"
+              ? JSON.parse(verifyPrimary.item.value)
+              : verifyPrimary.item.value;
+          if (parsed && (parsed.id === incident.id || parsed.title)) {
+            primaryValidated = true;
+          }
+        } catch {
+          primaryValidated = false;
+        }
+      }
+      if (!primaryValidated) {
+        console.error("[saveToDatastore] Datastore write validation failed", {
+          id: incident.id,
+          orgId: crossOrgId,
+          primaryRegion,
+          verifyPrimary,
+        });
+        toast.error(
+          "Save completed, but datastore validation failed to confirm written data",
+        );
+        return;
+      }
+
       manualStatusChangedRef.current = false;
       manualSeverityChangedRef.current = false;
 
-      // Sync to shared orgs (fire-and-forget to avoid blocking primary save)
+      // Sync to shared orgs with cross-region routing and readback verification
       if (sharedOrgs.length > 0) {
         Promise.allSettled(
-          sharedOrgs.map((org) =>
-            writeIncidentSafe(incident.id, updatedData, org.id),
-          ),
+          sharedOrgs.map(async (org) => {
+            const orgRegion = tenantRegionOptions(org.id);
+            const res = await writeIncidentSafe(
+              incident.id,
+              updatedData,
+              org.id,
+              orgRegion,
+            );
+            if (!res.success)
+              throw new Error(
+                res.error || `Write failed for ${org.name || org.id}`,
+              );
+            const check = await getDatastoreItem(
+              incident.id,
+              DATASTORE_CATEGORIES.INCIDENTS,
+              org.id,
+              orgRegion,
+            );
+            if (!check?.success || !check.item?.value) {
+              throw new Error(
+                `Validation failed for shared copy in ${org.name || org.id}`,
+              );
+            }
+            return check;
+          }),
         ).then((results) => {
-          const failed = results.filter(
-            (r) =>
-              r.status === "rejected" ||
-              (r.status === "fulfilled" && !r.value.success),
-          );
+          const failed = results.filter((r) => r.status === "rejected");
           if (failed.length > 0) {
             console.warn(
-              `[CrossOrgSync] ${failed.length}/${sharedOrgs.length} org saves failed`,
+              `[CrossOrgSync] ${failed.length}/${sharedOrgs.length} shared tenant syncs failed validation`,
             );
           }
         });
@@ -7944,10 +8044,12 @@ const IncidentDetailPage = () => {
         },
       },
     };
+    const commentRegion = tenantRegionOptions(crossOrgId || undefined);
     const commentWrite = await writeIncidentSafe(
       incident.id,
       updatedOCSF,
       crossOrgId || undefined,
+      commentRegion,
     );
     if (!commentWrite?.success) {
       // The backend rejected the comment — stop protecting the local entry so
@@ -8171,7 +8273,9 @@ const IncidentDetailPage = () => {
         targetRegion,
       );
       if (!write.success)
-        throw new Error(`Could not write incident to ${targetName}`);
+        throw new Error(
+          `Could not write incident to ${targetName}${write.error ? `: ${write.error}` : ""}`,
+        );
       const check = await getDatastoreItem(
         incident.id,
         DATASTORE_CATEGORIES.INCIDENTS,
@@ -8180,18 +8284,53 @@ const IncidentDetailPage = () => {
       );
       if (!(check?.success && check.item?.value))
         throw new Error(`Could not verify incident in ${targetName}`);
+
+      // Deep payload validation: verify parsed data contains matching incident
+      try {
+        const parsed =
+          typeof check.item.value === "string"
+            ? JSON.parse(check.item.value)
+            : check.item.value;
+        if (!parsed || (parsed.id !== incident.id && !parsed.title)) {
+          throw new Error("Persisted incident payload is empty or invalid");
+        }
+      } catch (err: any) {
+        throw new Error(
+          `Data validation failed for ${targetName}: ${err.message || "Invalid payload"}`,
+        );
+      }
     }
 
     const deleteFailures: string[] = [];
     for (const oldOrgId of presentOrgIds) {
       if (oldOrgId === targetOrgId) continue;
+      const oldRegion = tenantRegionOptions(oldOrgId);
       const deleted = await deleteDatastoreItem(
         incident.id,
         DATASTORE_CATEGORIES.INCIDENTS,
         oldOrgId,
-        tenantRegionOptions(oldOrgId),
+        oldRegion,
       );
-      if (!deleted.success) deleteFailures.push(oldOrgId);
+      if (!deleted.success) {
+        deleteFailures.push(oldOrgId);
+      } else {
+        // Extra validation: verify old copy is gone from old tenant
+        try {
+          const verifyGone = await getDatastoreItem(
+            incident.id,
+            DATASTORE_CATEGORIES.INCIDENTS,
+            oldOrgId,
+            oldRegion,
+          );
+          if (verifyGone?.success && verifyGone.item?.value) {
+            console.warn(
+              `[MoveTenant] old copy still present in ${oldOrgId} after delete`,
+            );
+          }
+        } catch {
+          // Expected — item is gone
+        }
+      }
     }
     if (deleteFailures.length > 0) {
       throw new Error(
@@ -8230,6 +8369,62 @@ const IncidentDetailPage = () => {
       navigate(`${entityBasePath}/${newKey}`, { replace: true });
     }
   };
+
+  const openMoveDialog = useCallback(() => {
+    setMoveTargetOrgId("");
+    const sourceOrgId = crossOrgId || userInfo?.active_org?.id || "";
+    const initial = new Set<string>();
+    if (sourceOrgId) initial.add(sourceOrgId);
+    for (const so of sharedOrgs) initial.add(so.id);
+    setMoveSelectedOrgIds(initial);
+    setShowMoveDialog(true);
+  }, [crossOrgId, userInfo?.active_org?.id, sharedOrgs]);
+
+  const handleTenantChange = useCallback(
+    async (targetOrgId: string) => {
+      const sourceOrgId = crossOrgId || userInfo?.active_org?.id || "";
+      if (
+        !targetOrgId ||
+        (targetOrgId === sourceOrgId && sharedOrgs.length === 0)
+      ) {
+        return;
+      }
+      if (isMoving) return;
+      try {
+        setIsMoving(true);
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current);
+          await saveToDatastore();
+        }
+        const targetName = tenantDisplayName(targetOrgId);
+        toast.loading(`Moving ${entitySingular} to ${targetName}…`, {
+          id: "move-incident-tenant",
+        });
+        await moveIncidentToTenant(targetOrgId);
+        toast.success(`Moved ${entitySingular} to ${targetName}`, {
+          id: "move-incident-tenant",
+        });
+      } catch (err: any) {
+        console.error("[MoveTenant] Failed:", err);
+        toast.error(
+          err?.message || `Failed to move ${entitySingular} to target tenant`,
+          { id: "move-incident-tenant" },
+        );
+      } finally {
+        setIsMoving(false);
+      }
+    },
+    [
+      crossOrgId,
+      userInfo?.active_org?.id,
+      sharedOrgs,
+      isMoving,
+      saveToDatastore,
+      tenantDisplayName,
+      entitySingular,
+      moveIncidentToTenant,
+    ],
+  );
 
   const applyRoutingActions = async (actions: RoutingAction[]) => {
     if (!incident?.id || !incident.rawOCSF) return;
@@ -8478,18 +8673,25 @@ const IncidentDetailPage = () => {
     };
 
     if (changed) {
+      const primaryRegion = tenantRegionOptions(crossOrgId || undefined);
       const ok = (
         await writeIncidentSafe(
           incident.id,
           updatedData,
           crossOrgId || undefined,
+          primaryRegion,
         )
       ).success;
       if (!ok) throw new Error("Failed to apply routing rule actions");
       if (sharedOrgs.length > 0) {
         await Promise.allSettled(
           sharedOrgs.map((org) =>
-            writeIncidentSafe(incident.id, updatedData, org.id),
+            writeIncidentSafe(
+              incident.id,
+              updatedData,
+              org.id,
+              tenantRegionOptions(org.id),
+            ),
           ),
         );
       }
@@ -8607,7 +8809,13 @@ const IncidentDetailPage = () => {
           customFields: editedCustomFields,
         };
 
-    await writeIncidentSafe(incident.id, resolvedData, crossOrgId || undefined);
+    const resolveRegion = tenantRegionOptions(crossOrgId || undefined);
+    await writeIncidentSafe(
+      incident.id,
+      resolvedData,
+      crossOrgId || undefined,
+      resolveRegion,
+    );
     setActivity(updatedActivity);
     setIsSaving(false);
     setShowResolveDialog(false);
@@ -15711,6 +15919,7 @@ const IncidentDetailPage = () => {
           incident.id,
           { ...incident.rawOCSF, activity: updatedActivity },
           crossOrgId || undefined,
+          tenantRegionOptions(crossOrgId || undefined),
         );
         toast.success("Re-running AI Agent");
         if (isDemoActive()) {
@@ -17305,15 +17514,6 @@ const IncidentDetailPage = () => {
               ...uniqueShared,
             ];
             const total = allTenants.length;
-            const openMoveDialog = () => {
-              setMoveTargetOrgId("");
-              const sourceOrgId = crossOrgId || userInfo?.active_org?.id || "";
-              const initial = new Set<string>();
-              if (sourceOrgId) initial.add(sourceOrgId);
-              for (const so of sharedOrgs) initial.add(so.id);
-              setMoveSelectedOrgIds(initial);
-              setShowMoveDialog(true);
-            };
             const commonChipSx = {
               height: 24,
               fontSize: "0.72rem",
@@ -18346,14 +18546,7 @@ const IncidentDetailPage = () => {
                       sx={{ width: "100%" }}
                       onClick={() => {
                         setActionsMenuAnchor(null);
-                        setMoveTargetOrgId("");
-                        const sourceOrgId =
-                          crossOrgId || userInfo?.active_org?.id || "";
-                        const initial = new Set<string>();
-                        if (sourceOrgId) initial.add(sourceOrgId);
-                        for (const so of sharedOrgs) initial.add(so.id);
-                        setMoveSelectedOrgIds(initial);
-                        setShowMoveDialog(true);
+                        openMoveDialog();
                       }}
                     >
                       <ForwardIcon size={16} style={{ marginRight: "8px" }} />
@@ -18671,6 +18864,10 @@ const IncidentDetailPage = () => {
                 const isAssigneeHovered =
                   hoveredSimpleTimelineTarget?.section === "overview" &&
                   hoveredSimpleTimelineTarget?.attrField === "assignee";
+                const isTenantHovered =
+                  hoveredSimpleTimelineTarget?.section === "overview" &&
+                  (hoveredSimpleTimelineTarget?.attrField === "tenant" ||
+                    hoveredSimpleTimelineTarget?.attrField === "tenants");
 
                 // Overview block at the top of the center column: source icon + title,
                 // then the three fields that matter most (severity, status, assignee)
@@ -18964,6 +19161,119 @@ const IncidentDetailPage = () => {
                           ))}
                         </Select>
                       </FormControl>
+                      {/* Tenant dropdown — only shown when in parent tenant with actual child tenants */}
+                      {!userInfo?.active_org?.creator_org &&
+                        subOrgs &&
+                        subOrgs.length > 0 &&
+                        (() => {
+                          const currentTenantId =
+                            crossOrgId || userInfo?.active_org?.id || "";
+                          const currentTenantName =
+                            tenantDisplayName(currentTenantId) ||
+                            currentTenantId;
+                          const isKnownOrg =
+                            currentTenantId === userInfo?.active_org?.id ||
+                            subOrgs.some((o) => o.id === currentTenantId);
+
+                          const tooltipTitle =
+                            sharedOrgs.length > 0
+                              ? `Incident lives in ${sharedOrgs.length + 1} tenants: ${[
+                                  currentTenantName,
+                                  ...sharedOrgs.map((o) => o.name || o.id),
+                                ].join(", ")}. Click to move or manage.`
+                              : `Tenant: ${currentTenantName}. Click to move or manage.`;
+
+                          return (
+                            <Tooltip title={tooltipTitle} placement="top">
+                              <FormControl
+                                size="small"
+                                variant="standard"
+                                sx={{
+                                  borderRadius: 1,
+                                  px: isTenantHovered ? 0.75 : 0,
+                                  bgcolor: isTenantHovered
+                                    ? "hsl(var(--primary) / 0.12)"
+                                    : "transparent",
+                                  boxShadow: isTenantHovered
+                                    ? "0 0 10px rgba(255, 102, 0, 0.25)"
+                                    : "none",
+                                  transition:
+                                    "background-color 0.2s ease, box-shadow 0.2s ease, padding 0.2s ease",
+                                }}
+                              >
+                                <Select
+                                  value={currentTenantId}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === "__manage__") {
+                                      openMoveDialog();
+                                      return;
+                                    }
+                                    handleTenantChange(val);
+                                  }}
+                                  disableUnderline
+                                  disabled={isMoving || isSaving}
+                                  sx={{
+                                    fontSize: "0.78rem",
+                                    fontWeight: 600,
+                                    color: "hsl(var(--foreground))",
+                                    "& .MuiSelect-select": { py: 0.25, pr: 3 },
+                                    "& .MuiSvgIcon-root": {
+                                      color: "hsl(var(--muted-foreground))",
+                                      fontSize: 16,
+                                    },
+                                  }}
+                                  MenuProps={{
+                                    PaperProps: {
+                                      sx: {
+                                        bgcolor: "hsl(var(--card))",
+                                        border: "1px solid hsl(var(--border))",
+                                      },
+                                    },
+                                  }}
+                                  renderValue={(value) => {
+                                    const valStr = value as string;
+                                    const baseName =
+                                      tenantDisplayName(valStr) ||
+                                      valStr ||
+                                      "Tenant";
+                                    if (sharedOrgs.length > 0) {
+                                      return `${baseName} (+${sharedOrgs.length})`;
+                                    }
+                                    return baseName;
+                                  }}
+                                >
+                                  <MenuItem
+                                    value={userInfo?.active_org?.id || ""}
+                                  >
+                                    {userInfo?.active_org?.name ||
+                                      "Parent Tenant"}
+                                  </MenuItem>
+                                  {subOrgs.map((org) => (
+                                    <MenuItem key={org.id} value={org.id}>
+                                      {org.name || org.id}
+                                    </MenuItem>
+                                  ))}
+                                  {!isKnownOrg && currentTenantId && (
+                                    <MenuItem value={currentTenantId}>
+                                      {currentTenantName}
+                                    </MenuItem>
+                                  )}
+                                  <Divider sx={{ my: 0.5 }} />
+                                  <MenuItem
+                                    value="__manage__"
+                                    sx={{
+                                      fontSize: "0.75rem",
+                                      color: "hsl(var(--muted-foreground))",
+                                    }}
+                                  >
+                                    Manage tenants…
+                                  </MenuItem>
+                                </Select>
+                              </FormControl>
+                            </Tooltip>
+                          );
+                        })()}
                       {!!incident?.created && (
                         <Tooltip
                           title={formatTimestamp(incident.created)}
@@ -22683,6 +22993,7 @@ const IncidentDetailPage = () => {
                             incident.id,
                             parsed,
                             crossOrgId || undefined,
+                            tenantRegionOptions(crossOrgId || undefined),
                           );
                           if (result.success) {
                             toast.success(
@@ -23719,8 +24030,24 @@ const IncidentDetailPage = () => {
                         targetOrgId,
                         tenantRegionOptions(targetOrgId),
                       );
-                      if (!(check?.success && check.item?.value))
+                      if (!(check?.success && check.item?.value)) {
                         missingTargets.push(targetOrgId);
+                      } else {
+                        try {
+                          const parsed =
+                            typeof check.item.value === "string"
+                              ? JSON.parse(check.item.value)
+                              : check.item.value;
+                          if (
+                            !parsed ||
+                            (parsed.id !== incident.id && !parsed.title)
+                          ) {
+                            missingTargets.push(targetOrgId);
+                          }
+                        } catch {
+                          missingTargets.push(targetOrgId);
+                        }
+                      }
                     } catch {
                       missingTargets.push(targetOrgId);
                     }
@@ -23825,31 +24152,40 @@ const IncidentDetailPage = () => {
                     : sourceOrgId;
                   const knownOrgLookup = new Map<
                     string,
-                    { id: string; name: string; image?: string }
+                    {
+                      id: string;
+                      name: string;
+                      image?: string;
+                      region_url?: string;
+                    }
                   >();
                   if (userInfo?.active_org)
                     knownOrgLookup.set(userInfo.active_org.id, {
                       id: userInfo.active_org.id,
                       name: userInfo.active_org.name || userInfo.active_org.id,
                       image: userInfo.active_org.image,
+                      region_url: userInfo.active_org.region_url,
                     });
                   if (parentOrg)
                     knownOrgLookup.set(parentOrg.id, {
                       id: parentOrg.id,
                       name: parentOrg.name || parentOrg.id,
                       image: (parentOrg as any).image,
+                      region_url: parentOrg.region_url,
                     });
                   for (const so of subOrgs)
                     knownOrgLookup.set(so.id, {
                       id: so.id,
                       name: so.name || so.id,
                       image: (so as any).image,
+                      region_url: so.region_url,
                     });
                   for (const so of sharedOrgs)
                     knownOrgLookup.set(so.id, {
                       id: so.id,
                       name: so.name || so.id,
                       image: so.image,
+                      region_url: so.region_url,
                     });
                   if (userInfo?.orgs) {
                     for (const uo of userInfo.orgs) {
@@ -23858,6 +24194,7 @@ const IncidentDetailPage = () => {
                           id: uo.id,
                           name: uo.name || uo.id,
                           image: uo.image,
+                          region_url: uo.region_url,
                         });
                       }
                     }

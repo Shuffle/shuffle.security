@@ -1232,7 +1232,7 @@ const EmailThreadPanel = ({
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <ReplyIcon size={16} style={{ color: 'text.secondary' }} />
+              <ReplyIcon size={16} style={{ color: 'hsl(var(--muted-foreground))' }} />
               <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
                 Reply to {displayMessages[0]?.from || 'sender'}
               </Typography>
@@ -1424,8 +1424,8 @@ const EmailThreadPanel = ({
           {headerActions}
         </Box>
         {threadCollapsed
-          ? <ExpandMoreIcon style={{ color: 'text.secondary' }} />
-          : <ExpandLessIcon style={{ color: 'text.secondary' }} />}
+          ? <ExpandMoreIcon style={{ color: 'hsl(var(--muted-foreground))' }} />
+          : <ExpandLessIcon style={{ color: 'hsl(var(--muted-foreground))' }} />}
       </Box>
       <Collapse in={!threadCollapsed}>
         {panelBody}
@@ -1507,7 +1507,7 @@ const EmailThreadPanel = ({
               bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
             }}
           >
-            <DragIndicatorIcon size={16} style={{ color: 'text.secondary' }} />
+            <DragIndicatorIcon size={16} style={{ color: 'hsl(var(--muted-foreground))' }} />
             <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary', flex: 1 }}>
               {threadSubject || 'Email thread'} — drag to move
             </Typography>

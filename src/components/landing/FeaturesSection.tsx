@@ -208,8 +208,8 @@ const AIAgentVisual = () => (
             flex: 1,
             p: 2.5,
             borderRadius: 3,
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'hsl(var(--card))',
+            border: '1px solid hsl(var(--border))',
           }}
         >
           <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem', mb: 1.5 }}>
@@ -260,7 +260,7 @@ const AIAgentVisual = () => (
               py: 1,
               px: 3,
               borderRadius: 2,
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              border: '1px solid hsl(var(--border))',
               cursor: 'pointer',
             }}
           >
@@ -299,8 +299,8 @@ const UniversalReachVisual = () => (
             sx={{
               p: 2.5,
               borderRadius: 3,
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid rgba(255, 255, 255, 0.06)',
+              background: 'hsl(var(--card))',
+              border: '1px solid hsl(var(--border))',
             }}
           >
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>

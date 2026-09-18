@@ -230,11 +230,7 @@ export const useAgentPermissions = (skill: string = 'incident-handler') => {
     setIsLoading(true);
     setError(null);
     try {
-      let response = await getDatastoreItem(datastoreKey, DATASTORE_CATEGORIES.CONFIGURATION);
-      // For incident-handler, fall back to legacy 'agent_permissions' if skill-specific key has not been populated yet
-      if ((!response.success || !response.item?.value) && (skill === 'incident-handler' || skill === 'default')) {
-        response = await getDatastoreItem('agent_permissions', DATASTORE_CATEGORIES.CONFIGURATION);
-      }
+      const response = await getDatastoreItem(datastoreKey, DATASTORE_CATEGORIES.CONFIGURATION);
 
       if (response.success && response.item?.value) {
         const data = typeof response.item.value === 'string'
@@ -251,7 +247,7 @@ export const useAgentPermissions = (skill: string = 'incident-handler') => {
     } finally {
       setIsLoading(false);
     }
-  }, [datastoreKey, skill]);
+  }, [datastoreKey]);
 
   // Save permissions to datastore
   const savePermissions = useCallback(async (updatedCategories: AgentPermissionCategory[]) => {
@@ -262,10 +258,6 @@ export const useAgentPermissions = (skill: string = 'incident-handler') => {
       if (!response.success) {
         setError(response.error || 'Failed to save permissions');
         return false;
-      }
-      // If incident-handler, keep legacy 'agent_permissions' key updated for backwards compatibility
-      if (skill === 'incident-handler' || skill === 'default') {
-        await setDatastoreItem('agent_permissions', updatedCategories, DATASTORE_CATEGORIES.CONFIGURATION);
       }
       return true;
     } catch (err) {

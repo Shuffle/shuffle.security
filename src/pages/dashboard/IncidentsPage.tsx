@@ -3154,7 +3154,7 @@ const IncidentsPage = () => {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon style={{ color: 'text.secondary', fontSize: '1rem' }} />
+                    <SearchIcon size={16} style={{ color: 'hsl(var(--muted-foreground))' }} />
                   </InputAdornment>
                 ),
                 endAdornment: (

@@ -509,7 +509,7 @@ export const FileAttachments = ({
           <CircularProgress size={20} sx={{ color: 'text.secondary' }} />
         ) : (
           <>
-            <AttachFileIcon size={20} style={{ color: 'text.secondary' }} />
+            <AttachFileIcon size={20} style={{ color: 'hsl(var(--muted-foreground))' }} />
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               Click to attach files
             </Typography>

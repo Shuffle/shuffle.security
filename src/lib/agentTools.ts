@@ -32,11 +32,16 @@
  * window event so the UI updates without a reload.
  */
 
-import { getDatastoreItem, setDatastoreItem } from '../Shuffle-MCPs/datastore';
+import {
+  getDatastoreItem,
+  setDatastoreItem,
+  getDatastoreByCategory,
+  DATASTORE_CATEGORIES,
+} from '../Shuffle-MCPs/datastore';
 
 const STORAGE_KEY = 'agent_tools_config';
-const DATASTORE_CATEGORY = 'shuffle-security_agent_tools';
-const DATASTORE_KEY = 'config';
+const DATASTORE_CATEGORY = DATASTORE_CATEGORIES.CONFIGURATION;
+const DATASTORE_KEY = 'agent_tools_config';
 
 export const AGENT_TOOLS_CHANGED_EVENT = 'agent-tools-changed';
 
@@ -213,7 +218,11 @@ const writeCache = (entries: AgentToolsEntry[], explicitUpdatedAt?: number) => {
     const orgKey = getStorageKey();
     localStorage.setItem(orgKey, serialized);
     if (orgKey !== STORAGE_KEY) {
-      localStorage.setItem(STORAGE_KEY, serialized);
+      try {
+        localStorage.setItem(STORAGE_KEY, serialized);
+      } catch {
+        /* ignore fallback write if quota is tight */
+      }
     }
     window.dispatchEvent(
       new CustomEvent(AGENT_TOOLS_CHANGED_EVENT, { detail: { updatedAt, entries } }),
@@ -232,20 +241,6 @@ const executeDatastoreWrite = async (payload: AgentToolsCachePayload): Promise<b
       const res = await setDatastoreItem(DATASTORE_KEY, payload, DATASTORE_CATEGORY);
       if (res && res.success) {
         return true;
-      }
-      if (attempt === maxAttempts) {
-        try {
-          const fallbackRes = await setDatastoreItem(
-            'agent_tools_config',
-            payload,
-            'shuffle-security_configuration',
-          );
-          if (fallbackRes && fallbackRes.success) {
-            return true;
-          }
-        } catch {
-          /* ignore fallback */
-        }
       }
       console.warn(`[agentTools] Datastore write attempt ${attempt} failed:`, res?.error || 'Unknown error');
     } catch (err) {
@@ -342,6 +337,116 @@ const mergeEntries = (
 };
 
 /**
+ * Maps a datastore category (e.g. 'shuffle-security_incidents') or explicit skill
+ * to the canonical agent skill ID (e.g. 'incident-handler', 'vulnerability').
+ */
+export const getSkillForCategory = (category: string, explicitSkill?: string): string => {
+  if (explicitSkill && explicitSkill.trim()) {
+    const s = explicitSkill.toLowerCase().trim();
+    if (s === 'incident-response' || s === 'incident-handler') return 'incident-handler';
+    if (s === 'vulnerability-agent' || s === 'vulnerability-management' || s === 'vulnerability') return 'vulnerability';
+    if (s === 'workflow-edit' || s === 'build-workflows') return 'build-workflows';
+    if (s === 'computer-use' || s === 'host-monitor-control') return 'host-monitor-control';
+    return s;
+  }
+  const cat = (category || '').toLowerCase().trim();
+  if (cat.includes('incident')) return 'incident-handler';
+  if (cat.includes('vuln')) return 'vulnerability';
+  if (cat.includes('infra') || cat.includes('sensor')) return 'host-monitor-control';
+  return 'incident-handler';
+};
+
+/** Human-readable display label for a skill. */
+export const getSkillLabel = (skillOrCategory: string): string => {
+  const norm = getSkillForCategory(skillOrCategory, skillOrCategory);
+  switch (norm) {
+    case 'incident-handler':
+    case 'incident-response':
+      return 'Incident Handler';
+    case 'vulnerability':
+      return 'Vulnerability Agent';
+    case 'build-workflows':
+      return 'Build Workflow';
+    case 'host-monitor-control':
+      return 'Computer Use';
+    case 'support':
+      return 'Support Agent';
+    case 'detection':
+      return 'Detection Agent';
+    default:
+      return formatToolName(norm);
+  }
+};
+
+/** Canonical built-in app identifiers (both slugs and IDs) that are active by default for a skill. */
+export const getBuiltInAppsForSkill = (skillOrPresetId: string): string[] => {
+  const norm = (skillOrPresetId || '').toLowerCase().trim();
+  if (norm === 'incident-handler' || norm === 'incident-response' || norm === 'default') {
+    return ['48793430d21468f9e371ace402efcd8e', 'shuffle_incidents'];
+  }
+  if (norm === 'vulnerability' || norm === 'vulnerability-agent' || norm === 'vulnerability-management') {
+    return ['shuffle_vulnerabilities', 'shuffle_software_and_packages', 'b82668d868f6dc7ac1dc14caa92c674b'];
+  }
+  if (norm === 'build-workflows') {
+    return ['shuffle_workflows_builder', 'shuffle_apps'];
+  }
+  if (norm === 'host-monitor-control' || norm === 'computer-use') {
+    return ['shuffle_host_monitors'];
+  }
+  if (norm === 'support') {
+    return ['shuffle_tools'];
+  }
+  if (norm === 'detection') {
+    return ['shuffle_detection'];
+  }
+  return [];
+};
+
+/** Checks if an app key or ID is a built-in default for a skill. */
+export const isBuiltInSkillApp = (
+  skillOrPresetId: string,
+  appKey: string,
+  appId?: string | null,
+): boolean => {
+  const builtIn = getBuiltInAppsForSkill(skillOrPresetId).map((s) => s.toLowerCase());
+  const k = (appKey || '').toLowerCase();
+  const id = (appId || '').toLowerCase();
+  return (k ? builtIn.includes(k) : false) || (id ? builtIn.includes(id) : false);
+};
+
+/**
+ * Hydrates agent tools from category automations (e.g. "Automation for Incidents")
+ * if no custom tools have been assigned in the canonical datastore yet.
+ */
+export const hydrateFromCategoryAutomations = async (): Promise<boolean> => {
+  let changed = false;
+  try {
+    const incRes: any = await getDatastoreByCategory(DATASTORE_CATEGORIES.INCIDENTS, undefined, 1);
+    const incAuto = incRes?.categoryConfig?.automations?.find(
+      (a: any) => a.type === 'ai_agent' || a.name === 'AI Incident Handling',
+    );
+    const incApps = incAuto?.options
+      ?.flatMap((o: any) => (Array.isArray(o.apps) ? o.apps : []))
+      .filter((a: any): a is string => typeof a === 'string' && !!a.trim());
+
+    if (incApps && incApps.length > 0) {
+      const uniqueApps = Array.from(new Set<string>(incApps as string[]));
+      const assignedTools: ToolRef[] = uniqueApps
+        .filter((k: string) => !isBuiltInSkillApp('incident-handler', k))
+        .map((k: string) => ({ name: k, id: k }));
+      if (assignedTools.length > 0) {
+        setAgentTools(assignedTools, 'incident-handler');
+        saveAgentTools(assignedTools, 'incident-handler');
+        changed = true;
+      }
+    }
+  } catch (err) {
+    console.warn('[agentTools] Failed to hydrate from category automations:', err);
+  }
+  return changed;
+};
+
+/**
  * Hydrate the local cache from the datastore. Call once on app startup
  * (e.g. from DashboardLayout). Uses monotonic sequencing and timestamp-based
  * reconciliation so stale network reads never overwrite fresh local modifications.
@@ -352,23 +457,17 @@ export const loadAgentToolsFromDatastore = async (): Promise<AgentToolsEntry[]> 
   const requestStartTime = Date.now();
 
   try {
-    let res = await getDatastoreItem(DATASTORE_KEY, DATASTORE_CATEGORY);
-    if (!res.success || !res.item) {
-      try {
-        const fb = await getDatastoreItem('agent_tools_config', 'shuffle-security_configuration');
-        if (fb.success && fb.item) {
-          res = fb;
-        }
-      } catch {
-        /* ignore */
-      }
-    }
+    const res = await getDatastoreItem(DATASTORE_KEY, DATASTORE_CATEGORY);
 
     const localRecord = readCacheRecord();
     const localEntries = localRecord.entries;
     const localUpdatedAt = localRecord.updatedAt;
 
     if (!res.success || !res.item) {
+      const hydrated = await hydrateFromCategoryAutomations();
+      if (hydrated) {
+        return readAll();
+      }
       if (localEntries.length > 0 && localWriteSeq === requestSeq) {
         persistToDatastore(localEntries, localUpdatedAt);
       }
@@ -406,6 +505,14 @@ export const loadAgentToolsFromDatastore = async (): Promise<AgentToolsEntry[]> 
       return localEntries;
     }
 
+    // If neither server nor local has tools for incident-handler, check category automations
+    if (!remoteHasAnyTools && !localHasAnyTools) {
+      const hydrated = await hydrateFromCategoryAutomations();
+      if (hydrated) {
+        return readAll();
+      }
+    }
+
     // If local cache is newer than server, retain local
     if (localUpdatedAt > remoteUpdatedAt && localHasAnyTools) {
       const merged = mergeEntries(remoteEntries, localEntries, true);
@@ -417,6 +524,18 @@ export const loadAgentToolsFromDatastore = async (): Promise<AgentToolsEntry[]> 
     // Server is newer or equal: reconcile and update cache
     const merged = mergeEntries(localEntries, remoteEntries, false);
     writeCache(merged, remoteUpdatedAt || Date.now());
+
+    // Check if incident-handler in merged has tools, otherwise check category automations
+    const ihHasTools = merged.some(
+      (e) =>
+        (e.agent === 'incident-handler' || e.agent === 'incident-response' || e.agent === DEFAULT_AGENT) &&
+        e.tools.length > 0,
+    );
+    if (!ihHasTools) {
+      await hydrateFromCategoryAutomations();
+      return readAll();
+    }
+
     return merged;
   } catch (err) {
     console.warn('[agentTools] Error in loadAgentToolsFromDatastore:', err);
@@ -554,83 +673,7 @@ export const removeAgentTool = (
 export const formatToolName = (name: string): string =>
   name.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
-/**
- * Maps a datastore category (e.g. 'shuffle-security_incidents') or explicit skill
- * to the canonical agent skill ID (e.g. 'incident-handler', 'vulnerability').
- */
-export const getSkillForCategory = (category: string, explicitSkill?: string): string => {
-  if (explicitSkill && explicitSkill.trim()) {
-    const s = explicitSkill.toLowerCase().trim();
-    if (s === 'incident-response' || s === 'incident-handler') return 'incident-handler';
-    if (s === 'vulnerability-agent' || s === 'vulnerability-management' || s === 'vulnerability') return 'vulnerability';
-    if (s === 'workflow-edit' || s === 'build-workflows') return 'build-workflows';
-    if (s === 'computer-use' || s === 'host-monitor-control') return 'host-monitor-control';
-    return s;
-  }
-  const cat = (category || '').toLowerCase().trim();
-  if (cat.includes('incident')) return 'incident-handler';
-  if (cat.includes('vuln')) return 'vulnerability';
-  if (cat.includes('infra') || cat.includes('sensor')) return 'host-monitor-control';
-  return 'incident-handler';
-};
 
-/** Human-readable display label for a skill. */
-export const getSkillLabel = (skillOrCategory: string): string => {
-  const norm = getSkillForCategory(skillOrCategory, skillOrCategory);
-  switch (norm) {
-    case 'incident-handler':
-    case 'incident-response':
-      return 'Incident Handler';
-    case 'vulnerability':
-      return 'Vulnerability Agent';
-    case 'build-workflows':
-      return 'Build Workflow';
-    case 'host-monitor-control':
-      return 'Computer Use';
-    case 'support':
-      return 'Support Agent';
-    case 'detection':
-      return 'Detection Agent';
-    default:
-      return formatToolName(norm);
-  }
-};
-
-/** Canonical built-in app identifiers (both slugs and IDs) that are active by default for a skill. */
-export const getBuiltInAppsForSkill = (skillOrPresetId: string): string[] => {
-  const norm = (skillOrPresetId || '').toLowerCase().trim();
-  if (norm === 'incident-handler' || norm === 'incident-response' || norm === 'default') {
-    return ['48793430d21468f9e371ace402efcd8e', 'shuffle_incidents'];
-  }
-  if (norm === 'vulnerability' || norm === 'vulnerability-agent' || norm === 'vulnerability-management') {
-    return ['shuffle_vulnerabilities', 'shuffle_software_and_packages', 'b82668d868f6dc7ac1dc14caa92c674b'];
-  }
-  if (norm === 'build-workflows') {
-    return ['shuffle_workflows_builder', 'shuffle_apps'];
-  }
-  if (norm === 'host-monitor-control' || norm === 'computer-use') {
-    return ['shuffle_host_monitors'];
-  }
-  if (norm === 'support') {
-    return ['shuffle_tools'];
-  }
-  if (norm === 'detection') {
-    return ['shuffle_detection'];
-  }
-  return [];
-};
-
-/** Checks if an app key or ID is a built-in default for a skill. */
-export const isBuiltInSkillApp = (
-  skillOrPresetId: string,
-  appKey: string,
-  appId?: string | null,
-): boolean => {
-  const builtIn = getBuiltInAppsForSkill(skillOrPresetId).map((s) => s.toLowerCase());
-  const k = (appKey || '').toLowerCase();
-  const id = (appId || '').toLowerCase();
-  return (k ? builtIn.includes(k) : false) || (id ? builtIn.includes(id) : false);
-};
 
 /**
  * Returns all allowed apps for a skill: built-in default apps merged with assigned tools from permissions.

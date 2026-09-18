@@ -235,7 +235,7 @@ const TemplatesPage = () => {
           border: '1px dashed',
           borderColor: 'divider',
         }}>
-          <AssignmentIcon size={48} style={{ color: 'text.disabled', marginBottom: '16px' }} />
+          <AssignmentIcon size={48} style={{ color: 'hsl(var(--muted-foreground))', marginBottom: '16px' }} />
           <Typography variant="h6" sx={{ color: 'text.secondary', mb: 1 }}>
             No templates yet
           </Typography>

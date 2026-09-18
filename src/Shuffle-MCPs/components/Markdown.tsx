@@ -14,7 +14,7 @@
  *  - shared code / table / blockquote styling based on HSL design tokens
  */
 import React, { useMemo } from 'react';
-import { Box, type SxProps, type Theme } from '@mui/material';
+import { Box, useTheme, type SxProps, type Theme } from '@mui/material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -52,19 +52,23 @@ const jsonBoxSx: SxProps<Theme> = {
 };
 
 /** Standardised JSON tree used inside markdown (same viewer as the rest of the platform). */
-export const MarkdownJsonBlock: React.FC<{ src: object }> = ({ src }) => (
-  <Box sx={jsonBoxSx}>
-    <JsonView
-      src={src}
-      dark
-      collapsed={defaultCollapsed}
-      collapseStringMode="word"
-      collapseStringsAfterLength={120}
-      enableClipboard
-      displaySize
-    />
-  </Box>
-);
+export const MarkdownJsonBlock: React.FC<{ src: object }> = ({ src }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  return (
+    <Box sx={jsonBoxSx}>
+      <JsonView
+        src={src}
+        dark={isDark}
+        collapsed={defaultCollapsed}
+        collapseStringMode="word"
+        collapseStringsAfterLength={120}
+        enableClipboard
+        displaySize
+      />
+    </Box>
+  );
+};
 
 /**
  * Deliberately loose (not react-markdown's own `Components` type): that type is a mapped

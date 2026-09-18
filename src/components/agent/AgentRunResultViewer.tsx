@@ -3,7 +3,7 @@
  * Renders output as Markdown + JSON from results[0].result using react18-json-view.
  */
 
-import { Box, Typography, Collapse } from '@mui/material';
+import { Box, Typography, Collapse, useTheme } from '@mui/material';
 import { useState } from 'react';
 import { AlertTriangle, HelpCircle, ExternalLink, ChevronRight, ChevronDown } from 'lucide-react';
 import { Link } from '@/lib/router-compat';
@@ -80,6 +80,8 @@ interface AgentRunResultViewerProps {
 }
 
 const AgentRunResultViewer = ({ run }: AgentRunResultViewerProps) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const { raw, parsed } = parseRunResult(run);
   const isFailed = run.status?.toUpperCase() === 'FAILED' || run.status?.toUpperCase() === 'ABORTED';
   const failureInfo = getFailureInfo(run);
@@ -406,7 +408,7 @@ const AgentRunResultViewer = ({ run }: AgentRunResultViewerProps) => {
             {parsed ? (
               <JsonView
                 src={parsed}
-                dark
+                dark={isDark}
                 collapsed={defaultCollapsed}
                 collapseStringMode="word"
                 collapseStringsAfterLength={120}

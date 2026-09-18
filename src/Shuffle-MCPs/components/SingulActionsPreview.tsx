@@ -22,6 +22,7 @@ import {
   IconButton,
   Tooltip,
   Avatar,
+  useTheme,
 } from '@mui/material';
 import {
   Code2,
@@ -347,6 +348,8 @@ const SingulActionsPreview = ({
   activeOrgId,
   onAuthenticate,
 }: SingulActionsPreviewProps) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const defaultCategory = useMemo(() => pickDefaultCategory(categories), [categories]);
   const actions = ALL_ACTIONS;
   // Sort so that the app's default category appears first, rest follow original order.
@@ -846,7 +849,7 @@ const SingulActionsPreview = ({
                 >
                   <JsonView
                     src={deepParseJsonStrings(parsedResult)}
-                    dark
+                    dark={isDark}
                     collapsed={defaultCollapsed}
                     collapseStringMode="word"
                     collapseStringsAfterLength={120}

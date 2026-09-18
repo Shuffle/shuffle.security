@@ -21,7 +21,9 @@ import {
   addAgentTool,
   formatToolName,
   getAgentTools,
+  loadAgentToolsFromDatastore,
   removeAgentTool,
+  saveAgentTools,
   setAgentTools,
   type ToolRef,
 } from '@/lib/agentTools';
@@ -311,11 +313,20 @@ const AssignedToolsSection = ({
   }, [saveStatus]);
 
   useEffect(() => {
+    let cancelled = false;
     const refresh = () => setTools(getAgentTools(selectedSkill, actionType));
     refresh();
+
+    loadAgentToolsFromDatastore()
+      .then(() => {
+        if (!cancelled) refresh();
+      })
+      .catch(() => {});
+
     window.addEventListener(AGENT_TOOLS_CHANGED_EVENT, refresh);
     window.addEventListener('storage', refresh);
     return () => {
+      cancelled = true;
       window.removeEventListener(AGENT_TOOLS_CHANGED_EVENT, refresh);
       window.removeEventListener('storage', refresh);
     };
@@ -329,13 +340,13 @@ const AssignedToolsSection = ({
 
   const handleRemoveTool = (toolId: string) => {
     removeAgentTool(toolId, selectedSkill, actionType);
-    setTools((prev) =>
-      prev.filter(
-        (t) =>
-          (t.id || '').toLowerCase() !== toolId.toLowerCase() &&
-          t.name.toLowerCase() !== toolId.toLowerCase(),
-      ),
+    const updated = tools.filter(
+      (t) =>
+        (t.id || '').toLowerCase() !== toolId.toLowerCase() &&
+        t.name.toLowerCase() !== toolId.toLowerCase(),
     );
+    setTools(updated);
+    saveAgentTools(updated, selectedSkill, actionType);
     setSaveStatus('saved');
   };
 
@@ -562,6 +573,7 @@ const AssignedToolsSection = ({
           const nextTools = apps.map((a) => ({ name: a.name, id: a.id || a.name }));
           setTools(nextTools);
           setAgentTools(nextTools, selectedSkill, actionType);
+          saveAgentTools(nextTools, selectedSkill, actionType);
           setSaveStatus('saved');
         }}
       />

@@ -140,8 +140,8 @@ export const IncidentSection = forwardRef<HTMLDivElement, IncidentSectionProps>(
           </Box>
         )}
         {open
-          ? <ExpandLessIcon style={{ color: 'text.secondary' }} />
-          : <ExpandMoreIcon style={{ color: 'text.secondary' }} />}
+          ? <ExpandLessIcon style={{ color: 'hsl(var(--muted-foreground))' }} />
+          : <ExpandMoreIcon style={{ color: 'hsl(var(--muted-foreground))' }} />}
       </Box>
       <Collapse in={open}>
         {bodyPadded ? (

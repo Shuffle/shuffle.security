@@ -1018,7 +1018,7 @@ export const AppAuthCard = ({
             size="small"
             sx={{
               '& .MuiOutlinedInput-root': {
-                backgroundColor: 'hsl(var(--background))',
+                backgroundColor: 'transparent',
                 borderRadius: 1,
                 '& fieldset': { borderColor: 'hsl(var(--border))' },
                 '&:hover fieldset': { borderColor: 'hsl(var(--border) / 0.8)' },
@@ -1039,7 +1039,7 @@ export const AppAuthCard = ({
             size="small"
             sx={{
               '& .MuiOutlinedInput-root': {
-                backgroundColor: 'hsl(var(--background))',
+                backgroundColor: 'transparent',
                 borderRadius: 1,
                 '& fieldset': { borderColor: 'hsl(var(--border))' },
                 '&:hover fieldset': { borderColor: 'hsl(var(--border) / 0.8)' },
@@ -1174,7 +1174,7 @@ export const AppAuthCard = ({
               name={`auth-${fieldKey}-${app.objectID}-${Math.random().toString(36).slice(2, 8)}`}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  backgroundColor: isSecretField ? 'hsl(var(--primary) / 0.06)' : 'hsl(var(--muted))',
+                  backgroundColor: 'transparent',
                   borderRadius: 1,
                   '& fieldset': {
                     borderColor: fieldErrors[fieldKey]
@@ -1510,7 +1510,7 @@ export const AppAuthCard = ({
                       }
                     }}
                     sx={{
-                      backgroundColor: 'hsl(var(--background))',
+                      backgroundColor: 'transparent',
                       borderRadius: 2,
                       color: 'hsl(var(--foreground))',
                       '& .MuiOutlinedInput-notchedOutline': { borderColor: 'hsl(var(--border))' },
@@ -1710,7 +1710,7 @@ export const AppAuthCard = ({
                   <Box sx={{ 
                     mt: 2, 
                     p: 0,
-                    backgroundColor: 'hsl(var(--muted))',
+                    backgroundColor: 'transparent',
                     borderRadius: 3,
                     border: '1px solid hsl(var(--border))',
                     overflow: 'hidden',
@@ -1723,7 +1723,7 @@ export const AppAuthCard = ({
                       px: { xs: 2, sm: 2.5 },
                       py: 1.5,
                       borderBottom: '1px solid hsl(var(--border))',
-                      backgroundColor: 'hsl(var(--background-surface))',
+                      backgroundColor: 'transparent',
                     }}>
                       <Box sx={{
                         width: 8,
@@ -1778,25 +1778,17 @@ export const AppAuthCard = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          backgroundColor: localTestStatus === 'success' || localTestStatus === 'pending_validation'
-                            ? 'hsl(var(--severity-low) / 0.1)'
-                            : localTestStatus === 'error'
-                            ? 'hsl(var(--destructive) / 0.1)'
-                            : isTested
-                            ? 'hsl(var(--severity-low) / 0.1)'
-                            : isConfigured
-                            ? 'hsl(var(--severity-medium) / 0.1)' // Yellow for configured but not tested
-                            : 'hsl(var(--muted-foreground) / 0.1)',
+                          backgroundColor: 'transparent',
                           border: `1px solid ${
                             localTestStatus === 'success' || localTestStatus === 'pending_validation'
-                              ? 'hsl(var(--severity-low) / 0.2)'
+                              ? 'hsl(var(--severity-low) / 0.3)'
                               : localTestStatus === 'error'
-                              ? 'hsl(var(--destructive) / 0.2)'
+                              ? 'hsl(var(--destructive) / 0.3)'
                               : isTested
-                              ? 'hsl(var(--severity-low) / 0.2)'
+                              ? 'hsl(var(--severity-low) / 0.3)'
                               : isConfigured
-                              ? 'hsl(var(--severity-medium) / 0.2)' // Yellow for configured but not tested
-                              : 'hsl(var(--muted-foreground) / 0.2)'
+                              ? 'hsl(var(--severity-medium) / 0.3)' // Yellow for configured but not tested
+                              : 'hsl(var(--border))'
                           }`,
                           flexShrink: 0,
                         }}>
@@ -1978,9 +1970,9 @@ export const AppAuthCard = ({
                         <Alert
                           severity="error"
                           sx={{
-                            backgroundColor: 'hsl(var(--destructive) / 0.1)',
+                            backgroundColor: 'transparent',
                             color: 'hsl(var(--destructive))',
-                            border: '1px solid hsl(var(--destructive) / 0.2)',
+                            border: '1px solid hsl(var(--destructive) / 0.3)',
                             borderRadius: 2,
                             '& .MuiAlert-icon': { color: 'hsl(var(--destructive))' },
                           }}
@@ -2004,9 +1996,9 @@ export const AppAuthCard = ({
                         <Alert
                           severity="warning"
                           sx={{
-                            backgroundColor: 'hsl(var(--severity-medium) / 0.1)',
+                            backgroundColor: 'transparent',
                             color: 'hsl(var(--severity-medium))',
-                            border: '1px solid hsl(var(--severity-medium) / 0.2)',
+                            border: '1px solid hsl(var(--severity-medium) / 0.3)',
                             borderRadius: 2,
                             '& .MuiAlert-icon': { 
                               color: 'hsl(var(--severity-medium))',
@@ -2038,7 +2030,7 @@ export const AppAuthCard = ({
             {(apiAuthEntries.length === 0 || showAddNewForm) && (
               <Box sx={{ 
                 p: 3, 
-                backgroundColor: 'hsl(var(--background) / 0.4)', 
+                backgroundColor: 'transparent', 
                 borderRadius: 2,
                 border: '1px solid hsl(var(--border))',
               }}>
@@ -2047,9 +2039,9 @@ export const AppAuthCard = ({
                   <Alert
                     severity="warning"
                     sx={{
-                      backgroundColor: 'hsl(var(--severity-medium) / 0.1)',
+                      backgroundColor: 'transparent',
                       color: 'hsl(var(--severity-medium))',
-                      border: '1px solid hsl(var(--severity-medium) / 0.2)',
+                      border: '1px solid hsl(var(--severity-medium) / 0.3)',
                       borderRadius: 2,
                       mb: 2,
                       '& .MuiAlert-icon': { color: 'hsl(var(--severity-medium))' },
@@ -2084,7 +2076,7 @@ export const AppAuthCard = ({
                   <Alert
                     severity="error"
                     sx={{
-                      backgroundColor: 'hsl(var(--destructive) / 0.1)',
+                      backgroundColor: 'transparent',
                       color: 'hsl(var(--destructive))',
                       border: '1px solid hsl(var(--destructive) / 0.3)',
                       borderRadius: 2,
@@ -2096,9 +2088,9 @@ export const AppAuthCard = ({
                   <Alert
                     severity="info"
                     sx={{
-                      backgroundColor: 'hsl(var(--severity-info) / 0.1)',
+                      backgroundColor: 'transparent',
                       color: 'hsl(var(--severity-info))',
-                      border: '1px solid hsl(var(--severity-info) / 0.2)',
+                      border: '1px solid hsl(var(--severity-info) / 0.3)',
                       borderRadius: 2,
                       '& .MuiAlert-icon': { color: 'hsl(var(--severity-info))' },
                     }}
@@ -2123,7 +2115,7 @@ export const AppAuthCard = ({
                       <Alert
                         severity="error"
                         sx={{
-                          backgroundColor: 'hsl(var(--destructive) / 0.1)',
+                          backgroundColor: 'transparent',
                           color: 'hsl(var(--destructive))',
                           border: '1px solid hsl(var(--destructive) / 0.3)',
                           borderRadius: 2,
@@ -2146,7 +2138,7 @@ export const AppAuthCard = ({
                       <Alert
                         severity="error"
                         sx={{
-                          backgroundColor: 'hsl(var(--destructive) / 0.1)',
+                          backgroundColor: 'transparent',
                           color: 'hsl(var(--destructive))',
                           border: '1px solid hsl(var(--destructive) / 0.3)',
                           borderRadius: 2,
@@ -2573,7 +2565,7 @@ export const AppAuthConfig = ({
       <Alert
         severity="info"
         sx={{
-          backgroundColor: 'hsl(var(--primary) / 0.1)',
+          backgroundColor: 'transparent',
           color: 'hsl(var(--primary))',
           border: '1px solid hsl(var(--primary) / 0.3)',
           borderRadius: 2,

@@ -245,7 +245,7 @@ export const MergeIncidentDialog = ({
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <SearchIcon size={18} style={{ color: 'text.secondary' }} />
+                      <SearchIcon size={18} style={{ color: 'hsl(var(--muted-foreground))' }} />
                     </InputAdornment>
                   ),
                   sx: {

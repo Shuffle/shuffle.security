@@ -3510,7 +3510,7 @@ const IncidentDetailPage = () => {
                     variant="caption"
                     sx={{
                       fontSize: "0.65rem",
-                      color: "rgba(255,255,255,0.7)",
+                      color: "text.secondary",
                       pl: 2.5,
                       lineHeight: 1.3,
                     }}

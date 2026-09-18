@@ -854,7 +854,7 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
         const preset = ENDPOINT_PRESETS.find((p) => p.label === effectivePreset);
         const hasProviderDocs = !!preset && (!!preset.apiKeyUrl || !!preset.apiKeyHint);
         return (
-          <Box sx={{ px: 2.5, py: 2, borderRadius: 2, border: '1px solid hsl(var(--border))', bgcolor: 'hsl(var(--muted) / 0.3)' }}>
+          <Box sx={{ px: 2.5, py: 2, borderRadius: 2, border: '1px solid hsl(var(--border))', bgcolor: 'transparent' }}>
             <Typography sx={{ fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>
               {isShuffleAI ? (
                 <>

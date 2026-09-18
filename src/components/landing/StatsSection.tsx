@@ -14,8 +14,8 @@ export const StatsSection = () => {
       sx={{
         py: 10,
         background: 'linear-gradient(180deg, rgba(255, 102, 0, 0.04) 0%, transparent 100%)',
-        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        borderTop: '1px solid hsl(var(--border))',
+        borderBottom: '1px solid hsl(var(--border))',
       }}
     >
       <Container maxWidth="lg">

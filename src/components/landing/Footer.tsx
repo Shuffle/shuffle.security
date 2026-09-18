@@ -33,8 +33,8 @@ export const Footer = () => {
       component="footer"
       sx={{
         py: 8,
-        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-        background: 'linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.3) 100%)',
+        borderTop: '1px solid hsl(var(--border))',
+        background: 'linear-gradient(180deg, transparent 0%, hsla(var(--foreground) / 0.03) 100%)',
       }}
     >
       <Container maxWidth="lg">
@@ -58,7 +58,7 @@ export const Footer = () => {
                   variant="h6"
                   sx={{
                     fontWeight: 700,
-                    color: '#FFFFFF',
+                    color: 'text.primary',
                   }}
                 >
                   Security
@@ -138,7 +138,7 @@ export const Footer = () => {
           sx={{
             mt: 8,
             pt: 4,
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            borderTop: '1px solid hsl(var(--border))',
             display: 'flex',
             flexDirection: { xs: 'column', sm: 'row' },
             justifyContent: 'space-between',

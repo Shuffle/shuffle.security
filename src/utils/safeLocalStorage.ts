@@ -16,6 +16,7 @@ const PROTECTED_KEY_PATTERNS: RegExp[] = [
   /auth/i,
   /session-id/i,
   /^user(Info|_)/i,
+  /agent_tools/i,       // agent tools configuration and per-org caches
 ];
 
 const isQuotaError = (err: unknown): boolean => {

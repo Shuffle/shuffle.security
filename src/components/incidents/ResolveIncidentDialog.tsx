@@ -189,7 +189,7 @@ export const ResolveIncidentDialog = React.forwardRef<HTMLDivElement, ResolveInc
               bgcolor: 'hsl(var(--muted))',
               border: '1px solid hsl(var(--border))',
             }}>
-              <FilterListIcon size={18} style={{ color: 'text.secondary' }} />
+              <FilterListIcon size={18} style={{ color: 'hsl(var(--muted-foreground))' }} />
               <Typography variant="caption" color="text.secondary">
                 You can find this incident under the <strong>Resolved</strong> status filter
               </Typography>

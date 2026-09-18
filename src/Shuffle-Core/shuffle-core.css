@@ -147,7 +147,11 @@ body:not(.dark) .shuffle-core-scope:not(.dark),
   --gradient-card: linear-gradient(145deg, hsl(0 0% 14%) 0%, hsl(0 0% 12%) 100%);
 }
 
-.MuiTooltip-popper .MuiTooltip-tooltip {
+/* Scoped to Shuffle-Core's own tooltips only. The provider stamps
+ * `shuffle-core-scope` on the portaled `.MuiTooltip-tooltip`, so this styles
+ * our tooltips without leaking into host apps (e.g. shaffuru) whose tooltips
+ * carry no scope class. */
+.MuiTooltip-tooltip.shuffle-core-scope {
   background-color: hsl(var(--popover)) !important;
   color: hsl(var(--popover-foreground)) !important;
   border: 1px solid hsl(var(--border)) !important;
@@ -155,11 +159,11 @@ body:not(.dark) .shuffle-core-scope:not(.dark),
   border-radius: 8px !important;
 }
 
-.MuiTooltip-popper .MuiTooltip-arrow {
+.MuiTooltip-tooltip.shuffle-core-scope .MuiTooltip-arrow {
   color: hsl(var(--popover)) !important;
 }
 
-.MuiTooltip-popper .MuiTooltip-arrow::before {
+.MuiTooltip-tooltip.shuffle-core-scope .MuiTooltip-arrow::before {
   border: 1px solid hsl(var(--border)) !important;
   box-sizing: border-box;
 }

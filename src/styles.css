@@ -602,7 +602,10 @@
   z-index: 10030;
 }
 
-.MuiTooltip-popper .MuiTooltip-tooltip {
+/* Scoped to Shuffle-Core's own tooltips only (the provider stamps
+   `shuffle-core-scope` on the portaled tooltip). Keeps host-app tooltips
+   untouched — they carry no scope class. */
+.MuiTooltip-tooltip.shuffle-core-scope {
   background-color: hsl(var(--popover)) !important;
   color: hsl(var(--popover-foreground)) !important;
   border: 1px solid hsl(var(--border)) !important;
@@ -610,11 +613,11 @@
   border-radius: 8px !important;
 }
 
-.MuiTooltip-popper .MuiTooltip-arrow {
+.MuiTooltip-tooltip.shuffle-core-scope .MuiTooltip-arrow {
   color: hsl(var(--popover)) !important;
 }
 
-.MuiTooltip-popper .MuiTooltip-arrow::before {
+.MuiTooltip-tooltip.shuffle-core-scope .MuiTooltip-arrow::before {
   border: 1px solid hsl(var(--border)) !important;
   box-sizing: border-box;
 }

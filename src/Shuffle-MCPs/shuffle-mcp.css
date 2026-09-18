@@ -91,7 +91,11 @@ body:not(.dark) .shuffle-mcp-scope:not(.dark),
   --infra-email: 215 90% 45%;
 }
 
-.MuiTooltip-popper .MuiTooltip-tooltip {
+/* Scoped to Shuffle-MCPs' own tooltips only. The provider stamps
+ * `shuffle-mcp-scope` on the portaled `.MuiTooltip-tooltip`, so this styles
+ * our tooltips without leaking into host apps whose tooltips carry no scope
+ * class. */
+.MuiTooltip-tooltip.shuffle-mcp-scope {
   background-color: hsl(var(--popover)) !important;
   color: hsl(var(--popover-foreground)) !important;
   border: 1px solid hsl(var(--border)) !important;
@@ -99,11 +103,11 @@ body:not(.dark) .shuffle-mcp-scope:not(.dark),
   border-radius: 8px !important;
 }
 
-.MuiTooltip-popper .MuiTooltip-arrow {
+.MuiTooltip-tooltip.shuffle-mcp-scope .MuiTooltip-arrow {
   color: hsl(var(--popover)) !important;
 }
 
-.MuiTooltip-popper .MuiTooltip-arrow::before {
+.MuiTooltip-tooltip.shuffle-mcp-scope .MuiTooltip-arrow::before {
   border: 1px solid hsl(var(--border)) !important;
   box-sizing: border-box;
 }

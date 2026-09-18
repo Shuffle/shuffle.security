@@ -149,6 +149,19 @@ export const useDrawerLayer = (open: boolean, base: number = DRAWER_LAYER_BASE):
 /* Automatically ensures that NEW surfaces ALWAYS open OVER OLD surfaces.     */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * True only for overlays that belong to Shuffle-Core / Shuffle-MCPs. Their MUI
+ * surfaces/popups stamp a `.shuffle-core-scope` / `.shuffle-mcp-scope` class on
+ * their paper; Radix portals are exclusively ours. Host apps embedding the
+ * published packages (e.g. shaffuru) render their own dialogs, menus and
+ * tooltips — this global observer must never rewrite their z-index.
+ */
+const isShuffleOwnedOverlay = (el: HTMLElement): boolean =>
+  el.classList.contains('shuffle-core-scope') ||
+  el.classList.contains('shuffle-mcp-scope') ||
+  el.querySelector('.shuffle-core-scope, .shuffle-mcp-scope') !== null ||
+  el.closest('[data-radix-portal]') !== null;
+
 const isSurfaceElement = (el: Element): boolean => {
   if (!(el instanceof HTMLElement)) return false;
   return (
@@ -197,6 +210,9 @@ export const installGlobalOverlayAutoLayer = (): void => {
   store[AUTO_LAYER_KEY] = true;
 
   const handleElementOpen = (el: HTMLElement) => {
+    // Only ever manage Shuffle's own overlays — never the host app's dialogs,
+    // menus or tooltips (covers all three paths below in one place).
+    if (!isShuffleOwnedOverlay(el)) return;
     if (isSurfaceElement(el)) {
       let layerId = el.dataset.shuffleLayerId;
       if (!layerId) {

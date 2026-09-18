@@ -22,6 +22,7 @@ import {
   QueryClientProvider,
   QueryClientContext,
 } from "@tanstack/react-query";
+import { AuthFallbackProvider } from "@/context/AuthContext";
 
 import UsecasesRaw, {
   UsecaseDrawer as UsecaseDrawerRaw,
@@ -104,6 +105,7 @@ const withTheme = <P extends object>(
 ) => {
   const Wrapped: React.FC<WithTheme<P>> = ({ theme, colorMode, ...rest }) => (
     <EnsureQueryClient>
+      <AuthFallbackProvider>
       <ShuffleCoreThemeProvider mode={resolveMode(theme, colorMode)}>
         {/* Forward `theme` to the inner component too — internal scoped
          *  surfaces (e.g. Usecases, UsecaseDrawer) need it for their own
@@ -112,6 +114,7 @@ const withTheme = <P extends object>(
          *  through. Stripping it broke that chain. */}
         <Inner {...(rest as P)} theme={theme} colorMode={colorMode} />
       </ShuffleCoreThemeProvider>
+      </AuthFallbackProvider>
     </EnsureQueryClient>
   );
   Wrapped.displayName = `ShuffleCore(${displayName})`;

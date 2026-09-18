@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback, useRef } from 'react';
 import { getApiUrl, getAuthHeader, getSessionAuthHeader, setRegionUrl, resetRegionUrl, getTrackedOrgId, applyRegionFromPayload, setHostBaseUrl, getHostBaseUrl, setSessionToken as persistSessionToken, clearAuthTokens, getSessionToken, isDevEnvironment, isCloud, mapCloudRegionUrl, getDefaultBaseUrl, getRegionUrl, isCapacitorNative, isCrossDomainBackend } from '@/Shuffle-MCPs/api';
 import { setRuntimeOrgId } from '@/Shuffle-MCPs/datastore';
 import { invalidateAuthenticatedAppsCache } from '@/Shuffle-MCPs/authenticatedApps';
@@ -647,3 +647,23 @@ export const useAuth = () => {
 
 /** Non-throwing variant for components that may render outside the provider (e.g. during HMR). */
 export const useOptionalAuth = () => useContext(AuthContext);
+
+export const AuthFallbackProvider = ({ children }: { children: ReactNode }) => {
+  const existing = useContext(AuthContext);
+  const fallback = useMemo<AuthContextType>(() => {
+    let userInfo: UserInfo | null = null;
+    try {
+      const raw = typeof window !== 'undefined'
+        ? window.localStorage.getItem('shuffle_user_info') || window.localStorage.getItem('userinfo')
+        : null;
+      const parsed = raw ? JSON.parse(raw) : null;
+      userInfo = parsed && typeof parsed === 'object' ? (parsed as UserInfo) : null;
+    } catch { userInfo = null; }
+    return {
+      isAuthenticated: !!userInfo, sessionToken: null, userInfo, isLoading: false, orgMismatchWarning: false,
+      login: async () => false, logout: async () => {}, refreshUserInfo: async () => {}, setActiveOrg: async () => {}, dismissOrgMismatch: () => {},
+    };
+  }, []);
+  if (existing !== undefined) return <>{children}</>;
+  return <AuthContext.Provider value={fallback}>{children}</AuthContext.Provider>;
+};

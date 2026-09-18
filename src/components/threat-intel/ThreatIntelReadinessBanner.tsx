@@ -7,6 +7,7 @@
  * incident enrichment, and default IOC/feed catalogs).
  */
 import React, { useState } from 'react';
+import { useTheme } from '@mui/material';
 import {
   useThreatIntelAutomationStatus,
   ThreatIntelAutomationStatus,
@@ -15,8 +16,6 @@ import {
 import { AutomationReadinessCard, ReadinessItem } from '@/components/common/AutomationReadinessCard';
 import { UsecaseDrawer } from '@/Shuffle-Core';
 import { API_CONFIG } from '@/Shuffle-MCPs/api';
-import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
 
 export interface ThreatIntelReadinessBannerProps {
   status?: ThreatIntelAutomationStatus;
@@ -31,8 +30,19 @@ export const ThreatIntelReadinessBanner: React.FC<ThreatIntelReadinessBannerProp
 }) => {
   const internal = useThreatIntelAutomationStatus();
   const status = external ?? internal;
-  const { userInfo } = useAuth();
-  const { resolvedTheme } = useTheme();
+  // Self-contained theme + user resolution (no host AuthContext/ThemeContext),
+  // so this banner also renders when Usecases is consumed via the published
+  // @shuffleio/shuffle-core package (e.g. shaffuru), where those host providers
+  // don't exist. MUI theme comes from ShuffleCoreThemeProvider; user info is
+  // read from localStorage the same way CategoryAutomationsDialog does.
+  const resolvedTheme = useTheme().palette.mode;
+  let userInfo: any = undefined;
+  try {
+    const raw = localStorage.getItem('shuffle_user_info');
+    if (raw) userInfo = JSON.parse(raw);
+  } catch {
+    userInfo = undefined;
+  }
   const [internalDrawerId, setInternalDrawerId] = useState<string | null>(null);
 
   const handleOpenUsecase = (flowId: string) => {

@@ -337,6 +337,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   const [lastRunInfo, setLastRunInfo] = useState<{
     input?: string;
     executionId?: string;
+    authorization?: string;
     error?: string;
     success?: boolean;
   } | null>(null);
@@ -406,10 +407,11 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   }, [handleTabChange]);
 
   const handleAgentRun = useCallback(
-    (event: { input: string; success: boolean; executionId?: string; error?: string }) => {
+    (event: { input: string; success: boolean; executionId?: string; authorization?: string; error?: string }) => {
       setLastRunInfo({
         input: event.input,
         executionId: event.executionId,
+        authorization: event.authorization,
         error: event.error,
         success: event.success,
       });
@@ -443,6 +445,12 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
     return new URLSearchParams(s).get('execution_id');
   }, [search]);
 
+  const urlAuthorization = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const s = search ?? window.location.search;
+    return new URLSearchParams(s).get('authorization');
+  }, [search]);
+
   const hasAgentRun = Boolean(
     lastRunInfo?.executionId ||
     lastRunInfo?.input ||
@@ -454,19 +462,23 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   const handleEscalateToSupport = useCallback(() => {
     const savedChoice = effectiveStorageKey ? getPageContextChoice(effectiveStorageKey) : null;
     const execId = lastRunInfo?.executionId || activeExecutionId || urlExecutionId || savedChoice?.executionId;
+    const auth = lastRunInfo?.authorization || urlAuthorization || savedChoice?.authorization;
     const execStatus =
       lastRunInfo?.success !== undefined
         ? (lastRunInfo.success ? 'FINISHED' : 'FAILED')
         : (savedChoice?.executionStatus || (execId ? 'EXECUTING' : undefined));
     const question = lastRunInfo?.input || effectiveDefaultInput || savedChoice?.draftPrompt;
+    const currentFullUrl = typeof window !== 'undefined' ? window.location.href : undefined;
 
     openSupportEscalation({
       userdata,
+      sourceUrl: currentFullUrl,
       pathname: currentPathname,
       search: currentSearch,
       entityTitle,
       initialQuestion: question,
       executionId: execId || undefined,
+      authorization: auth || undefined,
       executionStatus: execStatus,
       error: lastRunInfo?.error,
     });
@@ -478,6 +490,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
     lastRunInfo,
     activeExecutionId,
     urlExecutionId,
+    urlAuthorization,
     effectiveDefaultInput,
     effectiveStorageKey,
   ]);

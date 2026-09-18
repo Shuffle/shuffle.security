@@ -826,7 +826,7 @@ export interface AgentUIProps {
     [k: string]: any;
   };
   /** Called whenever a run finishes (success or failure). */
-  onRun?: (info: { input: string; success: boolean; executionId?: string; error?: string }) => void;
+  onRun?: (info: { input: string; success: boolean; executionId?: string; authorization?: string; error?: string }) => void;
   /** Called whenever the chip set under the prompt changes (add/remove apps). */
   onAppsChange?: (apps: AgentUIApp[]) => void;
   /** Called whenever the active top-level view changes (start / simple / detailed). */
@@ -1165,18 +1165,18 @@ const TERMINAL_RUN_STATUSES = ['FINISHED', 'FAILURE', 'ABORTED', 'CANCELLED', 'C
 
 // The execution status and the agent status can disagree (e.g. agent says
 // RUNNING while the execution already says FINISHED). If *either* side reports
-// FINISHED, or both are blank with finished_at populated, the run is complete.
+// a terminal state, the run is complete.
 const resolveRunStatus = (execStatus?: string, agentStatus?: string): string => {
   const e = (execStatus || '').toUpperCase();
   const a = (agentStatus || '').toUpperCase();
-  if (e === 'FINISHED' || a === 'FINISHED') return 'FINISHED';
+  if (e === 'FINISHED' || a === 'FINISHED' || e === 'SUCCESS' || a === 'SUCCESS') return 'FINISHED';
   if (e === 'FAILURE' || a === 'FAILURE') return 'FAILURE';
   if (e === 'ABORTED' || a === 'ABORTED') return 'ABORTED';
   if (e === 'CANCELLED' || a === 'CANCELLED' || e === 'CANCELED' || a === 'CANCELED') return 'CANCELLED';
   if (e === 'WAITING' || a === 'WAITING') return 'WAITING';
   if (e === 'PENDING' || a === 'PENDING') return 'PENDING';
   if (e === 'RUNNING' || a === 'RUNNING' || e === 'EXECUTING' || a === 'EXECUTING') return 'RUNNING';
-  return e || a || 'FINISHED';
+  return e || a || '';
 };
 
 const buildToolName = (apps: AgentUIApp[]): string => {
@@ -3837,6 +3837,12 @@ const AgentUI: React.FC<AgentUIProps> = ({
       const params = new URLSearchParams(window.location.search);
       eid = params.get('execution_id');
       auth = params.get('authorization');
+      if (!eid && typeof window !== 'undefined') {
+        const pathMatch = window.location.pathname.match(/\/agents\/([a-zA-Z0-9_.-]+)/);
+        if (pathMatch && pathMatch[1] && pathMatch[1] !== 'index') {
+          eid = pathMatch[1];
+        }
+      }
     } else if (contextStorageKey) {
       const saved = getPageContextChoice(contextStorageKey);
       if (saved?.executionId) {
@@ -4157,7 +4163,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
         }, { replace: true });
       }
       getExecution(eid, auth);
-      onRun?.({ input: text, success: true, executionId: eid });
+      onRun?.({ input: text, success: true, executionId: eid, authorization: auth });
     } else {
       if (contextStorageKey && eid) {
         setPageContextChoice(contextStorageKey, {
@@ -4181,7 +4187,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       } else {
         setAgentData({ original_input: text, status: 'FINISHED', message: result.content });
       }
-      onRun?.({ input: text, success: true, executionId: eid });
+      onRun?.({ input: text, success: true, executionId: eid, authorization: auth });
     }
     // `selectedPreset` MUST be a dependency: without it the callback keeps a
     // stale skill (e.g. "Build Workflows") and keeps posting to

@@ -1129,7 +1129,7 @@ export const IncidentRoutingEditor = ({
 
       {isLoading && !hasFetched && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress size={20} />
+          <CircularProgress size={20} sx={{ color: 'hsl(var(--primary))' }} />
         </Box>
       )}
 
@@ -1897,15 +1897,29 @@ export const IncidentRoutingEditor = ({
               size="small"
               onClick={() => handleSave(rule)}
               disabled={!!saving[rule.id]}
+              startIcon={
+                saving[rule.id] ? (
+                  <CircularProgress
+                    size={14}
+                    thickness={4}
+                    sx={{ color: 'hsl(var(--primary-foreground))' }}
+                  />
+                ) : undefined
+              }
               sx={{
                 height: 36,
                 bgcolor: 'hsl(var(--primary))',
                 color: 'hsl(var(--primary-foreground))',
                 textTransform: 'none',
+                fontWeight: 500,
                 '&:hover': { bgcolor: 'hsl(var(--primary) / 0.9)' },
+                '&.Mui-disabled': {
+                  bgcolor: 'hsl(var(--primary) / 0.7)',
+                  color: 'hsl(var(--primary-foreground))',
+                },
               }}
             >
-              {saving[rule.id] ? <CircularProgress size={16} /> : 'Save rule'}
+              {saving[rule.id] ? 'Saving...' : 'Save rule'}
             </Button>
           </Box>
           </>
@@ -1944,15 +1958,29 @@ export const IncidentRoutingEditor = ({
             onClick={confirmDelete}
             disabled={deleting}
             variant="contained"
+            startIcon={
+              deleting ? (
+                <CircularProgress
+                  size={14}
+                  thickness={4}
+                  sx={{ color: 'hsl(var(--destructive-foreground))' }}
+                />
+              ) : undefined
+            }
             sx={{
               height: 36,
               textTransform: 'none',
               bgcolor: 'hsl(var(--destructive))',
               color: 'hsl(var(--destructive-foreground))',
+              fontWeight: 500,
               '&:hover': { bgcolor: 'hsl(var(--destructive) / 0.9)' },
+              '&.Mui-disabled': {
+                bgcolor: 'hsl(var(--destructive) / 0.7)',
+                color: 'hsl(var(--destructive-foreground))',
+              },
             }}
           >
-            {deleting ? <CircularProgress size={16} /> : 'Delete rule'}
+            {deleting ? 'Deleting...' : 'Delete rule'}
           </Button>
         </DialogActions>
       </Dialog>

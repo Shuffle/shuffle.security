@@ -192,8 +192,8 @@ export const RoutingRulePreviewBanner = ({
   }, [items]);
 
   const matches: RoutingRuleMatch[] = useMemo(
-    () => dedupeMatchesByActionTarget(evaluateRoutingRules(context, rules)),
-    [context, rules]
+    () => dedupeMatchesByActionTarget(evaluateRoutingRules(context, rules, entityCategory)),
+    [context, rules, entityCategory]
   );
 
   // Resolve org names for `suggest_move` actions.

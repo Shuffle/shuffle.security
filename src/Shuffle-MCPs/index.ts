@@ -307,3 +307,15 @@ export {
   fetchConnectedTools,
 } from '@/Shuffle-MCPs/connectedSourcesService';
 export type { ConnectedToolApp } from '@/Shuffle-MCPs/connectedSourcesService';
+
+// Support escalation
+export {
+  buildSupportEscalationUrl,
+  openSupportEscalation,
+  resolveContactUserInfo,
+} from '@/Shuffle-MCPs/supportEscalation';
+export type {
+  SupportEscalationContext,
+  ResolvedContactUserInfo,
+} from '@/Shuffle-MCPs/supportEscalation';
+

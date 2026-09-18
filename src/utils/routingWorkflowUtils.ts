@@ -196,3 +196,126 @@ export function isRoutingWorkflowActive(workflow: WorkflowSummary | null | undef
 
   return true;
 }
+
+/**
+ * Verifies whether a workflow ID is registered as an active 'Run workflow'
+ * automation in the given datastore category configuration.
+ */
+export function isWorkflowHookedToCategory(
+  workflowId: string | undefined | null,
+  categoryConfig: any,
+): boolean {
+  if (!workflowId || !categoryConfig) return false;
+  const automations = Array.isArray(categoryConfig.automations)
+    ? categoryConfig.automations
+    : Array.isArray(categoryConfig.Automations)
+      ? categoryConfig.Automations
+      : [];
+
+  return automations.some((auto: any) => {
+    const name = (auto?.name || auto?.Name || '').toLowerCase();
+    if (name !== 'run workflow') return false;
+    if (auto?.enabled === false || auto?.Enabled === false) return false;
+
+    const options = Array.isArray(auto?.options)
+      ? auto.options
+      : Array.isArray(auto?.Options)
+        ? auto.Options
+        : [];
+
+    const wfOption = options.find((opt: any) => {
+      const k = (opt?.key || opt?.Key || '').toLowerCase();
+      return k === 'workflow_id';
+    });
+
+    if (!wfOption) return false;
+    const val = String(wfOption.value || wfOption.Value || '');
+    return val.split(',').some((id) => id.trim() === workflowId);
+  });
+}
+
+export type RoutingWorkflowHealthStatus =
+  | 'checking'
+  | 'not_automated'
+  | 'hook_missing'
+  | 'execution_error'
+  | 'automated';
+
+export interface RoutingWorkflowExecutionSummary {
+  id: string;
+  status: string; // e.g., 'finished', 'failed', 'aborted', 'running'
+  started_at?: number | string;
+  completed_at?: number | string;
+  error?: string;
+}
+
+export interface RoutingWorkflowHealth {
+  status: RoutingWorkflowHealthStatus;
+  label: string;
+  message: string;
+  isHooked: boolean;
+  lastExecution?: RoutingWorkflowExecutionSummary | null;
+}
+
+/**
+ * Computes end-to-end health of routing automation for an entity category.
+ */
+export function evaluateRoutingWorkflowHealth(params: {
+  workflow: WorkflowSummary | null | undefined;
+  categoryConfig: any;
+  lastExecution?: RoutingWorkflowExecutionSummary | null;
+  loading?: boolean;
+}): RoutingWorkflowHealth {
+  const { workflow, categoryConfig, lastExecution, loading } = params;
+
+  if (loading) {
+    return {
+      status: 'checking',
+      label: 'Checking status...',
+      message: 'Checking workflow and datastore automation status.',
+      isHooked: false,
+      lastExecution: null,
+    };
+  }
+
+  if (!workflow) {
+    return {
+      status: 'not_automated',
+      label: 'Not automated',
+      message: 'No backing workflow found. Routing rules are evaluated on demand or require manual workflow creation.',
+      isHooked: false,
+      lastExecution: null,
+    };
+  }
+
+  const isHooked = isWorkflowHookedToCategory(workflow.id, categoryConfig);
+
+  if (!isHooked) {
+    return {
+      status: 'hook_missing',
+      label: 'Hook detached',
+      message: 'Workflow exists, but the datastore category automation hook is missing or disabled. Edits to this category will not trigger rules in realtime.',
+      isHooked: false,
+      lastExecution,
+    };
+  }
+
+  const execStatus = (lastExecution?.status || '').toLowerCase();
+  if (execStatus === 'failed' || execStatus === 'aborted') {
+    return {
+      status: 'execution_error',
+      label: 'Run error',
+      message: `The most recent workflow execution (${lastExecution?.id || 'unknown'}) failed: ${lastExecution?.error || 'Execution encountered an error.'}`,
+      isHooked: true,
+      lastExecution,
+    };
+  }
+
+  return {
+    status: 'automated',
+    label: 'Automated (Realtime)',
+    message: 'Backing workflow is connected to datastore events and executing in realtime.',
+    isHooked: true,
+    lastExecution,
+  };
+}

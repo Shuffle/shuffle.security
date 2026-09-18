@@ -4632,7 +4632,11 @@ const IncidentDetailPage = () => {
   const routingMatches = useMemo(
     () =>
       dedupeMatchesByActionTarget(
-        evaluateRoutingRules(routingContext, routingRules),
+        evaluateRoutingRules(
+          routingContext,
+          routingRules,
+          'shuffle-security_incidents',
+        ),
       ),
     [routingContext, routingRules],
   );

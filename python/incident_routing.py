@@ -494,7 +494,7 @@ def _find_first_leaf(n: dict) -> Optional[dict]:
 
 # ── top-level evaluator ────────────────────────────────────────────────────
 
-def evaluate_routing_rules(ctx: dict, rules: Iterable[dict]) -> list[dict]:
+def evaluate_routing_rules(ctx: dict, rules: Iterable[dict], target_category: Optional[str] = None) -> list[dict]:
     """Evaluate a list of rules against an incident context. Mirrors
     `evaluateRoutingRules` in routingRuleEvaluator.ts.
 
@@ -505,6 +505,14 @@ def evaluate_routing_rules(ctx: dict, rules: Iterable[dict]) -> list[dict]:
     for rule in rules:
         if not rule.get("enabled"):
             continue
+
+        if target_category:
+            rule_cat = rule.get("entityCategory")
+            if target_category == "shuffle-security_incidents":
+                if rule_cat and rule_cat != target_category:
+                    continue
+            elif rule_cat != target_category:
+                continue
 
         tree = rule.get("conditionTree")
         if _is_group(tree) and (tree.get("children") or []):
@@ -698,6 +706,20 @@ def _run_tests() -> None:
     ]}
     check("tree_depth counts nested groups", tree_depth(deep) == 3)
     check("MAX_GROUP_DEPTH parity with TS", MAX_GROUP_DEPTH == 5)
+
+    # ─ category filtering parity test
+    cat_rules = [
+        {"id": "r_inc", "name": "Inc Rule", "enabled": True, "priority": 10, "entityCategory": "shuffle-security_incidents", "conditions": [{"field": "title", "op": "contains", "value": "test"}]},
+        {"id": "r_vuln", "name": "Vuln Rule", "enabled": True, "priority": 10, "entityCategory": "shuffle-security_vulns", "conditions": [{"field": "cve", "op": "contains", "value": "CVE-2024"}]},
+        {"id": "r_legacy", "name": "Legacy Rule", "enabled": True, "priority": 20, "conditions": [{"field": "title", "op": "contains", "value": "test"}]},
+    ]
+    inc_matches = evaluate_routing_rules({"title": "test alert"}, cat_rules, "shuffle-security_incidents")
+    inc_ids = [m["rule"]["id"] for m in inc_matches]
+    check("category filtering: incidents gets inc + legacy rules", inc_ids == ["r_inc", "r_legacy"])
+
+    vuln_matches = evaluate_routing_rules({"cve": "CVE-2024-1234"}, cat_rules, "shuffle-security_vulns")
+    vuln_ids = [m["rule"]["id"] for m in vuln_matches]
+    check("category filtering: vulns only gets vuln rule", vuln_ids == ["r_vuln"])
 
     print()
     if failures:

@@ -285,11 +285,21 @@ const buildGroups = (rule: RoutingRule): RoutingCondition[][] => {
 
 export const evaluateRoutingRules = (
   ctx: IncidentEvaluationContext,
-  rules: RoutingRule[]
+  rules: RoutingRule[],
+  targetCategory?: string,
 ): RoutingRuleMatch[] => {
   const out: RoutingRuleMatch[] = [];
   for (const rule of rules) {
     if (!rule.enabled) continue;
+
+    if (targetCategory) {
+      const ruleCat = rule.entityCategory;
+      if (targetCategory === 'shuffle-security_incidents') {
+        if (ruleCat && ruleCat !== targetCategory) continue;
+      } else if (ruleCat !== targetCategory) {
+        continue;
+      }
+    }
 
     // Prefer tree model when the rule carries one (arbitrary AND/OR
     // nesting up to the UI's depth cap). Fall back to the legacy flat

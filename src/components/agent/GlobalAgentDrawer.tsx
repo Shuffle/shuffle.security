@@ -60,7 +60,7 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
   const navigate = useNavigate();
   const scheduleAgentRun = useScheduleAgentRun();
   const isSupport = useIsSupport();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, userInfo } = useAuth();
   // Pass the already-resolved theme ('light' | 'dark') rather than 'system'.
   // The MCP library's 'auto' mode re-detects via DOM ancestors and can pick
   // up an unrelated scope, which made the Choose LLM drawer render light.
@@ -190,6 +190,7 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
       }}
       isSupport={isSupport}
       isLoggedIn={isAuthenticated}
+      userdata={userInfo}
       defaultInput={defaultInput}
       requireSupport={true}
       initialTab={initialTab}

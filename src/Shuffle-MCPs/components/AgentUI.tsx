@@ -47,7 +47,7 @@ import {
   Search as SearchIcon,
   Image as ImageIcon,
   Plus as PlusIcon,
-  
+  Loader2 as Loader2Icon,
 } from 'lucide-react';
 import { fetchExecution as fetchExecutionSnapshot } from '@/Shuffle-Core/components/WorkflowRunExplorer';
 import { useNavigate, useSearchParams } from '@/lib/router-compat';
@@ -538,7 +538,11 @@ const RunFinishedSummary: React.FC<RunFinishedSummaryProps> = ({
     <>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         {isRunning ? (
-          <CircularProgress size={16} sx={{ color: 'hsl(var(--primary))' }} />
+          <Loader2Icon
+            size={16}
+            className="animate-spin"
+            style={{ color: 'hsl(var(--primary))', flexShrink: 0 }}
+          />
         ) : status === 'FINISHED' ? (
           <CheckCircleIcon size={18} color={'hsl(142 70% 45%)'} />
         ) : (
@@ -5472,7 +5476,23 @@ const AgentUI: React.FC<AgentUIProps> = ({
         options={[
           { value: 'start', label: 'Start', disabled: disableStartTab, title: disableStartTab ? 'Open a new agent run from the /agents page to start a new prompt' : undefined },
           { value: 'simple', label: 'Simple', disabled: !hasExecution },
-          { value: 'detailed', label: 'Detailed', disabled: !hasExecution },
+          {
+            value: 'detailed',
+            label: runIsActive ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                Detailed
+                <Loader2Icon
+                  size={12}
+                  className="animate-spin"
+                  style={{ color: 'hsl(var(--primary))' }}
+                />
+              </span>
+            ) : (
+              'Detailed'
+            ),
+            disabled: !hasExecution,
+            title: runIsActive ? 'Current agent run is in progress — view live detailed timeline' : undefined,
+          },
           { type: 'divider', key: 'div' },
           {
             type: 'action',
@@ -5500,35 +5520,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
               }
             },
           },
-          // The live run indicator is rendered via the `trailing` slot below so
-          // it can use a proper MUI Tooltip while still lining up inside the
-          // pill with the other items.
+          // The live run indicator is rendered in the Detailed tab label above.
         ]}
-        trailing={
-          runIsActive && activeTab === 'start' ? (
-            <>
-              <span
-                aria-hidden
-                style={{
-                  width: 1,
-                  height: 18,
-                  margin: '0 10px',
-                  background: 'hsl(var(--border))',
-                  alignSelf: 'center',
-                }}
-              />
-              <Tooltip title="Current agent run is still in progress" arrow>
-                <span style={{ display: 'inline-flex', alignItems: 'center', paddingRight: 6 }}>
-                  <CircularProgress
-                    size={14}
-                    thickness={5}
-                    sx={{ color: 'hsl(var(--muted-foreground))', display: 'block' }}
-                  />
-                </span>
-              </Tooltip>
-            </>
-          ) : undefined
-        }
       />
     </Box>
   );
@@ -7929,9 +7922,16 @@ const AgentUI: React.FC<AgentUIProps> = ({
                           );
                         })()
                       ) : !finishAnswer && isRunning ? (
-                        <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))' }}>
-                          Agent is running…
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
+                          <Loader2Icon
+                            size={14}
+                            className="animate-spin"
+                            style={{ color: 'hsl(var(--muted-foreground))', flexShrink: 0 }}
+                          />
+                          <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))' }}>
+                            Agent is running…
+                          </Typography>
+                        </Box>
                       ) : !finishAnswer ? (
                         <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))' }}>
                           No final answer returned.

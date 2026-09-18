@@ -5374,15 +5374,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     });
   }, [finishedRunInput, chosenApps]);
 
-  // Same signal the starter view shows ("X is not authenticated"), reused in
-  // the post-run block so both views agree on what is actually missing.
-  const postRunUnauthedApps = useMemo(() => {
-    if (authAppsLoading) return [] as typeof chosenApps;
-    return chosenApps.filter((a) => {
-      const slug = normalizeAgentAppName(a.name || '');
-      return appRequiresAuthentication(slug) && !isAppAuthenticated(a.name || '', a.id || null);
-    });
-  }, [authAppsLoading, chosenApps, isAppAuthenticated]);
+
 
 
 
@@ -5933,7 +5925,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // missing app/category requirements we show before a run, so the finished
   // state can help set it up. Used by both the compact and detailed views.
   // Hidden except for support users to guide towards things working better over time.
-  const postRunDiscovery = isEffectiveSupport && ((Boolean(postRunScheduleHint) && !scheduleDisabledReason) || postRunAppReqs.length > 0 || postRunUnauthedApps.length > 0) ? (
+  const postRunDiscovery = isEffectiveSupport && ((Boolean(postRunScheduleHint) && !scheduleDisabledReason) || postRunAppReqs.length > 0) ? (
     <Box
       sx={{
         display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1,
@@ -5998,27 +5990,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
           </Box>
         </Tooltip>
       )}
-      {postRunUnauthedApps.map((a) => (
-        <Tooltip key={`post-auth-${a.id || a.name}`} title={`${(a.name || '').replace(/_/g, ' ')} is not authenticated yet — click to set it up`} arrow>
-          <Box
-            role="button"
-            onClick={() => setAuthDrawerApp({ name: a.name, id: a.id || null })}
-            sx={{
-              display: 'inline-flex', alignItems: 'center', gap: 0.5,
-              px: 1, py: 0.25, borderRadius: 999,
-              border: '1px solid hsl(var(--severity-medium) / 0.55)',
-              bgcolor: 'hsl(var(--severity-medium) / 0.12)',
-              color: 'hsl(var(--foreground))',
-              fontSize: '0.8rem', textTransform: 'capitalize',
-              cursor: 'pointer',
-              '&:hover': { bgcolor: 'hsl(var(--severity-medium) / 0.2)' },
-            }}
-          >
-            <WarningIcon size={13} color={'hsl(var(--severity-medium))'} />
-            {`Authenticate ${(a.name || '').replace(/_/g, ' ')}`}
-          </Box>
-        </Tooltip>
-      ))}
       {postRunAppReqs.map((req) => (
         <Tooltip
           key={`post-${req.kind}-${req.value}`}
@@ -7523,10 +7494,11 @@ const AgentUI: React.FC<AgentUIProps> = ({
                 </Typography>
                 <Typography sx={{ fontSize: '0.7rem', color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.25 }}>
                   <span>Status: {execution?.status || agentData?.status || '—'} · {execution?.execution_id?.slice(0, 8) || ''}</span>
-                  {pendingAuthApps.length > 0 && (
+                  {pendingAuthApps.map((a) => (
                     <Box
+                      key={a.appName}
                       component="span"
-                      onClick={() => setAuthDrawerApp({ name: pendingAuthApps[0].appName, id: pendingAuthApps[0].appId })}
+                      onClick={() => setAuthDrawerApp({ name: a.appName, id: a.appId })}
                       sx={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -7544,9 +7516,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
                         '&:hover': { bgcolor: 'hsl(var(--destructive) / 0.2)' },
                       }}
                     >
-                      Missing Auth: {pendingAuthApps.map((a) => formatAppDisplayName(a.appName)).join(', ')} — Connect
+                      Missing Auth: {formatAppDisplayName(a.appName)} — Connect
                     </Box>
-                  )}
+                  ))}
                 </Typography>
               </Box>
               <AgentAttachmentsButton attachments={llmImageAttachments} />
@@ -7762,63 +7734,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
               }}
             />
 
-            {/* Prominent Missing Authentication Alert Banner */}
-            {pendingAuthApps.length > 0 && (
-              <Box
-                sx={{
-                  mb: 2,
-                  p: 2,
-                  borderRadius: 2,
-                  border: '1px solid hsla(var(--severity-medium) / 0.35)',
-                  bgcolor: 'hsla(var(--severity-medium) / 0.08)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 2,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 260 }}>
-                  <LockIcon size={22} color={'hsl(var(--severity-medium))'} />
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
-                      {pendingAuthApps.length === 1
-                        ? `${formatAppDisplayName(pendingAuthApps[0].appName)} requires authentication`
-                        : `${pendingAuthApps.map((a) => formatAppDisplayName(a.appName)).join(', ')} require authentication`}
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.78rem', color: 'hsl(var(--muted-foreground))' }}>
-                      {pendingAuthApps.length === 1
-                        ? `The agent cannot complete steps using ${formatAppDisplayName(pendingAuthApps[0].appName)} and may remain pending until connected.`
-                        : `The agent cannot complete steps using these tools and may remain pending until connected.`}
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {pendingAuthApps.map(({ appName, appId }) => (
-                    <Button
-                      key={appName}
-                      variant="outlined"
-                      size="small"
-                      onClick={() => setAuthDrawerApp({ name: appName, id: appId })}
-                      sx={{
-                        borderColor: 'hsla(var(--severity-medium) / 0.6)',
-                        color: 'hsl(var(--foreground))',
-                        textTransform: 'none',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        height: 32,
-                        '&:hover': {
-                          bgcolor: 'hsla(var(--severity-medium) / 0.15)',
-                          borderColor: 'hsl(var(--severity-medium))',
-                        },
-                      }}
-                    >
-                      Authenticate {formatAppDisplayName(appName)}
-                    </Button>
-                  ))}
-                </Box>
-              </Box>
-            )}
 
             {/* Simple summary view */}
             {viewMode === 'simple' && (

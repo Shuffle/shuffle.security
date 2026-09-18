@@ -509,94 +509,126 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
       const probeBase =
         targetHost || (typeof window !== 'undefined' ? window.location.origin : '');
-      const checkUrl = `${probeBase}/api/v1/checkusers`;
-
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 6000);
 
       try {
-        const res = await fetch(checkUrl, {
-          method: 'GET',
-          headers: { Accept: 'application/json' },
-          signal: controller.signal,
-        });
+        // 1. Initial test request must be /api/v1/getinfo. A connection means success.
+        const getInfoUrl = `${probeBase}/api/v1/getinfo`;
+        const infoController = new AbortController();
+        const infoTimeoutId = window.setTimeout(() => infoController.abort(), 6000);
 
-        if (res.status === 404) {
-          // If checkusers endpoint does not exist on this backend, fallback to getinfo ping
-          const infoRes = await fetch(`${probeBase}/api/v1/getinfo`, {
+        try {
+          const infoRes = await fetch(getInfoUrl, {
             method: 'GET',
             headers: { Accept: 'application/json' },
-            signal: controller.signal,
-          }).catch(() => null);
+            signal: infoController.signal,
+          });
 
-          if (infoRes && (infoRes.ok || infoRes.status === 401 || infoRes.status === 403)) {
-            setIsWaitingForBackend(false);
-            setWaitingErrorMessage('');
-            setHostPingStatus('success');
-            setHostPingMessage('Connected to Shuffle server successfully!');
-            return;
-          }
-        }
-
-        const data = await res.json().catch(() => ({}));
-
-        if (data.sso_url && typeof data.sso_url === 'string') {
-          setInstanceSsoUrl(data.sso_url);
-        }
-
-        // Database not ready / connection refused by backend
-        if (data.success === false) {
-          const reason = (data.reason || '').toLowerCase();
-          if (
-            reason.includes('connection refused') ||
-            reason.includes('database') ||
-            reason.includes('waiting') ||
-            reason.includes('error in userdata')
-          ) {
-            setIsWaitingForBackend(true);
-            setWaitingErrorMessage(data.reason || 'Backend database initializing');
-            setHostPingStatus('error');
-            setHostPingMessage(data.reason || 'Waiting for database to become available...');
-            return;
-          }
-        }
-
-        // Backend is reachable and responsive!
-        setIsWaitingForBackend(false);
-        setWaitingErrorMessage('');
-
-        if (data.reason === 'stay') {
-          // 0 users exist! Self-hosted administrator setup required!
-          setAuthMode('adminsetup');
-          setHostPingStatus('needs-admin');
-          setHostPingMessage('Connected to server. No users configured — administrator setup required.');
-        } else if (data.reason === 'redirect' || data.success === true) {
-          // Administrator/users already configured
-          if (authMode === 'adminsetup') {
-            setAuthMode('login');
-            setNotice('Administrator account is already configured. Please sign in.');
-          }
-          setHostPingStatus('success');
-          setHostPingMessage('Connected to Shuffle server successfully!');
-        }
-      } catch (err: any) {
-        const isAbort = err instanceof DOMException && err.name === 'AbortError';
-        const msg = isAbort
-          ? 'Connection timed out while contacting server'
-          : err?.message || 'Connection refused or server unreachable';
-
-        // Only lock into waiting/retry state if we are explicitly in adminsetup mode
-        if (isExplicitAdminSetup) {
-          setIsWaitingForBackend(true);
-          setWaitingErrorMessage(msg);
-        } else {
+          // Connection established successfully
           setIsWaitingForBackend(false);
           setWaitingErrorMessage('');
+          setHostPingStatus('success');
+          setHostPingMessage('Connected to Shuffle server successfully!');
+
+          const infoData = await infoRes.json().catch(() => ({}));
+          if (infoData?.sso_url && typeof infoData.sso_url === 'string') {
+            setInstanceSsoUrl(infoData.sso_url);
+          }
+
+          // Check if backend reports database not ready / initializing
+          if (infoData?.success === false) {
+            const reason = (infoData.reason || '').toLowerCase();
+            if (
+              reason.includes('connection refused') ||
+              reason.includes('database') ||
+              reason.includes('waiting') ||
+              reason.includes('error in userdata')
+            ) {
+              setIsWaitingForBackend(true);
+              setWaitingErrorMessage(infoData.reason || 'Backend database initializing');
+              setHostPingStatus('error');
+              setHostPingMessage(infoData.reason || 'Waiting for database to become available...');
+              return;
+            }
+          }
+        } catch (err: any) {
+          const isAbort = err instanceof DOMException && err.name === 'AbortError';
+          const msg = isAbort
+            ? 'Connection timed out while contacting server'
+            : err?.message || 'Connection refused or server unreachable';
+
+          // Only lock into waiting/retry state if we are explicitly in adminsetup mode
+          if (isExplicitAdminSetup) {
+            setIsWaitingForBackend(true);
+            setWaitingErrorMessage(msg);
+          } else {
+            setIsWaitingForBackend(false);
+            setWaitingErrorMessage('');
+          }
+          setHostPingStatus('error');
+          setHostPingMessage(msg);
+          return;
+        } finally {
+          window.clearTimeout(infoTimeoutId);
         }
-        setHostPingStatus('error');
-        setHostPingMessage(msg);
+
+        // 2. AFTER getinfo connection succeeds, run checkusers to discover user state / admin setup
+        const checkController = new AbortController();
+        const checkTimeoutId = window.setTimeout(() => checkController.abort(), 6000);
+
+        try {
+          const checkUrl = `${probeBase}/api/v1/checkusers`;
+          const res = await fetch(checkUrl, {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            signal: checkController.signal,
+          });
+
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+
+            if (data?.sso_url && typeof data.sso_url === 'string') {
+              setInstanceSsoUrl(data.sso_url);
+            }
+
+            // Database not ready / connection refused by backend
+            if (data?.success === false) {
+              const reason = (data.reason || '').toLowerCase();
+              if (
+                reason.includes('connection refused') ||
+                reason.includes('database') ||
+                reason.includes('waiting') ||
+                reason.includes('error in userdata')
+              ) {
+                setIsWaitingForBackend(true);
+                setWaitingErrorMessage(data.reason || 'Backend database initializing');
+                setHostPingStatus('error');
+                setHostPingMessage(data.reason || 'Waiting for database to become available...');
+                return;
+              }
+            }
+
+            if (data?.reason === 'stay') {
+              // 0 users exist! Self-hosted administrator setup required
+              setAuthMode('adminsetup');
+              setHostPingStatus('needs-admin');
+              setHostPingMessage('Connected to server. No users configured — administrator setup required.');
+            } else if (data?.reason === 'redirect' || data?.success === true) {
+              // Administrator/users already configured
+              if (authMode === 'adminsetup') {
+                setAuthMode('login');
+                setNotice('Administrator account is already configured. Please sign in.');
+              }
+              setHostPingStatus('success');
+              setHostPingMessage('Connected to Shuffle server successfully!');
+            }
+          }
+        } catch (checkErr) {
+          // Checkusers error does not fail the test since getinfo connection was already successful
+          console.warn('checkusers check failed after getinfo connection:', checkErr);
+        } finally {
+          window.clearTimeout(checkTimeoutId);
+        }
       } finally {
-        window.clearTimeout(timeoutId);
         if (showLoadingIndicator) {
           setIsPingingHost(false);
         }

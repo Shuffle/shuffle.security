@@ -64,7 +64,6 @@ import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { getDatastoreByCategory } from '@/Shuffle-MCPs/datastore';
 import {
   findRoutingWorkflow,
-  isRoutingWorkflowActive,
   getExpectedRoutingWorkflowLabel,
   evaluateRoutingWorkflowHealth,
   type RoutingWorkflowHealth,
@@ -356,11 +355,6 @@ export const IncidentRoutingEditor = ({
     [workflows, entityLabel, entityCategory],
   );
 
-  const isWorkflowActive = useMemo(
-    () => isRoutingWorkflowActive(matchedWorkflow),
-    [matchedWorkflow],
-  );
-
   const [categoryConfig, setCategoryConfig] = useState<any>(null);
   const [lastExecution, setLastExecution] = useState<RoutingWorkflowExecutionSummary | null>(null);
   const [isLoadingHealth, setIsLoadingHealth] = useState(false);
@@ -418,8 +412,9 @@ export const IncidentRoutingEditor = ({
       categoryConfig,
       lastExecution,
       loading: workflowsLoading || isLoadingHealth,
+      entityLabel,
     });
-  }, [matchedWorkflow, categoryConfig, lastExecution, workflowsLoading, isLoadingHealth]);
+  }, [matchedWorkflow, categoryConfig, lastExecution, workflowsLoading, isLoadingHealth, entityLabel]);
 
   const handleLinkHook = async () => {
     if (!matchedWorkflow?.id || !currentOrgId) return;
@@ -486,13 +481,61 @@ export const IncidentRoutingEditor = ({
         throw new Error(`Failed to update category automation (${res.status})`);
       }
 
-      toast.success('Datastore automation hook linked');
+      toast.success(`Added "${matchedWorkflow.name}" to Automation for ${entityPluralCap}`);
+      window.dispatchEvent(
+        new CustomEvent('shuffle-category-automations-updated', {
+          detail: { category: entityCategory },
+        }),
+      );
       await fetchWorkflowHealth();
     } catch (err: any) {
       console.error('Failed to link category automation hook:', err);
-      toast.error(err?.message || 'Failed to link category hook');
+      toast.error(err?.message || 'Failed to add workflow to category automations');
     } finally {
       setIsHookingWorkflow(false);
+    }
+  };
+
+  const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
+  const handleGenerateWorkflow = async () => {
+    setIsGeneratingWorkflow(true);
+    const targetLabel = getExpectedRoutingWorkflowLabel(entityLabel, entityCategory);
+    const effectiveCategory =
+      entityCategory === 'shuffle-security_incidents' ? 'cases' : entityCategory;
+    try {
+      const res = await fetch(getApiUrl('/api/v2/workflows/generate'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...getAuthHeader(currentOrgId), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: targetLabel,
+          category: effectiveCategory,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.reason || `Failed to create workflow (${res.status})`);
+      }
+      invalidateWorkflowsCache();
+      toast.success(`Workflow "${targetLabel}" created`);
+      window.dispatchEvent(
+        new CustomEvent('shuffle-workflow-toggled', {
+          detail: { label: targetLabel, enabled: true },
+        }),
+      );
+      window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
+      window.dispatchEvent(
+        new CustomEvent('shuffle-category-automations-updated', {
+          detail: { category: entityCategory },
+        }),
+      );
+      await refetchWorkflows();
+      await fetchWorkflowHealth();
+    } catch (err: any) {
+      console.error('Failed to create routing workflow:', err);
+      toast.error(err?.message || 'Failed to create routing workflow');
+    } finally {
+      setIsGeneratingWorkflow(false);
     }
   };
 
@@ -558,42 +601,6 @@ export const IncidentRoutingEditor = ({
     }
   }, [customRecordJson]);
 
-  const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
-
-  const handleGenerateWorkflow = async () => {
-    setIsGeneratingWorkflow(true);
-    const targetLabel = getExpectedRoutingWorkflowLabel(entityLabel, entityCategory);
-    try {
-      const res = await fetch(getApiUrl('/api/v2/workflows/generate'), {
-        method: 'POST',
-        credentials: 'include',
-        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          label: targetLabel,
-          category: effectiveGenerateCategory,
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || data?.success === false) {
-        throw new Error(data?.reason || `Failed to create workflow (${res.status})`);
-      }
-      invalidateWorkflowsCache();
-      toast.success(`Workflow "${targetLabel}" created`);
-      window.dispatchEvent(
-        new CustomEvent('shuffle-workflow-toggled', {
-          detail: { label: targetLabel, enabled: true },
-        }),
-      );
-      window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
-      await refetchWorkflows();
-      await fetchWorkflowHealth();
-    } catch (err: any) {
-      console.error('Failed to create routing workflow:', err);
-      toast.error(err?.message || 'Failed to create routing workflow');
-    } finally {
-      setIsGeneratingWorkflow(false);
-    }
-  };
 
   // Local draft state — only saved on explicit "Save" per rule.
   const [drafts, setDrafts] = useState<Record<string, RoutingRule>>({});
@@ -994,7 +1001,7 @@ export const IncidentRoutingEditor = ({
             }}
           >
             {workflowHealth.status === 'checking' ? (
-              'Checking workflow automation and datastore hook...'
+              'Checking workflow automation and category settings...'
             ) : workflowHealth.status === 'automated' && matchedWorkflow ? (
               <>
                 Rules evaluated in realtime by{' '}
@@ -1005,7 +1012,7 @@ export const IncidentRoutingEditor = ({
               </>
             ) : workflowHealth.status === 'hook_missing' && matchedWorkflow ? (
               <>
-                Workflow exists ({matchedWorkflow.name}), but datastore hook is detached. Edits will not trigger rules.
+                Workflow exists ({matchedWorkflow.name}), but is not in "Automation for {entityPluralCap}" category settings. Edits will not trigger rules.
               </>
             ) : workflowHealth.status === 'execution_error' && matchedWorkflow ? (
               <>
@@ -1056,7 +1063,29 @@ export const IncidentRoutingEditor = ({
                 },
               }}
             >
-              {isHookingWorkflow ? 'Linking…' : 'Link hook'}
+              {isHookingWorkflow ? 'Adding…' : 'Add to category automations'}
+            </Button>
+          )}
+
+          {workflowHealth.status === 'not_automated' && (
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={isGeneratingWorkflow}
+              onClick={handleGenerateWorkflow}
+              sx={{
+                height: 28,
+                fontSize: '0.75rem',
+                textTransform: 'none',
+                borderColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))',
+                '&:hover': {
+                  borderColor: 'hsl(var(--primary))',
+                  color: 'hsl(var(--primary))',
+                },
+              }}
+            >
+              {isGeneratingWorkflow ? 'Creating…' : 'Create workflow'}
             </Button>
           )}
 

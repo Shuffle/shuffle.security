@@ -23,14 +23,8 @@ import { X as CloseIcon, GitBranch as CallSplitIcon, ChevronDown as ExpandMoreIc
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Button, IconButton, Stack, Tooltip, Chip } from '@mui/material';
 import { useDatastore } from '@/hooks/useDatastore';
-import { useWorkflows } from '@/hooks/useWorkflows';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
-import {
-  findRoutingWorkflow,
-  isRoutingWorkflowActive,
-  getExpectedRoutingWorkflowLabel,
-} from '@/utils/routingWorkflowUtils';
+import { useRoutingWorkflowStatus } from '@/hooks/useRoutingWorkflowStatus';
+
 import {
   ROUTING_DATASTORE_CATEGORY,
   type RoutingRule,
@@ -91,68 +85,22 @@ export const RoutingRulePreviewBanner = ({
   const currentOrgId = userInfo?.active_org?.id;
   const { subOrgs, parentOrg } = useSubOrgs(currentOrgId);
 
-  const { data: workflows = [], isLoading: workflowsLoading, refetch: refetchWorkflows } = useWorkflows();
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleUpdate = () => {
-      refetchWorkflows();
-    };
-    window.addEventListener('shuffle-workflows-updated', handleUpdate);
-    window.addEventListener('shuffle-workflow-toggled', handleUpdate);
-    return () => {
-      window.removeEventListener('shuffle-workflows-updated', handleUpdate);
-      window.removeEventListener('shuffle-workflow-toggled', handleUpdate);
-    };
-  }, [refetchWorkflows]);
-
-  const matchedWorkflow = useMemo(
-    () => findRoutingWorkflow(workflows, entityLabel, entityCategory),
-    [workflows, entityLabel, entityCategory],
-  );
-
-  const isWorkflowActive = useMemo(
-    () => isRoutingWorkflowActive(matchedWorkflow),
-    [matchedWorkflow],
-  );
-
-  const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
-
-  const handleGenerateWorkflow = async () => {
-    setIsGeneratingWorkflow(true);
-    const targetLabel = getExpectedRoutingWorkflowLabel(entityLabel, entityCategory);
-    const effectiveCategory =
-      entityCategory === 'shuffle-security_incidents' ? 'cases' : entityCategory;
-    try {
-      const res = await fetch(getApiUrl('/api/v2/workflows/generate'), {
-        method: 'POST',
-        credentials: 'include',
-        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          label: targetLabel,
-          category: effectiveCategory,
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || data?.success === false) {
-        throw new Error(data?.reason || `Failed to create workflow (${res.status})`);
-      }
-      invalidateWorkflowsCache();
-      toast.success(`Workflow "${targetLabel}" created`);
-      window.dispatchEvent(
-        new CustomEvent('shuffle-workflow-toggled', {
-          detail: { label: targetLabel, enabled: true },
-        }),
-      );
-      window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
-      await refetchWorkflows();
-    } catch (err: any) {
-      console.error('Failed to create routing workflow:', err);
-      toast.error(err?.message || 'Failed to create routing workflow');
-    } finally {
-      setIsGeneratingWorkflow(false);
-    }
-  };
+  const {
+    matchedWorkflow,
+    workflowExists,
+    isInAutomations,
+    isAutomated,
+    status: workflowStatus,
+    isLoading: isWorkflowStatusLoading,
+    isLinkingHook,
+    isGeneratingWorkflow,
+    linkHook,
+    generateWorkflow,
+  } = useRoutingWorkflowStatus({
+    entityCategory,
+    entityLabel,
+    orgId: currentOrgId,
+  });
 
   // Rules live on the PARENT org. If we're on a parent, that's `currentOrgId`.
   // If we're on a sub-org and the parent is known, fetch from there.
@@ -403,8 +351,8 @@ export const RoutingRulePreviewBanner = ({
         </Typography>
 
         {/* Workflow automation indicator */}
-        {workflowsLoading && !workflows.length ? (
-          <Tooltip title="Checking backing workflow automation status">
+        {isWorkflowStatusLoading ? (
+          <Tooltip title="Checking backing workflow and category automation status">
             <Chip
               size="small"
               label="Checking…"
@@ -419,7 +367,7 @@ export const RoutingRulePreviewBanner = ({
               }}
             />
           </Tooltip>
-        ) : isWorkflowActive && matchedWorkflow ? (
+        ) : isAutomated && matchedWorkflow ? (
           <Tooltip title={`Rules automated in background by "${matchedWorkflow.name}". Click to open workflow.`}>
             <Chip
               size="small"
@@ -441,20 +389,20 @@ export const RoutingRulePreviewBanner = ({
               }}
             />
           </Tooltip>
-        ) : matchedWorkflow ? (
-          <Tooltip title={`Workflow "${matchedWorkflow.name}" exists but is paused. Click to open workflow.`}>
+        ) : workflowExists && matchedWorkflow ? (
+          <Tooltip title={`Workflow "${matchedWorkflow.name}" exists, but is not in "Automation for ${entityLabel.plural}" category settings. Click to add.`}>
             <Chip
               size="small"
-              label="Workflow paused"
-              onClick={(e) => {
+              label={isLinkingHook ? 'Adding…' : 'Not in category automations'}
+              onClick={async (e) => {
                 e.stopPropagation();
-                window.open(`/workflows/${matchedWorkflow.id}`, '_blank');
+                if (!isLinkingHook) await linkHook();
               }}
               sx={{
                 height: 19,
                 fontSize: '0.65rem',
                 fontWeight: 600,
-                cursor: 'pointer',
+                cursor: isLinkingHook ? 'default' : 'pointer',
                 bgcolor: 'hsl(var(--severity-medium) / 0.15)',
                 color: 'hsl(var(--severity-medium))',
                 border: '1px solid hsl(var(--severity-medium) / 0.4)',
@@ -471,7 +419,7 @@ export const RoutingRulePreviewBanner = ({
               disabled={isGeneratingWorkflow}
               onClick={(e) => {
                 e.stopPropagation();
-                handleGenerateWorkflow();
+                generateWorkflow();
               }}
               sx={{
                 height: 19,

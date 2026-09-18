@@ -221,6 +221,12 @@ export default function SearchPage() {
             ) && !NOISE_KEYS.has(candidate.key.toLowerCase())
           );
         });
+        filtered.sort((a, b) => {
+          const aCount = a.amount || a.ref?.length || 0;
+          const bCount = b.amount || b.ref?.length || 0;
+          if (aCount !== bCount) return bCount - aCount;
+          return a.key.localeCompare(b.key);
+        });
         setCorrelationResults(filtered);
       } else {
         setCorrelationResults([]);

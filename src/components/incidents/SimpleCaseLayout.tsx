@@ -1119,6 +1119,7 @@ export const SimpleCaseLayout = ({
           position: "sticky",
           top: 24,
           minWidth: 0,
+          width: "100%",
         }}
       >
         {contentsActions && (

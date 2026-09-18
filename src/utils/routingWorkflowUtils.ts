@@ -176,25 +176,33 @@ export function findRoutingWorkflow(
 
 /**
  * Checks whether the workflow is actively executing routing rules.
- * A workflow is considered active if:
- * 1. It is valid (`is_valid !== false`).
- * 2. Background processing is not disabled (`background_processing !== false`).
- * 3. Triggers (if configured) are not all in a 'stopped' state.
+ * Deprecated: Routing rules are event-driven via category automations.
+ * Evaluates whether the workflow exists. Use isRoutingWorkflowConfigured instead.
  */
 export function isRoutingWorkflowActive(workflow: WorkflowSummary | null | undefined): boolean {
-  if (!workflow) return false;
-  if (workflow.is_valid === false) return false;
-  if (workflow.background_processing === false) return false;
+  return !!workflow;
+}
 
-  const triggers = workflow.triggers;
-  if (Array.isArray(triggers) && triggers.length > 0) {
-    const allStopped = triggers.every(
-      (t: any) => (t?.status || '').toLowerCase() === 'stopped',
-    );
-    if (allStopped) return false;
-  }
-
-  return true;
+/**
+ * Checks the two primary criteria for category routing rules:
+ * 1. Does the workflow exist?
+ * 2. Is it in the "Automation for X" category settings?
+ */
+export function isRoutingWorkflowConfigured(
+  workflow: WorkflowSummary | null | undefined,
+  categoryConfig: any,
+): {
+  workflowExists: boolean;
+  isInAutomations: boolean;
+  isAutomated: boolean;
+} {
+  const workflowExists = !!workflow;
+  const isInAutomations = isWorkflowHookedToCategory(workflow?.id, categoryConfig);
+  return {
+    workflowExists,
+    isInAutomations,
+    isAutomated: workflowExists && isInAutomations,
+  };
 }
 
 /**
@@ -259,42 +267,50 @@ export interface RoutingWorkflowHealth {
 
 /**
  * Computes end-to-end health of routing automation for an entity category.
+ * Strictly enforces:
+ * 1. Does the workflow exist?
+ * 2. Is it in the "Automation for X" category settings?
  */
 export function evaluateRoutingWorkflowHealth(params: {
   workflow: WorkflowSummary | null | undefined;
   categoryConfig: any;
   lastExecution?: RoutingWorkflowExecutionSummary | null;
   loading?: boolean;
+  entityLabel?: EntityLabel;
 }): RoutingWorkflowHealth {
-  const { workflow, categoryConfig, lastExecution, loading } = params;
+  const { workflow, categoryConfig, lastExecution, loading, entityLabel } = params;
+  const plural = entityLabel?.plural || 'incidents';
+  const plurCap = plural.charAt(0).toUpperCase() + plural.slice(1);
 
   if (loading) {
     return {
       status: 'checking',
-      label: 'Checking status...',
-      message: 'Checking workflow and datastore automation status.',
+      label: 'Checking…',
+      message: 'Checking workflow and category automation status.',
       isHooked: false,
       lastExecution: null,
     };
   }
 
+  // 1. Does the workflow exist?
   if (!workflow) {
     return {
       status: 'not_automated',
       label: 'Not automated',
-      message: 'No backing workflow found. Routing rules are evaluated on demand or require manual workflow creation.',
+      message: `No workflow found for ${plural}. Rules will not run until a workflow is created.`,
       isHooked: false,
       lastExecution: null,
     };
   }
 
+  // 2. Is it in the "Automation for X" category settings?
   const isHooked = isWorkflowHookedToCategory(workflow.id, categoryConfig);
 
   if (!isHooked) {
     return {
       status: 'hook_missing',
-      label: 'Hook detached',
-      message: 'Workflow exists, but the datastore category automation hook is missing or disabled. Edits to this category will not trigger rules in realtime.',
+      label: 'Not in category automations',
+      message: `Workflow exists (${workflow.name}), but is not configured in "Automation for ${plurCap}" category settings. Edits will not trigger rules.`,
       isHooked: false,
       lastExecution,
     };
@@ -313,8 +329,8 @@ export function evaluateRoutingWorkflowHealth(params: {
 
   return {
     status: 'automated',
-    label: 'Automated (Realtime)',
-    message: 'Backing workflow is connected to datastore events and executing in realtime.',
+    label: 'Automated',
+    message: `Rules evaluated in realtime by "${workflow.name}".`,
     isHooked: true,
     lastExecution,
   };

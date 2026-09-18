@@ -85,6 +85,7 @@ import { ThreatIntelReadinessBanner } from '@/components/threat-intel/ThreatInte
 import { useWorkflowHealth } from '@/hooks/useWorkflowHealth';
 import { diagnoseUsecase } from '@/services/workflowHealth';
 import { resolveSkillAllowedApps, isBuiltInSkillApp } from '@/lib/agentTools';
+import { findRoutingWorkflow, isWorkflowHookedToCategory } from '@/utils/routingWorkflowUtils';
 // ── Flow phases ────────────────────────────────────────────────────────────────
 
 export type FlowPhase = 'ingest' | 'correlation' | 'response';
@@ -6233,9 +6234,10 @@ function UsecasesPageInner() {
   // Detect whether the "Run AI Agent" automation is enabled on the
   // shuffle-security_incidents category. Powers the Agent Response usecase.
   const [aiAgentAutomationActive, setAiAgentAutomationActive] = useState(false);
+  const [incidentsCategoryConfig, setIncidentsCategoryConfig] = useState<any>(null);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const fetchIncidentsCat = async () => {
       try {
         const info = localStorage.getItem('shuffle_user_info');
         const orgId = info ? JSON.parse(info)?.active_org?.id : null;
@@ -6245,7 +6247,10 @@ function UsecasesPageInner() {
           { credentials: 'include', headers: { ...authHeader() } },
         );
         if (!data) return;
-        const automations: any[] = data?.category_config?.automations || [];
+        if (!cancelled && (data?.category_config || data?.categoryConfig)) {
+          setIncidentsCategoryConfig(data?.category_config || data?.categoryConfig);
+        }
+        const automations: any[] = data?.category_config?.automations || data?.category_config?.Automations || [];
         const active = automations.some(
           (a) => a?.enabled && (a?.type === 'ai_agent' || a?.name === 'Run AI Agent'),
         );
@@ -6253,8 +6258,21 @@ function UsecasesPageInner() {
       } catch {
         /* keep previous state */
       }
-    })();
-    return () => { cancelled = true; };
+    };
+    fetchIncidentsCat();
+
+    const handleCatUpdate = () => {
+      fetchIncidentsCat();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('shuffle-category-automations-updated', handleCatUpdate);
+    }
+    return () => {
+      cancelled = true;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('shuffle-category-automations-updated', handleCatUpdate);
+      }
+    };
   }, [apiUrl, authHeader]);
 
   useEffect(() => {
@@ -6368,10 +6386,20 @@ function UsecasesPageInner() {
         const count = (appNames as any)?.size ?? (appNames as any)?.length ?? 0;
         return count > 0;
       }
-      // Incident Routing Rules is Cases-sourced / rule-driven:
-      // driven solely by whether its workflow exists.
+      // Incident Routing Rules requires both:
+      // 1. Does the workflow exist?
+      // 2. Is it in the "Automation for Incidents" category settings?
       if (flow.id === 'case_management_incident_routing_1') {
-        return !!flow.automationLabel && enabledLabels.has(flow.automationLabel);
+        const wf = findRoutingWorkflow(
+          workflows as any,
+          { singular: 'incident', plural: 'incidents' },
+          'shuffle-security_incidents',
+        );
+        if (!wf) return false;
+        if (!incidentsCategoryConfig) {
+          return !!flow.automationLabel && enabledLabels.has(flow.automationLabel);
+        }
+        return isWorkflowHookedToCategory(wf.id, incidentsCategoryConfig);
       }
       // Schedules & Phone Notifications is Cases-sourced / schedule-driven:
       // driven solely by whether its workflow exists.

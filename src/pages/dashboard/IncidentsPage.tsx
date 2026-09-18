@@ -1036,10 +1036,7 @@ const IncidentsPage = () => {
           if (ingestWorkflow) {
             const scheduleStopped = isWorkflowScheduleStopped(ingestWorkflow);
             setIngestScheduleStopped(scheduleStopped);
-            // If schedule is stopped, treat as no enabled sources
-            if (!scheduleStopped) {
-              workflowAppNames = extractWorkflowAppNames(ingestWorkflow);
-            }
+            workflowAppNames = extractWorkflowAppNames(ingestWorkflow);
             // Only expose the workflow ID for execution when it is owned by
             // the active org. Workflows distributed from a parent tenant show
             // up in /api/v1/workflows but cannot be executed in the child
@@ -3066,33 +3063,6 @@ const IncidentsPage = () => {
           </Dialog>
         </Box>
       </Box>
-
-      {/* Warning banner when Ingest Tickets schedule is stopped */}
-      {ingestScheduleStopped && ingestWorkflowId && (
-        <Box sx={{
-          mb: 2,
-          px: 2,
-          py: 1.5,
-          borderRadius: 1.5,
-          bgcolor: 'hsla(var(--severity-medium) / 0.08)',
-          border: '1px solid hsla(var(--severity-medium) / 0.25)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1.5,
-        }}>
-          <Box sx={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            bgcolor: 'hsl(var(--severity-medium))',
-            flexShrink: 0,
-          }} />
-          <Typography sx={{ fontSize: '0.82rem', color: 'hsl(var(--foreground))', flex: 1 }}>
-            <strong>Automatic ingestion is paused</strong> — the "Ingest Tickets" workflow schedule has been stopped. Sources are shown as disabled until the schedule is re-enabled.
-          </Typography>
-        </Box>
-      )}
-
 
       {/* Floating Filter Bar - sticky */}
       <Card elevation={0} sx={{ mb: 3, position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'hsl(var(--card))', backgroundImage: 'none', border: '1px solid hsl(var(--border))', boxShadow: 'none', backdropFilter: 'none' }}>

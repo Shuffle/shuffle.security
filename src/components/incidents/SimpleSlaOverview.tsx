@@ -7,6 +7,8 @@ import {
   DEFAULT_SLA_CONFIG,
 } from "@/hooks/useSlaConfig";
 import { STATUS_SYNONYMS } from "@/config/incidentConfig";
+import { useNavigate } from "@/lib/router-compat";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 export interface SlaActivityItem {
   type?: string;
@@ -58,6 +60,8 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
   activity,
   resolution,
 }) => {
+  const navigate = useNavigate();
+  const isAdmin = useIsAdmin();
   const slaConfig = useSlaConfig();
   const [now, setNow] = useState<number>(Date.now());
 
@@ -288,34 +292,97 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
   };
 
   const policyTooltip = `${sevMeta} SLA targets: Respond within ${formatSlaDuration(respondTargetMinutes)}, Resolve within ${formatSlaDuration(resolveTargetMinutes)}.`;
+  const headerTooltip = isAdmin
+    ? `${policyTooltip} Click to configure in Admin Preferences.`
+    : policyTooltip;
+
+  const handleNavigatePreferences = (
+    e: React.MouseEvent | React.KeyboardEvent,
+  ) => {
+    if (!isAdmin) return;
+    e.stopPropagation();
+    navigate("/admin/preferences");
+  };
 
   return (
-    <Box sx={{ mt: 3 }} data-tour="incident-sla-overview">
-      <Tooltip title={policyTooltip} placement="top">
+    <Box sx={{ mt: 3, width: "100%" }} data-tour="incident-sla-overview">
+      <Tooltip title={headerTooltip} placement="top">
         <Box
+          onClick={isAdmin ? handleNavigatePreferences : undefined}
+          onKeyDown={
+            isAdmin
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    handleNavigatePreferences(e);
+                  }
+                }
+              : undefined
+          }
+          role={isAdmin ? "button" : undefined}
+          tabIndex={isAdmin ? 0 : undefined}
+          aria-label={
+            isAdmin ? "Configure SLA targets in Admin Preferences" : undefined
+          }
           sx={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            width: "100%",
             mb: 0.75,
-            cursor: "default",
+            cursor: isAdmin ? "pointer" : "default",
+            userSelect: "none",
+            borderRadius: 0.75,
+            py: 0.25,
+            px: 0.25,
+            mx: -0.25,
+            transition: "background-color 0.15s ease",
+            "&:hover": isAdmin
+              ? {
+                  bgcolor: "hsl(var(--muted) / 0.35)",
+                  "& .sla-header-title, & .sla-header-sev": {
+                    color: "hsl(var(--foreground))",
+                  },
+                }
+              : undefined,
+            "&:focus-visible": isAdmin
+              ? {
+                  outline: "2px solid hsl(var(--primary))",
+                  outlineOffset: 1,
+                }
+              : undefined,
           }}
         >
           <Typography
+            className="sla-header-title"
             sx={{
               fontSize: "0.68rem",
               fontWeight: 700,
               color: "hsl(var(--muted-foreground))",
               textTransform: "uppercase",
               letterSpacing: "0.04em",
+              transition: "color 0.15s ease",
+              "&:hover": isAdmin
+                ? {
+                    color: "hsl(var(--foreground))",
+                    textDecoration: "underline",
+                  }
+                : undefined,
             }}
           >
             SLA
           </Typography>
           <Typography
+            className="sla-header-sev"
             sx={{
               fontSize: "0.68rem",
               color: "hsl(var(--muted-foreground))",
+              transition: "color 0.15s ease",
+              "&:hover": isAdmin
+                ? {
+                    color: "hsl(var(--foreground))",
+                    textDecoration: "underline",
+                  }
+                : undefined,
             }}
           >
             {sevMeta}
@@ -327,21 +394,25 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
         sx={{
           display: "flex",
           flexDirection: "column",
-          gap: 1.25,
-          px: 1.25,
-          py: 1.25,
-          borderRadius: 1.5,
-          border: "1px solid hsl(var(--border) / 0.7)",
-          bgcolor: "hsl(var(--card) / 0.4)",
+          gap: 1.5,
+          width: "100%",
         }}
       >
         {/* Respond SLA */}
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 0.5,
+            width: "100%",
+          }}
+        >
           <Box
             sx={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
+              width: "100%",
             }}
           >
             <Typography
@@ -399,12 +470,20 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
         </Box>
 
         {/* Resolve SLA */}
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 0.5,
+            width: "100%",
+          }}
+        >
           <Box
             sx={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
+              width: "100%",
             }}
           >
             <Typography

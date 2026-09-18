@@ -74,6 +74,7 @@ import {
   CorrelationRow,
   getEffectiveCorrelationCount,
   filterMeaningfulCorrelations,
+  sortCorrelationsByMatches,
   hasIocMatch,
 } from "@/components/incidents/CorrelationRow";
 import CorrelationContextStrip from "@/components/incidents/CorrelationContextStrip";
@@ -3990,8 +3991,11 @@ const IncidentDetailPage = () => {
 
   const visibleCorrelations = useMemo(
     () =>
-      filterMeaningfulCorrelations(
-        mergedCorrelations,
+      sortCorrelationsByMatches(
+        filterMeaningfulCorrelations(
+          mergedCorrelations,
+          correlationVisibilityOptions,
+        ),
         correlationVisibilityOptions,
       ),
     [mergedCorrelations, correlationVisibilityOptions],
@@ -4010,15 +4014,14 @@ const IncidentDetailPage = () => {
     [mergedCorrelations, ignoredObs, id],
   );
 
-  // What the Correlations tab actually renders — hidden rows appear (dimmed)
-  // when the shared "show ignored" toggle is on.
-  const correlationRows = useMemo(
-    () =>
-      showIgnoredObs
-        ? [...visibleCorrelations, ...hiddenCorrelations]
-        : visibleCorrelations,
-    [showIgnoredObs, visibleCorrelations, hiddenCorrelations],
-  );
+  // What the Correlations tab and simple view actually render — hidden rows appear (dimmed)
+  // when the shared "show ignored" toggle is on. Default sort is amount of matches.
+  const correlationRows = useMemo(() => {
+    const rows = showIgnoredObs
+      ? [...visibleCorrelations, ...hiddenCorrelations]
+      : visibleCorrelations;
+    return sortCorrelationsByMatches(rows, { currentIncidentId: id });
+  }, [showIgnoredObs, visibleCorrelations, hiddenCorrelations, id]);
 
   // ---------------------------------------------------------------------
   // Merge candidate suggestions
@@ -22105,8 +22108,11 @@ const IncidentDetailPage = () => {
                                   }
                                   // Drop correlations whose only ref is the current incident itself.
                                   const meaningfulCorr =
-                                    filterMeaningfulCorrelations(
-                                      corr.data,
+                                    sortCorrelationsByMatches(
+                                      filterMeaningfulCorrelations(
+                                        corr.data,
+                                        correlationVisibilityOptions,
+                                      ),
                                       correlationVisibilityOptions,
                                     );
                                   if (meaningfulCorr.length === 0) {
@@ -22345,8 +22351,11 @@ const IncidentDetailPage = () => {
                       const value = valueParts.join("::");
                       // Reuse the same filtering logic as the inline view so the popover
                       // never shows correlations whose only ref is the current incident.
-                      const meaningful = filterMeaningfulCorrelations(
-                        corr?.data || [],
+                      const meaningful = sortCorrelationsByMatches(
+                        filterMeaningfulCorrelations(
+                          corr?.data || [],
+                          correlationVisibilityOptions,
+                        ),
                         correlationVisibilityOptions,
                       );
                       return (
@@ -22611,11 +22620,8 @@ const IncidentDetailPage = () => {
                       {[...correlationRows]
                         .map((corr, idx) => ({ corr, idx }))
                         .sort((a, b) => {
-                          // Rank: known IOC / threat-feed first, then by match count.
+                          // Default sort: amount of matches first, then known IOC / threat-feed.
                           // Stable on ties via original index.
-                          const aIoc = hasIocMatch(a.corr) ? 1 : 0;
-                          const bIoc = hasIocMatch(b.corr) ? 1 : 0;
-                          if (aIoc !== bIoc) return bIoc - aIoc;
                           const aCount = getEffectiveCorrelationCount(a.corr, {
                             currentIncidentId: id,
                           });
@@ -22623,6 +22629,9 @@ const IncidentDetailPage = () => {
                             currentIncidentId: id,
                           });
                           if (aCount !== bCount) return bCount - aCount;
+                          const aIoc = hasIocMatch(a.corr) ? 1 : 0;
+                          const bIoc = hasIocMatch(b.corr) ? 1 : 0;
+                          if (aIoc !== bIoc) return bIoc - aIoc;
                           return a.idx - b.idx;
                         })
                         .map(({ corr, idx }) => (

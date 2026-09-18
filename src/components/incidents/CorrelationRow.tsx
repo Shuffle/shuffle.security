@@ -87,6 +87,25 @@ export const filterMeaningfulCorrelations = <T extends Pick<Correlation, 'key' |
   currentIncidentIdOrOptions?: string | CorrelationVisibilityOptions,
 ): T[] => correlations.filter((c) => getEffectiveCorrelationCount(c, currentIncidentIdOrOptions) > 0);
 
+/**
+ * Sorts correlations with the highest amount of matches first.
+ * Ties are broken by known IOC matches, then alphabetical key.
+ */
+export const sortCorrelationsByMatches = <T extends Pick<Correlation, 'key' | 'ref'>>(
+  correlations: T[],
+  currentIncidentIdOrOptions?: string | CorrelationVisibilityOptions,
+): T[] => {
+  return [...correlations].sort((a, b) => {
+    const aCount = getEffectiveCorrelationCount(a, currentIncidentIdOrOptions);
+    const bCount = getEffectiveCorrelationCount(b, currentIncidentIdOrOptions);
+    if (aCount !== bCount) return bCount - aCount;
+    const aIoc = hasIocMatch(a) ? 1 : 0;
+    const bIoc = hasIocMatch(b) ? 1 : 0;
+    if (aIoc !== bIoc) return bIoc - aIoc;
+    return String(a.key || '').localeCompare(String(b.key || ''));
+  });
+};
+
 interface CorrelationRowProps {
   correlation: Correlation;
   /** Current incident ID — references to it will be filtered out so the row only shows OTHER matches. */

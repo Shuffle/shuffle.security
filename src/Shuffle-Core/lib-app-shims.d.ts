@@ -339,6 +339,7 @@ declare module '@shuffleio/shuffle-mcps' {
   export const setDatastoreItem: any;
   export const setDatastoreItems: any;
   export const getDatastorePageSize: any;
+  export const filterItemsByCategory: any;
   export const deleteDatastoreItem: any;
   export const searchAgentActivity: any;
   export const findIngestTicketsWorkflow: any;

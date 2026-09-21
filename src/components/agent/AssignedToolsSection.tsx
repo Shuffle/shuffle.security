@@ -22,7 +22,6 @@ import {
   formatToolName,
   getAgentTools,
   loadAgentToolsFromDatastore,
-  removeAgentTool,
   saveAgentTools,
   setAgentTools,
   type ToolRef,
@@ -339,7 +338,6 @@ const AssignedToolsSection = ({
   };
 
   const handleRemoveTool = (toolId: string) => {
-    removeAgentTool(toolId, selectedSkill, actionType);
     const updated = tools.filter(
       (t) =>
         (t.id || '').toLowerCase() !== toolId.toLowerCase() &&

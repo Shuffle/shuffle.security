@@ -276,8 +276,16 @@ const resolveCreatedTs = (data: any, itemCreated?: number): number => {
 
 const MAX_INCIDENT_VALUE_LENGTH = 5_000_000; // 5MB safety limit per item
 
-const parseIncidentFromDatastore = (item: { key: string; value: string; created?: number; edited?: number }): DisplayIncident | null => {
+const parseIncidentFromDatastore = (item: { key: string; value: string; category?: string; created?: number; edited?: number }): DisplayIncident | null => {
   try {
+    if (!item || typeof item !== 'object' || typeof item.value !== 'string') {
+      return null;
+    }
+    // Filter out leaked cross-category items
+    if (item.category && item.category !== DATASTORE_CATEGORIES.INCIDENTS && item.category !== 'shuffle-security_incidents') {
+      return null;
+    }
+
     // Skip items with excessively large values to prevent JSON parse hangs/crashes
     if (item.value && item.value.length > MAX_INCIDENT_VALUE_LENGTH) {
       console.warn(`[Incidents] Skipping oversized incident ${item.key} (${(item.value.length / 1024 / 1024).toFixed(1)}MB)`);
@@ -922,7 +930,8 @@ const IncidentsPage = () => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const data = await response.json();
-        const items = Array.isArray(data) ? data : (data.keys || data.data || []);
+        const rawItems = Array.isArray(data) ? data : (data.keys || data.data || []);
+        const items = rawItems.filter((i: any) => !i?.category || i.category === DATASTORE_CATEGORIES.INCIDENTS || i.category === 'shuffle-security_incidents');
         setSubOrgItems(prev => {
           const next = new Map(prev);
           next.set(org.id, { orgName: org.name, orgImage: org.image, items });
@@ -1826,7 +1835,7 @@ const IncidentsPage = () => {
           comparison = (severityOrder[a.severity] || 0) - (severityOrder[b.severity] || 0);
           break;
         case 'status':
-          comparison = a.status.localeCompare(b.status);
+          comparison = (a.status || '').localeCompare(b.status || '');
           break;
         case 'assignee':
           comparison = (a.assignee || '').localeCompare(b.assignee || '');

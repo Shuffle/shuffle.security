@@ -102,7 +102,9 @@ export const useDatastore = ({ category, orgId: overrideOrgId }: UseDatastoreOpt
 
         // A short page means this was the last one — the backend still
         // returns a cursor there, so don't chase it.
-        if ((response.data?.length || 0) < getDatastorePageSize(category)) {
+        // Use rawItemCount so cross-category filtering doesn't stop pagination early.
+        const backendItemsCount = response.rawItemCount ?? (response.data?.length || 0);
+        if (backendItemsCount < getDatastorePageSize(category)) {
           currentCursor = undefined;
           break;
         }

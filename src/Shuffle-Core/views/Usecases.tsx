@@ -5910,12 +5910,14 @@ function UsecasesPageInner() {
   // logic only needs to handle one shape.
   useEffect(() => {
     if (routeParams.flowId) return;
-    const selected = searchParams.get('selected_object');
+    const selected = searchParams.get('selected_object') || searchParams.get('tab') || searchParams.get('flow');
     if (!selected) return;
     const slug = slugify(selected);
     if (!slug) return;
     const next = new URLSearchParams(searchParams);
     next.delete('selected_object');
+    next.delete('tab');
+    next.delete('flow');
     const qs = next.toString();
     const match = resolveUsecaseBySlug(selected, usecases);
     if (match) {

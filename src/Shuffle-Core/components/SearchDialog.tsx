@@ -54,6 +54,14 @@ import {
   isShuffleCoreUrl,
 } from '../lib/authHandoff';
 import { useWorkflows, type WorkflowSummary } from '../hooks/useWorkflows';
+import { useUsecases } from '../hooks/useUsecases';
+import {
+  type Usecase,
+  ACTIVE_USECASE_IDS,
+  findWorkflowsForUsecase,
+  categoryLabel,
+  slugify,
+} from '../config/usecases';
 
 export const SEARCH_OPEN_EVENT = 'search:open';
 
@@ -64,11 +72,16 @@ const algoliaClient = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_API_KEY);
 
 // Domain synonym dictionary for SecOps and Automation queries
 export const SYNONYM_MAP: Record<string, string[]> = {
-  // Workflows / Automations
-  workflow: ['workflow', 'workflows', 'playbook', 'playbooks', 'runbook', 'runbooks', 'flow', 'flows', 'automation', 'automations', 'pipeline'],
-  playbook: ['workflow', 'workflows', 'playbook', 'playbooks', 'runbook', 'runbooks', 'flow', 'flows', 'automation', 'automations'],
-  runbook: ['workflow', 'workflows', 'playbook', 'playbooks', 'runbook', 'runbooks', 'flow', 'flows', 'automation', 'automations'],
-  automation: ['workflow', 'workflows', 'playbook', 'playbooks', 'runbook', 'runbooks', 'flow', 'flows', 'automation', 'automations'],
+  // Workflows / Automations / Usecases
+  workflow: ['workflow', 'workflows', 'playbook', 'playbooks', 'runbook', 'runbooks', 'flow', 'flows', 'automation', 'automations', 'pipeline', 'usecase', 'usecases'],
+  playbook: ['workflow', 'workflows', 'playbook', 'playbooks', 'runbook', 'runbooks', 'flow', 'flows', 'automation', 'automations', 'usecase', 'usecases'],
+  runbook: ['workflow', 'workflows', 'playbook', 'playbooks', 'runbook', 'runbooks', 'flow', 'flows', 'automation', 'automations', 'usecase'],
+  automation: ['workflow', 'workflows', 'playbook', 'playbooks', 'runbook', 'runbooks', 'flow', 'flows', 'automation', 'automations', 'usecase', 'usecases'],
+  usecase: ['usecase', 'usecases', 'blueprint', 'blueprints', 'scenario', 'scenarios', 'solution', 'solutions', 'workflow', 'automation', 'playbook', 'flow'],
+  usecases: ['usecase', 'usecases', 'blueprint', 'blueprints', 'scenario', 'scenarios', 'solution', 'solutions', 'workflow', 'automation', 'playbook', 'flow'],
+  blueprint: ['usecase', 'usecases', 'blueprint', 'blueprints', 'scenario', 'workflow', 'solution', 'template'],
+  scenario: ['usecase', 'usecases', 'blueprint', 'scenario', 'workflow', 'playbook'],
+  solution: ['usecase', 'usecases', 'blueprint', 'solution', 'template', 'workflow'],
 
   // Apps / Integrations
   app: ['app', 'apps', 'integration', 'integrations', 'connector', 'connectors', 'plugin', 'plugins', 'tool', 'tools', 'module'],
@@ -188,6 +201,13 @@ export interface CorrelationResult {
   correlation: CorrelationItem;
 }
 
+export interface UsecaseResult {
+  type: 'usecase';
+  usecase: Usecase;
+  isEnabled: boolean;
+  isComingSoon: boolean;
+}
+
 export interface SeeAllResult {
   type: 'see_all';
   query: string;
@@ -200,6 +220,7 @@ export type SearchResult =
   | AppResult
   | DocResult
   | CorrelationResult
+  | UsecaseResult
   | SeeAllResult;
 
 const NOISE_KEYS = new Set([
@@ -509,6 +530,83 @@ export const SearchDialog = ({
     return filtered.map((w) => ({ type: 'org_workflow', workflow: w }));
   }, [query, allWorkflows]);
 
+  // Fetch active usecases from API (with fallback to defaults)
+  const { usecases: allUsecases = [] } = useUsecases();
+
+  // Synchronous filter for active usecases with synonyms
+  const matchedUsecases = useMemo((): UsecaseResult[] => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+
+    const synonyms = getSynonymsForQuery(q);
+    const activeUsecases = allUsecases.filter((u) => u.animated !== false);
+
+    const filtered = activeUsecases
+      .filter((u) => {
+        const label = (u.label || '').toLowerCase();
+        const desc = (u.description || '').toLowerCase();
+        const agenticDesc = (u.agenticDescription || '').toLowerCase();
+        const source = (u.source || '').toLowerCase();
+        const target = (u.target || '').toLowerCase();
+        const sourceLbl = categoryLabel(u.source).toLowerCase();
+        const targetLbl = categoryLabel(u.target).toLowerCase();
+        const tags = (u.tags || []).map((t) => t.toLowerCase());
+        const autoLabel = (u.automationLabel || '').toLowerCase();
+
+        // Direct search text check
+        if (
+          label.includes(q) ||
+          desc.includes(q) ||
+          agenticDesc.includes(q) ||
+          source.includes(q) ||
+          target.includes(q) ||
+          sourceLbl.includes(q) ||
+          targetLbl.includes(q) ||
+          autoLabel.includes(q) ||
+          tags.some((t) => t.includes(q))
+        ) {
+          return true;
+        }
+
+        // Generic keyword checks
+        if (
+          q === 'usecase' ||
+          q === 'usecases' ||
+          q === 'use case' ||
+          q === 'use cases' ||
+          q === 'blueprint' ||
+          q === 'blueprints'
+        ) {
+          return true;
+        }
+
+        // Synonym matching
+        return synonyms.some(
+          (syn) =>
+            label.includes(syn) ||
+            desc.includes(syn) ||
+            agenticDesc.includes(syn) ||
+            source.includes(syn) ||
+            target.includes(syn) ||
+            sourceLbl.includes(syn) ||
+            targetLbl.includes(syn) ||
+            tags.some((t) => t.includes(syn)),
+        );
+      })
+      .slice(0, 5);
+
+    return filtered.map((u) => {
+      const isEnabled = findWorkflowsForUsecase(u, allWorkflows).length > 0;
+      const isComingSoon = !ACTIVE_USECASE_IDS.includes(u.id);
+      return {
+        type: 'usecase',
+        usecase: u,
+        isEnabled,
+        isComingSoon,
+      };
+    });
+  }, [query, allUsecases, allWorkflows]);
+
   // Synchronous filter for Navigation items with synonyms
   const filteredNavItems = useMemo((): NavResult[] => {
     const q = query.trim().toLowerCase();
@@ -718,6 +816,7 @@ export const SearchDialog = ({
     const list: SearchResult[] = [
       ...filteredNavItems,
       ...matchedOrgWorkflows,
+      ...matchedUsecases,
       ...publicWorkflowResults.map((w) => ({ type: 'public_workflow' as const, workflow: w })),
       ...appResults.map((app) => ({ type: 'app' as const, app })),
       ...docResults.map((d) => ({ type: 'doc' as const, doc: d })),
@@ -733,6 +832,7 @@ export const SearchDialog = ({
   }, [
     filteredNavItems,
     matchedOrgWorkflows,
+    matchedUsecases,
     publicWorkflowResults,
     appResults,
     docResults,
@@ -757,6 +857,13 @@ export const SearchDialog = ({
         }
       } else if (result.type === 'app') {
         safeNavigate(`/apps?app=${encodeURIComponent(result.app.name)}`);
+      } else if (result.type === 'usecase') {
+        const slug = slugify(result.usecase.label);
+        if (currentPlatform === 'security') {
+          safeNavigate(`/usecases/${slug}`);
+        } else {
+          navigateToShuffleSecurity(`/usecases/${slug}`, { newTab: true });
+        }
       } else if (result.type === 'org_workflow') {
         if (currentPlatform === 'automation') {
           safeNavigate(`/workflows/${result.workflow.id}`);
@@ -858,7 +965,7 @@ export const SearchDialog = ({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search workflows, apps, docs, incidents, or jump to page..."
+            placeholder="Search usecases, workflows, apps, docs, incidents, or jump to page..."
             fullWidth
             autoFocus
             sx={{
@@ -900,7 +1007,7 @@ export const SearchDialog = ({
                 No results found for &ldquo;{query}&rdquo;
               </Typography>
               <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', opacity: 0.7, mt: 0.5, display: 'block' }}>
-                Try searching for playbooks, integrations, CVEs, or documentation.
+                Try searching for usecases, playbooks, integrations, CVEs, or documentation.
               </Typography>
             </Box>
           )}
@@ -961,6 +1068,114 @@ export const SearchDialog = ({
                     <Typography variant="caption" sx={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
                       {item.group}
                     </Typography>
+                  </Box>
+                </Box>
+              );
+            }
+
+            // Render Usecase Result
+            if (item.type === 'usecase') {
+              const { usecase, isEnabled, isComingSoon } = item;
+              const sourceLabel = categoryLabel(usecase.source) || usecase.source;
+              const targetLabel = categoryLabel(usecase.target) || usecase.target;
+              return (
+                <Box
+                  key={`usecase-${usecase.id}-${idx}`}
+                  onClick={() => handleSelect(item)}
+                  onMouseEnter={() => setSelectedIndex(idx)}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    px: 1.5,
+                    py: 1,
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    background: isSelected ? 'hsl(var(--accent) / 0.15)' : 'transparent',
+                    border: isSelected ? '1px solid hsl(var(--accent) / 0.4)' : '1px solid transparent',
+                    transition: 'all 0.1s ease',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+                    <Activity
+                      size={16}
+                      style={{
+                        color: isEnabled ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground))',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography
+                        sx={{
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: 'hsl(var(--foreground))',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {usecase.label}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: 'hsl(var(--muted-foreground))',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                        }}
+                      >
+                        <span>{sourceLabel}</span>
+                        <span>&rarr;</span>
+                        <span>{targetLabel}</span>
+                        {usecase.description && <span>&middot; {usecase.description}</span>}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0, ml: 1 }}>
+                    <Box
+                      sx={{
+                        px: 0.75,
+                        py: 0.15,
+                        borderRadius: '4px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        border: isEnabled
+                          ? '1px solid hsl(var(--severity-low) / 0.4)'
+                          : isComingSoon
+                            ? '1px solid hsl(var(--severity-medium) / 0.35)'
+                            : '1px solid hsl(var(--border))',
+                        background: isEnabled
+                          ? 'hsl(var(--severity-low) / 0.12)'
+                          : isComingSoon
+                            ? 'hsl(var(--severity-medium) / 0.1)'
+                            : 'hsl(var(--muted) / 0.4)',
+                        color: isEnabled
+                          ? 'hsl(var(--severity-low))'
+                          : isComingSoon
+                            ? 'hsl(var(--severity-medium))'
+                            : 'hsl(var(--muted-foreground))',
+                      }}
+                    >
+                      {isEnabled ? 'Active' : isComingSoon ? 'Coming Soon' : 'Disabled'}
+                    </Box>
+                    <Box
+                      sx={{
+                        px: 0.75,
+                        py: 0.15,
+                        borderRadius: '4px',
+                        fontSize: 10,
+                        fontWeight: 600,
+                        border: '1px solid hsl(var(--border))',
+                        color: 'hsl(var(--muted-foreground))',
+                      }}
+                    >
+                      Usecase
+                    </Box>
                   </Box>
                 </Box>
               );

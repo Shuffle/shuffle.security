@@ -42,8 +42,8 @@ export const ObservableTypeSelector = ({
     if (!searchQuery.trim()) return iocTypes;
     const query = searchQuery.toLowerCase();
     return iocTypes.filter(t =>
-      t.name.toLowerCase().includes(query) ||
-      t.description?.toLowerCase().includes(query)
+      (t.name || '').toLowerCase().includes(query) ||
+      (t.description || '').toLowerCase().includes(query)
     );
   }, [iocTypes, searchQuery]);
 
@@ -63,7 +63,7 @@ export const ObservableTypeSelector = ({
       const enabledA = a.enabled !== false ? 1 : 0;
       const enabledB = b.enabled !== false ? 1 : 0;
       if (enabledA !== enabledB) return enabledB - enabledA;
-      return a.name.localeCompare(b.name);
+      return (a.name || '').localeCompare(b.name || '');
     });
     
     for (const type of sorted) {
@@ -76,7 +76,7 @@ export const ObservableTypeSelector = ({
 
   // Check if search query matches any existing type
   const exactMatch = useMemo(() => {
-    return iocTypes.some(t => t.name.toLowerCase() === searchQuery.toLowerCase());
+    return iocTypes.some(t => (t.name || '').toLowerCase() === searchQuery.toLowerCase());
   }, [iocTypes, searchQuery]);
 
   const canCreate = searchQuery.trim() && !exactMatch;

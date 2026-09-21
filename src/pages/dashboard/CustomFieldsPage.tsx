@@ -71,13 +71,26 @@ const CustomFieldsPage = () => {
   }, [fetchItems]);
 
   useEffect(() => {
-    const parsed: CustomField[] = items.map(item => {
-      try {
-        return JSON.parse(item.value) as CustomField;
-      } catch {
-        return { name: item.key, key: item.key, type: 'text' as FieldType, required: false };
-      }
-    });
+    const parsed: CustomField[] = items
+      .filter(item => !item.category || item.category === CATEGORY)
+      .map(item => {
+        try {
+          const val = JSON.parse(item.value);
+          if (val && typeof val === 'object') {
+            return {
+              name: typeof val.name === 'string' && val.name ? val.name : item.key,
+              key: typeof val.key === 'string' && val.key ? val.key : item.key,
+              type: (['text', 'number', 'select', 'date', 'boolean'].includes(val.type) ? val.type : 'text') as FieldType,
+              required: Boolean(val.required),
+              options: Array.isArray(val.options) ? val.options : undefined,
+              description: typeof val.description === 'string' ? val.description : '',
+            };
+          }
+          return { name: item.key, key: item.key, type: 'text' as FieldType, required: false };
+        } catch {
+          return { name: item.key, key: item.key, type: 'text' as FieldType, required: false };
+        }
+      });
     setFields(parsed);
   }, [items]);
 

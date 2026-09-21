@@ -9287,9 +9287,9 @@ const IncidentDetailPage = () => {
   const handleApplyTemplate = async (template: CaseTemplate) => {
     autoProgressStatus();
     const newTasks: IncidentTask[] = ensureTaskIds(
-      template.tasks.map((t, index) => ({
+      (template.tasks || []).map((t, index) => ({
         id: `task-${Date.now()}-${index}`,
-        title: t.title,
+        title: t.title || "",
         description: t.description || "",
         category: t.category || "",
         completed: false,

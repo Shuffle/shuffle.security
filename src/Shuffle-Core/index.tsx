@@ -442,4 +442,13 @@ export type {
   DateRangePickerProps,
 } from "./components/DateTimePicker";
 
+export { useUsecases } from "./hooks/useUsecases";
+export {
+  type Usecase,
+  ACTIVE_USECASE_IDS,
+  findWorkflowsForUsecase,
+  categoryLabel,
+  slugify,
+} from "./config/usecases";
+
 

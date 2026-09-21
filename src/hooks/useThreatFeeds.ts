@@ -163,13 +163,27 @@ export const useThreatFeeds = () => {
     // No in-memory fallback to DEFAULT_THREAT_FEEDS — if the category is
     // empty, the list is empty. Defaults are only inserted when the user
     // explicitly clicks "Reset to Defaults".
-    const parsed: ThreatFeed[] = items.map(item => {
-      try {
-        return JSON.parse(item.value) as ThreatFeed;
-      } catch {
-        return { id: item.key, url: item.value, name: item.key, enabled: true };
-      }
-    });
+    const parsed: ThreatFeed[] = items
+      .filter(item => !item.category || item.category === DATASTORE_CATEGORIES.THREAT_FEEDS)
+      .map(item => {
+        try {
+          const feed = JSON.parse(item.value);
+          if (feed && typeof feed === 'object') {
+            return {
+              id: feed.id || item.key,
+              name: typeof feed.name === 'string' && feed.name ? feed.name : item.key,
+              url: typeof feed.url === 'string' ? feed.url : (typeof item.value === 'string' ? item.value : ''),
+              description: typeof feed.description === 'string' ? feed.description : '',
+              enabled: feed.enabled ?? true,
+              type: feed.type,
+              headers: feed.headers,
+            } as ThreatFeed;
+          }
+          return { id: item.key, url: typeof item.value === 'string' ? item.value : '', name: item.key, enabled: true };
+        } catch {
+          return { id: item.key, url: typeof item.value === 'string' ? item.value : '', name: item.key, enabled: true };
+        }
+      });
     const merged = optimisticOverrides.current.size === 0
       ? parsed
       : parsed.map(f => optimisticOverrides.current.get(f.id) || f);

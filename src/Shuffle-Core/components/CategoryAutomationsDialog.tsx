@@ -1,5 +1,6 @@
 import { Rocket as RocketLaunchIcon, RotateCcw as RestoreIcon, X as CloseIcon, Network as AccountTreeIcon, Route as RouteIcon, Webhook as WebhookIcon, Lock as EnhancedEncryptionIcon, Trash2 as DeleteSweepIcon, Shield as SecurityIcon, ChevronDown as ExpandMoreIcon, Download as DownloadIcon, Plus as AddIcon, Settings as SettingsIcon } from 'lucide-react';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from '@/lib/router-compat';
 import {
   Dialog,
@@ -1087,7 +1088,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
           background: 'hsl(var(--card))',
           border: '1px solid hsl(var(--border))',
           borderRadius: 2,
-          transition: 'max-width 0.2s ease-in-out',
+          transition: 'max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         },
       }}
     >
@@ -1199,22 +1200,37 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         </Box>
       </DialogTitle>
 
-      <DialogContent sx={{ px: 4, pb: 3 }}>
-        {currentView === 'routing' ? (
-          <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.8rem' }}>
-              Rules are evaluated when a {entitySingular} is created or edited. Conditions are
-              generic field checks, so the same mechanism works for every category.
-            </Typography>
-            <IncidentRoutingEditor
-              forceShow
-              entityCategory={activeCategory}
-              entityLabel={{ singular: entitySingular, plural: entityPlural }}
-              generateCategory={routingGenerateCategory}
-            />
-          </Box>
-        ) : (
-        <>
+      <DialogContent sx={{ px: 4, pb: 3, overflowX: 'hidden' }}>
+        <AnimatePresence mode="wait" initial={false}>
+          {currentView === 'routing' ? (
+            <motion.div
+              key="routing"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18, ease: 'easeInOut' }}
+            >
+              <Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.8rem' }}>
+                  Rules are evaluated when a {entitySingular} is created or edited. Conditions are
+                  generic field checks, so the same mechanism works for every category.
+                </Typography>
+                <IncidentRoutingEditor
+                  forceShow
+                  entityCategory={activeCategory}
+                  entityLabel={{ singular: entitySingular, plural: entityPlural }}
+                  generateCategory={routingGenerateCategory}
+                />
+              </Box>
+            </motion.div>
+          ) : (
+            <motion.div
+              key={currentView}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18, ease: 'easeInOut' }}
+            >
         {/* Trigger Section */}
         <Box sx={{ mb: 4 }}>
           <Typography
@@ -1825,8 +1841,9 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
             </Box>
           </Box>
         )}
-        </>
+          </motion.div>
         )}
+        </AnimatePresence>
       </DialogContent>
 
       <Divider sx={{ borderColor: 'hsl(var(--border))' }} />

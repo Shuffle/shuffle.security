@@ -15,6 +15,12 @@ import {
   getApiUrl,
   getAuthHeader,
   getShuffleCoreWorkflowUrl,
+  useUsecases,
+  type Usecase,
+  ACTIVE_USECASE_IDS,
+  findWorkflowsForUsecase,
+  categoryLabel,
+  slugify,
 } from '@/Shuffle-Core';
 import { navigateToShuffleCore } from '@/lib/authHandoff';
 
@@ -29,12 +35,13 @@ const NOISE_KEYS = new Set([
   'unknown', 'none', 'null', 'undefined', 'true', 'false',
 ]);
 
-type SearchCategory = 'all' | 'apps' | 'workflows' | 'incidents' | 'docs' | 'pages';
+type SearchCategory = 'all' | 'apps' | 'workflows' | 'usecases' | 'incidents' | 'docs' | 'pages';
 
 export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlQuery = searchParams.get('q') || '';
-  const initialCategory = (searchParams.get('category') as SearchCategory) || 'all';
+  const urlTab = searchParams.get('tab') as SearchCategory | null;
+  const initialCategory = ((searchParams.get('category') || urlTab) as SearchCategory) || 'all';
 
   const [inputVal, setInputVal] = useState(urlQuery);
   const [activeCategory, setActiveCategory] = useState<SearchCategory>(initialCategory);
@@ -79,6 +86,66 @@ export default function SearchPage() {
       return synonyms.some((syn) => name.includes(syn) || desc.includes(syn));
     });
   }, [urlQuery, allWorkflows]);
+
+  // In-memory active usecases from API
+  const { usecases: allUsecases = [] } = useUsecases();
+
+  // Matched active usecases
+  const matchedUsecases = useMemo(() => {
+    const q = urlQuery.trim().toLowerCase();
+    if (!q) return [];
+    const synonyms = getSynonymsForQuery(q);
+    const activeUsecases = allUsecases.filter((u) => u.animated !== false);
+
+    return activeUsecases.filter((u) => {
+      const label = (u.label || '').toLowerCase();
+      const desc = (u.description || '').toLowerCase();
+      const agenticDesc = (u.agenticDescription || '').toLowerCase();
+      const source = (u.source || '').toLowerCase();
+      const target = (u.target || '').toLowerCase();
+      const sourceLbl = categoryLabel(u.source).toLowerCase();
+      const targetLbl = categoryLabel(u.target).toLowerCase();
+      const autoLabel = (u.automationLabel || '').toLowerCase();
+      const tags = (u.tags || []).map((t) => t.toLowerCase());
+
+      if (
+        label.includes(q) ||
+        desc.includes(q) ||
+        agenticDesc.includes(q) ||
+        source.includes(q) ||
+        target.includes(q) ||
+        sourceLbl.includes(q) ||
+        targetLbl.includes(q) ||
+        autoLabel.includes(q) ||
+        tags.some((t) => t.includes(q))
+      ) {
+        return true;
+      }
+
+      if (
+        q === 'usecase' ||
+        q === 'usecases' ||
+        q === 'use case' ||
+        q === 'use cases' ||
+        q === 'blueprint' ||
+        q === 'blueprints'
+      ) {
+        return true;
+      }
+
+      return synonyms.some(
+        (syn) =>
+          label.includes(syn) ||
+          desc.includes(syn) ||
+          agenticDesc.includes(syn) ||
+          source.includes(syn) ||
+          target.includes(syn) ||
+          sourceLbl.includes(syn) ||
+          targetLbl.includes(syn) ||
+          tags.some((t) => t.includes(syn)),
+      );
+    });
+  }, [urlQuery, allUsecases]);
 
   // Filtered system navigation pages
   const matchedNavItems = useMemo((): NavResult[] => {
@@ -269,6 +336,7 @@ export default function SearchPage() {
     appResults.length +
     docResults.length +
     totalWorkflowCount +
+    matchedUsecases.length +
     correlationResults.length +
     matchedNavItems.length;
 
@@ -277,6 +345,11 @@ export default function SearchPage() {
   // Handlers for clicking results
   const handleAppClick = (app: AlgoliaSearchApp) => {
     navigate(`/apps?app=${encodeURIComponent(app.name)}`);
+  };
+
+  const handleUsecaseClick = (usecase: Usecase) => {
+    const slug = slugify(usecase.label);
+    navigate(`/usecases/${slug}`);
   };
 
   const handleOrgWorkflowClick = (wf: { id: string }) => {
@@ -326,7 +399,7 @@ export default function SearchPage() {
             type="text"
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
-            placeholder="Search integrations, workflows, incidents, documentation..."
+            placeholder="Search usecases, integrations, workflows, incidents, documentation..."
             className="w-full h-11 px-4 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
           />
         </div>
@@ -409,6 +482,17 @@ export default function SearchPage() {
             </button>
             <button
               type="button"
+              onClick={() => setActiveCategory('usecases')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                activeCategory === 'usecases'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'border border-border bg-card text-foreground hover:bg-muted'
+              }`}
+            >
+              Usecases ({matchedUsecases.length})
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveCategory('incidents')}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                 activeCategory === 'incidents'
@@ -456,7 +540,7 @@ export default function SearchPage() {
                 No results found for &ldquo;{urlQuery}&rdquo;
               </div>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                No matching integrations, workflows, incidents, documentation, or system pages were found. Check your spelling or try broader terms.
+                No matching usecases, integrations, workflows, incidents, documentation, or system pages were found. Check your spelling or try broader terms.
               </p>
             </div>
           )}
@@ -588,6 +672,71 @@ export default function SearchPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Usecases & Blueprints */}
+            {(activeCategory === 'all' || activeCategory === 'usecases') && matchedUsecases.length > 0 && (
+              <div className="space-y-3">
+                <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                  Usecases & Blueprints ({matchedUsecases.length})
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {matchedUsecases.map((u) => {
+                    const isEnabled = findWorkflowsForUsecase(u, allWorkflows).length > 0;
+                    const isComingSoon = !ACTIVE_USECASE_IDS.includes(u.id);
+                    const sourceLabel = categoryLabel(u.source) || u.source;
+                    const targetLabel = categoryLabel(u.target) || u.target;
+
+                    return (
+                      <div
+                        key={u.id}
+                        onClick={() => handleUsecaseClick(u)}
+                        className="p-3.5 rounded-md border border-border bg-card hover:border-primary/40 hover:bg-muted/30 cursor-pointer transition-all flex flex-col justify-between"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm font-semibold text-foreground">
+                              {u.label}
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              {isEnabled ? (
+                                <span className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded border border-[hsl(var(--severity-low)/0.4)] bg-[hsl(var(--severity-low)/0.12)] text-[hsl(var(--severity-low))]">
+                                  ACTIVE
+                                </span>
+                              ) : isComingSoon ? (
+                                <span className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-[hsl(var(--severity-medium)/0.35)] bg-[hsl(var(--severity-medium)/0.1)] text-[hsl(var(--severity-medium))]">
+                                  COMING SOON
+                                </span>
+                              ) : (
+                                <span className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-border bg-muted/50 text-muted-foreground">
+                                  DISABLED
+                                </span>
+                              )}
+                              <span className="text-[11px] font-mono px-1.5 py-0.5 rounded border border-border bg-muted/50 text-muted-foreground uppercase">
+                                USECASE
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>{sourceLabel}</span>
+                            <span>&rarr;</span>
+                            <span>{targetLabel}</span>
+                          </div>
+                          {u.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {u.description}
+                            </p>
+                          )}
+                        </div>
+                        <div className="mt-2.5 pt-2 border-t border-border/60 flex items-center justify-between text-[11px] font-mono text-muted-foreground">
+                          <span className="uppercase">{u.phase || 'Ingest'}</span>
+                          <span>ID: {u.id}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

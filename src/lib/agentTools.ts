@@ -42,6 +42,8 @@ import {
 const STORAGE_KEY = 'agent_tools_config';
 const DATASTORE_CATEGORY = DATASTORE_CATEGORIES.CONFIGURATION;
 const DATASTORE_KEY = 'agent_tools_config';
+const LEGACY_DATASTORE_CATEGORY = 'shuffle-security_agent_tools';
+const LEGACY_DATASTORE_KEY = 'config';
 
 export const AGENT_TOOLS_CHANGED_EVENT = 'agent-tools-changed';
 
@@ -66,6 +68,7 @@ export interface AgentToolsCachePayload {
   version: number;
   updatedAt: number;
   entries: AgentToolsEntry[];
+  configured?: boolean;
 }
 
 let localWriteSeq = 0;
@@ -151,16 +154,18 @@ const extractUpdatedAt = (parsed: unknown): number => {
 interface CacheRecord {
   entries: AgentToolsEntry[];
   updatedAt: number;
+  configured: boolean;
 }
 
 const readCacheRecord = (): CacheRecord => {
-  if (typeof window === 'undefined') return { entries: [], updatedAt: 0 };
+  if (typeof window === 'undefined') return { entries: [], updatedAt: 0, configured: false };
   try {
     const key = getStorageKey();
     let raw = localStorage.getItem(key);
     let parsed: any = null;
     let entries: AgentToolsEntry[] = [];
     let updatedAt = 0;
+    let configured = false;
 
     if (raw) {
       try {
@@ -168,38 +173,42 @@ const readCacheRecord = (): CacheRecord => {
         entries = sanitize(parsed);
         updatedAt =
           extractUpdatedAt(parsed) || entries.reduce((max, e) => Math.max(max, e.updatedAt || 0), 0);
+        configured =
+          parsed?.configured === true ||
+          entries.length > 0 ||
+          updatedAt > 0 ||
+          (raw.includes('"entries"') && raw.includes('"version"'));
       } catch {
         /* fall through */
       }
     }
 
-    // If org-specific key is missing or has no tools, check global fallback
-    if (entries.length === 0 || entries.every((e) => e.tools.length === 0)) {
-      if (key !== STORAGE_KEY) {
-        const fallbackRaw = localStorage.getItem(STORAGE_KEY);
-        if (fallbackRaw) {
-          try {
-            const fallbackParsed = JSON.parse(fallbackRaw);
-            const fallbackEntries = sanitize(fallbackParsed);
-            if (fallbackEntries.some((e) => e.tools.length > 0)) {
-              entries = fallbackEntries;
-              updatedAt =
-                extractUpdatedAt(fallbackParsed) ||
-                fallbackEntries.reduce((max, e) => Math.max(max, e.updatedAt || 0), 0) ||
-                Date.now();
-              // Migrate immediately into org key
-              writeCache(entries, updatedAt);
-            }
-          } catch {
-            /* ignore fallback parse failure */
+    // Only if org-specific key was completely absent from localStorage, check global fallback
+    if (raw === null && key !== STORAGE_KEY) {
+      const fallbackRaw = localStorage.getItem(STORAGE_KEY);
+      if (fallbackRaw) {
+        try {
+          const fallbackParsed = JSON.parse(fallbackRaw);
+          const fallbackEntries = sanitize(fallbackParsed);
+          if (fallbackEntries.length > 0) {
+            entries = fallbackEntries;
+            updatedAt =
+              extractUpdatedAt(fallbackParsed) ||
+              fallbackEntries.reduce((max, e) => Math.max(max, e.updatedAt || 0), 0) ||
+              Date.now();
+            configured = true;
+            // Migrate immediately into org key
+            writeCache(entries, updatedAt);
           }
+        } catch {
+          /* ignore fallback parse failure */
         }
       }
     }
 
-    return { entries, updatedAt };
+    return { entries, updatedAt, configured };
   } catch {
-    return { entries: [], updatedAt: 0 };
+    return { entries: [], updatedAt: 0, configured: false };
   }
 };
 
@@ -213,6 +222,7 @@ const writeCache = (entries: AgentToolsEntry[], explicitUpdatedAt?: number) => {
       version: 1,
       updatedAt,
       entries,
+      configured: true,
     };
     const serialized = JSON.stringify(payload);
     const orgKey = getStorageKey();
@@ -240,7 +250,26 @@ const executeDatastoreWrite = async (payload: AgentToolsCachePayload): Promise<b
     try {
       const res = await setDatastoreItem(DATASTORE_KEY, payload, DATASTORE_CATEGORY);
       if (res && res.success) {
+        try {
+          await setDatastoreItem(LEGACY_DATASTORE_KEY, payload, LEGACY_DATASTORE_CATEGORY);
+        } catch {
+          /* ignore legacy mirror write error */
+        }
         return true;
+      }
+      if (attempt === maxAttempts) {
+        try {
+          const fallbackRes = await setDatastoreItem(
+            LEGACY_DATASTORE_KEY,
+            payload,
+            LEGACY_DATASTORE_CATEGORY,
+          );
+          if (fallbackRes && fallbackRes.success) {
+            return true;
+          }
+        } catch {
+          /* ignore fallback write error */
+        }
       }
       console.warn(`[agentTools] Datastore write attempt ${attempt} failed:`, res?.error || 'Unknown error');
     } catch (err) {
@@ -285,6 +314,7 @@ export const persistToDatastore = (
     version: 1,
     updatedAt: ts,
     entries,
+    configured: true,
   };
   return flushDatastoreQueue();
 };
@@ -309,10 +339,10 @@ const mergeEntries = (
     } else if (preferIncoming) {
       const incTs = inc.updatedAt || 0;
       const existTs = existing.updatedAt || 0;
-      // If incoming has no tools but existing has tools, do not wipe out existing
-      // tools unless incoming explicitly has a newer updatedAt > 0
+      // When preferIncoming is true (local modification during in-flight fetch),
+      // allow empty tool array if incoming timestamp is at least as fresh as existing
       if (inc.tools.length === 0 && existing.tools.length > 0) {
-        if (incTs > existTs && incTs > 0) {
+        if (incTs >= existTs && incTs > 0) {
           map.set(key, { ...inc, tools: [] });
         }
       } else {
@@ -321,10 +351,9 @@ const mergeEntries = (
     } else {
       const incTs = inc.updatedAt || 0;
       const existTs = existing.updatedAt || 0;
-      // Never allow an empty tool array from an older/equal remote payload
-      // to wipe out locally configured tools
+      // Allow intentional empty tool array if incoming timestamp is at least as fresh
       if (inc.tools.length === 0 && existing.tools.length > 0) {
-        if (incTs > existTs && incTs > 0) {
+        if (incTs >= existTs && (incTs > 0 || existTs === 0)) {
           map.set(key, { ...inc, tools: [] });
         }
       } else if (incTs >= existTs) {
@@ -418,7 +447,13 @@ export const isBuiltInSkillApp = (
  * Hydrates agent tools from category automations (e.g. "Automation for Incidents")
  * if no custom tools have been assigned in the canonical datastore yet.
  */
-export const hydrateFromCategoryAutomations = async (): Promise<boolean> => {
+export const hydrateFromCategoryAutomations = async (force: boolean = false): Promise<boolean> => {
+  if (!force) {
+    const local = readCacheRecord();
+    if (local.configured) {
+      return false;
+    }
+  }
   let changed = false;
   try {
     const incRes: any = await getDatastoreByCategory(DATASTORE_CATEGORIES.INCIDENTS, undefined, 1);
@@ -457,21 +492,51 @@ export const loadAgentToolsFromDatastore = async (): Promise<AgentToolsEntry[]> 
   const requestStartTime = Date.now();
 
   try {
-    const res = await getDatastoreItem(DATASTORE_KEY, DATASTORE_CATEGORY);
+    let res = await getDatastoreItem(DATASTORE_KEY, DATASTORE_CATEGORY);
+    let loadedFromLegacy = false;
+
+    // If primary read failed or returned no item, fall back to legacy datastore
+    if (!res.success || !res.item) {
+      try {
+        const legacyRes = await getDatastoreItem(LEGACY_DATASTORE_KEY, LEGACY_DATASTORE_CATEGORY);
+        if (legacyRes.success && legacyRes.item) {
+          res = legacyRes;
+          loadedFromLegacy = true;
+        }
+      } catch (err) {
+        console.warn('[agentTools] Legacy datastore read failed:', err);
+      }
+    }
 
     const localRecord = readCacheRecord();
     const localEntries = localRecord.entries;
     const localUpdatedAt = localRecord.updatedAt;
+    const localConfigured = localRecord.configured;
 
     if (!res.success || !res.item) {
-      const hydrated = await hydrateFromCategoryAutomations();
+      // If datastore fetch errored (network error, 500, etc.), do not overwrite local cache
+      if (!res.success) {
+        return localEntries;
+      }
+
+      // If datastore item genuinely does not exist (404), check if local is already configured
+      if (localConfigured || localEntries.length > 0) {
+        if (localWriteSeq === requestSeq) {
+          persistToDatastore(localEntries, localUpdatedAt);
+        }
+        return localEntries;
+      }
+
+      // Neither datastore nor local cache has ever been configured: attempt initial hydration
+      const hydrated = await hydrateFromCategoryAutomations(true);
       if (hydrated) {
         return readAll();
       }
-      if (localEntries.length > 0 && localWriteSeq === requestSeq) {
-        persistToDatastore(localEntries, localUpdatedAt);
-      }
-      return localEntries;
+
+      // If category automations also had no apps, initialize an empty record so it is marked configured
+      writeCache([], Date.now());
+      persistToDatastore([], Date.now());
+      return [];
     }
 
     let remoteValue: unknown = res.item.value;
@@ -496,25 +561,8 @@ export const loadAgentToolsFromDatastore = async (): Promise<AgentToolsEntry[]> 
       return merged;
     }
 
-    const remoteHasAnyTools = remoteEntries.some((e) => e.tools.length > 0);
-    const localHasAnyTools = localEntries.some((e) => e.tools.length > 0);
-
-    // If server returned empty or only empty-tool entries, but local cache has tools, retain local and push to server
-    if (!remoteHasAnyTools && localHasAnyTools) {
-      persistToDatastore(localEntries, localUpdatedAt || Date.now());
-      return localEntries;
-    }
-
-    // If neither server nor local has tools for incident-handler, check category automations
-    if (!remoteHasAnyTools && !localHasAnyTools) {
-      const hydrated = await hydrateFromCategoryAutomations();
-      if (hydrated) {
-        return readAll();
-      }
-    }
-
-    // If local cache is newer than server, retain local
-    if (localUpdatedAt > remoteUpdatedAt && localHasAnyTools) {
+    // If local cache is newer than server, retain local and push to server
+    if (localUpdatedAt > remoteUpdatedAt) {
       const merged = mergeEntries(remoteEntries, localEntries, true);
       writeCache(merged, localUpdatedAt);
       persistToDatastore(merged, localUpdatedAt);
@@ -525,15 +573,9 @@ export const loadAgentToolsFromDatastore = async (): Promise<AgentToolsEntry[]> 
     const merged = mergeEntries(localEntries, remoteEntries, false);
     writeCache(merged, remoteUpdatedAt || Date.now());
 
-    // Check if incident-handler in merged has tools, otherwise check category automations
-    const ihHasTools = merged.some(
-      (e) =>
-        (e.agent === 'incident-handler' || e.agent === 'incident-response' || e.agent === DEFAULT_AGENT) &&
-        e.tools.length > 0,
-    );
-    if (!ihHasTools) {
-      await hydrateFromCategoryAutomations();
-      return readAll();
+    // If entries were loaded from legacy location, migrate them to modern datastore location
+    if (loadedFromLegacy) {
+      persistToDatastore(merged, remoteUpdatedAt || Date.now());
     }
 
     return merged;
@@ -551,7 +593,7 @@ export const getAgentTools = (
 ): ToolRef[] => {
   const all = readAll();
   const entry = all.find((e) => e.agent === agent && e.actionType === actionType);
-  if (entry && entry.tools && entry.tools.length > 0) {
+  if (entry && Array.isArray(entry.tools)) {
     return entry.tools;
   }
   if (agent === 'incident-handler' || agent === 'incident-response' || agent === DEFAULT_AGENT) {
@@ -559,10 +601,9 @@ export const getAgentTools = (
       (e) =>
         (e.agent === 'incident-handler' || e.agent === 'incident-response' || e.agent === DEFAULT_AGENT) &&
         e.actionType === actionType &&
-        e.tools &&
-        e.tools.length > 0,
+        Array.isArray(e.tools),
     );
-    if (found?.tools && found.tools.length > 0) return found.tools;
+    if (found) return found.tools;
   }
   return [];
 };
@@ -630,11 +671,7 @@ export const saveAgentTools = async (
 export const getToolsForSkill = (skillOrPresetId: string): ToolRef[] => {
   const normalized = (skillOrPresetId || '').toLowerCase().trim();
   if (normalized === 'incident-handler' || normalized === 'incident-response' || normalized === 'default') {
-    const ih = getAgentTools('incident-handler');
-    if (ih.length > 0) return ih;
-    const ir = getAgentTools('incident-response');
-    if (ir.length > 0) return ir;
-    return getAgentTools(DEFAULT_AGENT);
+    return getAgentTools('incident-handler');
   }
   return getAgentTools(normalized);
 };
@@ -660,10 +697,10 @@ export const removeAgentTool = (
   toolId: string,
   agent: string = DEFAULT_AGENT,
   actionType: string = DEFAULT_ACTION_TYPE,
-) => {
+): AgentToolsEntry[] => {
   const target = (toolId || '').toLowerCase();
   const current = getAgentTools(agent, actionType);
-  setAgentTools(
+  return setAgentTools(
     current.filter((t) => (t.id || '').toLowerCase() !== target && t.name.toLowerCase() !== target),
     agent,
     actionType,

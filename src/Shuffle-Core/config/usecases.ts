@@ -983,8 +983,10 @@ export interface UsecaseCategoryJson {
   list: UsecaseJsonEntry[];
 }
 
-const labelFor = (categoryId: string): string =>
+export const categoryLabel = (categoryId: string): string =>
   TOOL_CATEGORIES.find(c => c.id === categoryId)?.label || categoryId;
+
+const labelFor = categoryLabel;
 
 /**
  * Convert the in-memory usecase registry into the portable JSON shape.
@@ -1037,3 +1039,31 @@ export function getUsecasesJson(
       })),
   }));
 }
+
+// IDs of usecases whose backend automation is fully wired. Anything not in
+// this list renders a "Coming soon" affordance instead of a live Enable
+// button.
+export const ACTIVE_USECASE_IDS: readonly string[] = [
+  'siem_case_management_1',
+  'edr_case_management_1',
+  'email_case_management_1',
+  'threat_intel_ingest_1',
+  'threat_intel_case_management_1',
+  'case_management_cases_forward_1',
+  'case_management_communication_1',
+  'case_management_asset_management_monitors_1',
+  'case_management_assign_escalate_1',
+  'asset_management_case_management_vuln_1',
+  'vulnerability_ingestion_1',
+  'threat_intel_network_1',
+  'threat_intel_edr_1',
+  'case_management_incident_routing_1',
+  'case_management_schedules_notifications_1',
+  'case_management_agent_ai_incident_handling_1',
+];
+
+export const slugify = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'usecase';

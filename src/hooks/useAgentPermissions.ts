@@ -230,7 +230,17 @@ export const useAgentPermissions = (skill: string = 'incident-handler') => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await getDatastoreItem(datastoreKey, DATASTORE_CATEGORIES.CONFIGURATION);
+      let response = await getDatastoreItem(datastoreKey, DATASTORE_CATEGORIES.CONFIGURATION);
+      let loadedFromLegacy = false;
+
+      // For incident-handler or default, fall back to legacy 'agent_permissions' if skill-specific key has not been populated yet
+      if ((!response.success || !response.item?.value) && (skill === 'incident-handler' || skill === 'default')) {
+        const legacyResponse = await getDatastoreItem(DATASTORE_KEY, DATASTORE_CATEGORIES.CONFIGURATION);
+        if (legacyResponse.success && legacyResponse.item?.value) {
+          response = legacyResponse;
+          loadedFromLegacy = true;
+        }
+      }
 
       if (response.success && response.item?.value) {
         const data = typeof response.item.value === 'string'
@@ -238,6 +248,12 @@ export const useAgentPermissions = (skill: string = 'incident-handler') => {
           : response.item.value;
         if (Array.isArray(data) && data.length > 0) {
           setCategories(data);
+          // Migrate legacy configuration into the new skill-specific key
+          if (loadedFromLegacy) {
+            setDatastoreItem(datastoreKey, data, DATASTORE_CATEGORIES.CONFIGURATION).catch((err) => {
+              console.warn('[useAgentPermissions] Failed to migrate legacy permissions:', err);
+            });
+          }
           return;
         }
       }
@@ -247,7 +263,7 @@ export const useAgentPermissions = (skill: string = 'incident-handler') => {
     } finally {
       setIsLoading(false);
     }
-  }, [datastoreKey]);
+  }, [datastoreKey, skill]);
 
   // Save permissions to datastore
   const savePermissions = useCallback(async (updatedCategories: AgentPermissionCategory[]) => {
@@ -258,6 +274,14 @@ export const useAgentPermissions = (skill: string = 'incident-handler') => {
       if (!response.success) {
         setError(response.error || 'Failed to save permissions');
         return false;
+      }
+      // If incident-handler or default, keep legacy 'agent_permissions' key updated for backwards compatibility
+      if (skill === 'incident-handler' || skill === 'default') {
+        try {
+          await setDatastoreItem(DATASTORE_KEY, updatedCategories, DATASTORE_CATEGORIES.CONFIGURATION);
+        } catch (err) {
+          console.warn('[useAgentPermissions] Failed to mirror save to legacy key:', err);
+        }
       }
       return true;
     } catch (err) {

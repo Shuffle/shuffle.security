@@ -148,9 +148,9 @@ export const CreateIncidentDialog = ({ open, onClose, onSubmit }: CreateIncident
       const template = templates.find(t => t.id === templateId);
       if (template) {
         // Apply template tasks
-        const templateTasks: IncidentTask[] = template.tasks.map((t, index) => ({
+        const templateTasks: IncidentTask[] = (template.tasks || []).map((t, index) => ({
           id: `task-${Date.now()}-${index}`,
-          title: t.title,
+          title: t.title || '',
           description: t.description || '',
           category: t.category || '',
           assignee: t.assignee || '',
@@ -471,7 +471,7 @@ export const CreateIncidentDialog = ({ open, onClose, onSubmit }: CreateIncident
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                             <Typography variant="body2">{template.name}</Typography>
                             <Typography variant="caption" sx={{ color: 'text.secondary', ml: 'auto' }}>
-                              {template.tasks.length} tasks
+                              {template.tasks?.length ?? 0} tasks
                             </Typography>
                           </Box>
                         </MenuItem>

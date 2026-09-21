@@ -106,19 +106,22 @@ const IOCTypesPage = () => {
   }, [items, isLoading, fetchItems]);
 
   useEffect(() => {
-    const parsed: IOCType[] = items.map(item => {
-      try {
-        const obj = JSON.parse(item.value) as IOCType;
-        // Fix double-escaped regex patterns from datastore
-        if (obj.regex && obj.regex.includes('\\\\')) {
-          console.warn(`[IOC] Fixing double-escaped regex for ${obj.name}: ${obj.regex}`);
-          obj.regex = obj.regex.replace(/\\\\/g, '\\');
+    const parsed: IOCType[] = items
+      .filter(item => !item.category || item.category === DATASTORE_CATEGORIES.IOCS)
+      .map(item => {
+        try {
+          const obj = JSON.parse(item.value) as IOCType;
+          // Fix double-escaped regex patterns from datastore
+          if (obj.regex && obj.regex.includes('\\\\')) {
+            console.warn(`[IOC] Fixing double-escaped regex for ${obj.name}: ${obj.regex}`);
+            obj.regex = obj.regex.replace(/\\\\/g, '\\');
+          }
+          const safeName = typeof obj.name === 'string' && obj.name.trim() ? obj.name.trim() : item.key;
+          return normalizeDefaultIOCType({ ...obj, name: safeName });
+        } catch {
+          return normalizeDefaultIOCType({ name: item.key, regex: typeof item.value === 'string' ? item.value : '', description: '' });
         }
-        return normalizeDefaultIOCType({ ...obj, name: obj.name || item.key });
-      } catch {
-        return normalizeDefaultIOCType({ name: item.key, regex: item.value, description: '' });
-      }
-    });
+      });
     const visibleParsed = parsed.filter(type => !optimisticDeletes.current.has(type.name));
     const merged = optimisticOverrides.current.size === 0
       ? visibleParsed
@@ -379,9 +382,9 @@ const IOCTypesPage = () => {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(t => 
-        t.name.toLowerCase().includes(query) ||
-        t.description?.toLowerCase().includes(query) ||
-        t.category?.toLowerCase().includes(query)
+        (t.name || '').toLowerCase().includes(query) ||
+        (t.description || '').toLowerCase().includes(query) ||
+        (t.category || '').toLowerCase().includes(query)
       );
     }
     
@@ -394,7 +397,7 @@ const IOCTypesPage = () => {
       const orderB = categoryOrder.indexOf(catB as IOCCategory);
       
       if (orderA !== orderB) return orderA - orderB;
-      return a.name.localeCompare(b.name);
+      return (a.name || '').localeCompare(b.name || '');
     });
   }, [iocTypes, searchQuery, filterMode]);
 

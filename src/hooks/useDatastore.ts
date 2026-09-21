@@ -139,7 +139,11 @@ export const useDatastore = ({ category, orgId: overrideOrgId }: UseDatastoreOpt
         // The backend hands back a cursor even on the final page. A short
         // page (fewer items than the page size) means there is nothing more
         // to fetch, so stop instead of firing a pointless cursor request.
-        if (pageItems.length < getDatastorePageSize(category)) {
+        // Use rawItemCount (before cross-category filtering) so that category
+        // deduplication doesn't falsely truncate pagination when the backend
+        // actually has more pages.
+        const backendItemsCount = response.rawItemCount ?? pageItems.length;
+        if (backendItemsCount < getDatastorePageSize(category)) {
           currentCursor = undefined;
           break;
         }

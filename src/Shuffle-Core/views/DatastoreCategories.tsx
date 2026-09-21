@@ -55,7 +55,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme as useAppTheme } from '@/context/ThemeContext';
 import { toast } from '@/lib/toast';
 import { useLocation, useNavigate } from '@/lib/router-compat';
-import { DATASTORE_CATEGORIES, RBACConfig } from '@/Shuffle-MCPs/datastore';
+import { DATASTORE_CATEGORIES, RBACConfig, filterItemsByCategory } from '@/Shuffle-MCPs/datastore';
 import { CategoryAutomationsDialog } from '@/Shuffle-Core/components/CategoryAutomationsDialog';
 import { ShareAccessModal } from '@/components/common/ShareAccessModal';
 import { useSubOrgs } from '@/hooks/useSubOrgs';
@@ -433,8 +433,8 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
       if (groupA && !groupB) return 1;
 
       // 3. Grouped categories sorted by group name, then category name
-      if (groupA !== groupB) return groupA.localeCompare(groupB);
-      return a.localeCompare(b);
+      if (groupA !== groupB) return (groupA || '').localeCompare(groupB || '');
+      return (a || '').localeCompare(b || '');
     });
   }, [categories, getCategoryGroup]);
 
@@ -555,7 +555,8 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
           return [];
         };
 
-        loadedItems = extractItems(data);
+        const rawExtracted = extractItems(data);
+        loadedItems = effectiveCat ? filterItemsByCategory(rawExtracted, effectiveCat) : rawExtracted;
         totalCount = (data && (data.total_amount ?? data.total ?? data.count)) ?? loadedItems.length;
         nextCursor = (data && (data.cursor ?? data.next_cursor)) || '';
 

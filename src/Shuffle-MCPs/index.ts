@@ -239,6 +239,7 @@ export {
   getDatastoreItemPublic,
   getDatastoreByCategory,
   getDatastorePageSize,
+  filterItemsByCategory,
   deleteDatastoreItem,
   deleteDatastoreItems,
   DATASTORE_CATEGORIES,

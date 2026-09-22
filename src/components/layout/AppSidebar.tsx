@@ -482,6 +482,13 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
     } catch (err) {
       console.error("[AppSidebar] tenant change failed", err);
       setChangingOrg(false);
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : "Could not switch tenant. You are still in " +
+              (selectedOrg?.name || "the current tenant") +
+              ".",
+      );
     }
   };
 

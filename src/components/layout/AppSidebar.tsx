@@ -365,16 +365,17 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
     }
     if (!collapsed) return;
     setHoverExpanded(true);
-    setOrgSelectOpen(false);
   };
 
   const handleMouseLeave = () => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    // While the tenant list (or a floating menu) is open the pointer often sits
+    // in a portaled surface outside the sidebar. Never auto-close on leave in
+    // that case — the user closes it by picking a tenant or clicking away.
+    if (orgSelectOpen || toolMenuAnchor || userMenuAnchor) return;
+    if (!collapsed) return;
     hoverTimeoutRef.current = setTimeout(() => {
       setHoverExpanded(false);
-      setOrgSelectOpen(false);
-      setToolMenuAnchor(null);
-      setUserMenuAnchor(null);
     }, hoverCollapseDelay);
   };
 
@@ -470,10 +471,17 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
   ).src;
 
   const handleOrgChange = async (org: { id: string; name: string } | null) => {
-    if (org) {
-      setOrgSelectOpen(false);
-      setChangingOrg(true);
+    if (!org) return;
+    setOrgSelectOpen(false);
+    // Re-picking the tenant you are already in should not trigger a full
+    // tenant change and page reload.
+    if (org.id === selectedOrg?.id) return;
+    setChangingOrg(true);
+    try {
       await setActiveOrg(org.id);
+    } catch (err) {
+      console.error("[AppSidebar] tenant change failed", err);
+      setChangingOrg(false);
     }
   };
 
@@ -1191,9 +1199,9 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
           {!visuallyCollapsed ? (
             <Box sx={{ p: 2 }}>
               <Autocomplete
-                open={orgSelectOpen && !visuallyCollapsed && !collapsed}
+                open={orgSelectOpen && !visuallyCollapsed}
                 onOpen={() => {
-                  if (visuallyCollapsed || collapsed) return;
+                  if (visuallyCollapsed) return;
                   setOrgSelectOpen(true);
                   // Scroll the currently-selected tenant into the middle of the
                   // listbox so users in deeply-nested child tenants don't have
@@ -1213,7 +1221,18 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                     }
                   });
                 }}
-                onClose={() => setOrgSelectOpen(false)}
+                onClose={() => {
+                  setOrgSelectOpen(false);
+                  // Closing while the pointer rests in the portaled list leaves
+                  // no mouseleave on the sidebar, so re-arm the hover collapse.
+                  if (collapsed) {
+                    if (hoverTimeoutRef.current)
+                      clearTimeout(hoverTimeoutRef.current);
+                    hoverTimeoutRef.current = setTimeout(() => {
+                      setHoverExpanded(false);
+                    }, hoverCollapseDelay);
+                  }
+                }}
                 value={selectedOrg}
                 onChange={(_, newValue) => handleOrgChange(newValue)}
                 options={sortedOrgs.map((item) => item.org)}

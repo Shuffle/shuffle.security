@@ -578,8 +578,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.location.reload();
     } catch (err) {
       console.error('Failed to change org:', err);
-      // Still reload on error to ensure a clean state
-      window.location.reload();
+      // Roll back to the tenant/region we came from so the user stays on a
+      // working session, then surface the failure to the caller instead of
+      // reloading into an ambiguous state.
+      try {
+        if (previousRegionUrl) {
+          setRegionUrl(previousRegionUrl, previousOrgId);
+        } else {
+          resetRegionUrl();
+        }
+        setRuntimeOrgId(previousOrgId || null);
+        await fetchUserInfo();
+      } catch { /* ignore */ }
+      throw err instanceof Error ? err : new Error('Tenant change failed');
     }
   }, [fetchUserInfo, userInfo]);
 

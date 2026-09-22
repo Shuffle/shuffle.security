@@ -1214,7 +1214,18 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                     }
                   });
                 }}
-                onClose={() => setOrgSelectOpen(false)}
+                onClose={() => {
+                  setOrgSelectOpen(false);
+                  // Closing while the pointer rests in the portaled list leaves
+                  // no mouseleave on the sidebar, so re-arm the hover collapse.
+                  if (collapsed) {
+                    if (hoverTimeoutRef.current)
+                      clearTimeout(hoverTimeoutRef.current);
+                    hoverTimeoutRef.current = setTimeout(() => {
+                      setHoverExpanded(false);
+                    }, hoverCollapseDelay);
+                  }
+                }}
                 value={selectedOrg}
                 onChange={(_, newValue) => handleOrgChange(newValue)}
                 options={sortedOrgs.map((item) => item.org)}

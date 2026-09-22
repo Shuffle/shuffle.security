@@ -471,10 +471,17 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
   ).src;
 
   const handleOrgChange = async (org: { id: string; name: string } | null) => {
-    if (org) {
-      setOrgSelectOpen(false);
-      setChangingOrg(true);
+    if (!org) return;
+    setOrgSelectOpen(false);
+    // Re-picking the tenant you are already in should not trigger a full
+    // tenant change and page reload.
+    if (org.id === selectedOrg?.id) return;
+    setChangingOrg(true);
+    try {
       await setActiveOrg(org.id);
+    } catch (err) {
+      console.error("[AppSidebar] tenant change failed", err);
+      setChangingOrg(false);
     }
   };
 

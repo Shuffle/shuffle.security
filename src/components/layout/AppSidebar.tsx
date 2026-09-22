@@ -1192,9 +1192,9 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
           {!visuallyCollapsed ? (
             <Box sx={{ p: 2 }}>
               <Autocomplete
-                open={orgSelectOpen && !visuallyCollapsed && !collapsed}
+                open={orgSelectOpen && !visuallyCollapsed}
                 onOpen={() => {
-                  if (visuallyCollapsed || collapsed) return;
+                  if (visuallyCollapsed) return;
                   setOrgSelectOpen(true);
                   // Scroll the currently-selected tenant into the middle of the
                   // listbox so users in deeply-nested child tenants don't have

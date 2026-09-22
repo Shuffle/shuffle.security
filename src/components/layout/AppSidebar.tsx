@@ -65,6 +65,7 @@ import { getRegionFlag } from "@/lib/regionFlag";
 import { useSubOrgs } from "@/hooks/useSubOrgs";
 import { resolveUserAvatar } from "@/components/incidents/UserHoverCard";
 import { useUsers } from "@/hooks/useUsers";
+import { toast } from "sonner";
 
 const drawerWidth = 260;
 const collapsedWidth = 64;

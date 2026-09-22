@@ -65,6 +65,7 @@ import { getRegionFlag } from "@/lib/regionFlag";
 import { useSubOrgs } from "@/hooks/useSubOrgs";
 import { resolveUserAvatar } from "@/components/incidents/UserHoverCard";
 import { useUsers } from "@/hooks/useUsers";
+import { toast } from "sonner";
 
 const drawerWidth = 260;
 const collapsedWidth = 64;
@@ -482,6 +483,13 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
     } catch (err) {
       console.error("[AppSidebar] tenant change failed", err);
       setChangingOrg(false);
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : "Could not switch tenant. You are still in " +
+              (selectedOrg?.name || "the current tenant") +
+              ".",
+      );
     }
   };
 

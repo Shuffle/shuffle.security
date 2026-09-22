@@ -365,16 +365,17 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
     }
     if (!collapsed) return;
     setHoverExpanded(true);
-    setOrgSelectOpen(false);
   };
 
   const handleMouseLeave = () => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    // While the tenant list (or a floating menu) is open the pointer often sits
+    // in a portaled surface outside the sidebar. Never auto-close on leave in
+    // that case — the user closes it by picking a tenant or clicking away.
+    if (orgSelectOpen || toolMenuAnchor || userMenuAnchor) return;
+    if (!collapsed) return;
     hoverTimeoutRef.current = setTimeout(() => {
       setHoverExpanded(false);
-      setOrgSelectOpen(false);
-      setToolMenuAnchor(null);
-      setUserMenuAnchor(null);
     }, hoverCollapseDelay);
   };
 

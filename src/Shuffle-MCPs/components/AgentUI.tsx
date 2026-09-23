@@ -2798,6 +2798,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // Populated by `loadAuthenticatedApps` so the "Choose LLM" chip can show
   // the matching vendor logo and label.
   const [detectedLLM, setDetectedLLM] = useState<{ label: string; url: string; logo: string } | null>(null);
+  /** Optimistically chosen provider label, held until the backend agrees. */
+  const pendingLLMRef = useRef<string | null>(null);
   const [configuredLLMOptions, setConfiguredLLMOptions] = useState<Array<{ label: string; id?: string }>>([]);
   const [llmMenuAnchor, setLlmMenuAnchor] = useState<null | HTMLElement>(null);
   // Apps actually allowed for the current execution, derived from the agent's

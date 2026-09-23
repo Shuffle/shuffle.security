@@ -555,6 +555,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!response.ok) {
         console.warn('Org change API returned non-OK:', response.status);
+        const detail = await response.text().catch(() => '');
+        throw new Error(
+          response.status === 401 || response.status === 403
+            ? 'You do not have access to that tenant.'
+            : `Tenant change failed (${response.status})${detail ? ': ' + detail.slice(0, 200) : ''}`,
+        );
       } else {
         // /change responds with the new tenant's region_url and resolved org_id (e.g. support pivot UUID)
         const changeData = await response.json().catch(() => null);
@@ -572,8 +578,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.location.reload();
     } catch (err) {
       console.error('Failed to change org:', err);
-      // Still reload on error to ensure a clean state
-      window.location.reload();
+      // Roll back to the tenant/region we came from so the user stays on a
+      // working session, then surface the failure to the caller instead of
+      // reloading into an ambiguous state.
+      try {
+        if (previousRegionUrl) {
+          setRegionUrl(previousRegionUrl, previousOrgId);
+        } else {
+          resetRegionUrl();
+        }
+        setRuntimeOrgId(previousOrgId || null);
+        await fetchUserInfo();
+      } catch { /* ignore */ }
+      throw err instanceof Error ? err : new Error('Tenant change failed');
     }
   }, [fetchUserInfo, userInfo]);
 

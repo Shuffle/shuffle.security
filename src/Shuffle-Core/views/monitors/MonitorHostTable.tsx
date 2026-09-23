@@ -712,11 +712,10 @@ export const MonitorHostTable = ({
           const responseActionsOn = responseActionsState.enabled;
           const responseActionsMode = responseActionsState.mode;
           const activeProcessesCount = countActiveProcesses(host);
-          // Stable per-row key: uuid when present, otherwise groupId+hostname+idx.
-          // Avoids collapsing all uuid-less rows into a single expansion entry.
-          const rowKey = (host.uuid && String(host.uuid).trim())
-            ? `uuid:${host.uuid}`
-            : `gh:${(host as any).groupId || ''}::${(host.hostname || '').toLowerCase()}::${idx}`;
+          // Stable per-row key. Must be unique per rendered row: the same uuid can
+          // appear in more than one monitor group, and keying on uuid alone made a
+          // single click expand every matching row (details shown more than once).
+          const rowKey = `row:${(host as any).groupId || ''}::${(host.hostname || '').toLowerCase()}::${String(host.uuid || '').trim()}::${idx}`;
           const isExpanded = expandedHosts.has(rowKey);
           const toggleExpanded = () => {
             setExpandedHosts(prev => {

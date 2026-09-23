@@ -325,7 +325,6 @@ export const ShuffleCoreThemeProvider: React.FC<ShuffleCoreThemeProviderProps> =
   mode = "auto",
 }) => {
   const parent = useMuiTheme();
-  const parentCtx = useShuffleCoreTheme();
   const anchorRef = React.useRef<HTMLSpanElement>(null);
   const autoIsDark = useAutoDarkClass(mode === "auto", anchorRef);
   const effectiveDark = mode === "auto" ? autoIsDark : mode === "dark";

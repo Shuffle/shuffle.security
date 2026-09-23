@@ -330,9 +330,6 @@ export const ShuffleCoreThemeProvider: React.FC<ShuffleCoreThemeProviderProps> =
   const autoIsDark = useAutoDarkClass(mode === "auto", anchorRef);
   const effectiveDark = mode === "auto" ? autoIsDark : mode === "dark";
 
-  const sameAsParent =
-    parentCtx !== null && parentCtx.isDark === effectiveDark;
-
   const scopeClassName = effectiveDark ? "shuffle-core-scope dark" : "shuffle-core-scope light";
   const resolvedModeAttr = effectiveDark ? "dark" : "light";
   const scopeStyle = effectiveDark ? darkTokenStyle : lightTokenStyle;
@@ -380,15 +377,6 @@ export const ShuffleCoreThemeProvider: React.FC<ShuffleCoreThemeProviderProps> =
     () => ({ mode, isDark: effectiveDark, scopeClassName }),
     [mode, effectiveDark, scopeClassName],
   );
-
-  if (sameAsParent) {
-    return (
-      <ShuffleCoreThemeContext.Provider value={ctxValue}>
-        <span ref={anchorRef} style={{ display: "none" }} aria-hidden />
-        {children}
-      </ShuffleCoreThemeContext.Provider>
-    );
-  }
 
   return (
     <ShuffleCoreThemeContext.Provider value={ctxValue}>

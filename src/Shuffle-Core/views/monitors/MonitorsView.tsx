@@ -974,7 +974,11 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
   };
 
   const handleCopyCommand = () => {
-    navigator.clipboard.writeText(getDeployCommand());
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(getDeployCommand()).catch(() => {});
+      }
+    } catch {}
     setCopied(true);
     activatePolling();
     setTimeout(() => setCopied(false), 2000);
@@ -1665,7 +1669,11 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
                           if (hostChecks.response_actions) flags.push(`--response_actions=${responseActionMode}`);
                           if (hostChecks.log_forwarding && logForwardingEndpoint.trim()) flags.push(`--log_forwarding=${logForwardingEndpoint.trim()}`);
                           const bin = hostPlatform === 'windows' ? '.\\orborus.exe' : './orborus';
-                          navigator.clipboard.writeText(`${bin} ${flags.join(' ')}`);
+                          try {
+                            if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                              navigator.clipboard.writeText(`${bin} ${flags.join(' ')}`).catch(() => {});
+                            }
+                          } catch {}
                           setCopied(true);
                           activatePolling();
                           setTimeout(() => setCopied(false), 2000);

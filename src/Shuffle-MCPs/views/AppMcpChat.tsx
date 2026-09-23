@@ -19,6 +19,7 @@ import {
 import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { safeRandomUUID } from '@/Shuffle-MCPs/uuid';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
 import {
@@ -221,7 +222,7 @@ const AppMcpChat = ({ appName, appIcon, appId, categories, globalUrl }: AppMcpCh
           },
           body: JSON.stringify({
             jsonrpc: '2.0',
-            id: crypto.randomUUID(),
+            id: safeRandomUUID(),
             method: 'tools/call',
             params: {
               tool_name: appName,

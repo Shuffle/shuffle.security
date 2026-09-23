@@ -49,7 +49,11 @@ export const RuntimeQueueProblemBar = ({ className }: RuntimeQueueProblemBarProp
 
   const handleEditorAction = () => {
     const text = `Shuffle Security Alert: Runtime location "${primaryEnv.name}" is offline with ${primaryEnv.queue} queued executions. Incident ingestion and automations are paused. Please visit /admin/runtime-locations to restart Orborus or reassign the default runtime location to Cloud.`;
-    navigator.clipboard.writeText(text);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {});
+      }
+    } catch {}
     toast.info('Copied diagnostic alert for workspace administrator to clipboard.');
   };
 

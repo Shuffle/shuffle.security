@@ -634,8 +634,10 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
 
   // Copy helper
   const handleCopyText = (text: string, label: string) => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(text);
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        navigator.clipboard.writeText(text).catch(() => {});
+      } catch {}
       setCopiedKey(text);
       setTimeout(() => setCopiedKey(null), 1500);
       toast.success(`Copied ${label} to clipboard`);

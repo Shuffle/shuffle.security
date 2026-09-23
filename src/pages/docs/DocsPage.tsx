@@ -158,19 +158,25 @@ const DocsPage = ({
 
     setContainerWidth(el.getBoundingClientRect().width);
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.contentBoxSize) {
-          const size = Array.isArray(entry.contentBoxSize) ? entry.contentBoxSize[0] : entry.contentBoxSize;
-          setContainerWidth(size.inlineSize);
-        } else {
-          setContainerWidth(entry.contentRect.width);
-        }
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      try {
+        observer = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            if (entry.contentBoxSize) {
+              const size = Array.isArray(entry.contentBoxSize) ? entry.contentBoxSize[0] : entry.contentBoxSize;
+              setContainerWidth(size.inlineSize);
+            } else {
+              setContainerWidth(entry.contentRect.width);
+            }
+          }
+        });
+        observer.observe(el);
+      } catch {
+        observer = null;
       }
-    });
-
-    observer.observe(el);
-    return () => observer.disconnect();
+    }
+    return () => observer?.disconnect();
   }, []);
 
   // Show desktop TOC only if viewport is >= 1200px (isLgUp) AND the content area has

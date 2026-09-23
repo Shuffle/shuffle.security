@@ -1,3 +1,5 @@
+import "@/lib/crypto-polyfill";
+import "@/lib/browser-shims";
 import { useState, Suspense, useEffect, useMemo, type ReactNode } from "react";
 import type { QueryClient } from "@tanstack/react-query";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -72,20 +74,24 @@ if (typeof window !== "undefined") {
   // Clean up any legacy Service Workers silently in the background (web browsers only).
   // Never reload the page, which causes infinite loops in WKWebView / private mode.
   const isCapacitor = Boolean((window as any).Capacitor?.isNativePlatform?.() || (window as any)._capacitor);
-  if (!isCapacitor && "serviceWorker" in navigator) {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      registrations.forEach((r) => {
-        // Keep the Firebase messaging worker: it is what produces the web push token.
-        const script = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || "";
-        if (script.includes("firebase-messaging-sw.js")) return;
-        r.unregister().catch(() => {});
-      });
-    }).catch(() => {});
-
-    if ("caches" in window) {
-      caches.keys().then((cacheNames) => {
-        cacheNames.forEach((n) => caches.delete(n).catch(() => {}));
+  if (!isCapacitor && typeof navigator !== "undefined" && Boolean(navigator.serviceWorker)) {
+    try {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((r) => {
+          // Keep the Firebase messaging worker: it is what produces the web push token.
+          const script = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || "";
+          if (script.includes("firebase-messaging-sw.js")) return;
+          r.unregister().catch(() => {});
+        });
       }).catch(() => {});
+    } catch {}
+
+    if (typeof window !== "undefined" && "caches" in window && Boolean(window.caches)) {
+      try {
+        window.caches.keys().then((cacheNames) => {
+          cacheNames.forEach((n) => window.caches?.delete(n).catch(() => {}));
+        }).catch(() => {});
+      } catch {}
     }
   }
 }

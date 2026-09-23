@@ -334,7 +334,11 @@ export const AddHostDialog = ({
   };
 
   const handleCopyCommand = () => {
-    navigator.clipboard.writeText(getDeployCommand());
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(getDeployCommand()).catch(() => {});
+      }
+    } catch {}
     setCopied(true);
     activatePolling();
     setTimeout(() => setCopied(false), 2000);
@@ -742,7 +746,11 @@ export const AddHostDialog = ({
                           flags.push(`--log_forwarding=${logForwardingEndpoint.trim()}`);
                         }
                         const bin = hostPlatform === 'windows' ? '.\\orborus.exe' : './orborus';
-                        navigator.clipboard.writeText(`${bin} ${flags.join(' ')}`);
+                        try {
+                          if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                            navigator.clipboard.writeText(`${bin} ${flags.join(' ')}`).catch(() => {});
+                          }
+                        } catch {}
                         setCopied(true);
                         activatePolling();
                         setTimeout(() => setCopied(false), 2000);

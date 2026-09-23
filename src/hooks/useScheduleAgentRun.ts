@@ -18,17 +18,9 @@
 import { useCallback } from 'react';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import { askAI } from '@/services/ai';
+import { safeRandomUUID } from '@/utils/uuid';
 
-const uuid = (): string => {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return (crypto as Crypto).randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-};
+const uuid = (): string => safeRandomUUID();
 
 export type ScheduleStepId = 'name' | 'workflow' | 'schedule';
 export type ScheduleStepState = 'active' | 'done' | 'error';

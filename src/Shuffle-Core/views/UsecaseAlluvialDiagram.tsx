@@ -690,7 +690,9 @@ function AppBubble({
                 />
                 <IconButton size="small" onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(webhookInfo.url!);
+                    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                      await navigator.clipboard.writeText(webhookInfo.url!);
+                    }
                     setCopied(true);
                     import('sonner').then(({ toast }) => toast.success('Webhook URL copied'));
                     setTimeout(() => setCopied(false), 2000);

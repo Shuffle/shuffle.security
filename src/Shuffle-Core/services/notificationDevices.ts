@@ -7,6 +7,7 @@ import {
   isAndroidWebView,
   isIosWebView,
 } from '@/Shuffle-Core/api';
+import { safeRandomUUID } from '@/utils/uuid';
 
 export interface DevicePreferences {
   critical_pager: boolean;
@@ -38,10 +39,7 @@ export const getLocalDeviceId = (): string => {
   try {
     const existing = localStorage.getItem(DEVICE_ID_KEY);
     if (existing) return existing;
-    const generated =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `dev-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    const generated = safeRandomUUID();
     localStorage.setItem(DEVICE_ID_KEY, generated);
     return generated;
   } catch {

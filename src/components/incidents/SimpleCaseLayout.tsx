@@ -339,8 +339,12 @@ export const SimpleCaseLayout = ({
 
     let resizeObserver: ResizeObserver | null = null;
     if (typeof ResizeObserver !== "undefined" && scroller) {
-      resizeObserver = new ResizeObserver(onScroll);
-      resizeObserver.observe(scroller);
+      try {
+        resizeObserver = new ResizeObserver(onScroll);
+        resizeObserver.observe(scroller);
+      } catch {
+        resizeObserver = null;
+      }
     }
 
     return () => {

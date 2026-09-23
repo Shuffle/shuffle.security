@@ -236,7 +236,9 @@ function CodeBlock({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(code);
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(code);
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {

@@ -1562,8 +1562,17 @@ const IncidentsPage = () => {
     }
     
     const SESSION_KEY = 'shuffle_auto_resync_done';
+    let storedSession: string[] = [];
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+        storedSession = raw ? JSON.parse(raw) : [];
+      }
+    } catch {
+      storedSession = [];
+    }
     const alreadyResynced: Set<string> = new Set(
-      JSON.parse(sessionStorage.getItem(SESSION_KEY) || '[]')
+      Array.isArray(storedSession) ? storedSession : []
     );
 
     // Find incidents without a title that have a source and haven't been resynced this session
@@ -1627,7 +1636,7 @@ const IncidentsPage = () => {
               if (title && title !== 'Untitled Incident' && title !== 'Requires sync' && title !== target.id) {
                 console.log(`[AutoResync] Got content for ${target.id} after ${pollCount} polls`);
                 alreadyResynced.add(target.id);
-                sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced]));
+                try { sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced])); } catch {}
                 await fetchItems();
                 setResyncingId(null);
                 resyncState.remove(target.id);
@@ -1643,7 +1652,7 @@ const IncidentsPage = () => {
             // Give up after max polls
             console.warn(`[AutoResync] Timed out for ${target.id}`);
             alreadyResynced.add(target.id);
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced]));
+            try { sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced])); } catch {}
             await fetchItems();
             setResyncingId(null);
             resyncState.remove(target.id);
@@ -1656,7 +1665,7 @@ const IncidentsPage = () => {
       } catch (err) {
         console.warn('[AutoResync] Error:', err);
         alreadyResynced.add(target.id);
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced]));
+        try { sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced])); } catch {}
         setResyncingId(null);
         resyncState.remove(target.id);
         setResyncingSource('');
@@ -2558,7 +2567,7 @@ const IncidentsPage = () => {
             )}
             <Tooltip title="Refresh">
               <IconButton 
-                onClick={() => { sessionStorage.removeItem('shuffle_auto_resync_done'); autoResyncQueueRef.current.clear(); fetchItems(); fetchSubOrgIncidents(); }} 
+                onClick={() => { try { sessionStorage.removeItem('shuffle_auto_resync_done'); } catch {} autoResyncQueueRef.current.clear(); fetchItems(); fetchSubOrgIncidents(); }} 
                 disabled={isLoading}
                 sx={{ 
                   width: 36, height: 36, color: 'text.secondary',
@@ -2953,7 +2962,7 @@ const IncidentsPage = () => {
   
             <Tooltip title="Refresh">
               <IconButton 
-                onClick={() => { sessionStorage.removeItem('shuffle_auto_resync_done'); autoResyncQueueRef.current.clear(); fetchItems(); fetchSubOrgIncidents(); }} 
+                onClick={() => { try { sessionStorage.removeItem('shuffle_auto_resync_done'); } catch {} autoResyncQueueRef.current.clear(); fetchItems(); fetchSubOrgIncidents(); }} 
                 disabled={isLoading}
                 sx={{ 
                   width: 36,
@@ -3022,7 +3031,7 @@ const IncidentsPage = () => {
             <MenuItem
               onClick={() => {
                 setMobileMenuAnchor(null);
-                sessionStorage.removeItem('shuffle_auto_resync_done');
+                try { sessionStorage.removeItem('shuffle_auto_resync_done'); } catch {}
                 autoResyncQueueRef.current.clear();
                 fetchItems();
                 fetchSubOrgIncidents();

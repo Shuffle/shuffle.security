@@ -9,6 +9,9 @@
 // CSS custom properties. Host overrides still win (defaults use :where(:root),
 // specificity 0).
 import './shuffle-mcp.css';
+import '@/Shuffle-MCPs/uuid';
+import '@/Shuffle-MCPs/clipboard';
+import '@/lib/browser-shims';
 import React from 'react';
 import { ShuffleMcpThemeProvider, type ShuffleMcpColorMode } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 

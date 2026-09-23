@@ -38,7 +38,11 @@ export const HiddenFieldsSection: React.FC<HiddenFieldsSectionProps> = ({
   }
 
   const handleCopy = (field: HiddenFieldItem) => {
-    navigator.clipboard.writeText(field.displayValue);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(field.displayValue).catch(() => {});
+      }
+    } catch {}
     setCopiedPath(field.path);
     setTimeout(() => {
       setCopiedPath((current) => (current === field.path ? null : current));

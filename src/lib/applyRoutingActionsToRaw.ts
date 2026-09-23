@@ -72,7 +72,16 @@ export const applyRoutingActionsToRaw = (
   if (!raw || typeof raw !== 'object' || !Array.isArray(actions) || actions.length === 0) {
     return { next: raw, changed: false, autoResolved: false };
   }
-  const next: any = structuredClone(raw);
+  let next: any;
+  try {
+    next = structuredClone(raw);
+  } catch {
+    try {
+      next = JSON.parse(JSON.stringify(raw));
+    } catch {
+      next = { ...raw };
+    }
+  }
   if (!next.rawOCSF || typeof next.rawOCSF !== 'object') next.rawOCSF = {};
   if (!Array.isArray(next.activity)) next.activity = [];
   if (!Array.isArray(next.labels)) next.labels = [];

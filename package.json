@@ -3,6 +3,8 @@
   "private": true,
   "sideEffects": [
     "**/*.css",
+    "**/crypto-polyfill.ts",
+    "**/browser-shims.ts",
     "**/ssr-storage.ts",
     "**/error-capture.ts"
   ],

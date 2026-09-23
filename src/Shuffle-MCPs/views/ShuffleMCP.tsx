@@ -487,12 +487,19 @@ export const ShuffleMCP = React.forwardRef<ShuffleMCPHandle, ShuffleMCPProps>(({
   useEffect(() => {
     const node = sentinelRef.current;
     if (!node || !canLoadMore) return;
-    const observer = new IntersectionObserver(
-      (entries) => { if (entries.some((entry) => entry.isIntersecting)) loadMore(); },
-      { rootMargin: '300px' },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
+    let observer: IntersectionObserver | null = null;
+    if (typeof IntersectionObserver !== 'undefined') {
+      try {
+        observer = new IntersectionObserver(
+          (entries) => { if (entries.some((entry) => entry.isIntersecting)) loadMore(); },
+          { rootMargin: '300px' },
+        );
+        observer.observe(node);
+      } catch {
+        observer = null;
+      }
+    }
+    return () => observer?.disconnect();
   }, [canLoadMore, loadMore, results.length]);
 
   const renderLoadMoreSentinel = () => (canLoadMore ? <div ref={sentinelRef} style={{ height: 1, gridColumn: '1 / -1' }} /> : null);

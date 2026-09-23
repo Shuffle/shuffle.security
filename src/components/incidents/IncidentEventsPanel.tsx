@@ -701,9 +701,13 @@ export const IncidentEventsPanel: React.FC<IncidentEventsPanelProps> = ({
             <Button
               size="small"
               onClick={() => {
-                navigator.clipboard.writeText(
-                  JSON.stringify(selectedRawEvent.raw || selectedRawEvent, null, 2),
-                );
+                try {
+                  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                    navigator.clipboard.writeText(
+                      JSON.stringify(selectedRawEvent.raw || selectedRawEvent, null, 2),
+                    ).catch(() => {});
+                  }
+                } catch {}
                 toast.success('Event JSON copied to clipboard');
               }}
               sx={{

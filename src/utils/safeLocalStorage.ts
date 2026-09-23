@@ -49,46 +49,88 @@ const listKeysBySize = (skipKey: string): SizedKey[] => {
 };
 
 export const installLocalStorageQuotaGuard = (): void => {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  const proto = Object.getPrototypeOf(window.localStorage) as Storage;
+  if (typeof window === "undefined") return;
+  let hasLocalStorage = false;
+  try {
+    hasLocalStorage = Boolean(window.localStorage);
+  } catch {
+    return;
+  }
+  if (!hasLocalStorage) return;
+
+  let proto: Storage;
+  try {
+    proto = Object.getPrototypeOf(window.localStorage) as Storage;
+  } catch {
+    return;
+  }
+
   const flag = window as unknown as { __lsQuotaGuardInstalled?: boolean };
   if (flag.__lsQuotaGuardInstalled) return;
   flag.__lsQuotaGuardInstalled = true;
 
-  const originalSetItem = proto.setItem.bind(window.localStorage);
-
-  proto.setItem = function patchedSetItem(key: string, value: string): void {
-    try {
-      originalSetItem(key, value);
-      return;
-    } catch (err) {
-      if (!isQuotaError(err)) throw err;
-
-      // Evict largest other keys one at a time and retry.
-      const candidates = listKeysBySize(key);
-      for (const { key: victim } of candidates) {
-        try {
-          window.localStorage.removeItem(victim);
-        } catch {
-          /* ignore */
-        }
-        try {
-          originalSetItem(key, value);
-          // eslint-disable-next-line no-console
-          console.warn(
-            `[safeLocalStorage] quota hit while writing "${key}"; evicted "${victim}" to make room.`
-          );
+  try {
+    const originalSetItem = proto.setItem.bind(window.localStorage);
+    proto.setItem = function patchedSetItem(key: string, value: string): void {
+      try {
+        originalSetItem(key, value);
+        return;
+      } catch (err) {
+        if (!isQuotaError(err)) {
+          // In sandboxed iframes or private modes, storage throws SecurityError.
+          // Silently drop write rather than crashing the whole view.
+          console.warn(`[safeLocalStorage] storage write blocked for "${key}":`, err);
           return;
-        } catch (retryErr) {
-          if (!isQuotaError(retryErr)) throw retryErr;
         }
-      }
 
-      // Last resort — silently drop the write rather than crash the app.
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[safeLocalStorage] dropping write to "${key}" (${value.length} chars) — storage full and no evictable keys remain.`
-      );
-    }
-  };
+        // Evict largest other keys one at a time and retry.
+        const candidates = listKeysBySize(key);
+        for (const { key: victim } of candidates) {
+          try {
+            window.localStorage.removeItem(victim);
+          } catch {
+            /* ignore */
+          }
+          try {
+            originalSetItem(key, value);
+            console.warn(
+              `[safeLocalStorage] quota hit while writing "${key}"; evicted "${victim}" to make room.`
+            );
+            return;
+          } catch (retryErr) {
+            if (!isQuotaError(retryErr)) {
+              console.warn(`[safeLocalStorage] storage retry failed for "${key}":`, retryErr);
+              return;
+            }
+          }
+        }
+
+        // Last resort — silently drop the write rather than crash the app.
+        console.warn(
+          `[safeLocalStorage] dropping write to "${key}" (${value.length} chars) — storage full and no evictable keys remain.`
+        );
+      }
+    };
+
+    const originalGetItem = proto.getItem.bind(window.localStorage);
+    proto.getItem = function patchedGetItem(key: string): string | null {
+      try {
+        return originalGetItem(key);
+      } catch (err) {
+        console.warn(`[safeLocalStorage] storage read blocked for "${key}":`, err);
+        return null;
+      }
+    };
+
+    const originalRemoveItem = proto.removeItem.bind(window.localStorage);
+    proto.removeItem = function patchedRemoveItem(key: string): void {
+      try {
+        originalRemoveItem(key);
+      } catch (err) {
+        console.warn(`[safeLocalStorage] storage remove blocked for "${key}":`, err);
+      }
+    };
+  } catch {
+    // Prototype manipulation might be blocked
+  }
 };

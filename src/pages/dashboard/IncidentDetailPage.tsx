@@ -8442,9 +8442,16 @@ const IncidentDetailPage = () => {
     let nextAssignee = editedAssignee;
     let nextLabels = [...editedLabels];
     let nextCustomFields = { ...editedCustomFields };
-    let nextActivity = [...activity];
-    let nextRaw: any = structuredClone(incident.rawOCSF);
-    const moveActions: RoutingAction[] = [];
+    let nextRaw: any = {};
+    try {
+      nextRaw = incident.rawOCSF ? structuredClone(incident.rawOCSF) : {};
+    } catch {
+      try {
+        nextRaw = incident.rawOCSF ? JSON.parse(JSON.stringify(incident.rawOCSF)) : {};
+      } catch {
+        nextRaw = { ...(incident.rawOCSF || {}) };
+      }
+    }
     let changed = false;
 
     for (const action of actionable) {
@@ -18221,7 +18228,11 @@ const IncidentDetailPage = () => {
                         variant="outlined"
                         onClick={() => {
                           const url = `${window.location.origin}/incidents/${incident?.id}?authorization=${publicAuthorization}&org=${userInfo?.active_org?.id || ""}`;
-                          navigator.clipboard.writeText(url);
+                          try {
+                            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                              navigator.clipboard.writeText(url).catch(() => {});
+                            }
+                          } catch {}
                           toast.success("Link copied to clipboard");
                         }}
                         sx={{

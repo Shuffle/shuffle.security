@@ -22,6 +22,7 @@ import {
   DialogActions,
 } from '@mui/material';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { safeRandomUUID } from '@/utils/uuid';
 import { trackPredefinedEvent, GA_EVENTS } from '@/lib/analytics';
 import { DeploymentInstructions } from '@/components/detection/DeploymentInstructions';
 import WebhookStatusBanner from '@/components/detection/WebhookStatusBanner';
@@ -1116,7 +1117,7 @@ const DetectionOnboardingPage = () => {
         },
         body: JSON.stringify({
           name: pipelineName,
-          id: crypto.randomUUID(),
+          id: safeRandomUUID(),
           type: 'start',
           command: testCommand,
           environment: selectedEnvironment?.Name || '',

@@ -390,7 +390,9 @@ const SingulActionsPreview = ({
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(snippet);
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(snippet);
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {

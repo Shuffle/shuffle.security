@@ -89,7 +89,11 @@ const ApiCallViewer = ({ config, maskAuth = true }: ApiCallViewerProps) => {
     const raw = mode === 'curl'
       ? buildCurl(config, false)
       : buildHttp(config, false);
-    await navigator.clipboard.writeText(raw);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(raw);
+      }
+    } catch {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

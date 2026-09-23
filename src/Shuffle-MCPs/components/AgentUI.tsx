@@ -21,6 +21,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { broadcastAgentAborted, setLastOpenedAgentRun } from '@/Shuffle-MCPs/agentRunSync';
+import { safeRandomUUID } from '@/Shuffle-MCPs/uuid';
 
 import {
   Plus as AddIcon,
@@ -2512,8 +2513,15 @@ const AgentUI: React.FC<AgentUIProps> = ({
     // changes; without observing it the prefilled text (e.g. on "Rerun")
     // renders underneath the chip.
     const el = presetsChipNodeRef.current;
-    const ro = el ? new ResizeObserver(measure) : null;
-    if (el && ro) ro.observe(el);
+    let ro: ResizeObserver | null = null;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      try {
+        ro = new ResizeObserver(measure);
+        ro.observe(el);
+      } catch {
+        ro = null;
+      }
+    }
 
     let cancelled = false;
     const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
@@ -3023,11 +3031,15 @@ const AgentUI: React.FC<AgentUIProps> = ({
 
     measure();
     if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => {
-        measure();
-      });
-      ro.observe(node);
-      chipBarResizeObserverRef.current = ro;
+      try {
+        const ro = new ResizeObserver(() => {
+          measure();
+        });
+        ro.observe(node);
+        chipBarResizeObserverRef.current = ro;
+      } catch {
+        chipBarResizeObserverRef.current = null;
+      }
     }
   }, []);
   // Tracks the execution_id we currently want to display. Used to discard
@@ -4176,7 +4188,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       }
       // Direct response (no async execution): synthesize a single-step view
       setExecution({
-        execution_id: eid || crypto.randomUUID(),
+        execution_id: eid || safeRandomUUID(),
         authorization: auth,
         status: 'FINISHED',
         results: [{ action: { app_name: 'AI Agent' }, result: raw }],
@@ -4731,7 +4743,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     // finish decision exists, the backend still needs a marker so we send
     // "MISSING_<short_id>" rather than guessing a fallback decision ID.
     if (!finishId && runIsFinished) {
-      const shortId = (execution?.execution_id || '').slice(-8) || crypto.randomUUID().slice(0, 8);
+      const shortId = (execution?.execution_id || '').slice(-8) || safeRandomUUID().slice(0, 8);
       finishId = `MISSING_${shortId}`;
     }
 

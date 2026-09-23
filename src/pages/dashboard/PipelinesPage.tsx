@@ -685,7 +685,11 @@ Use case: ${aiPrompt}`,
   };
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {});
+      }
+    } catch {}
     toast.success('Copied to clipboard');
   };
 
@@ -979,8 +983,7 @@ Use case: ${aiPrompt}`,
                 <Box
                   key={i}
                   onClick={() => {
-                    navigator.clipboard.writeText(`${s.ip}:${s.port}`);
-                    toast.success('Copied to clipboard');
+                    copyToClipboard(`${s.ip}:${s.port}`);
                   }}
                   sx={{
                     display: 'flex',

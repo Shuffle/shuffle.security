@@ -477,7 +477,11 @@ export const DocCurlViewer: React.FC<DocCurlViewerProps> = ({ rawCurl }) => {
 
   // Copy handler
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(runnableActiveCommand);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(runnableActiveCommand).catch(() => {});
+      }
+    } catch {}
     setCopied(true);
     toast.success('cURL command copied to clipboard');
     setTimeout(() => setCopied(false), 2000);
@@ -879,7 +883,11 @@ export const DocCurlViewer: React.FC<DocCurlViewerProps> = ({ rawCurl }) => {
                 <Button
                   size="small"
                   onClick={() => {
-                    navigator.clipboard.writeText(responseOutput);
+                    try {
+                      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                        navigator.clipboard.writeText(responseOutput).catch(() => {});
+                      }
+                    } catch {}
                     toast.success('Response copied to clipboard');
                   }}
                   sx={{

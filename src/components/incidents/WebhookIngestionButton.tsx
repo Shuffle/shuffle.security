@@ -77,7 +77,9 @@ export const WebhookIngestionButton = ({
   const handleCopy = async () => {
     if (!webhook.url) return;
     try {
-      await navigator.clipboard.writeText(webhook.url);
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(webhook.url);
+      }
       setCopied(true);
       toast.success('Webhook URL copied');
       setTimeout(() => setCopied(false), 2000);

@@ -7083,13 +7083,27 @@ const AgentUI: React.FC<AgentUIProps> = ({
                           key={opt.label}
                           onClick={async () => {
                             setLlmMenuAnchor(null);
+                            if (isActive) return;
                             const target = opt.label === SHUFFLE_AI_PRESET ? SHUFFLE_AI_PRESET : (opt.id || opt.label);
+                            const previous = detectedLLM;
+                            pendingLLMRef.current = opt.label;
                             setDetectedLLM({
                               label: opt.label,
                               url: '',
                               logo: getProviderLogoUrl(opt.label, ''),
                             });
-                            await switchActiveLLM(target);
+                            const res = await switchActiveLLM(target);
+                            if (!res.success) {
+                              // Only a failed "active" write rolls the UI back.
+                              pendingLLMRef.current = null;
+                              setDetectedLLM(previous);
+                              toast({
+                                title: 'Could not change AI provider',
+                                description: 'The provider change did not go through. Please try again.',
+                                variant: 'destructive',
+                              });
+                              return;
+                            }
                             loadAuthenticatedApps();
                           }}
                           sx={{

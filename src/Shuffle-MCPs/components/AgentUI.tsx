@@ -3500,7 +3500,16 @@ const AgentUI: React.FC<AgentUIProps> = ({
       // Shared resolver — the exact same logic the LocalLLM sidebar uses, so
       // the chip and the sidebar can never disagree. Runs on the RAW list
       // (validation state must not hide an active provider).
-      setDetectedLLM(resolveActiveLLMProvider(list));
+      // An optimistic pick wins until the backend echoes the same provider —
+      // a stale list must never flip the chip back.
+      const resolvedLLM = resolveActiveLLMProvider(list);
+      const pendingLabel = pendingLLMRef.current;
+      if (!pendingLabel) {
+        setDetectedLLM(resolvedLLM);
+      } else if ((resolvedLLM?.label || SHUFFLE_AI_PRESET) === pendingLabel) {
+        pendingLLMRef.current = null;
+        setDetectedLLM(resolvedLLM);
+      }
 
       const llmEntries = list.filter(isOpenAICompatibleAuthEntry);
       const configuredMap = new Map<string, string>();

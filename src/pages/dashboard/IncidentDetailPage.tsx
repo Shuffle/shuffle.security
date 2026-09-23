@@ -8442,6 +8442,8 @@ const IncidentDetailPage = () => {
     let nextAssignee = editedAssignee;
     let nextLabels = [...editedLabels];
     let nextCustomFields = { ...editedCustomFields };
+    let nextActivity = [...activity];
+    const moveActions: RoutingAction[] = [];
     let nextRaw: any = {};
     try {
       nextRaw = incident.rawOCSF ? structuredClone(incident.rawOCSF) : {};

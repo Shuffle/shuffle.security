@@ -274,6 +274,19 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
     return providerOfEntry(activeEntryRaw);
   }, [optimisticActiveProvider, activeEntryRaw, providerOfEntry]);
 
+  /** Release the optimistic pick only once the backend reports the same
+   *  provider — never on a mere round-trip completing. */
+  useEffect(() => {
+    if (optimisticActiveProvider === null) return;
+    const serverLabel = activeEntryRaw ? providerOfEntry(activeEntryRaw) : SHUFFLE_AI_PRESET;
+    if (serverLabel === optimisticActiveProvider) {
+      setOptimisticActiveProvider(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optimisticActiveProvider, activeEntryRaw]);
+
+
+
 
   const effectivePreset = useMemo(() => {
     if (selectedPreset) return selectedPreset;

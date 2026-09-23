@@ -7587,7 +7587,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                         '&:hover': { bgcolor: 'hsl(var(--destructive) / 0.2)' },
                       }}
                     >
-                      Missing Auth: {formatAppDisplayName(a.appName)} — Connect
+                      Missing Auto: {formatAppDisplayName(a.appName)}
                     </Box>
                   ))}
                 </Typography>

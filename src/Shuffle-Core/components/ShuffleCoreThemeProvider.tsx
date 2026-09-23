@@ -53,7 +53,9 @@ const readAncestorDark = (anchor: Element | null): boolean | null => {
 };
 
 const useAutoDarkClass = (enabled: boolean, anchorRef: React.RefObject<HTMLElement | null>): boolean => {
-  const [isDark, setIsDark] = React.useState<boolean>(() => (enabled ? readHtmlDarkClass() : false));
+  // Keep the first server and browser render identical. The layout effect
+  // resolves the host theme immediately after hydration.
+  const [isDark, setIsDark] = React.useState<boolean>(false);
   React.useLayoutEffect(() => {
     if (!enabled || typeof document === "undefined") return;
     const recompute = () => {

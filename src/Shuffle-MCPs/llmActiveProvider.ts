@@ -134,8 +134,9 @@ export const switchActiveLLM = async (
       }
     }
 
-    // 4. Update entries on backend
-    let anyChanged = false;
+    // 4. Update entries on backend. Only a failure to write the `active`
+    //    flag itself is treated as a failure — everything else stays optimistic.
+    let activeWriteFailed = false;
     for (const entry of llmEntries) {
       if (!entry?.id) continue;
       const shouldBeActive = Boolean(targetAuthId && entry.id === targetAuthId);
@@ -154,14 +155,19 @@ export const switchActiveLLM = async (
           headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        if (resp.ok) anyChanged = true;
+        if (!resp.ok) activeWriteFailed = true;
       } catch (err) {
         console.error('[switchActiveLLM] Failed to update entry:', entry.id, err);
+        activeWriteFailed = true;
       }
     }
 
     // 5. Invalidate caches and broadcast completion
     invalidateAuthenticatedAppsCache();
+
+    if (activeWriteFailed) {
+      return { success: false, label: optimisticLabel };
+    }
 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(

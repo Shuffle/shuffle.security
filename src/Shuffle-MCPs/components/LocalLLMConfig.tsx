@@ -574,18 +574,28 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
   const applyShuffleAI = async () => {
     // Flip the UI to Shuffle AI immediately and deactivate the
     // saved LLM authentications. Nothing is deleted.
+    const previousActive = activeProviderLabel;
+    const previousPreset = selectedPreset;
     setOptimisticActiveProvider(SHUFFLE_AI_PRESET);
     setSelectedPreset(SHUFFLE_AI_PRESET);
     rememberPreset(SHUFFLE_AI_PRESET);
     setCustomUrl('');
     handleAuthChange(OPENAI_APP_ID, {});
     try {
-      await switchActiveLLM(SHUFFLE_AI_PRESET);
+      const res = await switchActiveLLM(SHUFFLE_AI_PRESET);
+      if (!res.success) {
+        // Only a failed "active" write rolls the selection back.
+        setOptimisticActiveProvider(null);
+        if (previousPreset) setSelectedPreset(previousPreset);
+        else if (previousActive) setSelectedPreset(previousActive);
+        return;
+      }
       await refreshAuth();
     } catch (err) {
       console.error('[LocalLLMConfig] Failed to deactivate provider auths:', err);
-    } finally {
       setOptimisticActiveProvider(null);
+      if (previousPreset) setSelectedPreset(previousPreset);
+      else if (previousActive) setSelectedPreset(previousActive);
     }
   };
 
@@ -595,6 +605,9 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
       void applyShuffleAI();
       return;
     }
+
+    const previousActive = activeProviderLabel;
+    const previousPreset = selectedPreset;
 
     setSelectedPreset(label);
     rememberPreset(label);
@@ -607,12 +620,19 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
       setOptimisticActiveProvider(label);
       void (async () => {
         try {
-          await switchActiveLLM(existingId);
+          const res = await switchActiveLLM(existingId);
+          if (!res.success) {
+            setOptimisticActiveProvider(null);
+            if (previousPreset) setSelectedPreset(previousPreset);
+            else if (previousActive) setSelectedPreset(previousActive);
+            return;
+          }
           await refreshAuth();
         } catch (err) {
           console.error('[LocalLLMConfig] Failed to switch active LLM provider:', err);
-        } finally {
           setOptimisticActiveProvider(null);
+          if (previousPreset) setSelectedPreset(previousPreset);
+          else if (previousActive) setSelectedPreset(previousActive);
         }
       })();
     }

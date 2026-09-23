@@ -380,6 +380,23 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
     }, hoverCollapseDelay);
   };
 
+  // Portaled menus sit outside the sidebar, so closing one does not cause a
+  // second mouseleave event. Re-arm the collapse timer whenever all floating
+  // menus have closed.
+  useEffect(() => {
+    if (!collapsed || orgSelectOpen || toolMenuAnchor || userMenuAnchor) return;
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoverExpanded(false);
+    }, hoverCollapseDelay);
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+    };
+  }, [collapsed, orgSelectOpen, toolMenuAnchor, userMenuAnchor]);
+
   // The session payload does not always carry `region_url` for every tenant,
   // which made the switcher fall back to the default region and label every
   // tenant UK even when the tenant list said otherwise. Fill the gaps from the

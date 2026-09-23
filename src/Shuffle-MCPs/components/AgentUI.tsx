@@ -3555,7 +3555,10 @@ const AgentUI: React.FC<AgentUIProps> = ({
         const label = customEvent.detail.activeProvider;
         const url = customEvent.detail.url || '';
         const logo = customEvent.detail.logo || getProviderLogoUrl(label, url);
-        setDetectedLLM({ label, url, logo });
+        // Do not let an unrelated broadcast overwrite a pending optimistic pick.
+        if (!pendingLLMRef.current || pendingLLMRef.current === label) {
+          setDetectedLLM({ label, url, logo });
+        }
       }
       loadAuthenticatedApps();
     };

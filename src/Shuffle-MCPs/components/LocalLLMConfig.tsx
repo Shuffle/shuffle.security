@@ -276,6 +276,19 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
     return providerOfEntry(activeEntryRaw);
   }, [optimisticActiveProvider, activeEntryRaw, providerOfEntry]);
 
+  /** Release the optimistic pick only once the backend reports the same
+   *  provider — never on a mere round-trip completing. */
+  useEffect(() => {
+    if (optimisticActiveProvider === null) return;
+    const serverLabel = activeEntryRaw ? providerOfEntry(activeEntryRaw) : SHUFFLE_AI_PRESET;
+    if (serverLabel === optimisticActiveProvider) {
+      setOptimisticActiveProvider(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optimisticActiveProvider, activeEntryRaw]);
+
+
+
 
   const effectivePreset = useMemo(() => {
     if (selectedPreset) return selectedPreset;
@@ -576,6 +589,7 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
   const applyShuffleAI = async () => {
     // Flip the UI to Shuffle AI immediately and deactivate the
     // saved LLM authentications. Nothing is deleted.
+    const previousActive = activeProviderLabel;
     const previousPreset = selectedPreset;
     setOptimisticActiveProvider(SHUFFLE_AI_PRESET);
     setSelectedPreset(SHUFFLE_AI_PRESET);
@@ -583,11 +597,15 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
     setCustomUrl('');
     handleAuthChange(OPENAI_APP_ID, {});
     try {
-      const result = await switchActiveLLM(SHUFFLE_AI_PRESET);
-      if (!result?.success) {
+      const res = await switchActiveLLM(SHUFFLE_AI_PRESET);
+      if (!res.success) {
+        // Only a failed "active" write rolls the selection back.
         setOptimisticActiveProvider(null);
-        setSelectedPreset(previousPreset);
-        rememberPreset(previousPreset);
+        const rollback = previousPreset || previousActive;
+        if (rollback) {
+          setSelectedPreset(rollback);
+          rememberPreset(rollback);
+        }
         toast({
           title: 'Could not change AI provider',
           description: 'Failed to switch to Shuffle AI.',
@@ -599,15 +617,16 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
     } catch (err) {
       console.error('[LocalLLMConfig] Failed to deactivate provider auths:', err);
       setOptimisticActiveProvider(null);
-      setSelectedPreset(previousPreset);
-      rememberPreset(previousPreset);
+      const rollback = previousPreset || previousActive;
+      if (rollback) {
+        setSelectedPreset(rollback);
+        rememberPreset(rollback);
+      }
       toast({
         title: 'Could not change AI provider',
         description: err instanceof Error ? err.message : 'Failed to switch to Shuffle AI.',
         variant: 'destructive',
       });
-    } finally {
-      setOptimisticActiveProvider(null);
     }
   };
 
@@ -618,7 +637,9 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
       return;
     }
 
+    const previousActive = activeProviderLabel;
     const previousPreset = selectedPreset;
+
     setSelectedPreset(label);
     rememberPreset(label);
 
@@ -630,14 +651,17 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
       setOptimisticActiveProvider(label);
       void (async () => {
         try {
-          const result = await switchActiveLLM(existingId);
-          if (!result?.success) {
+          const res = await switchActiveLLM(existingId);
+          if (!res.success) {
             setOptimisticActiveProvider(null);
-            setSelectedPreset(previousPreset);
-            rememberPreset(previousPreset);
+            const rollback = previousPreset || previousActive;
+            if (rollback) {
+              setSelectedPreset(rollback);
+              rememberPreset(rollback);
+            }
             toast({
               title: 'Could not change AI provider',
-              description: `Failed to switch to ${label}.`,
+              description: 'Failed to switch to ' + label + '.',
               variant: 'destructive',
             });
             return;
@@ -646,15 +670,16 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
         } catch (err) {
           console.error('[LocalLLMConfig] Failed to switch active LLM provider:', err);
           setOptimisticActiveProvider(null);
-          setSelectedPreset(previousPreset);
-          rememberPreset(previousPreset);
+          const rollback = previousPreset || previousActive;
+          if (rollback) {
+            setSelectedPreset(rollback);
+            rememberPreset(rollback);
+          }
           toast({
             title: 'Could not change AI provider',
             description: err instanceof Error ? err.message : 'Failed to switch active LLM provider.',
             variant: 'destructive',
           });
-        } finally {
-          setOptimisticActiveProvider(null);
         }
       })();
     }

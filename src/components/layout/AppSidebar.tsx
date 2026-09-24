@@ -464,6 +464,23 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
   const selectedOrg = userInfo?.active_org || organizations[0];
   const [orgSelectOpen, setOrgSelectOpen] = useState(false);
 
+  // Portaled menus sit outside the sidebar, so closing one does not cause a
+  // second mouseleave event. Re-arm the collapse timer whenever all floating
+  // menus have closed.
+  useEffect(() => {
+    if (!collapsed || orgSelectOpen || toolMenuAnchor || userMenuAnchor) return;
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoverExpanded(false);
+    }, hoverCollapseDelay);
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+    };
+  }, [collapsed, orgSelectOpen, toolMenuAnchor, userMenuAnchor]);
+
   useEffect(() => {
     const handleClose = () => setOrgSelectOpen(false);
     window.addEventListener("close-tenant-autocomplete", handleClose);

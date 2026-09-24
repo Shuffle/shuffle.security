@@ -53,7 +53,9 @@ const readAncestorDark = (anchor: Element | null): boolean | null => {
 };
 
 const useAutoDarkClass = (enabled: boolean, anchorRef: React.RefObject<HTMLElement | null>): boolean => {
-  const [isDark, setIsDark] = React.useState<boolean>(() => (enabled ? readHtmlDarkClass() : false));
+  // Keep the first server and browser render identical. The layout effect
+  // resolves the host theme immediately after hydration.
+  const [isDark, setIsDark] = React.useState<boolean>(false);
   React.useLayoutEffect(() => {
     if (!enabled || typeof document === "undefined") return;
     const recompute = () => {
@@ -333,13 +335,9 @@ export const ShuffleCoreThemeProvider: React.FC<ShuffleCoreThemeProviderProps> =
   mode = "auto",
 }) => {
   const parent = useMuiTheme();
-  const parentCtx = useShuffleCoreTheme();
   const anchorRef = React.useRef<HTMLSpanElement>(null);
   const autoIsDark = useAutoDarkClass(mode === "auto", anchorRef);
   const effectiveDark = mode === "auto" ? autoIsDark : mode === "dark";
-
-  const sameAsParent =
-    parentCtx !== null && parentCtx.isDark === effectiveDark;
 
   const scopeClassName = effectiveDark ? "shuffle-core-scope dark" : "shuffle-core-scope light";
   const resolvedModeAttr = effectiveDark ? "dark" : "light";
@@ -388,15 +386,6 @@ export const ShuffleCoreThemeProvider: React.FC<ShuffleCoreThemeProviderProps> =
     () => ({ mode, isDark: effectiveDark, scopeClassName }),
     [mode, effectiveDark, scopeClassName],
   );
-
-  if (sameAsParent) {
-    return (
-      <ShuffleCoreThemeContext.Provider value={ctxValue}>
-        <span ref={anchorRef} style={{ display: "none" }} aria-hidden />
-        {children}
-      </ShuffleCoreThemeContext.Provider>
-    );
-  }
 
   return (
     <ShuffleCoreThemeContext.Provider value={ctxValue}>

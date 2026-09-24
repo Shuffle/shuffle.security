@@ -2802,6 +2802,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // Populated by `loadAuthenticatedApps` so the "Choose LLM" chip can show
   // the matching vendor logo and label.
   const [detectedLLM, setDetectedLLM] = useState<{ label: string; url: string; logo: string } | null>(null);
+  /** Optimistically chosen provider label, held until the backend agrees. */
   const pendingLLMRef = useRef<string | null>(null);
   const [configuredLLMOptions, setConfiguredLLMOptions] = useState<Array<{ label: string; id?: string }>>([]);
   const [llmMenuAnchor, setLlmMenuAnchor] = useState<null | HTMLElement>(null);
@@ -3503,8 +3504,15 @@ const AgentUI: React.FC<AgentUIProps> = ({
       // Shared resolver — the exact same logic the LocalLLM sidebar uses, so
       // the chip and the sidebar can never disagree. Runs on the RAW list
       // (validation state must not hide an active provider).
-      if (!pendingLLMRef.current) {
-        setDetectedLLM(resolveActiveLLMProvider(list));
+      // An optimistic pick wins until the backend echoes the same provider —
+      // a stale list must never flip the chip back.
+      const resolvedLLM = resolveActiveLLMProvider(list);
+      const pendingLabel = pendingLLMRef.current;
+      if (!pendingLabel) {
+        setDetectedLLM(resolvedLLM);
+      } else if ((resolvedLLM?.label || SHUFFLE_AI_PRESET) === pendingLabel) {
+        pendingLLMRef.current = null;
+        setDetectedLLM(resolvedLLM);
       }
 
       const llmEntries = list.filter(isOpenAICompatibleAuthEntry);
@@ -3549,7 +3557,10 @@ const AgentUI: React.FC<AgentUIProps> = ({
         const label = customEvent.detail.activeProvider;
         const url = customEvent.detail.url || '';
         const logo = customEvent.detail.logo || getProviderLogoUrl(label, url);
-        setDetectedLLM({ label, url, logo });
+        // Do not let an unrelated broadcast overwrite a pending optimistic pick.
+        if (!pendingLLMRef.current || pendingLLMRef.current === label) {
+          setDetectedLLM({ label, url, logo });
+        }
       }
       if (!pendingLLMRef.current) {
         loadAuthenticatedApps();
@@ -7080,8 +7091,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
                           key={opt.label}
                           onClick={async () => {
                             setLlmMenuAnchor(null);
-                            const previous = detectedLLM;
+                            if (isActive) return;
                             const target = opt.label === SHUFFLE_AI_PRESET ? SHUFFLE_AI_PRESET : (opt.id || opt.label);
+                            const previous = detectedLLM;
                             pendingLLMRef.current = opt.label;
                             setDetectedLLM({
                               label: opt.label,
@@ -7109,8 +7121,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
                                 variant: 'destructive',
                               });
                               return;
-                            } finally {
-                              pendingLLMRef.current = null;
                             }
                             loadAuthenticatedApps();
                           }}
@@ -7591,7 +7601,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                         '&:hover': { bgcolor: 'hsl(var(--destructive) / 0.2)' },
                       }}
                     >
-                      Missing Auth: {formatAppDisplayName(a.appName)} — Connect
+                      Missing Auth: {formatAppDisplayName(a.appName)}
                     </Box>
                   ))}
                 </Typography>

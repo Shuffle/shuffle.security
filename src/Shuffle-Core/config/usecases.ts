@@ -795,12 +795,60 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
   cloud: ['cloud', 'aws', 'azure', 'gcp', 'google cloud', 'oracle cloud', 'digitalocean', 'cloud provider'],
 };
 
-export function matchAppToCategory(appName: string, appCategories: string[]): string | null {
-  const searchText = [appName, ...appCategories].join(' ').toLowerCase();
+export function matchAppToCategoryList(appName: string, appCategories: string[] = []): string[] {
+  const searchParts: string[] = [];
+  if (appName) searchParts.push(appName);
+  if (Array.isArray(appCategories)) searchParts.push(...appCategories);
+  const searchText = searchParts.join(' ').toLowerCase();
+  const hits: string[] = [];
   for (const [catId, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    if (keywords.some(kw => searchText.includes(kw))) return catId;
+    if (keywords.some(kw => searchText.includes(kw))) hits.push(catId);
   }
-  return null;
+  return hits;
+}
+
+export function matchAppToCategory(appName: string, appCategories: string[]): string | null {
+  const hits = matchAppToCategoryList(appName, appCategories);
+  return hits.length > 0 ? hits[0] : null;
+}
+
+/**
+ * Find usecases relevant to a specific app based on category matching,
+ * explicit tags/label mentions, or general AI Agent integration.
+ */
+export function findRelatedUsecasesForApp(
+  appName: string,
+  appCategories: string[] = [],
+  usecases: Usecase[] = DEFAULT_USECASES
+): Usecase[] {
+  if (!appName) return [];
+  const normalizedName = appName.toLowerCase().trim();
+  const matchedCats = new Set(matchAppToCategoryList(appName, appCategories));
+
+  const matched: Usecase[] = [];
+  const seen = new Set<string>();
+
+  for (const uc of usecases) {
+    const isSourceMatch = matchedCats.has(uc.source);
+    const isTargetMatch = matchedCats.has(uc.target);
+    const isNameInTags = (uc.tags || []).some(t => t.toLowerCase() === normalizedName);
+    const isNameInLabel = uc.label.toLowerCase().includes(normalizedName);
+
+    if (isSourceMatch || isTargetMatch || isNameInTags || isNameInLabel) {
+      if (!seen.has(uc.id)) {
+        seen.add(uc.id);
+        matched.push(uc);
+      }
+    }
+  }
+
+  // Always include AI Agents flow because AI Agents can talk to ANY connected tool
+  const aiAgentUc = usecases.find(u => u.id === 'case_management_ai_agents_1');
+  if (aiAgentUc && !seen.has(aiAgentUc.id)) {
+    matched.push(aiAgentUc);
+  }
+
+  return matched;
 }
 
 // ── Automation-area helpers ────────────────────────────────────────────────────

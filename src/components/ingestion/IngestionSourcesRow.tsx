@@ -481,6 +481,7 @@ export const IngestionSourcesRow = ({
             incidentCount={incidentCountsBySource.get(normalizeAppName(app.name)) || 0}
             isBlocked={Boolean(app.enabled && isParentBlocked)}
             health={parentHealth}
+            category={category}
           />
         ))}
 
@@ -498,6 +499,7 @@ export const IngestionSourcesRow = ({
                   incidentCount={incidentCountsBySource.get(normalizeAppName(app.name)) || 0}
                   isBlocked={Boolean(app.enabled && isParentBlocked)}
                   health={parentHealth}
+                  category={category}
                 />
               ))}
             </Box>

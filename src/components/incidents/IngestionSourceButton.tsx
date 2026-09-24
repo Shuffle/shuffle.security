@@ -1,15 +1,18 @@
-import { Ban as BlockIcon, CheckCircle as CheckCircleOutlineIcon, ExternalLink as OpenInNewIcon, Download as DownloadIcon } from 'lucide-react';
-import { useState } from 'react';
+import { Ban as BlockIcon, CheckCircle as CheckCircleOutlineIcon, ExternalLink as OpenInNewIcon, Download as DownloadIcon, SlidersHorizontal as ConfigureIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Box, IconButton, Popover, Typography, Chip, Button, Tooltip } from '@mui/material';
 import { ValidatedIngestionApp } from '@/Shuffle-MCPs/ingestionDetection';
 import { useAppDetail } from '@/Shuffle-MCPs/AppDetailContext';
 import { EntityHealth } from '@/services/workflowHealth';
+import { getAppIngestionConfig } from '@/services/vulnerabilityStreamStorage';
+import { IngestionSourceConfigDialog } from '@/components/vulnerabilities/IngestionSourceConfigDialog';
 
 interface IngestionSourceButtonProps {
   app: ValidatedIngestionApp;
   onToggle: (appName: string, enabled: boolean) => void;
   incidentCount?: number;
   variant?: 'ingest' | 'forward';
+  category?: string;
   /** When true, clicking a disabled source immediately enables it instead of
    *  opening the action popover. Used by empty states where the only wanted
    *  action is "turn this on". */
@@ -26,6 +29,7 @@ export const IngestionSourceButton = ({
   onToggle,
   incidentCount = 0,
   variant = 'ingest',
+  category,
   enableOnClick = false,
   highlighted = false,
   isBlocked = false,
@@ -33,9 +37,48 @@ export const IngestionSourceButton = ({
 }: IngestionSourceButtonProps) => {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [streamSummary, setStreamSummary] = useState<string | null>(null);
   const popoverOpen = Boolean(anchorEl);
   const displayName = app.name.replace(/_/g, ' ');
   const { openApp } = useAppDetail();
+
+  useEffect(() => {
+    if (category !== 'vulnerabilities') return;
+
+    let mounted = true;
+    const fetchSummary = async () => {
+      try {
+        const cfg = await getAppIngestionConfig(app.name);
+        if (mounted && cfg && Array.isArray(cfg.streams)) {
+          const active = cfg.streams.filter((s) => s.enabled);
+          setStreamSummary(
+            `${active.length} stream${active.length === 1 ? '' : 's'} active`,
+          );
+        }
+      } catch {
+        // Fall through
+      }
+    };
+
+    fetchSummary();
+
+    const handleConfigChange = (e: any) => {
+      const detail = e.detail;
+      if (detail?.appName?.toLowerCase() === app.name.toLowerCase() && detail?.config) {
+        const active = (detail.config.streams || []).filter((s: any) => s.enabled);
+        setStreamSummary(
+          `${active.length} stream${active.length === 1 ? '' : 's'} active`,
+        );
+      }
+    };
+
+    window.addEventListener('vuln-ingestion-config-changed', handleConfigChange);
+    return () => {
+      mounted = false;
+      window.removeEventListener('vuln-ingestion-config-changed', handleConfigChange);
+    };
+  }, [app.name, category]);
 
   // Use optimistic state if set, otherwise fall back to actual
   const isEnabled = optimisticEnabled !== null ? optimisticEnabled : app.enabled;
@@ -220,12 +263,39 @@ export const IngestionSourceButton = ({
             <Chip label="Pending" size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem', bgcolor: 'hsla(38, 92%, 50%, 0.15)', color: 'hsl(var(--severity-medium))', border: '1px solid hsla(38, 92%, 50%, 0.3)' }} />
           ) : null}
         </Typography>
-        {variant === 'ingest' && (
-        <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', mb: 1, fontSize: '0.7rem' }}>
-          {incidentCount} {incidentCount === 1 ? 'incident' : 'incidents'}
-        </Typography>
+        {category === 'vulnerabilities' && streamSummary && (
+          <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', mb: 1, fontSize: '0.7rem' }}>
+            {streamSummary}
+          </Typography>
+        )}
+        {variant === 'ingest' && category !== 'vulnerabilities' && (
+          <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', mb: 1, fontSize: '0.7rem' }}>
+            {incidentCount} {incidentCount === 1 ? 'incident' : 'incidents'}
+          </Typography>
         )}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          {category === 'vulnerabilities' && (
+            <Button
+              size="small"
+              startIcon={<ConfigureIcon size={14} />}
+              onClick={() => {
+                setAnchorEl(null);
+                setConfigDialogOpen(true);
+              }}
+              sx={{
+                justifyContent: 'flex-start',
+                textTransform: 'none',
+                fontSize: '0.75rem',
+                color: 'hsl(var(--foreground))',
+                px: 1,
+                py: 0.5,
+                borderRadius: 1,
+                '&:hover': { bgcolor: 'hsl(var(--muted))' },
+              }}
+            >
+              Configure streams
+            </Button>
+          )}
           <Button
             size="small"
             startIcon={<OpenInNewIcon size={14} />}
@@ -265,6 +335,21 @@ export const IngestionSourceButton = ({
           </Button>
         </Box>
       </Popover>
+      {category === 'vulnerabilities' && (
+        <IngestionSourceConfigDialog
+          open={configDialogOpen}
+          onClose={() => setConfigDialogOpen(false)}
+          appName={app.name}
+          appId={app.id}
+          validated={app.validated}
+          onConfigSaved={(savedConfig) => {
+            const active = (savedConfig.streams || []).filter((s) => s.enabled);
+            setStreamSummary(
+              `${active.length} stream${active.length === 1 ? '' : 's'} active`,
+            );
+          }}
+        />
+      )}
     </Box>
   );
 };

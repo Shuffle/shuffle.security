@@ -48,6 +48,10 @@ import AppAuthSection from '@/Shuffle-MCPs/components/AppAuthSection';
 import TryMcpSection from '@/Shuffle-MCPs/views/TryMcpSection';
 import SingulActionsPreview from '@/Shuffle-MCPs/components/SingulActionsPreview';
 import ApiCallViewer from '@/Shuffle-MCPs/components/ApiCallViewer';
+import AppRelatedUsecases from '@/Shuffle-MCPs/components/AppRelatedUsecases';
+import { useQueryClient } from '@tanstack/react-query';
+import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/hooks/useWorkflows';
+import { isVulnScannerApp, normalizeAppName, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 
 export interface AppInfo {
@@ -244,6 +248,9 @@ export default function AppDetailContent({
   const [appNotFound, setAppNotFound] = useState(false);
   const [isNameMismatch, setIsNameMismatch] = useState(false);
   const [configError, setConfigError] = useState<{ status: number; message: string } | null>(null);
+  const queryClient = useQueryClient();
+  const { data: workflows = [], refetch: refetchWorkflows } = useWorkflows();
+  const [ingestLoading, setIngestLoading] = useState(false);
 
   const {
     authStates,
@@ -666,6 +673,113 @@ export default function AppDetailContent({
     }
   }, [open, appName]);
 
+  // Ingestion workflow calculation and toggle handler
+  const isVuln = useMemo(() => isVulnScannerApp(appName || ''), [appName]);
+  const targetWorkflowName = isVuln ? 'Ingest Vulnerabilities' : 'Ingest Tickets';
+  const targetCategory = isVuln ? 'vulnerabilities' : 'cases';
+
+  const ingestWorkflow = useMemo(() => {
+    return workflows?.find(w => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
+  }, [workflows, targetWorkflowName]);
+
+  const isIngestEnabled = useMemo(() => {
+    if (!appName || !ingestWorkflow) return false;
+    const names = extractWorkflowAppNames(ingestWorkflow);
+    return names.has(normalizeAppName(appName));
+  }, [appName, ingestWorkflow]);
+
+  const handleToggleIngest = async () => {
+    if (!appName || ingestLoading) return;
+    setIngestLoading(true);
+    const willEnable = !isIngestEnabled;
+    try {
+      const canonicalName = appInfo?.name || appName;
+      const normalizedTarget = normalizeAppName(canonicalName);
+
+      const freshWfs = await fetchWorkflows(undefined, true);
+      const currentIngestWf = freshWfs.find(w => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
+      const existingNames = currentIngestWf ? Array.from(extractWorkflowAppNames(currentIngestWf)) : [];
+
+      let nextAppNames: string[];
+      if (willEnable) {
+        const alreadyIn = existingNames.some(n => normalizeAppName(n) === normalizedTarget);
+        nextAppNames = alreadyIn ? existingNames : [...existingNames, canonicalName];
+      } else {
+        nextAppNames = existingNames.filter(n => normalizeAppName(n) !== normalizedTarget);
+      }
+
+      const body: Record<string, string> = {
+        label: targetWorkflowName,
+        category: targetCategory,
+      };
+
+      if (nextAppNames.length > 0) {
+        body.app_name = nextAppNames.join(',');
+      } else {
+        body.action_name = 'remove';
+      }
+
+      const resp = await fetch(getApiUrl('/api/v2/workflows/generate'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      let payload: any = null;
+      try {
+        payload = await resp.json();
+      } catch {
+        /* empty */
+      }
+      if (!resp.ok || (payload && payload.success === false)) {
+        const reason = payload?.reason || `Failed to update ingestion sources (${resp.status})`;
+        toast.error(reason);
+        return;
+      }
+
+      invalidateWorkflowsCache();
+      queryClient.invalidateQueries({ queryKey: ['workflows'] });
+      await refetchWorkflows();
+
+      if (willEnable) {
+        if (!hasValidAuth) {
+          toast.success(`Ingest enabled for ${displayName}`, {
+            description: `Please configure authentication below so alerts from ${displayName} can be ingested.`,
+          });
+        } else {
+          toast.success(`Ingest enabled for ${displayName}`);
+        }
+      } else {
+        toast.success(`Ingest disabled for ${displayName}`);
+      }
+
+      window.dispatchEvent(new CustomEvent('integrations-changed'));
+
+      if (willEnable) {
+        try {
+          const updatedWfs = await fetchWorkflows(undefined, true);
+          const updatedIngest = updatedWfs.find(w => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
+          if (updatedIngest?.id) {
+            fetch(getApiUrl(`/api/v1/workflows/${updatedIngest.id}/execute`), {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+              body: JSON.stringify({ execution_source: 'manual', start: '' }),
+            }).catch(() => {});
+          }
+        } catch {
+          /* best effort */
+        }
+      }
+    } catch (err: any) {
+      console.error('[Ingest Toggle] Error:', err);
+      toast.error(err?.message || 'Failed to update ingest');
+    } finally {
+      setIngestLoading(false);
+    }
+  };
+
   // UNIFIED AUTH TESTING & SAVING
   const handleTestConnectionUnified = useCallback((_appId: string, authId?: string) => {
     // Tests connection with canonical system identifier
@@ -850,6 +964,9 @@ export default function AppDetailContent({
               isActivated={onAddToCanvas || isBuiltIn ? null : effectiveActivated}
               activateLoading={activateLoading}
               onActivateToggle={onAddToCanvas || isBuiltIn ? undefined : () => handleActivateToggle()}
+              isIngestEnabled={isIngestEnabled}
+              ingestLoading={ingestLoading}
+              onIngestToggle={handleToggleIngest}
               highlightActivate={autoActivatePulse}
               onAdd={onAddToCanvas && appName ? () => {
                 onAddToCanvas({ name: appName, icon: resolvedImage || '', algoliaId: resolvedAlgoliaId });
@@ -875,31 +992,55 @@ export default function AppDetailContent({
               </Box>
             )}
 
-            {/* Incident Stats (Drawer mode) */}
-            {showIncidentStats && isAuthenticated && incidentStats && incidentStats.ingested > 0 && (
+            {/* Ingestion & Incident Stats */}
+            {isAuthenticated && (isIngestEnabled || (incidentStats && incidentStats.ingested > 0)) && (
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.08 }}>
                 <Box sx={{
                   display: 'flex',
+                  alignItems: 'center',
                   gap: 2,
                   mb: 3,
                   p: 2,
                   borderRadius: 2,
-                  border: '1px solid hsl(var(--border))',
-                  bgcolor: 'hsl(var(--muted) / 0.3)',
+                  border: isIngestEnabled ? '1px solid hsl(var(--severity-low) / 0.4)' : '1px solid hsl(var(--border))',
+                  bgcolor: isIngestEnabled ? 'hsl(var(--severity-low) / 0.04)' : 'hsl(var(--muted) / 0.3)',
+                  flexWrap: 'wrap',
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Download size={14} style={{ color: 'hsl(var(--primary))' }} />
-                    <Box>
-                      <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: 'hsl(var(--foreground))', lineHeight: 1 }}>
-                        {incidentStats.ingested}
-                      </Typography>
-                      <Typography sx={{ fontSize: '0.65rem', color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>
-                        Incidents ingested
-                      </Typography>
-                    </Box>
+                    <Chip
+                      size="small"
+                      label={isIngestEnabled ? 'Ingest Active' : 'Ingest Inactive'}
+                      sx={{
+                        height: 20,
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        bgcolor: isIngestEnabled ? 'hsl(var(--severity-low) / 0.15)' : 'hsl(var(--muted))',
+                        color: isIngestEnabled ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground))',
+                        border: isIngestEnabled ? '1px solid hsl(var(--severity-low) / 0.3)' : '1px solid hsl(var(--border))',
+                        borderRadius: 1,
+                      }}
+                    />
+                    <Typography sx={{ fontSize: '0.74rem', color: 'hsl(var(--muted-foreground))' }}>
+                      Target workflow: <strong>{targetWorkflowName}</strong>
+                    </Typography>
                   </Box>
-                  {incidentStats.forwarded > 0 && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2, pl: 2, borderLeft: '1px solid hsl(var(--border))' }}>
+
+                  {incidentStats && incidentStats.ingested > 0 && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: { xs: 0, sm: 'auto' }, pl: { sm: 2 }, borderLeft: { sm: '1px solid hsl(var(--border))' } }}>
+                      <Download size={14} style={{ color: 'hsl(var(--primary))' }} />
+                      <Box>
+                        <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: 'hsl(var(--foreground))', lineHeight: 1 }}>
+                          {incidentStats.ingested}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.65rem', color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>
+                          Incidents ingested
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {incidentStats && incidentStats.forwarded > 0 && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 2, borderLeft: '1px solid hsl(var(--border))' }}>
                       <Forward size={14} style={{ color: 'hsl(var(--severity-low))' }} />
                       <Box>
                         <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: 'hsl(var(--foreground))', lineHeight: 1 }}>
@@ -951,6 +1092,21 @@ export default function AppDetailContent({
                   />
                 </Box>
               ) : null
+            )}
+
+            {/* Related Usecases */}
+            {appName && (
+              <AppRelatedUsecases
+                appName={appName}
+                displayName={displayName}
+                categories={appInfo?.categories}
+                hasValidAuth={hasValidAuth}
+                onNavigateToAuth={() => {
+                  setAuthExpanded(true);
+                  document.getElementById('app-auth-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                mode={mode}
+              />
             )}
 
             {/* MCP Chat + Individual Actions Testing */}

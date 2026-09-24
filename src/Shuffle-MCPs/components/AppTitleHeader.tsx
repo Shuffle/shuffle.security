@@ -7,7 +7,8 @@
  * Pure presentational component — pass in already-resolved props.
  */
 
-import { Box, Typography, Avatar, Chip, Button } from '@mui/material';
+import { useState } from 'react';
+import { Box, Typography, Avatar, Chip, Button, Tooltip } from '@mui/material';
 import {
   CheckCircle2 as CheckCircleIcon,
   AlertCircle as ErrorOutlineIcon
@@ -35,6 +36,12 @@ export interface AppTitleHeaderProps extends ShuffleHostProps {
   activateLoading?: boolean;
   /** Called when user clicks Activate/Deactivate. */
   onActivateToggle?: () => void;
+  /** Ingestion state — `null` or undefined hides the Ingest button. */
+  isIngestEnabled?: boolean | null;
+  /** Whether ingestion toggle is in-flight. */
+  ingestLoading?: boolean;
+  /** Called when user clicks Enable ingest / Ingest enabled. */
+  onIngestToggle?: () => void;
   /** When true, visually highlight the Activate button to signal an
    *  automatic click is happening (e.g. from a usecase auto-activate flow). */
   highlightActivate?: boolean;
@@ -54,10 +61,14 @@ export default function AppTitleHeader({
   isActivated = null,
   activateLoading = false,
   onActivateToggle,
+  isIngestEnabled = null,
+  ingestLoading = false,
+  onIngestToggle,
   highlightActivate = false,
   onAdd,
 }: AppTitleHeaderProps) {
   const isBuiltIn = isNoAuthApp(name);
+  const [hoveredIngest, setHoveredIngest] = useState(false);
   const resolvedImage = image || (isBuiltIn ? (getBuiltInAppImage(name) || undefined) : undefined);
 
   return (
@@ -116,6 +127,20 @@ export default function AppTitleHeader({
                 sx={{ height: 22, backgroundColor: 'hsla(38, 92%, 50%, 0.15)', color: 'hsl(var(--severity-medium))', fontWeight: 600, fontSize: '0.7rem', '& .MuiChip-icon': { color: 'hsl(var(--severity-medium))' } }}
               />
             )}
+            {isAuthenticated && isIngestEnabled && (
+              <Chip
+                label="Ingesting"
+                size="small"
+                sx={{
+                  height: 22,
+                  backgroundColor: 'hsl(var(--severity-low) / 0.15)',
+                  color: 'hsl(var(--severity-low))',
+                  fontWeight: 600,
+                  fontSize: '0.7rem',
+                  border: '1px solid hsl(var(--severity-low) / 0.3)',
+                }}
+              />
+            )}
           </Box>
 
           {categories && categories.length > 0 && (
@@ -146,32 +171,109 @@ export default function AppTitleHeader({
           </Button>
         )}
 
-        {!onAdd && isAuthenticated && !isBuiltIn && isActivated !== null && onActivateToggle && (
-          <Button
-            onClick={onActivateToggle}
-            disabled={activateLoading}
-            variant={isActivated ? 'outlined' : 'contained'}
-            size="small"
-            sx={{
-              textTransform: 'none', fontWeight: 600, fontSize: '0.72rem', borderRadius: 2, px: 1.5, py: 0.5, minHeight: 0, flexShrink: 0,
-              ...(isActivated
-                ? { color: 'hsl(var(--muted-foreground))', borderColor: 'hsl(var(--border))', '&:hover': { borderColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive))', bgcolor: 'hsla(var(--destructive) / 0.08)' } }
-                : { bgcolor: 'hsl(var(--primary))', '&:hover': { bgcolor: 'hsl(var(--primary) / 0.85)' } }),
-              ...(highlightActivate
-                ? {
-                    boxShadow: '0 0 0 0 hsla(var(--primary) / 0.6)',
-                    animation: 'appTitleActivatePulse 1.1s ease-out infinite',
-                    '@keyframes appTitleActivatePulse': {
-                      '0%':   { boxShadow: '0 0 0 0 hsla(var(--primary) / 0.55)' },
-                      '70%':  { boxShadow: '0 0 0 10px hsla(var(--primary) / 0)' },
-                      '100%': { boxShadow: '0 0 0 0 hsla(var(--primary) / 0)' },
-                    },
-                  }
-                : {}),
-            }}
-          >
-            {activateLoading ? '…' : isActivated ? 'Deactivate' : 'Activate'}
-          </Button>
+        {!onAdd && isAuthenticated && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+            {isIngestEnabled !== null && isIngestEnabled !== undefined && onIngestToggle && (
+              <Tooltip
+                title={
+                  isIngestEnabled
+                    ? `Click to disable direct ingestion for ${name}`
+                    : `Enable ingestion of alerts and tickets from ${name} into Shuffle Security`
+                }
+              >
+                <span>
+                  <Button
+                    onClick={onIngestToggle}
+                    disabled={ingestLoading}
+                    onMouseEnter={() => setHoveredIngest(true)}
+                    onMouseLeave={() => setHoveredIngest(false)}
+                    variant={isIngestEnabled ? 'contained' : 'outlined'}
+                    size="small"
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '0.72rem',
+                      borderRadius: 2,
+                      px: 1.5,
+                      py: 0.5,
+                      minHeight: 0,
+                      flexShrink: 0,
+                      ...(isIngestEnabled
+                        ? {
+                            bgcolor: hoveredIngest ? 'hsl(var(--destructive))' : 'hsl(var(--primary))',
+                            color: hoveredIngest ? 'hsl(var(--destructive-foreground))' : 'hsl(var(--primary-foreground))',
+                            '&:hover': {
+                              bgcolor: 'hsl(var(--destructive))',
+                              color: 'hsl(var(--destructive-foreground))',
+                            },
+                          }
+                        : {
+                            color: 'hsl(var(--foreground))',
+                            borderColor: 'hsl(var(--border))',
+                            '&:hover': {
+                              borderColor: 'hsl(var(--primary))',
+                              color: 'hsl(var(--primary))',
+                              bgcolor: 'hsl(var(--primary) / 0.08)',
+                            },
+                          }),
+                    }}
+                  >
+                    {ingestLoading
+                      ? '…'
+                      : isIngestEnabled
+                      ? (hoveredIngest ? 'Disable ingest' : 'Ingest enabled')
+                      : 'Enable ingest'}
+                  </Button>
+                </span>
+              </Tooltip>
+            )}
+
+            {!isBuiltIn && isActivated !== null && onActivateToggle && (
+              <Button
+                onClick={onActivateToggle}
+                disabled={activateLoading}
+                variant={isActivated ? 'outlined' : 'contained'}
+                size="small"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.72rem',
+                  borderRadius: 2,
+                  px: 1.5,
+                  py: 0.5,
+                  minHeight: 0,
+                  flexShrink: 0,
+                  ...(isActivated
+                    ? {
+                        color: 'hsl(var(--muted-foreground))',
+                        borderColor: 'hsl(var(--border))',
+                        '&:hover': {
+                          borderColor: 'hsl(var(--destructive))',
+                          color: 'hsl(var(--destructive))',
+                          bgcolor: 'hsla(var(--destructive) / 0.08)',
+                        },
+                      }
+                    : {
+                        bgcolor: 'hsl(var(--primary))',
+                        '&:hover': { bgcolor: 'hsl(var(--primary) / 0.85)' },
+                      }),
+                  ...(highlightActivate
+                    ? {
+                        boxShadow: '0 0 0 0 hsla(var(--primary) / 0.6)',
+                        animation: 'appTitleActivatePulse 1.1s ease-out infinite',
+                        '@keyframes appTitleActivatePulse': {
+                          '0%': { boxShadow: '0 0 0 0 hsla(var(--primary) / 0.55)' },
+                          '70%': { boxShadow: '0 0 0 10px hsla(var(--primary) / 0)' },
+                          '100%': { boxShadow: '0 0 0 0 hsla(var(--primary) / 0)' },
+                        },
+                      }
+                    : {}),
+                }}
+              >
+                {activateLoading ? '…' : isActivated ? 'Deactivate' : 'Activate'}
+              </Button>
+            )}
+          </Box>
         )}
       </Box>
     </motion.div>

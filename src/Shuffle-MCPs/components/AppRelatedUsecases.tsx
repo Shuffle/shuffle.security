@@ -25,6 +25,7 @@ import {
 } from '@/Shuffle-Core/config/usecases';
 import { extractWorkflowAppNames, normalizeAppName } from '@/Shuffle-MCPs/ingestionDetection';
 import { useQueryClient } from '@tanstack/react-query';
+import { UsecaseDrawer } from '@/Shuffle-Core/views/Usecases';
 
 export interface AppRelatedUsecasesProps {
   appName: string;
@@ -46,6 +47,7 @@ export default function AppRelatedUsecases({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: workflows = [], refetch: refetchWorkflows } = useWorkflows();
+  const [drawerFlowId, setDrawerFlowId] = useState<string | null>(null);
   const [togglingFlowId, setTogglingFlowId] = useState<string | null>(null);
   const [hoveredFlowId, setHoveredFlowId] = useState<string | null>(null);
   const [optimisticToggles, setOptimisticToggles] = useState<Record<string, boolean>>({});
@@ -196,8 +198,7 @@ export default function AppRelatedUsecases({
   };
 
   const handleOpenUsecase = (flow: Usecase) => {
-    const slug = slugify(flow.label) || flow.id;
-    navigate(`/usecases/${slug}`);
+    setDrawerFlowId(flow.id);
   };
 
   if (relatedUsecases.length === 0) {
@@ -230,7 +231,7 @@ export default function AppRelatedUsecases({
           </Button>
         </Box>
         <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--muted-foreground))', mt: 0.25 }}>
-          Pre-built automations and pipelines that {displayName} connects to across Shuffle Security.
+          Pre-built automations and pipelines that {displayName} connects to across Shuffle Security. Click any card to open its configuration sidebar.
         </Typography>
       </Box>
 
@@ -253,17 +254,20 @@ export default function AppRelatedUsecases({
             <Card
               key={flow.id}
               variant="outlined"
+              onClick={() => handleOpenUsecase(flow)}
               sx={{
                 p: 2,
                 borderRadius: 2,
+                cursor: 'pointer',
                 bgcolor: active ? 'hsl(var(--severity-low) / 0.04)' : 'hsl(var(--card))',
                 borderColor: active ? 'hsl(var(--severity-low) / 0.4)' : 'hsl(var(--border))',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                transition: 'border-color 0.15s, background-color 0.15s',
+                transition: 'border-color 0.15s, background-color 0.15s, box-shadow 0.15s',
                 '&:hover': {
                   borderColor: 'hsl(var(--primary) / 0.5)',
+                  boxShadow: '0 2px 8px hsl(var(--primary) / 0.08)',
                 },
               }}
             >
@@ -340,7 +344,10 @@ export default function AppRelatedUsecases({
                 <Button
                   size="small"
                   variant="text"
-                  onClick={() => handleOpenUsecase(flow)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenUsecase(flow);
+                  }}
                   sx={{
                     textTransform: 'none',
                     fontWeight: 600,
@@ -351,7 +358,7 @@ export default function AppRelatedUsecases({
                     '&:hover': { color: 'hsl(var(--primary))', bgcolor: 'transparent' },
                   }}
                 >
-                  View in Usecases
+                  Configure flow
                 </Button>
 
                 {/* Enable / Configure button */}
@@ -441,6 +448,18 @@ export default function AppRelatedUsecases({
           );
         })}
       </Box>
+
+      {/* Standalone usecase detail drawer — identical to clicking a usecase on /usecases */}
+      <UsecaseDrawer
+        open={Boolean(drawerFlowId)}
+        onClose={() => setDrawerFlowId(null)}
+        flowId={drawerFlowId}
+        workflows={workflows}
+        onToggled={() => {
+          queryClient.invalidateQueries({ queryKey: ['workflows'] });
+          window.dispatchEvent(new CustomEvent('integrations-changed'));
+        }}
+      />
     </Box>
   );
 }

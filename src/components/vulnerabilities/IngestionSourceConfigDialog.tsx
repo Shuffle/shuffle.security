@@ -32,6 +32,7 @@ import {
 import { X as CloseIcon, RefreshCw as RefreshIcon } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import { useAuth } from '@/context/AuthContext';
+import { useIsSupport } from '@/hooks/useIsSupport';
 import { discoverVulnerabilityStreams } from '@/services/vulnerabilityStreamDiscovery';
 import {
   getOrDiscoverAppIngestionConfig,
@@ -107,6 +108,7 @@ export const IngestionSourceConfigDialog = ({
   validated = false,
   onConfigSaved,
 }: IngestionSourceConfigDialogProps) => {
+  const isSupport = useIsSupport();
   const { userInfo } = useAuth();
   const currentOrgId: string | undefined = (userInfo as any)?.active_org?.id;
 
@@ -125,7 +127,7 @@ export const IngestionSourceConfigDialog = ({
   const displayName = appName.replace(/_/g, ' ');
 
   const loadConfig = useCallback(async () => {
-    if (!open || !appName) return;
+    if (!open || !appName || !isSupport) return;
     setLoading(true);
     try {
       const cfg = await getOrDiscoverAppIngestionConfig(appName, appId, currentOrgId);
@@ -141,14 +143,14 @@ export const IngestionSourceConfigDialog = ({
     } finally {
       setLoading(false);
     }
-  }, [open, appName, appId, currentOrgId]);
+  }, [open, appName, appId, currentOrgId, isSupport]);
 
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
 
   const handleRunDiscovery = async () => {
-    if (discovering || !appName) return;
+    if (discovering || !appName || !isSupport) return;
     setDiscovering(true);
     try {
       const fresh = await discoverVulnerabilityStreams(appName, appId, currentOrgId);
@@ -191,7 +193,7 @@ export const IngestionSourceConfigDialog = ({
   };
 
   const handleSave = async () => {
-    if (!config) return;
+    if (!config || !isSupport) return;
     setSaving(true);
     try {
       const parsedRepos = repositoriesInput
@@ -283,6 +285,19 @@ export const IngestionSourceConfigDialog = ({
             Configure Ingestion: {displayName}
           </Typography>
           <Chip
+            label="Support only"
+            size="small"
+            sx={{
+              height: 22,
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              bgcolor: 'hsla(var(--primary) / 0.15)',
+              color: 'hsl(var(--primary))',
+              border: '1px solid hsla(var(--primary) / 0.35)',
+              letterSpacing: '0.02em',
+            }}
+          />
+          <Chip
             label={validated ? 'Connected' : 'Pending Verification'}
             size="small"
             sx={{
@@ -322,7 +337,16 @@ export const IngestionSourceConfigDialog = ({
       </DialogTitle>
 
       <DialogContent sx={{ px: 3, py: 2.5 }}>
-        {loading ? (
+        {!isSupport ? (
+          <Box sx={{ py: 6, px: 2, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
+            <Typography sx={{ fontSize: '1rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+              Support Preview Only
+            </Typography>
+            <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))', maxWidth: 440 }}>
+              Granular vulnerability stream discovery and ingestion scoping is currently restricted to Shuffle support users. Contact support if you need granular stream configuration for your organization.
+            </Typography>
+          </Box>
+        ) : loading ? (
           <Box sx={{ py: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
             <CircularProgress size={28} sx={{ color: 'hsl(var(--primary))' }} />
             <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))' }}>
@@ -337,6 +361,24 @@ export const IngestionSourceConfigDialog = ({
           </Box>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* Support Only Notice */}
+            <Box
+              sx={{
+                px: 2,
+                py: 1.25,
+                borderRadius: 1.5,
+                bgcolor: 'hsla(var(--primary) / 0.08)',
+                border: '1px solid hsla(var(--primary) / 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--foreground))' }}>
+                <strong style={{ color: 'hsl(var(--primary))' }}>Support Only Preview:</strong> This granular vulnerability stream discovery and parameter control mechanism is currently in preview for Shuffle support users only. Configurations are persisted per tenant in Datastore.
+              </Typography>
+            </Box>
+
             {/* Discovery Status Banner */}
             <Box
               sx={{
@@ -612,27 +654,29 @@ export const IngestionSourceConfigDialog = ({
             },
           }}
         >
-          Cancel
+          {isSupport ? 'Cancel' : 'Close'}
         </Button>
-        <Button
-          size="small"
-          variant="contained"
-          onClick={handleSave}
-          disabled={saving || loading || !config}
-          sx={{
-            height: 32,
-            fontSize: '0.8rem',
-            textTransform: 'none',
-            borderRadius: 1,
-            bgcolor: 'hsl(var(--primary))',
-            color: 'hsl(var(--primary-foreground))',
-            '&:hover': {
-              bgcolor: 'hsl(var(--primary) / 0.9)',
-            },
-          }}
-        >
-          {saving ? 'Saving...' : 'Save Configuration'}
-        </Button>
+        {isSupport && (
+          <Button
+            size="small"
+            variant="contained"
+            onClick={handleSave}
+            disabled={saving || loading || !config}
+            sx={{
+              height: 32,
+              fontSize: '0.8rem',
+              textTransform: 'none',
+              borderRadius: 1,
+              bgcolor: 'hsl(var(--primary))',
+              color: 'hsl(var(--primary-foreground))',
+              '&:hover': {
+                bgcolor: 'hsl(var(--primary) / 0.9)',
+              },
+            }}
+          >
+            {saving ? 'Saving...' : 'Save Configuration'}
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );

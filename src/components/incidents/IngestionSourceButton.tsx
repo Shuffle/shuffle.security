@@ -4,6 +4,7 @@ import { Box, IconButton, Popover, Typography, Chip, Button, Tooltip } from '@mu
 import { ValidatedIngestionApp } from '@/Shuffle-MCPs/ingestionDetection';
 import { useAppDetail } from '@/Shuffle-MCPs/AppDetailContext';
 import { EntityHealth } from '@/services/workflowHealth';
+import { useIsSupport } from '@/hooks/useIsSupport';
 import { getAppIngestionConfig } from '@/services/vulnerabilityStreamStorage';
 import { IngestionSourceConfigDialog } from '@/components/vulnerabilities/IngestionSourceConfigDialog';
 
@@ -35,6 +36,7 @@ export const IngestionSourceButton = ({
   isBlocked = false,
   health,
 }: IngestionSourceButtonProps) => {
+  const isSupport = useIsSupport();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
@@ -44,7 +46,7 @@ export const IngestionSourceButton = ({
   const { openApp } = useAppDetail();
 
   useEffect(() => {
-    if (category !== 'vulnerabilities') return;
+    if (category !== 'vulnerabilities' || !isSupport) return;
 
     let mounted = true;
     const fetchSummary = async () => {
@@ -263,18 +265,17 @@ export const IngestionSourceButton = ({
             <Chip label="Pending" size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem', bgcolor: 'hsla(38, 92%, 50%, 0.15)', color: 'hsl(var(--severity-medium))', border: '1px solid hsla(38, 92%, 50%, 0.3)' }} />
           ) : null}
         </Typography>
-        {category === 'vulnerabilities' && streamSummary && (
+        {category === 'vulnerabilities' && isSupport && streamSummary && (
           <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', mb: 1, fontSize: '0.7rem' }}>
             {streamSummary}
           </Typography>
         )}
-        {variant === 'ingest' && category !== 'vulnerabilities' && (
+        {variant === 'ingest' && (category !== 'vulnerabilities' || !isSupport) && (
           <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', mb: 1, fontSize: '0.7rem' }}>
             {incidentCount} {incidentCount === 1 ? 'incident' : 'incidents'}
           </Typography>
         )}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          {category === 'vulnerabilities' && (
+          {category === 'vulnerabilities' && isSupport && (
             <Button
               size="small"
               startIcon={<ConfigureIcon size={14} />}
@@ -293,7 +294,24 @@ export const IngestionSourceButton = ({
                 '&:hover': { bgcolor: 'hsl(var(--muted))' },
               }}
             >
-              Configure streams
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <span>Configure streams</span>
+                <Tooltip title="This configuration is restricted to Shuffle support users" arrow>
+                  <Chip
+                    label="Support only"
+                    size="small"
+                    sx={{
+                      height: 18,
+                      fontSize: '0.6rem',
+                      fontWeight: 500,
+                      color: 'hsl(var(--muted-foreground))',
+                      bgcolor: 'hsl(var(--muted) / 0.5)',
+                      border: '1px solid hsl(var(--border))',
+                      '& .MuiChip-label': { px: 0.75 },
+                    }}
+                  />
+                </Tooltip>
+              </Box>
             </Button>
           )}
           <Button
@@ -335,7 +353,7 @@ export const IngestionSourceButton = ({
           </Button>
         </Box>
       </Popover>
-      {category === 'vulnerabilities' && (
+      {category === 'vulnerabilities' && isSupport && (
         <IngestionSourceConfigDialog
           open={configDialogOpen}
           onClose={() => setConfigDialogOpen(false)}

@@ -169,7 +169,7 @@ const TenantAutocompletePaper = forwardRef<
         display: "flex",
         flexDirection: "column",
         boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
-        ...((other as any).sx || {}),
+        ...((other as { sx?: object }).sx || {}),
       }}
     >
       <Box
@@ -293,8 +293,54 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
     null,
   );
   const [hoverExpanded, setHoverExpanded] = useState(false);
+  const hoverExpandedRef = useRef(hoverExpanded);
+  useEffect(() => {
+    hoverExpandedRef.current = hoverExpanded;
+  }, [hoverExpanded]);
+
   const [searchOpen, setSearchOpen] = useState(false);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isHoverInsideRef = useRef(false);
+  const sidebarRef = useRef<HTMLDivElement | null>(null);
+  const lastPointerPositionRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Track pointer coordinates so we know whether the cursor is still over the
+  // sidebar when an overlay/menu unmounts or closes.
+  useEffect(() => {
+    const handlePointerMove = (e: MouseEvent) => {
+      lastPointerPositionRef.current = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener("mousemove", handlePointerMove, { passive: true });
+    return () => window.removeEventListener("mousemove", handlePointerMove);
+  }, []);
+
+  const isPointerInsideSidebar = () => {
+    if (isHoverInsideRef.current) return true;
+    if (sidebarRef.current) {
+      try {
+        if (sidebarRef.current.matches(":hover")) {
+          isHoverInsideRef.current = true;
+          return true;
+        }
+      } catch {
+        // Fall through
+      }
+      if (lastPointerPositionRef.current) {
+        const { x, y } = lastPointerPositionRef.current;
+        const rect = sidebarRef.current.getBoundingClientRect();
+        if (
+          x >= rect.left &&
+          x <= rect.right &&
+          y >= rect.top &&
+          y <= rect.bottom
+        ) {
+          isHoverInsideRef.current = true;
+          return true;
+        }
+      }
+    }
+    return false;
+  };
 
   // Ctrl+K keyboard shortcut
   useEffect(() => {
@@ -351,6 +397,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
 
   useEffect(
     () => () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
       if (pendingExpandRef.current) clearTimeout(pendingExpandRef.current);
     },
     [],
@@ -360,6 +407,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
   const visuallyCollapsed = collapsed && !hoverExpanded;
 
   const handleMouseEnter = () => {
+    isHoverInsideRef.current = true;
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
@@ -369,6 +417,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
   };
 
   const handleMouseLeave = () => {
+    isHoverInsideRef.current = false;
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     // While the tenant list (or a floating menu) is open the pointer often sits
     // in a portaled surface outside the sidebar. Never auto-close on leave in
@@ -427,6 +476,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
     setOrgSelectOpen(false);
     setToolMenuAnchor(null);
     setUserMenuAnchor(null);
+    setHoverExpanded(false);
   }, [collapsed]);
 
   // When visually collapsed (e.g. hover ends), guarantee tenant popover is closed
@@ -444,6 +494,34 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
     setToolMenuAnchor(null);
     setUserMenuAnchor(null);
   }, [location.pathname]);
+
+  // When floating menus close, verify whether the pointer is still inside the
+  // sidebar before collapsing. If the cursor is still over the sidebar, keep it
+  // expanded so stationary pointers don't get strand-collapsed.
+  useEffect(() => {
+    if (orgSelectOpen || toolMenuAnchor || userMenuAnchor) {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    if (!collapsed || !hoverExpandedRef.current) return;
+
+    if (isPointerInsideSidebar()) {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoverExpanded(false);
+    }, hoverCollapseDelay);
+  }, [collapsed, orgSelectOpen, toolMenuAnchor, userMenuAnchor]);
 
   const handleExpand = (label: string) => {
     // Only allow one expanded item at a time - toggle off if already open, otherwise switch to new one
@@ -556,6 +634,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
       </IconButton>
 
       <Box
+        ref={sidebarRef}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         sx={{
@@ -1231,15 +1310,6 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                 }}
                 onClose={() => {
                   setOrgSelectOpen(false);
-                  // Closing while the pointer rests in the portaled list leaves
-                  // no mouseleave on the sidebar, so re-arm the hover collapse.
-                  if (collapsed) {
-                    if (hoverTimeoutRef.current)
-                      clearTimeout(hoverTimeoutRef.current);
-                    hoverTimeoutRef.current = setTimeout(() => {
-                      setHoverExpanded(false);
-                    }, hoverCollapseDelay);
-                  }
                 }}
                 value={selectedOrg}
                 onChange={(_, newValue) => handleOrgChange(newValue)}

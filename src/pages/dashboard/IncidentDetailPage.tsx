@@ -172,6 +172,7 @@ import {
   enforceMergedStatusInvariant,
   isClosedIncident,
 } from "@/lib/incidentRelations";
+import { getIncidentUrl, toCanonicalIncidentId } from "@/lib/incidentUrl";
 import { DemoFallbackAuditBanner } from "@/components/incidents/DemoFallbackAuditBanner";
 import { useMergeCandidates } from "@/hooks/useMergeCandidates";
 import { RoutingRulePreviewBanner } from "@/components/incidents/RoutingRulePreviewBanner";
@@ -1406,22 +1407,24 @@ const IncidentDetailPage = () => {
     [scheduleAgentRun],
   );
 
+  // Canonicalize rawId to decode any percent-encoded colons (e.g. "b%3A%3A1a0a8c10c56f63c8" -> "b::1a0a8c10c56f63c8")
+  const canonicalRawId = useMemo(() => toCanonicalIncidentId(rawId), [rawId]);
   // Parse namespaced org ID from sub-org incidents (format: "orgId::incidentId")
   const crossOrgId = useMemo(() => {
-    if (!rawId || !rawId.includes("::")) return null;
-    return rawId.split("::")[0];
-  }, [rawId]);
+    if (!canonicalRawId || !canonicalRawId.includes("::")) return null;
+    return canonicalRawId.split("::")[0];
+  }, [canonicalRawId]);
   const id = useMemo(() => {
-    if (!rawId) return rawId;
-    return rawId.includes("::")
-      ? rawId.split("::").filter(Boolean).pop() || rawId
-      : rawId;
-  }, [rawId]);
+    if (!canonicalRawId) return canonicalRawId;
+    return canonicalRawId.includes("::")
+      ? canonicalRawId.split("::").filter(Boolean).pop() || canonicalRawId
+      : canonicalRawId;
+  }, [canonicalRawId]);
   const listFallbackIncident = useMemo(() => {
     const fallback = (location.state as IncidentListFallbackState | null)
       ?.incidentListFallback;
     if (!fallback || !id) return null;
-    if (fallback.id !== id && fallback.id !== rawId) return null;
+    if (fallback.id !== id && fallback.id !== rawId && fallback.id !== canonicalRawId) return null;
     const createdTs =
       normalizeToMs(fallback.createdTs || fallback.created) || Date.now();
     if (fallback.rawOCSF) {
@@ -2420,9 +2423,9 @@ const IncidentDetailPage = () => {
     const id = String(item.id || "");
     if (id.startsWith("merge-in-")) {
       const sourcePart = id.replace(/^merge-in-/, "").replace(/-\d{10,}$/, "");
-      if (sourcePart) return `merge-in:${sourcePart.toLowerCase()}`;
+      if (sourcePart) return `merge-in:${toCanonicalIncidentId(sourcePart).toLowerCase()}`;
     }
-    const content = String(item.content || "")
+    const content = toCanonicalIncidentId(String(item.content || ""))
       .trim()
       .replace(/\s+/g, " ")
       .toLowerCase();
@@ -2915,7 +2918,8 @@ const IncidentDetailPage = () => {
     }
     setActiveTab(3);
     if (!relatedId) return;
-    setFlashedRelatedId(relatedId);
+    const canonical = toCanonicalIncidentId(relatedId);
+    setFlashedRelatedId(canonical);
     if (flashedRelatedTimerRef.current)
       clearTimeout(flashedRelatedTimerRef.current);
     flashedRelatedTimerRef.current = setTimeout(
@@ -2926,8 +2930,8 @@ const IncidentDetailPage = () => {
       try {
         const escaped =
           typeof CSS !== "undefined" && CSS.escape
-            ? CSS.escape(relatedId)
-            : relatedId;
+            ? CSS.escape(canonical)
+            : canonical;
         const el = document.querySelector(
           `[data-related-id="${escaped}"]`,
         ) as HTMLElement | null;
@@ -4366,7 +4370,7 @@ const IncidentDetailPage = () => {
       // If the current view is now non-primary, jump to the primary so
       // the analyst lands on the retained incident.
       if (primary.id !== incident.id) {
-        navigate(`/incidents/${encodeURIComponent(primary.id)}`);
+        navigate(getIncidentUrl(primary.id));
       } else {
         await loadIncident?.(false);
         threadCorrelated.refresh();
@@ -8442,6 +8446,7 @@ const IncidentDetailPage = () => {
     let nextAssignee = editedAssignee;
     let nextLabels = [...editedLabels];
     let nextCustomFields = { ...editedCustomFields };
+    let nextActivity = [...activity];
     let nextRaw: any = {};
     try {
       nextRaw = incident.rawOCSF ? structuredClone(incident.rawOCSF) : {};
@@ -8452,6 +8457,7 @@ const IncidentDetailPage = () => {
         nextRaw = { ...(incident.rawOCSF || {}) };
       }
     }
+    const moveActions: RoutingAction[] = [];
     let changed = false;
 
     for (const action of actionable) {
@@ -9997,7 +10003,7 @@ const IncidentDetailPage = () => {
             size="small"
             variant="outlined"
             onClick={() =>
-              navigate(`/incidents/${encodeURIComponent(primaryPointer.id)}`)
+              navigate(getIncidentUrl(primaryPointer.id))
             }
             sx={{ textTransform: "none", fontSize: "0.7rem", height: 26 }}
           >
@@ -14599,23 +14605,61 @@ const IncidentDetailPage = () => {
                 >
                   {item.obsType}
                 </Typography>
-                <Typography
-                  sx={{
-                    fontSize: "0.7rem",
-                    fontFamily: "monospace",
-                    color: isIocPill
-                      ? "hsl(var(--destructive))"
-                      : "text.primary",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    minWidth: 0,
-                    flex: 1,
-                  }}
-                  title={item.obsValue}
-                >
-                  {item.obsValue}
-                </Typography>
+                {(() => {
+                  const displayValue = toCanonicalIncidentId(item.obsValue);
+                  const isUrl =
+                    item.obsType === "url" ||
+                    /^https?:\/\//i.test(item.obsValue || "") ||
+                    Boolean(item.obsValue?.startsWith("/incidents/"));
+                  const isIncidentRef =
+                    item.obsType === "incident" ||
+                    /^[a-zA-Z0-9_-]+::[a-zA-Z0-9_-]+$/.test(displayValue);
+                  const href = isUrl
+                    ? item.obsValue
+                    : isIncidentRef
+                      ? getIncidentUrl(displayValue)
+                      : null;
+
+                  return (
+                    <Typography
+                      component={href ? "a" : "span"}
+                      {...(href
+                        ? {
+                            href,
+                            target: href.startsWith("http") ? "_blank" : undefined,
+                            rel: href.startsWith("http") ? "noopener noreferrer" : undefined,
+                            onClick: (e: React.MouseEvent) => {
+                              if (!href.startsWith("http")) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                navigate(href);
+                              }
+                            },
+                          }
+                        : {})}
+                      sx={{
+                        fontSize: "0.7rem",
+                        fontFamily: "monospace",
+                        color: href
+                          ? "hsl(var(--primary))"
+                          : isIocPill
+                            ? "hsl(var(--destructive))"
+                            : "text.primary",
+                        textDecoration: href ? "underline" : "none",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        minWidth: 0,
+                        flex: 1,
+                        cursor: href ? "pointer" : "default",
+                        "&:hover": href ? { opacity: 0.85 } : undefined,
+                      }}
+                      title={displayValue}
+                    >
+                      {displayValue}
+                    </Typography>
+                  );
+                })()}
               </Box>
             ) : item.kind === "observable-added" && item.detail ? (
               <Box
@@ -14987,23 +15031,61 @@ const IncidentDetailPage = () => {
                 >
                   {item.obsType}
                 </Typography>
-                <Typography
-                  sx={{
-                    fontSize: "0.7rem",
-                    fontFamily: "monospace",
-                    color: isIocPill
-                      ? "hsl(var(--destructive))"
-                      : "text.primary",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    minWidth: 0,
-                    flex: "1 1 auto",
-                  }}
-                  title={item.obsValue}
-                >
-                  {item.obsValue}
-                </Typography>
+                {(() => {
+                  const displayValue = toCanonicalIncidentId(item.obsValue);
+                  const isUrl =
+                    item.obsType === "url" ||
+                    /^https?:\/\//i.test(item.obsValue || "") ||
+                    Boolean(item.obsValue?.startsWith("/incidents/"));
+                  const isIncidentRef =
+                    item.obsType === "incident" ||
+                    /^[a-zA-Z0-9_-]+::[a-zA-Z0-9_-]+$/.test(displayValue);
+                  const href = isUrl
+                    ? item.obsValue
+                    : isIncidentRef
+                      ? getIncidentUrl(displayValue)
+                      : null;
+
+                  return (
+                    <Typography
+                      component={href ? "a" : "span"}
+                      {...(href
+                        ? {
+                            href,
+                            target: href.startsWith("http") ? "_blank" : undefined,
+                            rel: href.startsWith("http") ? "noopener noreferrer" : undefined,
+                            onClick: (e: React.MouseEvent) => {
+                              if (!href.startsWith("http")) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                navigate(href);
+                              }
+                            },
+                          }
+                        : {})}
+                      sx={{
+                        fontSize: "0.7rem",
+                        fontFamily: "monospace",
+                        color: href
+                          ? "hsl(var(--primary))"
+                          : isIocPill
+                            ? "hsl(var(--destructive))"
+                            : "text.primary",
+                        textDecoration: href ? "underline" : "none",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        minWidth: 0,
+                        flex: "1 1 auto",
+                        cursor: href ? "pointer" : "default",
+                        "&:hover": href ? { opacity: 0.85 } : undefined,
+                      }}
+                      title={displayValue}
+                    >
+                      {displayValue}
+                    </Typography>
+                  );
+                })()}
               </>
             ) : item.kind === "attribute-changed" ? (
               item.attrField === "severity" ? (
@@ -15606,7 +15688,7 @@ const IncidentDetailPage = () => {
         typeof actItem.id === "string"
           ? actItem.id.match(/^merge-in-(.+)-(\d+)$/)
           : null;
-      const mergeSourceIdFromId = mergeInMatch ? mergeInMatch[1] : null;
+      const mergeSourceIdFromId = mergeInMatch ? toCanonicalIncidentId(mergeInMatch[1]) : null;
       const isMergeItem = !!mergeSourceIdFromId;
 
       return (
@@ -19644,7 +19726,7 @@ const IncidentDetailPage = () => {
                             defaultSource={incident?.source}
                             onEventsChange={setIncidentEvents}
                             onNavigateToIncident={(targetId) =>
-                              navigate(`/incidents/${targetId}`)
+                              navigate(getIncidentUrl(targetId))
                             }
                             readOnly={isPublicView}
                           />
@@ -23332,7 +23414,7 @@ const IncidentDetailPage = () => {
                 defaultSource={incident?.source}
                 onEventsChange={setIncidentEvents}
                 onNavigateToIncident={(targetId) =>
-                  navigate(`/incidents/${targetId}`)
+                  navigate(getIncidentUrl(targetId))
                 }
                 readOnly={isPublicView}
               />
@@ -23637,8 +23719,12 @@ const IncidentDetailPage = () => {
         currentIncidentId={incident?.id || ""}
         currentIncidentTitle={incident?.title || ""}
         preselectedTargetId={mergePreselectedId}
-        onMergeComplete={() => {
-          loadIncident(false);
+        onMergeComplete={(targetId?: string) => {
+          if (targetId) {
+            navigate(getIncidentUrl(targetId));
+          } else {
+            loadIncident(false);
+          }
         }}
       />
 
@@ -23876,7 +23962,7 @@ const IncidentDetailPage = () => {
                         }
                       />
                     )}
-                    slotProps={{ popper: { sx: { zIndex: 9999 } } }}
+                    slotProps={{ popper: { sx: { zIndex: 10040 } } }}
                   />
                 )}
                 {noneSelected && (

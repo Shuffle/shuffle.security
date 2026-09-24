@@ -13,6 +13,7 @@ import {
   AlertCircle as ErrorOutlineIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { isNoAuthApp, getBuiltInAppImage } from '@/Shuffle-MCPs/noAuthApps';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 
 export interface AppTitleHeaderProps extends ShuffleHostProps {
@@ -56,6 +57,9 @@ export default function AppTitleHeader({
   highlightActivate = false,
   onAdd,
 }: AppTitleHeaderProps) {
+  const isBuiltIn = isNoAuthApp(name);
+  const resolvedImage = image || (isBuiltIn ? (getBuiltInAppImage(name) || undefined) : undefined);
+
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <Box
@@ -71,7 +75,7 @@ export default function AppTitleHeader({
         }}
       >
         <Avatar
-          src={image}
+          src={resolvedImage}
           alt={name}
           sx={{
             width: 56,
@@ -79,7 +83,7 @@ export default function AppTitleHeader({
             borderRadius: '14px',
             backgroundColor: 'hsl(var(--muted))',
             border: '2px solid',
-            borderColor: hasValidAuth
+            borderColor: hasValidAuth || isBuiltIn
               ? 'hsl(var(--severity-low))'
               : hasAnyAuth
                 ? 'hsl(142 76% 36% / 0.3)'
@@ -142,7 +146,7 @@ export default function AppTitleHeader({
           </Button>
         )}
 
-        {!onAdd && isAuthenticated && isActivated !== null && onActivateToggle && (
+        {!onAdd && isAuthenticated && !isBuiltIn && isActivated !== null && onActivateToggle && (
           <Button
             onClick={onActivateToggle}
             disabled={activateLoading}

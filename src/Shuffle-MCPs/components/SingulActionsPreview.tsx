@@ -33,6 +33,8 @@ import {
   Play as PlayArrowIcon
 } from 'lucide-react';
 import { API_CONFIG, getApiUrl, getAuthHeader, getTrackedOrgId } from '@/Shuffle-MCPs/api';
+import { getTopSurfaceZIndex, POPUP_OFFSET } from '@/Shuffle-MCPs/drawerLayer';
+import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 import JsonView from 'react18-json-view';
 import 'react18-json-view/src/style.css';
 import 'react18-json-view/src/dark.css';
@@ -349,7 +351,9 @@ const SingulActionsPreview = ({
   onAuthenticate,
 }: SingulActionsPreviewProps) => {
   const theme = useTheme();
+  const themeScope = useShuffleMcpTheme();
   const isDark = theme.palette.mode === 'dark';
+  const scopeClassName = themeScope?.scopeClassName ?? (isDark ? 'shuffle-mcp-scope dark' : 'shuffle-mcp-scope light');
   const defaultCategory = useMemo(() => pickDefaultCategory(categories), [categories]);
   const actions = ALL_ACTIONS;
   // Sort so that the app's default category appears first, rest follow original order.
@@ -540,11 +544,13 @@ const SingulActionsPreview = ({
                 }}
                 slotProps={{
                   popper: {
+                    className: scopeClassName,
                     sx: {
-                      zIndex: 10020,
+                      zIndex: (_theme) => Math.max(getTopSurfaceZIndex() + POPUP_OFFSET, 10050),
                     },
                   },
                   paper: {
+                    className: scopeClassName,
                     sx: {
                       backgroundColor: 'hsl(var(--card))',
                       color: 'hsl(var(--foreground))',

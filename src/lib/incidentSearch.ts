@@ -2,6 +2,8 @@ import { DATASTORE_CATEGORIES, getDatastoreItem } from '@/Shuffle-MCPs/datastore
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import type { Observable, OCSFIncidentFinding } from '@/config/ocsfIncidentSchema';
 
+import { toCanonicalIncidentId } from '@/lib/incidentUrl';
+
 export interface SearchableIncident {
   id: string;
   title?: string;
@@ -54,19 +56,20 @@ export const NOISE_CORRELATION_KEYS = new Set([
  */
 export const toRawIncidentKey = (key: string): string => {
   if (!key) return '';
-  if (key.includes('::')) {
-    const parts = key.split('::').filter(Boolean);
-    return parts.length > 0 ? parts[parts.length - 1] : key;
+  const decoded = toCanonicalIncidentId(key);
+  if (decoded.includes('::')) {
+    const parts = decoded.split('::').filter(Boolean);
+    return parts.length > 0 ? parts[parts.length - 1] : decoded;
   }
-  if (key.includes('|')) {
-    const parts = key.split('|').filter(Boolean);
-    return parts.length > 0 ? parts[parts.length - 1] : key;
+  if (decoded.includes('|')) {
+    const parts = decoded.split('|').filter(Boolean);
+    return parts.length > 0 ? parts[parts.length - 1] : decoded;
   }
-  if (key.includes('/')) {
-    const parts = key.split('/').filter(Boolean);
-    return parts.length > 0 ? parts[parts.length - 1] : key;
+  if (decoded.includes('/')) {
+    const parts = decoded.split('/').filter(Boolean);
+    return parts.length > 0 ? parts[parts.length - 1] : decoded;
   }
-  return key;
+  return decoded;
 };
 
 /**

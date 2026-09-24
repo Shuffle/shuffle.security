@@ -26,6 +26,7 @@ import {
 } from '@/Shuffle-MCPs/datastore';
 import { statusConfig } from '@/config/incidentConfig';
 import { deepMergeIncidents } from '@/lib/utils';
+import { toCanonicalIncidentId } from './incidentUrl';
 
 /**
  * Identity / user-editable fields that MUST stay owned by the primary
@@ -134,11 +135,11 @@ const MERGED_STATUS_LABEL = statusConfig.merged?.label ?? 'Merged';
 
 const incidentIdKey = (value: unknown): string => {
   if (typeof value !== 'string') return '';
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  if (trimmed.includes('|')) return trimmed.split('|').pop()?.toLowerCase() || trimmed.toLowerCase();
-  if (trimmed.includes('/')) return trimmed.split('/').pop()?.toLowerCase() || trimmed.toLowerCase();
-  return trimmed.toLowerCase();
+  const canonical = toCanonicalIncidentId(value);
+  if (!canonical) return '';
+  if (canonical.includes('|')) return canonical.split('|').pop()?.toLowerCase() || canonical.toLowerCase();
+  if (canonical.includes('/')) return canonical.split('/').pop()?.toLowerCase() || canonical.toLowerCase();
+  return canonical.toLowerCase();
 };
 
 const isMergeAuditActivityItem = (item: any): boolean => {
@@ -446,6 +447,9 @@ export const linkMergePair = async ({
   const primaryKey = incidentIdKey(primaryId);
   const sourceKey = incidentIdKey(sourceId);
 
+  const canonicalPrimaryId = toCanonicalIncidentId(primaryId);
+  const canonicalSourceId = toCanonicalIncidentId(sourceId);
+
   // Snapshot the source's current status so unmerge can restore it.
   const prevStatus: string | undefined =
     typeof sourceRaw?.status === 'string' ? sourceRaw.status : undefined;
@@ -456,7 +460,7 @@ export const linkMergePair = async ({
 
   // Primary side — points at source, not primary itself.
   const primaryPointer: RelatedIncidentPointer = {
-    id: sourceId,
+    id: canonicalSourceId,
     relation: 'merged',
     primary: false,
     linked_at: now,
@@ -464,7 +468,7 @@ export const linkMergePair = async ({
   };
   // Source side — points at primary, IS primary.
   const sourcePointer: RelatedIncidentPointer = {
-    id: primaryId,
+    id: canonicalPrimaryId,
     relation: 'merged',
     primary: true,
     linked_at: now,
@@ -592,15 +596,15 @@ export const linkMergePair = async ({
   // Attach a single audit entry summarising the fold.
   const primaryActivity = Array.isArray(nextPrimary.activity) ? dedupeMergeAuditActivity(nextPrimary.activity) : [];
   const foldedLabel = childRaws.length > 0
-    ? `Merged data from "${sourceTitle || sourceId}" (+${childRaws.length} chained)`
-    : `Merged data from "${sourceTitle || sourceId}"`;
-  const alreadyHasPrimaryAudit = primaryActivity.some((item: any) => mergeAuditDedupeKey(item) === `merge-in:${sourceId.toLowerCase()}`);
+    ? `Merged data from "${sourceTitle || canonicalSourceId}" (+${childRaws.length} chained)`
+    : `Merged data from "${sourceTitle || canonicalSourceId}"`;
+  const alreadyHasPrimaryAudit = primaryActivity.some((item: any) => mergeAuditDedupeKey(item) === `merge-in:${canonicalSourceId.toLowerCase()}`);
   nextPrimary.activity = alreadyHasPrimaryAudit
     ? primaryActivity
     : [
         ...primaryActivity,
         {
-          id: `merge-in-${sourceId}-${now}`,
+          id: `merge-in-${canonicalSourceId}-${now}`,
           type: 'system',
           user: linkedBy || 'System',
           timestamp: now,
@@ -614,12 +618,12 @@ export const linkMergePair = async ({
   for (const c of childRaws) {
     nextSource = removePointer(nextSource, c.id);
   }
-  nextSource = upsertRelatedEventRefs(nextSource, [primaryId]);
+  nextSource = upsertRelatedEventRefs(nextSource, [canonicalPrimaryId]);
   nextSource = {
     ...nextSource,
     status_id: MERGED_STATUS_ID,
     status: MERGED_STATUS_LABEL,
-    merged_into: primaryId,           // legacy field for backwards compat
+    merged_into: canonicalPrimaryId,           // legacy field for backwards compat
     merged_at: now,
   };
 
@@ -627,7 +631,7 @@ export const linkMergePair = async ({
   const sourceActivity = Array.isArray(nextSource.activity) ? dedupeMergeAuditActivity(nextSource.activity) : [];
   const sourceAuditExists = sourceActivity.some((item: any) => {
     const content = String(item?.content || '');
-    return item?.type === 'system' && content.includes(`Merged into "${primaryTitle || primaryId}"`);
+    return item?.type === 'system' && content.includes(`Merged into "${primaryTitle || canonicalPrimaryId}"`);
   });
   nextSource.activity = sourceAuditExists
     ? sourceActivity
@@ -638,7 +642,7 @@ export const linkMergePair = async ({
           type: 'system',
           user: linkedBy || 'System',
           timestamp: now,
-          content: `Merged into "${primaryTitle || primaryId}"`,
+          content: `Merged into "${primaryTitle || canonicalPrimaryId}"`,
         },
       ];
 
@@ -782,6 +786,7 @@ export const linkMergePairsBatch = async ({
   }
 
   const primaryKey = incidentIdKey(primaryId);
+  const canonicalPrimaryId = toCanonicalIncidentId(primaryId);
   const now = Date.now();
 
   // Split into simple vs complex (has transitive children — needs
@@ -816,15 +821,16 @@ export const linkMergePairsBatch = async ({
       continue;
     }
     const sourceKey = incidentIdKey(src.id);
+    const canonicalSrcId = toCanonicalIncidentId(src.id);
     const primaryPointer: RelatedIncidentPointer = {
-      id: src.id,
+      id: canonicalSrcId,
       relation: 'merged',
       primary: false,
       linked_at: now,
       linked_by: linkedBy,
     };
     const sourcePointer: RelatedIncidentPointer = {
-      id: primaryId,
+      id: canonicalPrimaryId,
       relation: 'merged',
       primary: true,
       linked_at: now,
@@ -838,7 +844,7 @@ export const linkMergePairsBatch = async ({
     requiredPointers.push(primaryPointer);
 
     // Only fold data once per source key — idempotent across retries.
-    if (!alreadyLinkedKeys.has(sourceKey) && !foldedSet.has(src.id)) {
+    if (!alreadyLinkedKeys.has(sourceKey) && !foldedSet.has(canonicalSrcId)) {
       nextPrimary = foldSourceIntoPrimary(nextPrimary, src.raw);
       // foldSourceIntoPrimary may have refreshed activity; re-sync.
       primaryActivity = Array.isArray(nextPrimary.activity)
@@ -847,31 +853,31 @@ export const linkMergePairsBatch = async ({
     }
     nextPrimary = upsertPointer(nextPrimary, primaryPointer);
     alreadyLinkedKeys.add(sourceKey);
-    foldedSet.add(src.id);
+    foldedSet.add(canonicalSrcId);
 
     // Single audit entry per source; dedup by mergeAuditDedupeKey.
-    const auditKey = `merge-in:${src.id.toLowerCase()}`;
+    const auditKey = `merge-in:${canonicalSrcId.toLowerCase()}`;
     if (!primaryActivity.some((item: any) => mergeAuditDedupeKey(item) === auditKey)) {
       primaryActivity = [
         ...primaryActivity,
         {
-          id: `merge-in-${src.id}-${now}`,
+          id: `merge-in-${canonicalSrcId}-${now}`,
           type: 'system',
           user: linkedBy || 'System',
           timestamp: now,
-          content: `Merged data from "${src.title || src.id}"`,
+          content: `Merged data from "${src.title || canonicalSrcId}"`,
         },
       ];
     }
 
     // Prepare source-side payload — written in parallel below.
     let nextSource: any = upsertPointer(src.raw, sourcePointer);
-    nextSource = upsertRelatedEventRefs(nextSource, [primaryId]);
+    nextSource = upsertRelatedEventRefs(nextSource, [canonicalPrimaryId]);
     nextSource = {
       ...nextSource,
       status_id: MERGED_STATUS_ID,
       status: MERGED_STATUS_LABEL,
-      merged_into: primaryId,
+      merged_into: canonicalPrimaryId,
       merged_at: now,
     };
     const srcActivity = Array.isArray(nextSource.activity)
@@ -879,21 +885,21 @@ export const linkMergePairsBatch = async ({
       : [];
     const hasSourceAudit = srcActivity.some((item: any) => {
       const content = String(item?.content || '');
-      return item?.type === 'system' && content.includes(`Merged into "${primaryTitle || primaryId}"`);
+      return item?.type === 'system' && content.includes(`Merged into "${primaryTitle || canonicalPrimaryId}"`);
     });
     nextSource.activity = hasSourceAudit
       ? srcActivity
       : [
           ...srcActivity,
           {
-            id: `merge-${now}-${src.id}`,
+            id: `merge-${now}-${canonicalSrcId}`,
             type: 'system',
             user: linkedBy || 'System',
             timestamp: now,
-            content: `Merged into "${primaryTitle || primaryId}"`,
+            content: `Merged into "${primaryTitle || canonicalPrimaryId}"`,
           },
         ];
-    sourceWrites.push({ id: src.id, raw: nextSource });
+    sourceWrites.push({ id: canonicalSrcId, raw: nextSource });
   }
 
   if (requiredPointers.length > 0) {

@@ -66,6 +66,11 @@ const syncGlobalCounter = (base: number = OVERLAY_BASE) => {
   getTopSurfaceZIndex(base);
 };
 
+export const getPopupZIndex = (
+  offset: number = POPUP_OFFSET,
+  minZ: number = 10040
+): number => Math.max(getTopSurfaceZIndex() + offset, minZ);
+
 export const allocateSurfaceLayer = (
   id: string,
   element?: HTMLElement | null,
@@ -149,19 +154,6 @@ export const useDrawerLayer = (open: boolean, base: number = DRAWER_LAYER_BASE):
 /* Automatically ensures that NEW surfaces ALWAYS open OVER OLD surfaces.     */
 /* -------------------------------------------------------------------------- */
 
-/**
- * True only for overlays that belong to Shuffle-Core / Shuffle-MCPs. Their MUI
- * surfaces/popups stamp a `.shuffle-core-scope` / `.shuffle-mcp-scope` class on
- * their paper; Radix portals are exclusively ours. Host apps embedding the
- * published packages (e.g. shaffuru) render their own dialogs, menus and
- * tooltips — this global observer must never rewrite their z-index.
- */
-const isShuffleOwnedOverlay = (el: HTMLElement): boolean =>
-  el.classList.contains('shuffle-core-scope') ||
-  el.classList.contains('shuffle-mcp-scope') ||
-  el.querySelector('.shuffle-core-scope, .shuffle-mcp-scope') !== null ||
-  el.closest('[data-radix-portal]') !== null;
-
 const isSurfaceElement = (el: Element): boolean => {
   if (!(el instanceof HTMLElement)) return false;
   return (
@@ -186,6 +178,26 @@ const isChildPopupElement = (el: Element): boolean => {
     (el.classList.contains('MuiPopper-root') && !el.classList.contains('MuiTooltip-popper'))
   );
 };
+
+/**
+ * True only for overlays that belong to Shuffle-Core / Shuffle-MCPs. Their MUI
+ * surfaces/popups stamp a `.shuffle-core-scope` / `.shuffle-mcp-scope` class on
+ * their paper; Radix portals are exclusively ours. Host apps embedding the
+ * published packages (e.g. shaffuru) render their own dialogs, menus and
+ * tooltips — this global observer must never rewrite their z-index.
+ *
+ * When any Shuffle surface (drawer, dialog) is active, child popups (e.g.
+ * Autocomplete poppers, menus) are also treated as Shuffle-owned so they never
+ * end up hidden behind active drawers.
+ */
+const isShuffleOwnedOverlay = (el: HTMLElement): boolean =>
+  el.classList.contains('shuffle-core-scope') ||
+  el.classList.contains('shuffle-mcp-scope') ||
+  el.querySelector('.shuffle-core-scope, .shuffle-mcp-scope') !== null ||
+  el.closest('[data-radix-portal]') !== null ||
+  el.hasAttribute('data-shuffle-layer') ||
+  el.querySelector('[data-shuffle-layer]') !== null ||
+  (getOverlayStack().some((r) => r.type === 'surface') && isChildPopupElement(el));
 
 const isTooltipElement = (el: Element): boolean => {
   if (!(el instanceof HTMLElement)) return false;
@@ -220,13 +232,17 @@ export const installGlobalOverlayAutoLayer = (): void => {
         el.dataset.shuffleLayerId = layerId;
       }
       const targetZ = allocateSurfaceLayer(layerId, el);
-      el.dataset.shuffleLayerZ = String(targetZ);
-      el.style.setProperty('z-index', String(targetZ), 'important');
+      if (el.dataset.shuffleLayerZ !== String(targetZ) || el.style.zIndex !== String(targetZ)) {
+        el.dataset.shuffleLayerZ = String(targetZ);
+        el.style.setProperty('z-index', String(targetZ), 'important');
+      }
 
       // Radix / custom dialog portals: also elevate dialog content container
       const dialogContent = el.querySelector<HTMLElement>('[role="dialog"], [role="alertdialog"]');
       if (dialogContent && dialogContent !== el) {
-        dialogContent.style.setProperty('z-index', String(targetZ), 'important');
+        if (dialogContent.style.zIndex !== String(targetZ)) {
+          dialogContent.style.setProperty('z-index', String(targetZ), 'important');
+        }
       }
       return;
     }
@@ -234,16 +250,20 @@ export const installGlobalOverlayAutoLayer = (): void => {
     if (isChildPopupElement(el)) {
       const topZ = getTopSurfaceZIndex();
       const popupZ = topZ + POPUP_OFFSET;
-      el.dataset.shuffleLayerZ = String(popupZ);
-      el.style.setProperty('z-index', String(popupZ), 'important');
+      if (el.dataset.shuffleLayerZ !== String(popupZ) || el.style.zIndex !== String(popupZ)) {
+        el.dataset.shuffleLayerZ = String(popupZ);
+        el.style.setProperty('z-index', String(popupZ), 'important');
+      }
       return;
     }
 
     if (isTooltipElement(el)) {
       const topZ = getTopSurfaceZIndex();
       const tooltipZ = topZ + TOOLTIP_OFFSET;
-      el.dataset.shuffleLayerZ = String(tooltipZ);
-      el.style.setProperty('z-index', String(tooltipZ), 'important');
+      if (el.dataset.shuffleLayerZ !== String(tooltipZ) || el.style.zIndex !== String(tooltipZ)) {
+        el.dataset.shuffleLayerZ = String(tooltipZ);
+        el.style.setProperty('z-index', String(tooltipZ), 'important');
+      }
       return;
     }
   };

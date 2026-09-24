@@ -349,10 +349,10 @@ const EditWorkflow = (props) => {
 		keepMounted: true,
 		MenuListProps: { dense: true },
 		ModalProps: { keepMounted: true },
-		sx: { zIndex: 9999 },
+		sx: { zIndex: 10040 },
 		PaperProps: {
 			sx: {
-				zIndex: 9999,
+				zIndex: 10040,
 				maxHeight: 360,
 				mt: 0.5,
 				bgcolor: "hsl(var(--popover))",

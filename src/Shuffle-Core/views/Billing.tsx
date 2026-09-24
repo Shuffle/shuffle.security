@@ -1218,7 +1218,7 @@ const Billing = memo((props) => {
 					<Tooltip
 						title="Close window"
 						placement="top"
-						style={{ zIndex: 10011 }}
+						PopperProps={{ style: { zIndex: 10050 } }}
 					>
 						<IconButton
 							style={{ zIndex: 5000, position: "absolute", top: 34, right: 34 }}
@@ -1324,7 +1324,7 @@ const Billing = memo((props) => {
 						<Tooltip
 							title="Sign EULA"
 							placement="top"
-							style={{ zIndex: 10011 }}
+							PopperProps={{ style: { zIndex: 10050 } }}
 						>
 							<IconButton
 								disabled={subscription.eula_signed}

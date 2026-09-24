@@ -1090,7 +1090,7 @@ const DashboardPage = () => {
                     width: 180,
                     '& .MuiOutlinedInput-root': { minHeight: 36, py: '2px' },
                   }}
-                  slotProps={{ popper: { sx: { zIndex: 1500 } } }}
+                  slotProps={{ popper: { sx: { zIndex: 10040 } } }}
                 />
               );
             })()}

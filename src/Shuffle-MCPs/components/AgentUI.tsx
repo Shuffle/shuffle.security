@@ -99,6 +99,8 @@ import { getToolsForSkill, AGENT_TOOLS_CHANGED_EVENT } from '@/lib/agentTools';
 import { useAgentPromptPrefix } from '@/Shuffle-MCPs/useAgentPromptPrefix';
 import { runAgent, resolveAgentNodeId } from '@/Shuffle-MCPs/agentRun';
 import { toast } from '@/Shuffle-MCPs/toast';
+import { getPopupZIndex } from '@/Shuffle-MCPs/drawerLayer';
+import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 
 // Normalize agent answer text so react-markdown renders it correctly:
 // - Decode literal escape sequences ("\n", "\t", "\r") that come back
@@ -2339,6 +2341,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // When mobileView is explicitly provided, it overrides the viewport check.
   const isPhoneScreen = useMediaQuery('(max-width:600px)', { noSsr: true });
   const isPhone = mobileView !== undefined ? mobileView : isPhoneScreen;
+  const themeScope = useShuffleMcpTheme();
+  const scopeClassName = themeScope?.scopeClassName || 'shuffle-mcp-scope';
   const [actionInput, setActionInput] = useState<string>(() => {
     if (contextStorageKey) {
       const saved = getPageContextChoice(contextStorageKey);
@@ -2798,6 +2802,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // Populated by `loadAuthenticatedApps` so the "Choose LLM" chip can show
   // the matching vendor logo and label.
   const [detectedLLM, setDetectedLLM] = useState<{ label: string; url: string; logo: string } | null>(null);
+  const pendingLLMRef = useRef<string | null>(null);
   const [configuredLLMOptions, setConfiguredLLMOptions] = useState<Array<{ label: string; id?: string }>>([]);
   const [llmMenuAnchor, setLlmMenuAnchor] = useState<null | HTMLElement>(null);
   // Apps actually allowed for the current execution, derived from the agent's
@@ -2814,7 +2819,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const [appSearchQuery, setAppSearchQuery] = useState('');
   /** Category chip the app search was opened for, so the pick can replace it. */
   const [categoryTarget, setCategoryTarget] = useState<string | null>(null);
-  const [authDrawerApp, setAuthDrawerApp] = useState<{ name: string; id?: string | null } | null>(null);
+  const [authDrawerApp, setAuthDrawerApp] = useState<{ name: string; id?: string | null; icon?: string | null } | null>(null);
   const [agentRequestLoading, setAgentRequestLoading] = useState(false);
   // Optimistic UI: track which decision the user just clicked Rerun on so we
   // can immediately hide later decisions and show a spinner on that row while
@@ -3424,8 +3429,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
         const app = entry?.app || entry;
         const name: string | undefined = app?.name;
         if (!name) continue;
-        const valid = entry?.active || entry?.validation?.valid || entry?.hasValidAuth || app?.is_valid || app?.tested;
-        if (valid === false) continue;
         const key = normalizeAgentAppName(name);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -3500,7 +3503,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
       // Shared resolver — the exact same logic the LocalLLM sidebar uses, so
       // the chip and the sidebar can never disagree. Runs on the RAW list
       // (validation state must not hide an active provider).
-      setDetectedLLM(resolveActiveLLMProvider(list));
+      if (!pendingLLMRef.current) {
+        setDetectedLLM(resolveActiveLLMProvider(list));
+      }
 
       const llmEntries = list.filter(isOpenAICompatibleAuthEntry);
       const configuredMap = new Map<string, string>();
@@ -3546,7 +3551,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
         const logo = customEvent.detail.logo || getProviderLogoUrl(label, url);
         setDetectedLLM({ label, url, logo });
       }
-      loadAuthenticatedApps();
+      if (!pendingLLMRef.current) {
+        loadAuthenticatedApps();
+      }
     };
     window.addEventListener('integrations-changed', handler);
     return () => window.removeEventListener('integrations-changed', handler);
@@ -6826,12 +6833,16 @@ const AgentUI: React.FC<AgentUIProps> = ({
               open={suggestionsOpen}
               anchorEl={promptAnchorRef.current}
               placement="bottom-start"
-              style={{ zIndex: 1300, width: promptAnchorRef.current?.offsetWidth }}
+              className={scopeClassName}
+              data-shuffle-layer="popup"
+              style={{ zIndex: getPopupZIndex(), width: promptAnchorRef.current?.offsetWidth }}
               modifiers={[{ name: 'offset', options: { offset: [0, 6] } }]}
             >
               <ClickAwayListener onClickAway={() => setSuggestionsDismissed(true)}>
                 <Paper
                   elevation={6}
+                  className={scopeClassName}
+                  data-shuffle-layer="popup"
                   sx={{
                     bgcolor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
@@ -7069,13 +7080,38 @@ const AgentUI: React.FC<AgentUIProps> = ({
                           key={opt.label}
                           onClick={async () => {
                             setLlmMenuAnchor(null);
+                            const previous = detectedLLM;
                             const target = opt.label === SHUFFLE_AI_PRESET ? SHUFFLE_AI_PRESET : (opt.id || opt.label);
+                            pendingLLMRef.current = opt.label;
                             setDetectedLLM({
                               label: opt.label,
                               url: '',
                               logo: getProviderLogoUrl(opt.label, ''),
                             });
-                            await switchActiveLLM(target);
+                            try {
+                              const result = await switchActiveLLM(target);
+                              if (!result?.success) {
+                                pendingLLMRef.current = null;
+                                setDetectedLLM(previous);
+                                toast({
+                                  title: 'Could not change AI provider',
+                                  description: `Failed to switch to ${opt.label}.`,
+                                  variant: 'destructive',
+                                });
+                                return;
+                              }
+                            } catch (err) {
+                              pendingLLMRef.current = null;
+                              setDetectedLLM(previous);
+                              toast({
+                                title: 'Could not change AI provider',
+                                description: err instanceof Error ? err.message : 'Failed to switch provider.',
+                                variant: 'destructive',
+                              });
+                              return;
+                            } finally {
+                              pendingLLMRef.current = null;
+                            }
                             loadAuthenticatedApps();
                           }}
                           sx={{
@@ -7173,6 +7209,10 @@ const AgentUI: React.FC<AgentUIProps> = ({
                   const isUnavailable = !authAppsLoading && !isAvailable && !needsAuth;
                   const isRequired = isRequiredPresetApp(selectedPreset, app.name || '');
                   const appDisplayName = formatAppDisplayName(app.name || '');
+                  const appIcon =
+                    app.icon ||
+                    availableApps.find((a) => normalizeAgentAppName(a.name || '') === slug)?.icon ||
+                    resolvedToolApps[slug]?.icon;
                   return (
                   <Tooltip
                     key={`${app.name}-${i}`}
@@ -7188,7 +7228,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                     arrow
                   >
                   <Box
-                    onClick={!agentRequestLoading ? () => setAuthDrawerApp({ name: app.name, id: app.id || null }) : undefined}
+                    onClick={!agentRequestLoading ? () => setAuthDrawerApp({ name: app.name, id: app.id || null, icon: appIcon || null }) : undefined}
                     sx={{
                       display: 'inline-flex', alignItems: 'center', gap: 0.5,
                       pl: 0.5,
@@ -7221,22 +7261,14 @@ const AgentUI: React.FC<AgentUIProps> = ({
                       } : {},
                     }}
                   >
-                    {(() => {
-                      const appIcon =
-                        app.icon ||
-                        availableApps.find((a) => normalizeAgentAppName(a.name || '') === slug)?.icon ||
-                        resolvedToolApps[slug]?.icon;
-                      return (
-                        <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, flexShrink: 0 }}>
-                          <AppFallbackIcon
-                            name={app.name}
-                            imageUrl={appIcon}
-                            size={18}
-                            style={{ borderRadius: 3, objectFit: 'contain' }}
-                          />
-                        </Box>
-                      );
-                    })()}
+                    <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, flexShrink: 0 }}>
+                      <AppFallbackIcon
+                        name={app.name}
+                        imageUrl={appIcon}
+                        size={18}
+                        style={{ borderRadius: 3, objectFit: 'contain' }}
+                      />
+                    </Box>
                     {!isPhone && (
                       <Typography
                         component="span"
@@ -8269,6 +8301,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
           onRefresh={() => { loadAuthenticatedApps(); }}
           appName={authDrawerApp?.name || null}
           appId={authDrawerApp?.id || null}
+          appImage={authDrawerApp?.icon || null}
           activeOrgId={orgId || null}
           globalUrl={apiBaseUrl}
           theme={theme}

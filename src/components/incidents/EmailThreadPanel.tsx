@@ -26,6 +26,7 @@ import EmailHtmlFrame from './EmailHtmlFrame';
 import { resolveEmailThread, assignLatest, type ResolvedEmailThread } from '@/lib/emailThreadAdapters';
 import { IncidentSection } from './IncidentSection';
 import { confirmExternalLinkClick } from '@/utils/safeExternalLinks';
+import { getPopupZIndex } from '@/Shuffle-MCPs/drawerLayer';
 
 export interface EmailMessage {
   id: string;
@@ -1482,7 +1483,7 @@ const EmailThreadPanel = ({
             width: popSize.w,
             height: popSize.h,
 
-            zIndex: 1400,
+            zIndex: (_theme: any) => getPopupZIndex(),
             bgcolor: 'hsl(var(--card))',
             border: '1px solid hsl(var(--border))',
             borderRadius: 1.5,

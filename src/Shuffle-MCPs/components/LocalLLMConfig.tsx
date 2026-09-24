@@ -22,6 +22,7 @@ import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 import { AuthStatusChip } from '@/Shuffle-MCPs/components/AuthStatusChip';
 import { getValidatedAuthIds, rememberValidatedAuth } from '@/Shuffle-MCPs/validatedAuthMemory';
+import { getPopupZIndex } from '@/Shuffle-MCPs/drawerLayer';
 
 import {
   ENDPOINT_PRESETS,
@@ -35,6 +36,7 @@ import {
   switchActiveLLM,
   maskSecretFields,
 } from '@/Shuffle-MCPs/llmActiveProvider';
+import { toast } from '@/Shuffle-MCPs/toast';
 
 const OPENAI_APP_NAME = 'OpenAI';
 const OPENAI_APP_ID = '5d19dd82517870c68d40cacad9b5ca91';
@@ -574,16 +576,36 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
   const applyShuffleAI = async () => {
     // Flip the UI to Shuffle AI immediately and deactivate the
     // saved LLM authentications. Nothing is deleted.
+    const previousPreset = selectedPreset;
     setOptimisticActiveProvider(SHUFFLE_AI_PRESET);
     setSelectedPreset(SHUFFLE_AI_PRESET);
     rememberPreset(SHUFFLE_AI_PRESET);
     setCustomUrl('');
     handleAuthChange(OPENAI_APP_ID, {});
     try {
-      await switchActiveLLM(SHUFFLE_AI_PRESET);
+      const result = await switchActiveLLM(SHUFFLE_AI_PRESET);
+      if (!result?.success) {
+        setOptimisticActiveProvider(null);
+        setSelectedPreset(previousPreset);
+        rememberPreset(previousPreset);
+        toast({
+          title: 'Could not change AI provider',
+          description: 'Failed to switch to Shuffle AI.',
+          variant: 'destructive',
+        });
+        return;
+      }
       await refreshAuth();
     } catch (err) {
       console.error('[LocalLLMConfig] Failed to deactivate provider auths:', err);
+      setOptimisticActiveProvider(null);
+      setSelectedPreset(previousPreset);
+      rememberPreset(previousPreset);
+      toast({
+        title: 'Could not change AI provider',
+        description: err instanceof Error ? err.message : 'Failed to switch to Shuffle AI.',
+        variant: 'destructive',
+      });
     } finally {
       setOptimisticActiveProvider(null);
     }
@@ -596,6 +618,7 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
       return;
     }
 
+    const previousPreset = selectedPreset;
     setSelectedPreset(label);
     rememberPreset(label);
 
@@ -607,10 +630,29 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
       setOptimisticActiveProvider(label);
       void (async () => {
         try {
-          await switchActiveLLM(existingId);
+          const result = await switchActiveLLM(existingId);
+          if (!result?.success) {
+            setOptimisticActiveProvider(null);
+            setSelectedPreset(previousPreset);
+            rememberPreset(previousPreset);
+            toast({
+              title: 'Could not change AI provider',
+              description: `Failed to switch to ${label}.`,
+              variant: 'destructive',
+            });
+            return;
+          }
           await refreshAuth();
         } catch (err) {
           console.error('[LocalLLMConfig] Failed to switch active LLM provider:', err);
+          setOptimisticActiveProvider(null);
+          setSelectedPreset(previousPreset);
+          rememberPreset(previousPreset);
+          toast({
+            title: 'Could not change AI provider',
+            description: err instanceof Error ? err.message : 'Failed to switch active LLM provider.',
+            variant: 'destructive',
+          });
         } finally {
           setOptimisticActiveProvider(null);
         }
@@ -845,7 +887,7 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
           slotProps={{
             paper: { sx: { bgcolor: 'hsl(var(--popover))', color: 'hsl(var(--popover-foreground))', border: '1px solid hsl(var(--border))', maxWidth: '100vw', overflow: 'hidden' } },
             listbox: { sx: { maxWidth: '100%', '& li': { minWidth: 0 } } },
-            popper: { sx: { zIndex: 9999, maxWidth: '100vw' } },
+            popper: { sx: { zIndex: (_theme) => getPopupZIndex(), maxWidth: '100vw' } },
           }}
         />
       </Box>
@@ -954,7 +996,7 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
                         isOptionEqualToValue={(opt, val) => opt === val}
                         slotProps={{
                           paper: { sx: { bgcolor: 'hsl(var(--popover))', color: 'hsl(var(--popover-foreground))', border: '1px solid hsl(var(--border))' } },
-                          popper: { sx: { zIndex: 9999 } },
+                          popper: { sx: { zIndex: (_theme) => getPopupZIndex() } },
                         }}
                         renderInput={(params) => (
                           <TextField {...params} placeholder="Select a model…" />

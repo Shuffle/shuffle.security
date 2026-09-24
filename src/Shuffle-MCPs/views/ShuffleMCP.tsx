@@ -14,6 +14,7 @@ import { fetchApps } from '@/Shuffle-MCPs/appsCache';
 import { AppFallbackIcon } from '@/Shuffle-MCPs/components/AppFallbackIcon';
 import { SegmentedControl } from '@/Shuffle-MCPs/components/SegmentedControl';
 import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
+import { isValidationFresh } from '@/Shuffle-MCPs/auth-utils';
 
 const DEFAULT_ALGOLIA_APP_ID = 'JNSS5CFDZZ';
 const DEFAULT_ALGOLIA_API_KEY = '33e4e3564f4f060e96e0531957bed552';
@@ -352,19 +353,55 @@ export const ShuffleMCP = React.forwardRef<ShuffleMCPHandle, ShuffleMCPProps>(({
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // Check if an app is configured (found in authentication API with active: true)
-  const isAppConfigured = useCallback((app: AlgoliaSearchApp) => {
-    return authenticatedApps.some(
-      auth => auth.app.name.toLowerCase() === app.name.toLowerCase() && auth.active === true
-    );
-  }, [authenticatedApps]);
+  const norm = useCallback((s?: string) => (s || '').toLowerCase().trim().replace(/[\s_\-]+/g, ''), []);
 
-  // Check if an app is validated/tested (validation.valid is true)
+  // Helper to test if a raw auth entry from the API has valid, fresh validation
+  const isAuthEntryValidated = useCallback((auth: any) => {
+    if (!auth) return false;
+    if (auth.active === false) return false;
+    const v = auth.validation;
+    if (!v || v.valid !== true) return false;
+    return isValidationFresh(v);
+  }, []);
+
+  // Helper to match an auth entry to an AlgoliaSearchApp
+  const authMatchesApp = useCallback((auth: any, app: AlgoliaSearchApp) => {
+    if (!auth || !app) return false;
+    // Direct matches if synthesized or mapped from an auth entry
+    if ((app as any).authId && (app as any).authId === auth.id) return true;
+    if ((app as any).authEntry && (app as any).authEntry.id === auth.id) return true;
+    if (auth.id && app.objectID === auth.id) return true;
+
+    // App ID match
+    const authAppId = auth.app?.id || auth.app_id;
+    if (authAppId && (app.objectID === authAppId || (app as any).id === authAppId)) return true;
+
+    // Normalized name matching
+    const targetName = norm(app.name);
+    if (!targetName) return false;
+
+    const authAppName = norm(auth.app?.name);
+    if (authAppName && authAppName === targetName) return true;
+
+    const topAuthName = norm(auth.name || auth.app_name);
+    if (topAuthName && topAuthName === targetName) return true;
+
+    return false;
+  }, [norm]);
+
+  // Check if an app is configured (found in authentication API)
+  const isAppConfigured = useCallback((app: AlgoliaSearchApp) => {
+    if ((app as any).authEntry) return true;
+    return authenticatedApps.some(auth => authMatchesApp(auth, app));
+  }, [authenticatedApps, authMatchesApp]);
+
+  // Check if an app is validated/tested ("Verified")
   const isAppValidated = useCallback((app: AlgoliaSearchApp) => {
-    return authenticatedApps.some(
-      auth => auth.app.name.toLowerCase() === app.name.toLowerCase() && auth.validation?.valid === true
-    );
-  }, [authenticatedApps]);
+    if ((app as any).authEntry) {
+      return isAuthEntryValidated((app as any).authEntry);
+    }
+    return authenticatedApps.some(auth => authMatchesApp(auth, app) && isAuthEntryValidated(auth));
+  }, [authenticatedApps, authMatchesApp, isAuthEntryValidated]);
 
   // Get auth state for an app
   const getAppAuthState = useCallback((app: AlgoliaSearchApp) => {
@@ -640,22 +677,92 @@ export const ShuffleMCP = React.forwardRef<ShuffleMCPHandle, ShuffleMCPProps>(({
   // Merge private + public apps, apply source filter, sort pre-selected apps to
   // the top on initial load, prepend pinned, and dedupe by name.
   const displayResults = useMemo(() => {
-    const norm = (n: string) => (n || '').toLowerCase().replace(/[\s_\-]+/g, '');
-
     let merged: AlgoliaSearchApp[];
     if (sourceFilter === 'public') {
       merged = results;
     } else if (sourceFilter === 'private') {
       merged = filteredPrivateApps;
     } else if (sourceFilter === 'authenticated') {
-      const privateNames = new Set(filteredPrivateApps.map(a => norm(a.name)));
-      const publicOnly = results.filter(a => !privateNames.has(norm(a.name)));
-      merged = [...filteredPrivateApps, ...publicOnly].filter(isAppConfigured);
+      const authItems: AlgoliaSearchApp[] = authenticatedApps.map((auth) => {
+        const matched = filteredPrivateApps.find(a => authMatchesApp(auth, a)) ||
+          results.find(a => authMatchesApp(auth, a));
+
+        const isVerified = isAuthEntryValidated(auth);
+        const appName = matched?.name || auth.app?.name || (auth as any).name || (auth as any).app_name || auth.label || 'Untitled app';
+        const imageUrl = matched?.image_url || auth.app?.large_image || (auth.app as any)?.image_url || (auth.app as any)?.small_image || '';
+
+        return {
+          name: appName,
+          description: matched?.description || (auth.app as any)?.description || (auth as any).description || '',
+          objectID: auth.id || auth.app?.id || `auth-${appName}`,
+          creator: matched?.creator || '',
+          app_version: matched?.app_version || (auth.app as any)?.app_version || '1.0.0',
+          image_url: imageUrl,
+          time_edited: matched?.time_edited || (auth as any)?.edited || 0,
+          generated: !!matched?.generated,
+          invalid: !!matched?.invalid,
+          priority: matched?.priority || 0,
+          actions: matched?.actions || 0,
+          tags: matched?.tags || [],
+          accessible_by: matched?.accessible_by || [],
+          categories: matched?.categories?.length ? matched.categories : (auth.app?.categories || []),
+          action_labels: matched?.action_labels || [],
+          triggers: matched?.triggers || [],
+          verified: isVerified,
+          source: (matched?.source as any) || 'private',
+          authId: auth.id,
+          authLabel: auth.label,
+          authEntry: auth,
+        } as AlgoliaSearchApp & { authId?: string; authLabel?: string; authEntry?: any };
+      });
+
+      if (query.trim()) {
+        const q = norm(query);
+        merged = authItems.filter(item =>
+          norm(item.name).includes(q) ||
+          norm(item.description).includes(q) ||
+          norm((item as any).authLabel).includes(q) ||
+          item.categories?.some((c: string) => norm(c).includes(q))
+        );
+      } else {
+        merged = authItems;
+      }
     } else {
       // 'all' — private apps first (your own tools win), then public, deduped by name
       const privateNames = new Set(filteredPrivateApps.map(a => norm(a.name)));
       const publicOnly = results.filter(a => !privateNames.has(norm(a.name)));
-      merged = [...filteredPrivateApps, ...publicOnly];
+      const baseMerged = [...filteredPrivateApps, ...publicOnly];
+      const existingNames = new Set(baseMerged.map(a => norm(a.name)));
+      const extraAuthed: AlgoliaSearchApp[] = [];
+      for (const auth of authenticatedApps) {
+        const appName = auth.app?.name || (auth as any).name || (auth as any).app_name;
+        if (!appName || existingNames.has(norm(appName))) continue;
+        existingNames.add(norm(appName));
+        extraAuthed.push({
+          name: appName,
+          description: (auth.app as any)?.description || (auth as any).description || '',
+          objectID: auth.id || auth.app?.id || `auth-${appName}`,
+          creator: '',
+          app_version: (auth.app as any)?.app_version || '1.0.0',
+          image_url: auth.app?.large_image || (auth.app as any)?.image_url || (auth.app as any)?.small_image || '',
+          time_edited: (auth as any)?.edited || 0,
+          generated: false,
+          invalid: false,
+          priority: 0,
+          actions: 0,
+          tags: [],
+          accessible_by: [],
+          categories: auth.app?.categories || [],
+          action_labels: [],
+          triggers: [],
+          verified: isAuthEntryValidated(auth),
+          source: 'private',
+          authId: auth.id,
+          authLabel: auth.label,
+          authEntry: auth,
+        } as AlgoliaSearchApp);
+      }
+      merged = [...baseMerged, ...extraAuthed];
     }
 
     // Float pre-selected apps to the top on initial mount so it's obvious
@@ -675,7 +782,7 @@ export const ShuffleMCP = React.forwardRef<ShuffleMCPHandle, ShuffleMCPProps>(({
     if (!pinnedApps || pinnedApps.length === 0) return sorted;
     const pinnedNames = new Set(pinnedApps.map(a => norm(a.name)));
     return [...pinnedApps, ...sorted.filter(a => !pinnedNames.has(norm(a.name)))];
-  }, [pinnedApps, results, filteredPrivateApps, sourceFilter, isAppConfigured]);
+  }, [pinnedApps, results, filteredPrivateApps, sourceFilter, authenticatedApps, query, authMatchesApp, isAuthEntryValidated, norm]);
 
   // Get grid columns style
   const getGridColumnsStyle = useMemo(() => {
@@ -726,7 +833,7 @@ export const ShuffleMCP = React.forwardRef<ShuffleMCPHandle, ShuffleMCPProps>(({
               className="singul-app-icon"
               style={customStyles.appIcon as React.CSSProperties}
             />
-            {/* Color-coded status dot: green=tested, yellow=configured, blue=activated/selected, gray=inactive */}
+            {/* Color-coded status dot: green=verified, yellow=configured/pending */}
             {!hideAuthStatus && (
               <span
                 className={`singul-status-dot ${
@@ -735,6 +842,13 @@ export const ShuffleMCP = React.forwardRef<ShuffleMCPHandle, ShuffleMCPProps>(({
                   selected ? 'singul-dot-activated' :
                   'singul-dot-inactive'
                 }`}
+                title={
+                  authState.validated
+                    ? 'Verified'
+                    : authState.configured
+                    ? 'Pending verification'
+                    : undefined
+                }
               />
             )}
           </div>
@@ -758,12 +872,28 @@ export const ShuffleMCP = React.forwardRef<ShuffleMCPHandle, ShuffleMCPProps>(({
                   enterDelay={100}
                   enterNextDelay={100}
                   placement="top"
-                  slotProps={{ popper: { style: { zIndex: 10000 } } }}
+                  slotProps={{ popper: { style: { zIndex: 10050 } } }}
                 >
                   <span className="singul-private-badge">Private</span>
                 </Tooltip>
               )}
             </span>
+            {(app as any).authLabel && norm((app as any).authLabel) !== norm(app.name) && (
+              <span
+                className="singul-auth-label"
+                style={{
+                  fontSize: '0.7rem',
+                  color: 'hsl(var(--muted-foreground))',
+                  lineHeight: 1.2,
+                  display: 'block',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {(app as any).authLabel}
+              </span>
+            )}
             {showDescription && app.description && (
               <span className="singul-app-description" style={customStyles.appDescription}>
                 {app.description}
@@ -928,7 +1058,7 @@ export const ShuffleMCP = React.forwardRef<ShuffleMCPHandle, ShuffleMCPProps>(({
                 { value: 'all', label: 'All', count: privateAppsLoading ? '…' : (results.length >= hitsPerPage ? `${results.length + filteredPrivateApps.length}+` : results.length + filteredPrivateApps.length), title: 'All available apps — both the public catalog and your private apps.' },
                 { value: 'public', label: 'Public', count: (results.length >= hitsPerPage ? `${results.length}+` : results.length), title: 'Public apps from the Shuffle catalog (powered by Algolia).' },
                 { value: 'private', label: 'Private', count: privateAppsLoading ? '…' : filteredPrivateApps.length, title: 'Private apps are apps you have activated in your organization, or your own custom apps — not just from the public Algolia catalog.' },
-                { value: 'authenticated', label: 'Authenticated', count: (privateAppsLoading || authenticatedAppsLoading) ? '…' : [...filteredPrivateApps, ...results].filter((a, i, arr) => arr.findIndex(x => x.name?.toLowerCase() === a.name?.toLowerCase()) === i).filter(isAppConfigured).length, title: 'Apps you have authenticated and that are ready to use.' },
+                { value: 'authenticated', label: 'Authenticated', count: (privateAppsLoading || authenticatedAppsLoading) ? '…' : authenticatedApps.length, title: 'Apps you have authenticated and that are ready to use.' },
               ]}
             />
           </div>

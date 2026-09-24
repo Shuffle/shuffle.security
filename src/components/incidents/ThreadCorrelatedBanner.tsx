@@ -9,6 +9,7 @@ import { Box, Typography, Chip, IconButton, Tooltip, CircularProgress, Button } 
 import { MessagesSquare, ExternalLink, GitMerge, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from '@/lib/router-compat';
+import { getIncidentUrl, toCanonicalIncidentId } from '@/lib/incidentUrl';
 import type { LinkedIncidentSummary } from '@/hooks/useRelatedIncidents';
 
 interface ThreadCorrelatedBannerProps {
@@ -141,12 +142,12 @@ export const ThreadCorrelatedBanner = ({
                 </Typography>
               </Box>
               <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', flexShrink: 0, fontFamily: 'monospace' }}>
-                {l.id.substring(0, 10)}…
+                {toCanonicalIncidentId(l.id).substring(0, 10)}…
               </Typography>
               <Tooltip title="Open">
                 <IconButton
                   size="small"
-                  onClick={() => navigate(`/incidents/${encodeURIComponent(l.id)}`)}
+                  onClick={() => navigate(getIncidentUrl(l.id))}
                   sx={{ color: 'hsl(var(--muted-foreground))' }}
                 >
                   <ExternalLink size={13} />

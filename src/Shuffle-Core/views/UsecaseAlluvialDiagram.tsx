@@ -556,7 +556,7 @@ function AppBubble({
         disableFocusListener
         disableTouchListener
         slotProps={{
-          popper: { sx: { zIndex: 10030 } },
+          popper: { sx: { zIndex: 10050 } },
           tooltip: {
             sx: {
               bgcolor: 'hsl(var(--popover))',
@@ -599,7 +599,7 @@ function AppBubble({
         }}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-        sx={{ zIndex: 9999 }}
+        sx={{ zIndex: 10040 }}
         slotProps={{
           paper: {
             sx: {
@@ -2333,7 +2333,7 @@ export default function UsecaseAlluvialDiagram({
               placement="bottom"
               arrow
               slotProps={{
-                popper: { sx: { zIndex: 10030 } },
+                popper: { sx: { zIndex: 10050 } },
                 tooltip: {
                   sx: {
                     bgcolor: 'hsl(var(--popover))',

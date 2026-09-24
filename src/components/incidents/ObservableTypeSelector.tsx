@@ -15,6 +15,7 @@ import {
 import { IOC_CATEGORIES, IOCType, IOCCategory } from '@/hooks/useIOCTypes';
 import { useDatastore } from '@/hooks/useDatastore';
 import { DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getPopupZIndex } from '@/Shuffle-MCPs/drawerLayer';
 
 interface ObservableTypeSelectorProps {
   value: string;
@@ -154,7 +155,8 @@ export const ObservableTypeSelector = ({
           open={open}
           anchorEl={anchorRef.current}
           placement="bottom-start"
-          style={{ zIndex: 1400, width: anchorRef.current?.offsetWidth || 280, minWidth: 280 }}
+          data-shuffle-layer="popup"
+          style={{ zIndex: getPopupZIndex(), width: anchorRef.current?.offsetWidth || 280, minWidth: 280 }}
         >
           <Paper
             sx={{

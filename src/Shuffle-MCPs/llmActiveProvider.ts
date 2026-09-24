@@ -136,6 +136,13 @@ export const switchActiveLLM = async (
 
     // 4. Update entries on backend
     let anyChanged = false;
+    let activeWriteFailed = false;
+
+    if (!isShuffleAI && !targetAuthId) {
+      console.warn('[switchActiveLLM] Target provider auth not found:', targetProviderOrId);
+      activeWriteFailed = true;
+    }
+
     for (const entry of llmEntries) {
       if (!entry?.id) continue;
       const shouldBeActive = Boolean(targetAuthId && entry.id === targetAuthId);
@@ -154,10 +161,24 @@ export const switchActiveLLM = async (
           headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        if (resp.ok) anyChanged = true;
+        if (resp.ok) {
+          anyChanged = true;
+        } else {
+          console.error('[switchActiveLLM] Failed to update entry:', entry.id, resp.status);
+          if (shouldBeActive) {
+            activeWriteFailed = true;
+          }
+        }
       } catch (err) {
         console.error('[switchActiveLLM] Failed to update entry:', entry.id, err);
+        if (shouldBeActive) {
+          activeWriteFailed = true;
+        }
       }
+    }
+
+    if (activeWriteFailed) {
+      return { success: false, label: optimisticLabel };
     }
 
     // 5. Invalidate caches and broadcast completion

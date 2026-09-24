@@ -2617,7 +2617,7 @@ const IntegrationStatusLite = React.memo(function IntegrationStatusLite({
         onClose={() => setPopoverFor(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-        sx={{ zIndex: 9999 }}
+        sx={{ zIndex: 10040 }}
         slotProps={{
           paper: {
             sx: {
@@ -6911,7 +6911,7 @@ function UsecasesPageInner() {
           },
         }}
         sx={{
-          zIndex: 9999,
+          zIndex: 10030,
           '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
             width: { xs: '100%', sm: 720, md: 900 },
@@ -7846,7 +7846,7 @@ function UsecaseDrawerInner({
         },
       }}
       sx={{
-        zIndex: 9999,
+        zIndex: 10030,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
           width: width || { xs: '100%', sm: 720, md: 900 },

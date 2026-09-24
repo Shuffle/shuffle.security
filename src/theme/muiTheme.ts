@@ -112,7 +112,7 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
     },
     MuiMenu: {
       styleOverrides: {
-        root: { zIndex: 10020 },
+        root: { zIndex: 10040 },
         paper: {
           backgroundImage: cardBg,
           border: `1px solid ${border}`,
@@ -123,7 +123,7 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
     },
     MuiPopover: {
       styleOverrides: {
-        root: { zIndex: 10020 },
+        root: { zIndex: 10040 },
         paper: {
           backgroundImage: cardBg,
           border: `1px solid ${border}`,
@@ -133,7 +133,12 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
       },
     },
     MuiAutocomplete: {
-      defaultProps: { slotProps: { popper: { sx: { zIndex: 10020 } } } },
+      defaultProps: { slotProps: { popper: { sx: { zIndex: 10040 } } } },
+    },
+    MuiPopper: {
+      styleOverrides: {
+        root: { zIndex: 10040 },
+      },
     },
     MuiTableCell: {
       styleOverrides: {
@@ -145,12 +150,11 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
       defaultProps: {
         // Tooltips render via a Popper portal at MUI's default tooltip
         // z-index (1500). Drawers / Dialogs in this app frequently sit
-        // above that (we use 9999 for in-Dialog popovers per project
-        // convention), which left tooltips rendering UNDER the panel
-        // that owns the trigger. Bumping the popper z-index here fixes
-        // every tooltip globally without per-call overrides.
+        // above that (surface layer starts at 10030), which left tooltips
+        // rendering UNDER the panel that owns the trigger. Setting the
+        // baseline popper z-index to 10050 fixes tooltips globally.
         slotProps: {
-          popper: { sx: { zIndex: 10030 } },
+          popper: { sx: { zIndex: 10050 } },
         },
       },
       styleOverrides: {

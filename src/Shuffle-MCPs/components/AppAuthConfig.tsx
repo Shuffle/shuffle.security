@@ -15,6 +15,7 @@ import {
 import { toast } from '@/Shuffle-MCPs/toast';
 import { AuthStatusChip } from '@/Shuffle-MCPs/components/AuthStatusChip';
 import { getValidatedAuthIds, rememberValidatedAuth, forgetValidatedAuth } from '@/Shuffle-MCPs/validatedAuthMemory';
+import { getPopupZIndex, getTopSurfaceZIndex } from '@/Shuffle-MCPs/drawerLayer';
 
 
 import {
@@ -1074,7 +1075,7 @@ export const AppAuthCard = ({
                   '& .MuiSvgIcon-root': { color: 'text.secondary' },
                 }}
                 MenuProps={{
-                  sx: { zIndex: 10020 },
+                  sx: { zIndex: (_theme: any) => getPopupZIndex(6, 10050) },
                   slotProps: {
                     paper: {
                       sx: {
@@ -1519,7 +1520,7 @@ export const AppAuthCard = ({
                       '& .MuiSvgIcon-root': { color: 'hsl(var(--muted-foreground))' },
                     }}
                     MenuProps={{
-                      sx: { zIndex: 10020 },
+                      sx: { zIndex: (_theme: any) => getPopupZIndex(6, 10050) },
                       slotProps: {
                         paper: {
                         sx: {
@@ -1642,7 +1643,7 @@ export const AppAuthCard = ({
                 <Dialog
                   open={!!deleteConfirmAuthId}
                   onClose={() => setDeleteConfirmAuthId(null)}
-                  sx={{ zIndex: 10010 }}
+                  sx={{ zIndex: (_theme: any) => Math.max(getTopSurfaceZIndex() + 10, 10060) }}
                   slotProps={{
                     paper: {
                       sx: {
@@ -2395,7 +2396,7 @@ export const AppAuthCard = ({
         onClose={() => setDocsOpen(false)}
         maxWidth="md"
         fullWidth
-        sx={{ zIndex: 10010 }}
+        sx={{ zIndex: (_theme: any) => Math.max(getTopSurfaceZIndex() + 10, 10060) }}
         slotProps={{
           paper: {
             sx: {

@@ -20,6 +20,7 @@ import {
   Activity,
 } from "lucide-react";
 import { useNavigate } from "@/lib/router-compat";
+import { getIncidentUrl } from "@/lib/incidentUrl";
 import type { IncidentTask } from "@/config/ocsfIncidentSchema";
 import type { LinkedIncidentSummary } from "@/hooks/useRelatedIncidents";
 import { groupTasksByCategory, UNCATEGORIZED_KEY } from "./taskCategoryUtils";
@@ -1495,7 +1496,7 @@ export const SimpleCaseLayout = ({
               <Button
                 key={ri.id}
                 onClick={() =>
-                  navigate(`/incidents/${encodeURIComponent(ri.id)}`)
+                  navigate(getIncidentUrl(ri.id))
                 }
                 title={ri.title}
                 sx={{

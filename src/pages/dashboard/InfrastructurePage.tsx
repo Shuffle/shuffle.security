@@ -862,7 +862,7 @@ const DataFlowCard = ({
             open={Boolean(menuAnchor)}
             onClose={(e: any) => { e?.stopPropagation?.(); setMenuAnchor(null); }}
             onClick={(e) => e.stopPropagation()}
-            sx={{ '& .MuiPaper-root': { bgcolor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 2, minWidth: 150, boxShadow: '0 8px 24px hsla(0 0% 0% / 0.3)', zIndex: 1500 } }}
+            sx={{ '& .MuiPaper-root': { bgcolor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 2, minWidth: 150, boxShadow: '0 8px 24px hsla(0 0% 0% / 0.3)', zIndex: 10040 } }}
           >
             {(['disabled', 'missing_config', 'enabled'] as FlowState[]).map(state => (
               <MenuItem

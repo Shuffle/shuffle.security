@@ -175,10 +175,30 @@ const waitForOrgId = async (): Promise<string | null> => {
 };
 
 
+const decodeDatastoreKey = (key: string): string => {
+  if (!key) return '';
+  if (!key.includes('%')) return key;
+  try {
+    return decodeURIComponent(key);
+  } catch {
+    return key.replace(/%3a/gi, ':');
+  }
+};
+
 const normalizeDatastoreKey = (key: string): string => {
-  if (!key?.includes('::')) return key;
-  const parts = key.split('::').filter(Boolean);
-  return parts.length > 0 ? parts[parts.length - 1] : key;
+  if (!key) return key;
+  const decoded = decodeDatastoreKey(key);
+  if (!decoded.includes('::')) return decoded;
+  const parts = decoded.split('::').filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : decoded;
+};
+
+const extractOrgIdFromDatastoreKey = (key: string): string | null => {
+  if (!key) return null;
+  const decoded = decodeDatastoreKey(key);
+  if (!decoded.includes('::')) return null;
+  const parts = decoded.split('::').filter(Boolean);
+  return parts.length > 1 ? parts[0] : null;
 };
 
 const truncateResponsePreview = (value: string | null | undefined, maxLength = 280): string | undefined => {
@@ -362,7 +382,8 @@ export const setDatastoreItem = async (
   overrideOrgId?: string,
   options?: { regionUrl?: string }
 ): Promise<DatastoreResponse> => {
-  const orgId = overrideOrgId || (await waitForOrgId());
+  const extractedOrgId = !overrideOrgId ? extractOrgIdFromDatastoreKey(key) : null;
+  const orgId = overrideOrgId || extractedOrgId || (await waitForOrgId());
   if (!orgId) {
     return { success: false, error: 'No organization ID found' };
   }
@@ -571,7 +592,8 @@ export const getDatastoreItem = async (
   overrideOrgId?: string,
   options?: { priority?: boolean; regionUrl?: string }
 ): Promise<DatastoreResponse & { item?: DatastoreItem }> => {
-  const orgId = overrideOrgId || (await waitForOrgId());
+  const extractedOrgId = !overrideOrgId ? extractOrgIdFromDatastoreKey(key) : null;
+  const orgId = overrideOrgId || extractedOrgId || (await waitForOrgId());
   if (!orgId) {
     return { success: false, error: 'No organization ID found' };
   }
@@ -1208,7 +1230,8 @@ export const deleteDatastoreItem = async (
   overrideOrgId?: string,
   options?: { regionUrl?: string }
 ): Promise<DatastoreResponse> => {
-  const orgId = overrideOrgId || (await waitForOrgId());
+  const extractedOrgId = !overrideOrgId ? extractOrgIdFromDatastoreKey(key) : null;
+  const orgId = overrideOrgId || extractedOrgId || (await waitForOrgId());
   if (!orgId) {
     return { success: false, error: 'No organization ID found' };
   }

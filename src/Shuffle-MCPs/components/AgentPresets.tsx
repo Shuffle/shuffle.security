@@ -14,6 +14,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Box, Button, ButtonBase, ClickAwayListener, Paper, Popper, type PopperProps, TextField, Tooltip, Typography, SxProps, Theme } from '@mui/material';
 import { Workflow, ShieldAlert, LifeBuoy, Bug, Radar, Monitor, Plus, X as CloseIcon, BellRing } from 'lucide-react';
 import { AppFallbackIcon } from './AppFallbackIcon';
+import { getPopupZIndex } from '../drawerLayer';
+import { useShuffleMcpTheme } from '../ShuffleMcpThemeProvider';
 
 
 export interface AgentPreset {
@@ -322,12 +324,18 @@ export const AgentPresets = ({ variant = 'default', onSelectPreset, selectedPres
     );
   }, [list, query]);
 
+  const themeScope = useShuffleMcpTheme();
+  const scopeClassName = themeScope?.scopeClassName || 'shuffle-mcp-scope';
+  const popperZIndex = getPopupZIndex();
+
   const menu = open ? (
     <Popper
       open={open}
       anchorEl={anchorEl}
       placement={placement || 'bottom-start'}
-      style={{ zIndex: 1400 }}
+      className={scopeClassName}
+      data-shuffle-layer="popup"
+      style={{ zIndex: popperZIndex }}
       modifiers={[
         { name: 'offset', options: { offset: [0, 6] } },
         { name: 'preventOverflow', options: { padding: 8 } },
@@ -335,6 +343,8 @@ export const AgentPresets = ({ variant = 'default', onSelectPreset, selectedPres
     >
       <ClickAwayListener onClickAway={() => { setAnchorEl(null); setQuery(''); }}>
         <Paper
+          className={scopeClassName}
+          data-shuffle-layer="popup"
           sx={{
             width: 360,
             maxWidth: '90vw',

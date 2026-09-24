@@ -32,7 +32,12 @@ import {
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { isNoAuthRequired, type AppAuthentication } from '@/Shuffle-MCPs/components/AppAuthConfig';
-import { appRequiresAuthentication } from '@/Shuffle-MCPs/noAuthApps';
+import {
+  appRequiresAuthentication,
+  isNoAuthApp,
+  getBuiltInAppMetadata,
+  getBuiltInAppImage,
+} from '@/Shuffle-MCPs/noAuthApps';
 import type { AlgoliaSearchApp } from '@/Shuffle-MCPs/shuffle-mcp.helpers';
 import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
@@ -65,6 +70,8 @@ export interface AppDetailContentProps extends ShuffleHostProps {
   appName: string | null;
   /** Pre-resolved Algolia objectID (optional fast path) */
   appId?: string | null;
+  /** Pre-resolved app icon/image (optional fast path from chip/picker) */
+  appImage?: string | null;
   /** Callback to close the view (drawer mode) */
   onClose?: () => void;
   /** Callback when data is refreshed */
@@ -204,6 +211,7 @@ export default function AppDetailContent({
   open = true,
   appName,
   appId,
+  appImage,
   onClose,
   onRefresh,
   onAddToCanvas,
@@ -279,10 +287,19 @@ export default function AppDetailContent({
       try {
         const { algoliasearch } = await import('algoliasearch');
         const client = algoliasearch('JNSS5CFDZZ', '33e4e3564f4f060e96e0531957bed552');
-        const res = await client.search({
-          requests: [{ indexName: 'appsearch', query: searchName, hitsPerPage: 10 }],
-        });
-        const hits = (res as any)?.results?.[0]?.hits || [];
+        let hits: any[] = [];
+        try {
+          const res = await (client as any).searchSingleIndex({
+            indexName: 'appsearch',
+            searchParams: { query: searchName, hitsPerPage: 10 },
+          });
+          hits = (res?.hits as any[]) || [];
+        } catch {
+          const res = await client.search({
+            requests: [{ indexName: 'appsearch', query: searchName, hitsPerPage: 10 }],
+          });
+          hits = (res as any)?.results?.[0]?.hits || [];
+        }
         const exact =
           (appId && hits.find((h: any) => h.objectID === appId)) ||
           hits.find((h: any) =>
@@ -307,6 +324,12 @@ export default function AppDetailContent({
       let algoliaId: string | null = appId || null;
       let foundMatch = false;
 
+      const isBuiltIn = isNoAuthApp(appName);
+      const builtInMeta = isBuiltIn ? getBuiltInAppMetadata(appName) : null;
+      if (isBuiltIn) {
+        foundMatch = true;
+      }
+
       const configResult = await configPromise;
       if (cancelled) return;
       const configData = configResult?.ok ? configResult.data : null;
@@ -323,7 +346,7 @@ export default function AppDetailContent({
       if (configData?.name) {
         foundMatch = true;
         const matchCheck = checkAppNameMatch(appName, configData.name);
-        if (matchCheck.mismatch) {
+        if (!isBuiltIn && matchCheck.mismatch) {
           setIsNameMismatch(true);
         }
         setAppInfo(prev => ({
@@ -345,7 +368,7 @@ export default function AppDetailContent({
           setResolvedAlgoliaId(match.objectID);
         }
         const matchCheck = checkAppNameMatch(appName, match.name);
-        if (isFallback || matchCheck.mismatch) {
+        if (!isBuiltIn && (isFallback || matchCheck.mismatch)) {
           setIsNameMismatch(true);
         }
         setAppInfo(prev => ({
@@ -406,7 +429,10 @@ export default function AppDetailContent({
 
       if (cancelled) return;
 
-      if (Array.isArray(appsList)) {
+      if (isBuiltIn) {
+        setIsActivated(null);
+        setActivatedAppId(null);
+      } else if (Array.isArray(appsList)) {
         const activeMatch = appsList.find((a: any) =>
           (a.name || '').toLowerCase().replace(/[\s_\-]+/g, '_') === normalizedName && a.activated
         );
@@ -418,19 +444,32 @@ export default function AppDetailContent({
 
       setAppInfo(prev => {
         const next = prev ?? {
-          name: searchName,
-          description: '',
-          large_image: '',
-          categories: [],
+          name: builtInMeta?.displayName || searchName,
+          description: builtInMeta?.description || '',
+          large_image: builtInMeta?.image || appImage || '',
+          categories: builtInMeta?.categories || ['Built-in'],
         };
-        const finalCheck = checkAppNameMatch(appName, next.name);
-        if (finalCheck.mismatch) {
-          setIsNameMismatch(true);
+        if (!isBuiltIn) {
+          const finalCheck = checkAppNameMatch(appName, next.name);
+          if (finalCheck.mismatch) {
+            setIsNameMismatch(true);
+          }
         }
-        return next;
+        return {
+          ...next,
+          name: next.name || builtInMeta?.displayName || searchName,
+          description: next.description || builtInMeta?.description || '',
+          large_image: next.large_image || builtInMeta?.image || appImage || '',
+          categories: next.categories?.length ? next.categories : (builtInMeta?.categories || ['Built-in']),
+        };
       });
 
-      setAppNotFound(!foundMatch);
+      if (isBuiltIn) {
+        setIsNameMismatch(false);
+        setAppNotFound(false);
+      } else {
+        setAppNotFound(!foundMatch);
+      }
       setAppLoading(false);
     })();
 
@@ -496,27 +535,39 @@ export default function AppDetailContent({
     });
   }, [appName, appInfo, isAuthenticated, authenticatedApps, resolvedAlgoliaId]);
 
+  const isBuiltIn = isNoAuthApp(appInfo?.name || appName || '');
+
   const resolvedImage = useMemo(() => {
+    if (appImage) return appImage;
     if (appInfo?.large_image) return appInfo.large_image;
     for (const entry of matchingEntries) {
       const img = (entry as any).app?.large_image || (entry as any).large_image;
       if (img) return img;
     }
+    if (isBuiltIn) {
+      return getBuiltInAppImage(appInfo?.name || appName) || '';
+    }
     return '';
-  }, [appInfo, matchingEntries]);
+  }, [appImage, appInfo, matchingEntries, isBuiltIn, appName]);
 
-  const displayName = (appInfo?.name || appName || '').replace(/_/g, ' ');
+  const displayName = useMemo(() => {
+    if (isBuiltIn) {
+      const meta = getBuiltInAppMetadata(appInfo?.name || appName);
+      if (meta?.displayName) return meta.displayName;
+    }
+    return (appInfo?.name || appName || '').replace(/_/g, ' ');
+  }, [isBuiltIn, appInfo?.name, appName]);
 
   const algoliaApp: AlgoliaSearchApp | null = useMemo(() => {
     if (!appName && !appInfo?.name) return null;
     return {
       objectID: resolvedAlgoliaId || (appInfo as any)?.id || appName || '',
-      name: appInfo?.name || appName || '',
+      name: displayName,
       image_url: resolvedImage,
       description: appInfo?.description || '',
       categories: appInfo?.categories || [],
     } as AlgoliaSearchApp;
-  }, [appName, appInfo, resolvedImage, resolvedAlgoliaId]);
+  }, [appName, appInfo, displayName, resolvedImage, resolvedAlgoliaId]);
 
   const authStateKey = appInfo?.name || appName || '';
   const authState = authStates[authStateKey] || authStates[appName || ''] || {
@@ -528,9 +579,11 @@ export default function AppDetailContent({
   const skipAuthentication = !appRequiresAuthentication(appInfo?.name || appName || '');
   const hasValidAuth = matchingEntries.some(e => e.validation?.valid === true);
   const hasAnyAuth = matchingEntries.length > 0 && !skipAuthentication;
-  const effectiveActivated = isActivated === null
-    ? (hasAnyAuth ? true : null)
-    : (isActivated || hasAnyAuth);
+  const effectiveActivated = isBuiltIn
+    ? null
+    : isActivated === null
+      ? (hasAnyAuth ? true : null)
+      : (isActivated || hasAnyAuth);
   const authCount = matchingEntries.length;
 
   // Auto-collapse / expand auth card
@@ -593,7 +646,7 @@ export default function AppDetailContent({
   const autoActivateFiredRef = useRef<string | null>(null);
   const [autoActivatePulse, setAutoActivatePulse] = useState(false);
   useEffect(() => {
-    if (!open || !autoActivate || !appName) return;
+    if (!open || !autoActivate || !appName || isBuiltIn) return;
     const key = `${appName}`;
     if (autoActivateFiredRef.current === key) return;
     if (isActivated !== false) return;
@@ -604,7 +657,7 @@ export default function AppDetailContent({
     handleActivateToggle({ silent: true }).finally(() => {
       setTimeout(() => setAutoActivatePulse(false), 1200);
     });
-  }, [open, autoActivate, appName, isActivated, resolvedAlgoliaId, activateLoading]);
+  }, [open, autoActivate, appName, isActivated, resolvedAlgoliaId, activateLoading, isBuiltIn]);
 
   useEffect(() => {
     if (!open) {
@@ -687,8 +740,8 @@ export default function AppDetailContent({
                 />
               )}
             </Box>
-            <Typography sx={{ color: (configError || isNameMismatch) ? 'hsl(var(--severity-medium))' : 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
-              {appLoading ? <Skeleton width={100} /> : (configError ? `Error ${configError.status || ''}`.trim() : (isNameMismatch ? `Unavailable — showing closest catalog match (${displayName})` : (appNotFound ? 'App not found in catalog' : 'App configuration')))}
+            <Typography sx={{ color: (configError || (!isBuiltIn && isNameMismatch)) ? 'hsl(var(--severity-medium))' : 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
+              {appLoading ? <Skeleton width={100} /> : (configError ? `Error ${configError.status || ''}`.trim() : (isBuiltIn ? 'Built-in app' : (isNameMismatch ? `Unavailable — showing closest catalog match (${displayName})` : (appNotFound ? 'App not found in catalog' : 'App configuration'))))}
             </Typography>
           </Box>
           {onClose && (
@@ -763,7 +816,7 @@ export default function AppDetailContent({
               </Box>
             )}
 
-            {isNameMismatch && (
+            {!isBuiltIn && isNameMismatch && (
               <Alert
                 severity="warning"
                 icon={<ErrorOutlineIcon size={18} style={{ color: 'hsl(var(--severity-medium))' }} />}
@@ -794,9 +847,9 @@ export default function AppDetailContent({
               hasAnyAuth={hasAnyAuth}
               isAuthenticated={isAuthenticated}
               categories={appInfo?.categories}
-              isActivated={onAddToCanvas ? null : effectiveActivated}
+              isActivated={onAddToCanvas || isBuiltIn ? null : effectiveActivated}
               activateLoading={activateLoading}
-              onActivateToggle={() => handleActivateToggle()}
+              onActivateToggle={onAddToCanvas || isBuiltIn ? undefined : () => handleActivateToggle()}
               highlightActivate={autoActivatePulse}
               onAdd={onAddToCanvas && appName ? () => {
                 onAddToCanvas({ name: appName, icon: resolvedImage || '', algoliaId: resolvedAlgoliaId });

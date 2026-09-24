@@ -517,8 +517,7 @@ body:not(.dark) .shuffle-mcp-scope:not(.dark),
 }
 
 .singul-dot-inactive {
-  background-color: #f59e0b;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+  display: none;
 }
 
 /* Item border colors based on auth state */

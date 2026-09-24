@@ -21,6 +21,8 @@ export interface AppDetailDrawerProps extends ShuffleHostProps {
   /** Pre-resolved Algolia objectID — bypasses Algolia lookup when provided (e.g. when the
    *  caller already had the hit, like AppSearchDrawer / "Add Ingestion Source"). */
   appId?: string | null;
+  /** Pre-resolved app icon/image (optional fast path from chip/picker) */
+  appImage?: string | null;
   /** Anchor side */
   anchor?: 'left' | 'right';
   /** Width in px */
@@ -45,6 +47,7 @@ export default function AppDetailDrawer({
   onClose,
   appName,
   appId,
+  appImage,
   anchor = 'right',
   width = 520,
   minWidth = 380,
@@ -116,6 +119,7 @@ export default function AppDetailDrawer({
         open={open}
         appName={appName}
         appId={appId}
+        appImage={appImage}
         onClose={handleClose}
         onRefresh={onRefresh}
         onAddToCanvas={onAddToCanvas}

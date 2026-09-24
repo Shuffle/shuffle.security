@@ -47,7 +47,7 @@ interface MergeIncidentDialogProps {
   onClose: () => void;
   currentIncidentId: string;
   currentIncidentTitle: string;
-  onMergeComplete: () => void;
+  onMergeComplete: (targetId?: string) => void;
   /** When set, the candidate with this id is preselected and the dialog opens
    * directly on the confirmation step. Used by the merge-candidates banner so
    * the user can review and confirm in one click. */
@@ -207,7 +207,7 @@ export const MergeIncidentDialog = ({
       }
 
       toast.success(`Merged into "${selectedTarget.title}"`);
-      onMergeComplete();
+      onMergeComplete(selectedTarget.id);
       onClose();
     } catch (err) {
       console.error('Merge failed:', err);

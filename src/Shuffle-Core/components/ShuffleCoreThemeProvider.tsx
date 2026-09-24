@@ -160,7 +160,18 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
   MuiButton: { defaultProps: { size: "small" as const } },
   MuiAutocomplete: {
     defaultProps: {
-      slotProps: { popper: { sx: { zIndex: 10020 } } },
+      slotProps: {
+        popper: { className: scopeClassName, sx: { zIndex: 10040 } },
+        paper: { className: scopeClassName, style: scopeStyle },
+      },
+    },
+  },
+  MuiPopper: {
+    defaultProps: {
+      className: scopeClassName,
+    },
+    styleOverrides: {
+      root: { zIndex: 10040 },
     },
   },
   MuiInputBase: {
@@ -257,7 +268,7 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
   MuiMenu: {
     defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
-      root: { zIndex: 10020 },
+      root: { zIndex: 10040 },
       paper: {
         backgroundColor: "hsl(var(--popover))",
         color: "hsl(var(--popover-foreground))",
@@ -269,7 +280,7 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
   MuiPopover: {
     defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
-      root: { zIndex: 10020 },
+      root: { zIndex: 10040 },
       paper: {
         backgroundColor: "hsl(var(--popover))",
         color: "hsl(var(--popover-foreground))",
@@ -281,12 +292,11 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
   MuiTooltip: {
     defaultProps: {
       // Match the host MUI theme: tooltips need to render above Drawers /
-      // Popovers / Dialogs that use z-index 9999 in this app (e.g. the
-      // usecase config drawer + sidebar popovers). MUI's default popper
+      // Popovers / Dialogs (surface layer starts at 10030). MUI's default popper
       // z-index (1500) puts them UNDER those panels.
       slotProps: {
         tooltip: { className: scopeClassName, style: scopeStyle },
-        popper: { sx: { zIndex: 10030 } },
+        popper: { sx: { zIndex: 10050 } },
       },
     },
     styleOverrides: {

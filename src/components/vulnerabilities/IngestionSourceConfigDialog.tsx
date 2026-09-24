@@ -284,25 +284,27 @@ export const IngestionSourceConfigDialog = ({
           <Typography sx={{ fontSize: '1.1rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
             Configure Ingestion: {displayName}
           </Typography>
-          <Chip
-            label="Support only"
-            size="small"
-            sx={{
-              height: 22,
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              bgcolor: 'hsla(var(--primary) / 0.15)',
-              color: 'hsl(var(--primary))',
-              border: '1px solid hsla(var(--primary) / 0.35)',
-              letterSpacing: '0.02em',
-            }}
-          />
+          <Tooltip title="This configuration is restricted to Shuffle support users" arrow>
+            <Chip
+              label="Support only"
+              size="small"
+              sx={{
+                height: 20,
+                fontSize: '0.65rem',
+                fontWeight: 500,
+                color: 'hsl(var(--muted-foreground))',
+                bgcolor: 'hsl(var(--muted) / 0.5)',
+                border: '1px solid hsl(var(--border))',
+                '& .MuiChip-label': { px: 1 },
+              }}
+            />
+          </Tooltip>
           <Chip
             label={validated ? 'Connected' : 'Pending Verification'}
             size="small"
             sx={{
-              height: 22,
-              fontSize: '0.7rem',
+              height: 20,
+              fontSize: '0.65rem',
               fontWeight: 500,
               bgcolor: validated
                 ? 'hsla(var(--severity-low) / 0.15)'
@@ -338,12 +340,9 @@ export const IngestionSourceConfigDialog = ({
 
       <DialogContent sx={{ px: 3, py: 2.5 }}>
         {!isSupport ? (
-          <Box sx={{ py: 6, px: 2, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
-            <Typography sx={{ fontSize: '1rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
-              Support Preview Only
-            </Typography>
-            <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))', maxWidth: 440 }}>
-              Granular vulnerability stream discovery and ingestion scoping is currently restricted to Shuffle support users. Contact support if you need granular stream configuration for your organization.
+          <Box sx={{ py: 6, textAlign: 'center' }}>
+            <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))' }}>
+              This configuration is restricted to Shuffle support users.
             </Typography>
           </Box>
         ) : loading ? (
@@ -361,24 +360,6 @@ export const IngestionSourceConfigDialog = ({
           </Box>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {/* Support Only Notice */}
-            <Box
-              sx={{
-                px: 2,
-                py: 1.25,
-                borderRadius: 1.5,
-                bgcolor: 'hsla(var(--primary) / 0.08)',
-                border: '1px solid hsla(var(--primary) / 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--foreground))' }}>
-                <strong style={{ color: 'hsl(var(--primary))' }}>Support Only Preview:</strong> This granular vulnerability stream discovery and parameter control mechanism is currently in preview for Shuffle support users only. Configurations are persisted per tenant in Datastore.
-              </Typography>
-            </Box>
-
             {/* Discovery Status Banner */}
             <Box
               sx={{

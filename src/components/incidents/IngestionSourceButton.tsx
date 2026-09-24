@@ -4,6 +4,7 @@ import { Box, IconButton, Popover, Typography, Chip, Button, Tooltip } from '@mu
 import { ValidatedIngestionApp } from '@/Shuffle-MCPs/ingestionDetection';
 import { useAppDetail } from '@/Shuffle-MCPs/AppDetailContext';
 import { EntityHealth } from '@/services/workflowHealth';
+import { useSourceAppImage } from '@/hooks/useSourceAppImage';
 
 interface IngestionSourceButtonProps {
   app: ValidatedIngestionApp;
@@ -36,6 +37,8 @@ export const IngestionSourceButton = ({
   const popoverOpen = Boolean(anchorEl);
   const displayName = app.name.replace(/_/g, ' ');
   const { openApp } = useAppDetail();
+  const resolvedAppImage = useSourceAppImage(app.image ? null : app.name);
+  const appImage = app.image || resolvedAppImage;
 
   // Use optimistic state if set, otherwise fall back to actual
   const isEnabled = optimisticEnabled !== null ? optimisticEnabled : app.enabled;
@@ -121,10 +124,10 @@ export const IngestionSourceButton = ({
             },
           }}
         >
-          {app.image ? (
+          {appImage ? (
             <Box
               component="img"
-              src={app.image}
+              src={appImage}
               alt={app.name}
               sx={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'contain' }}
             />

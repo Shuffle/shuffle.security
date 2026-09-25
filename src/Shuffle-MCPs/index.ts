@@ -84,6 +84,7 @@ import AskAiSidePanelRaw, {
   MAX_ASK_AI_PANEL_WIDTH,
 } from '@/Shuffle-MCPs/components/AskAiSidePanel';
 import AskAiWidgetRaw from '@/Shuffle-MCPs/components/AskAiWidget';
+import ApiCallViewerRaw from '@/Shuffle-MCPs/components/ApiCallViewer';
 
 export { ShuffleMcpThemeProvider } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 export type { ShuffleMcpColorMode, ShuffleMcpThemeProviderProps } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
@@ -136,6 +137,8 @@ export {
 } from '@/Shuffle-MCPs/components/AskAiSidePanel';
 export const AskAiWidget = withMcpTheme(AskAiWidgetRaw as React.ComponentType<any>, 'AskAiWidget');
 export type { AskAiWidgetProps } from '@/Shuffle-MCPs/components/AskAiWidget';
+export const ApiCallViewer = withMcpTheme(ApiCallViewerRaw as React.ComponentType<any>, 'ApiCallViewer');
+export type { ApiCallViewerProps, ApiCallConfig } from '@/Shuffle-MCPs/components/ApiCallViewer';
 export {
   useContextAwareAgent,
   AGENT_DRAWER_OPEN_EVENT,

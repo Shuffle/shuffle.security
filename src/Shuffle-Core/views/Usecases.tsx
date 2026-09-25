@@ -912,28 +912,22 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
   cloud: ['cloud', 'aws', 'azure', 'gcp', 'google cloud', 'oracle cloud', 'digitalocean', 'cloud provider'],
 };
 
-export function matchAppToCategoryList(appName: string, appCategories: string[]): string[] {
-  // Trust the app's declared categories when present — match keywords ONLY
-  // against the categories text so an app like "Wazuh" (declared SIEM) does
-  // not get pulled into Cases/EDR/Email just because its name or some other
-  // field happens to match a keyword there. Apps without any declared
-  // category fall back to a name-based match across every bucket so they
-  // remain discoverable.
-  const hasCategories = Array.isArray(appCategories) && appCategories.length > 0;
-  const searchText = hasCategories
-    ? appCategories.join(' ').toLowerCase()
-    : (appName || '').toLowerCase();
-  const hits: string[] = [];
-  for (const [catId, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    if (keywords.some(kw => searchText.includes(kw))) hits.push(catId);
-  }
-  return hits;
-}
-
-export function matchAppToCategory(appName: string, appCategories: string[]): string | null {
-  const hits = matchAppToCategoryList(appName, appCategories);
-  return hits.length > 0 ? hits[0] : null;
-}
+import {
+  matchAppToCategoryList,
+  matchAppToCategory,
+  findRelatedUsecasesForApp,
+  isUsecaseVisible,
+  filterVisibleUsecases,
+  type UsecaseVisibilityOptions,
+} from '../config/usecases';
+export {
+  matchAppToCategoryList,
+  matchAppToCategory,
+  findRelatedUsecasesForApp,
+  isUsecaseVisible,
+  filterVisibleUsecases,
+  type UsecaseVisibilityOptions,
+};
 
 // ── Automation-area helpers ────────────────────────────────────────────────────
 
@@ -1702,7 +1696,7 @@ function useAuthLite() {
 // ============================================================================
 // Inlined: workflows query
 // ============================================================================
-interface WorkflowSummary {
+export interface WorkflowSummary {
   id: string;
   name: string;
   tags?: string[];
@@ -1936,6 +1930,53 @@ export function isIngestionUsecaseActive(
   return false;
 }
 
+export function computeEnabledLabels(
+  workflows: WorkflowSummary[],
+  usecasesList: Usecase[] = DEFAULT_USECASES
+): Set<string> {
+  const set = new Set<string>();
+  for (const wf of workflows) {
+    const name = (wf?.name || '').toLowerCase();
+    const tags = ((wf as any)?.tags || []).map((t: any) => String(t).toLowerCase());
+    for (const uc of usecasesList) {
+      if (!uc.automationLabel) continue;
+      const lbl = uc.automationLabel.toLowerCase();
+      const aliases = [lbl];
+      if (lbl.includes('incident routing')) {
+        aliases.push('incident routing', 'incident_routing', 'incident_routing_rules');
+      }
+      if (lbl.includes('schedules & phone') || lbl.includes('schedules_notifications') || lbl.includes('phone notification')) {
+        aliases.push('schedules & phone notifications', 'schedules_&_phone_notifications', 'schedules_notifications', 'phone_notifications', 'assign & escalate', 'assign_&_escalate');
+      }
+      if (lbl.includes('threat feeds') || lbl.includes('ioc extraction')) {
+        aliases.push('enable threat feeds', 'enable threat feeds_webhook', 'realtime ioc extraction', 'threat intel');
+      }
+      const isMatch = aliases.some(a => {
+        const isWebhookWf = name.endsWith('_webhook') || name === 'ingestion webhook' || tags.some((t: string) => t.endsWith('_webhook'));
+        if (!a.includes('webhook') && isWebhookWf) return false;
+        return name === a || name.includes(a) || tags.includes(a) || tags.some((t: string) => t.includes(a));
+      });
+      if (isMatch) {
+        set.add(uc.automationLabel);
+      }
+    }
+  }
+  return set;
+}
+
+export function isUsecaseFlowEnabled(
+  flow: Usecase,
+  workflows: WorkflowSummary[],
+  enabledLabels: Set<string>,
+  validatedCategories: Set<string>,
+  validatedAppNames: Set<string> = new Set()
+): boolean {
+  if (flow.automationArea === 'automatic_ingestion' && flow.target === 'case_management') {
+    return isIngestionUsecaseActive(flow, workflows, validatedCategories, validatedAppNames);
+  }
+  return !!flow.automationLabel && enabledLabels.has(flow.automationLabel);
+}
+
 // ============================================================================
 // Inlined: usecases query
 // ============================================================================
@@ -2075,7 +2116,7 @@ let usecasesLiteCache: {
 } | null = null;
 let usecasesLiteFetchPromise: Promise<any> | null = null;
 
-function useUsecasesLite() {
+export function useUsecasesLite() {
   const [data, setData] = useState<{
     usecases: Usecase[];
     apiCategories: ApiUsecaseCategory[];
@@ -6059,6 +6100,9 @@ function UsecasesPageInner() {
         if (lbl.includes('threat feeds') || lbl.includes('ioc extraction')) {
           aliases.push('enable threat feeds', 'enable threat feeds_webhook', 'realtime ioc extraction', 'threat intel');
         }
+        if (lbl.includes('vulnerabilit') && (lbl.includes('ingest') || lbl.includes('ingestion'))) {
+          aliases.push('ingest vulnerabilities', 'ingest_vulnerabilities', 'vulnerabilities webhook', 'vulnerabilities_webhook');
+        }
         const isMatch = aliases.some(a => {
           const isWebhookWf = name.endsWith('_webhook') || name === 'ingestion webhook' || tags.some(t => t.endsWith('_webhook'));
           if (!a.includes('webhook') && isWebhookWf) return false;
@@ -6341,18 +6385,13 @@ function UsecasesPageInner() {
       // an app in its specific source category is active (authenticated and wired into the workflow).
       // They must NOT be marked active merely because the webhook is active or because
       // the org has total incident outcomes > 0.
-      if (flow.automationArea === 'automatic_ingestion' && flow.target === 'case_management') {
+      if (
+        flow.automationArea === 'automatic_ingestion' &&
+        flow.target === 'case_management' &&
+        flow.id !== 'vulnerability_ingestion_1'
+      ) {
         return isIngestionUsecaseActive(flow, workflows, validatedCategories, validatedAppNames);
       }
-
-      // Presence-based override: if the outcome bundle proves the usecase is
-      // producing data (enrichments performed, IOCs managed, incidents
-      // ingested, …) treat it as enabled regardless of workflow-name / auth
-      // heuristics. The outcomes hook reads directly from list_cache so this
-      // is the ground-truth signal — workflows may be renamed, untagged, or
-      // driven by an upstream feed that does not appear in the auth list.
-      const outcomeValue = getPageOutcome(flow.id)?.primary?.value;
-      if (typeof outcomeValue === 'number' && outcomeValue > 0) return true;
 
       // Agent Response / AI Incident Handling are driven by the category
       // automation (Run AI Agent on shuffle-security_incidents), not a workflow.
@@ -6360,7 +6399,7 @@ function UsecasesPageInner() {
         flow.id === 'case_management_agent_response_1' ||
         flow.id === 'case_management_agent_ai_incident_handling_1'
       ) return aiAgentAutomationActive;
-      // Host Monitoring is presence-driven: as soon as ≥1 host monitor is
+      // Host Monitoring is presence-driven: as soon as >=1 host monitor is
       // deployed, treat it as enabled — there is no separate workflow to gate.
       if (flow.id === 'case_management_asset_management_monitors_1') {
         return monitorsDeployedCount >= 1;
@@ -6410,22 +6449,28 @@ function UsecasesPageInner() {
       }
       // Vulnerability Correlation and Vulnerability Ingestion are self-contained / schedule-driven —
       // driven solely by whether their workflows exist.
-      if (
-        flow.id === 'asset_management_case_management_vuln_1' ||
-        flow.id === 'vulnerability_ingestion_1'
-      ) {
+      if (flow.id === 'asset_management_case_management_vuln_1') {
         return !!flow.automationLabel && enabledLabels.has(flow.automationLabel);
       }
+      if (flow.id === 'vulnerability_ingestion_1') {
+        return (
+          !!flow.automationLabel &&
+          (enabledLabels.has(flow.automationLabel) || enabledLabels.has('vulnerabilities_webhook'))
+        );
+      }
       // Threat-intel usecases are presence-driven: they "work" as soon as the
-      // org has IOCs/feeds populated or enrichments running, even if no
       // dedicated "Realtime IOC extraction" / "Enable Threat feeds" workflow
-      // is wired up. The outcome check above already covers the positive
-      // case; here we just skip the source-tool gate so a missing
-      // threat-intel auth does not force the card to "Disabled".
+      // is wired up.
       if (flow.source === 'threat_intel') {
         return !!flow.automationLabel && enabledLabels.has(flow.automationLabel);
       }
-      if (!flow.automationLabel) return false;
+      if (!flow.automationLabel) {
+        // Presence-based fallback: for unmanaged or external feeds without a dedicated
+        // workflow label, if the outcome bundle proves data is flowing, treat it as enabled.
+        const outcomeValue = getPageOutcome(flow.id)?.primary?.value;
+        if (typeof outcomeValue === 'number' && outcomeValue > 0) return true;
+        return false;
+      }
       if (!enabledLabels.has(flow.automationLabel)) return false;
       if (!validatedCategories.has(flow.source)) return false;
 
@@ -6513,40 +6558,7 @@ function UsecasesPageInner() {
   }, [workflows]);
 
   const filtered = useMemo(() => {
-    let list = usecases;
-
-    // Support-only usecases (e.g. Vulnerability Response) are strictly hidden for non-support users
-    if (!isSupport) {
-      list = list.filter((u) => !u.supportOnly);
-    }
-
-    // Only Support users with the "show all" toggle see inactive or supportOnly usecases.
-    // Everyone else — guests and regular authenticated users — sees only
-    // the activated (animated) ones, so the catalog reflects what's live.
-    if (!(isSupport && showAllAsSupport)) {
-      list = list.filter((u) => u.animated === true && !u.supportOnly);
-    }
-
-    // "IOC feeds" belongs strictly in Ingest
-    list = list.filter((u) => u.id !== 'threat_intel_cloud_1' && !(u.label === 'IOC feeds' && u.phase !== 'ingest'));
-
-    // Guests have no org-level activation state, so the API's `disabled`
-    // flag can't distinguish "live for this org" from "exists in catalog".
-    // Restrict guests to the curated default-visible set (animated=true in
-    // DEFAULT_USECASES) so the public view matches the regular-user view.
-    if (!isAuthenticated && !(isSupport && showAllAsSupport)) {
-      const allowedLabels = new Set(
-        DEFAULT_USECASES
-          .filter((u) => u.animated === true && !u.supportOnly)
-          .map((u) => u.label.toLowerCase())
-      );
-      list = list.filter((u) => allowedLabels.has(u.label.toLowerCase()));
-    }
-
-    // Always hide "Logs" usecases (even for guests) — not a primary entry point.
-    if (!(isSupport && showAllAsSupport)) {
-      list = list.filter((u) => !/log/i.test(u.label));
-    }
+    let list = filterVisibleUsecases(usecases, { isSupport, showAllAsSupport, isAuthenticated });
 
     if (phaseFilter !== 'all') {
       list = list.filter((u) => u.phase === phaseFilter);
@@ -6992,25 +7004,10 @@ function UsecasesPageInner() {
 }
 
 
-function UsecaseCard({
-  flow,
-  drift,
-  apiLoaded,
-  isEnabled,
-  hasInterest = false,
-  isSupport = false,
-  showImage = false,
-  canToggle,
-  isAuthenticated = true,
-  hasValidatedSource = true,
-  onToggled,
-  workflows = [],
-  onClick,
-  onEnable,
-}: {
+export interface UsecaseCardProps {
   flow: Usecase;
   drift?: UsecaseDrift;
-  apiLoaded: boolean;
+  apiLoaded?: boolean;
   isEnabled: boolean;
   hasInterest?: boolean;
   isSupport?: boolean;
@@ -7028,7 +7025,24 @@ function UsecaseCard({
    *  it, so the user can watch the workflow appear in realtime. Disable
    *  still happens inline (no need for context). */
   onEnable?: () => void;
-}) {
+}
+
+export function UsecaseCard({
+  flow,
+  drift,
+  apiLoaded = true,
+  isEnabled,
+  hasInterest = false,
+  isSupport = false,
+  showImage = false,
+  canToggle,
+  isAuthenticated = true,
+  hasValidatedSource = true,
+  onToggled,
+  workflows = [],
+  onClick,
+  onEnable,
+}: UsecaseCardProps) {
   const sourceCat = categoryLabel(flow.source) || 'source';
   const isComingSoon = !ACTIVE_USECASE_IDS.includes(flow.id);
   const targetCat = categoryLabel(flow.target) || 'destination';
@@ -7722,36 +7736,7 @@ function UsecaseDrawerInner({
   // for the standalone drawer (presence-based gates like agent-response /
   // monitor count are out of scope here; opening the drawer is the user's
   // entry point into the full Usecases page if they want richer state).
-  const enabledLabels = useMemo(() => {
-    const set = new Set<string>();
-    for (const wf of workflows) {
-      const name = (wf.name || '').toLowerCase();
-      const tags = (wf.tags || []).map(t => String(t).toLowerCase());
-      for (const uc of usecases) {
-        if (!uc.automationLabel) continue;
-        const lbl = uc.automationLabel.toLowerCase();
-        const aliases = [lbl];
-        if (lbl.includes('incident routing')) {
-          aliases.push('incident routing', 'incident_routing', 'incident_routing_rules');
-        }
-        if (lbl.includes('schedules & phone') || lbl.includes('schedules_notifications') || lbl.includes('phone notification')) {
-          aliases.push('schedules & phone notifications', 'schedules_&_phone_notifications', 'schedules_notifications', 'phone_notifications', 'assign & escalate', 'assign_&_escalate');
-        }
-        if (lbl.includes('threat feeds') || lbl.includes('ioc extraction')) {
-          aliases.push('enable threat feeds', 'enable threat feeds_webhook', 'realtime ioc extraction', 'threat intel');
-        }
-        const isMatch = aliases.some(a => {
-          const isWebhookWf = name.endsWith('_webhook') || name === 'ingestion webhook' || tags.some(t => t.endsWith('_webhook'));
-          if (!a.includes('webhook') && isWebhookWf) return false;
-          return name === a || name.includes(a) || tags.includes(a) || tags.some(t => t.includes(a));
-        });
-        if (isMatch) {
-          set.add(uc.automationLabel);
-        }
-      }
-    }
-    return set;
-  }, [workflows, usecases]);
+  const enabledLabels = useMemo(() => computeEnabledLabels(workflows, usecases), [workflows, usecases]);
 
   // Fetch validated source categories (same call as UsecasesPageInner). Skips
   // out gracefully if the user is not authenticated.
@@ -7812,9 +7797,7 @@ function UsecaseDrawerInner({
   useEffect(() => { setActiveFlowId(flowId); }, [flowId]);
 
   const flow = activeFlowId ? usecases.find(u => u.id === activeFlowId) : null;
-  const isEnabled = flow?.automationArea === 'automatic_ingestion' && flow?.target === 'case_management'
-    ? isIngestionUsecaseActive(flow, workflows, validatedCategories, validatedAppNames)
-    : !!flow?.automationLabel && enabledLabels.has(flow.automationLabel);
+  const isEnabled = flow ? isUsecaseFlowEnabled(flow, workflows, enabledLabels, validatedCategories, validatedAppNames) : false;
   const canToggle = isAuthenticated && !!flow?.automationLabel;
   const hasValidatedSource = flow ? validatedCategories.has(flow.source) : true;
 

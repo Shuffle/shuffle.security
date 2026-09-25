@@ -23,6 +23,13 @@ import {
   KeyRound,
   Cloud,
 } from 'lucide-react';
+import {
+  getIngestionCategory,
+  isThreatIntelApp,
+  isVulnScannerApp,
+  COMMUNICATION_PATTERNS_NAMES,
+  normalizeAppName,
+} from '@/Shuffle-MCPs/ingestionDetection';
 
 // ── Flow phases ────────────────────────────────────────────────────────────────
 
@@ -796,15 +803,57 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
 };
 
 export function matchAppToCategoryList(appName: string, appCategories: string[] = []): string[] {
-  const searchParts: string[] = [];
-  if (appName) searchParts.push(appName);
-  if (Array.isArray(appCategories)) searchParts.push(...appCategories);
-  const searchText = searchParts.join(' ').toLowerCase();
-  const hits: string[] = [];
-  for (const [catId, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    if (keywords.some(kw => searchText.includes(kw))) hits.push(catId);
+  const hits = new Set<string>();
+  const name = (appName || '').toLowerCase().trim();
+  const categories = (Array.isArray(appCategories) ? appCategories : [])
+    .map(c => String(c).toLowerCase().trim())
+    .filter(Boolean);
+
+  // 1. High-precision pattern detection from ingestionDetection
+  const ingestionCat = getIngestionCategory(appName, appCategories);
+  if (ingestionCat === 'email') hits.add('email');
+  else if (ingestionCat === 'cases') hits.add('case_management');
+  else if (ingestionCat === 'edr') hits.add('edr');
+  else if (ingestionCat === 'siem') hits.add('siem');
+
+  if (isThreatIntelApp(appName)) hits.add('threat_intel');
+  if (isVulnScannerApp(appName)) hits.add('asset_management');
+  if (COMMUNICATION_PATTERNS_NAMES.some(p => name.includes(p))) hits.add('communication');
+
+  // 2. Direct exact or whole-word match on declared categories
+  for (const cat of categories) {
+    if (cat === 'siem' || cat.includes('siem') || cat.includes('security information')) hits.add('siem');
+    if (cat === 'edr' || cat === 'xdr' || cat.includes('endpoint detection') || cat.includes('endpoint protection')) hits.add('edr');
+    if (cat === 'email' || cat.includes('email security') || cat.includes('phishing')) hits.add('email');
+    if (cat === 'threat intel' || cat.includes('threat intelligence') || cat === 'intelligence') hits.add('threat_intel');
+    if (cat === 'asset' || cat === 'asset management' || cat === 'cmdb' || cat.includes('vulnerability')) hits.add('asset_management');
+    if (cat === 'iam' || cat === 'identity' || cat.includes('identity and access') || cat.includes('single sign-on') || cat === 'sso') hits.add('iam');
+    if (cat === 'network' || cat === 'firewall' || cat.includes('network security')) hits.add('network');
+    if (cat === 'cloud' || cat.includes('cloud security') || cat.includes('cloud provider')) hits.add('cloud');
+    if (cat === 'communication' || cat === 'chat' || cat === 'messaging' || cat === 'collaboration') hits.add('communication');
+    if (cat === 'cases' || cat === 'case management' || cat === 'ticketing' || cat === 'itsm' || cat === 'service desk') hits.add('case_management');
   }
-  return hits;
+
+  // 3. Fallback to keyword matching only if no hits were found so far
+  if (hits.size === 0) {
+    const searchText = `${name} ${categories.join(' ')}`;
+    for (const [catId, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+      for (const kw of keywords) {
+        if (kw.length <= 4) {
+          const regex = new RegExp(`\\b${kw}\\b`, 'i');
+          if (regex.test(searchText)) {
+            hits.add(catId);
+            break;
+          }
+        } else if (searchText.includes(kw)) {
+          hits.add(catId);
+          break;
+        }
+      }
+    }
+  }
+
+  return Array.from(hits);
 }
 
 export function matchAppToCategory(appName: string, appCategories: string[]): string | null {
@@ -812,40 +861,178 @@ export function matchAppToCategory(appName: string, appCategories: string[]): st
   return hits.length > 0 ? hits[0] : null;
 }
 
+export interface UsecaseVisibilityOptions {
+  /** True when the user is an internal Shuffle support engineer */
+  isSupport?: boolean;
+  /** True when support user explicitly enabled "Show all usecases" on the /usecases page */
+  showAllAsSupport?: boolean;
+  /** True when user is authenticated (guests are limited to default curated list) */
+  isAuthenticated?: boolean;
+}
+
 /**
- * Find usecases relevant to a specific app based on category matching,
- * explicit tags/label mentions, or general AI Agent integration.
+ * Evaluates whether a usecase should be visible to users, strictly mirroring
+ * the canonical catalog filtering applied on the /usecases page.
+ *
+ * Hidden rules:
+ * 1. Support-only usecases (e.g. Vulnerability Response) are strictly hidden unless support view is enabled.
+ * 2. Inactive / disabled usecases (`u.animated !== true`) are hidden from regular users and guests.
+ * 3. Misplaced or invalid IOC feed routes (threat_intel_cloud_1 or IOC feeds outside ingest) are hidden.
+ * 4. Raw log-forwarding collection usecases (/log/i) are hidden from the primary catalog.
+ * 5. Guests (unauthenticated) are restricted to the default curated visible set.
+ */
+export function isUsecaseVisible(
+  u: Usecase,
+  options: UsecaseVisibilityOptions = {}
+): boolean {
+  const { isSupport = false, showAllAsSupport = false, isAuthenticated = true } = options;
+
+  // "IOC feeds" belongs strictly in Ingest; threat_intel_cloud_1 is invalid
+  if (u.id === 'threat_intel_cloud_1' || (u.label === 'IOC feeds' && u.phase !== 'ingest')) {
+    return false;
+  }
+
+  // Only Support users with the "show all" toggle see inactive or supportOnly usecases.
+  // Everyone else — guests and regular authenticated users — sees only
+  // the activated (animated) ones, so the catalog reflects what's live.
+  if (!(isSupport && showAllAsSupport)) {
+    if (u.supportOnly) return false;
+    if (u.animated !== true) return false;
+    if (/log/i.test(u.label)) return false;
+  }
+
+  // Guests are restricted to the curated default-visible set
+  if (!isAuthenticated && !(isSupport && showAllAsSupport)) {
+    const isDefaultVisible = DEFAULT_USECASES.some(
+      (d) => d.animated === true && !d.supportOnly && d.label.toLowerCase() === u.label.toLowerCase()
+    );
+    if (!isDefaultVisible) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Filters an array of usecases according to /usecases visibility rules.
+ */
+export function filterVisibleUsecases(
+  usecases: Usecase[],
+  options: UsecaseVisibilityOptions = {}
+): Usecase[] {
+  return usecases.filter((u) => isUsecaseVisible(u, options));
+}
+
+/**
+ * Find usecases relevant to a specific app based on directional category matching,
+ * explicit tags/label mentions, and AI Agent compatibility.
+ * Strictly excludes hidden / inactive usecases to match the /usecases catalog.
  */
 export function findRelatedUsecasesForApp(
   appName: string,
   appCategories: string[] = [],
-  usecases: Usecase[] = DEFAULT_USECASES
+  usecases: Usecase[] = DEFAULT_USECASES,
+  visibilityOptions?: UsecaseVisibilityOptions
 ): Usecase[] {
   if (!appName) return [];
   const normalizedName = appName.toLowerCase().trim();
   const matchedCats = new Set(matchAppToCategoryList(appName, appCategories));
 
+  // Exclude hidden usecases so app-related usecases stay 100% in sync with /usecases
+  const candidateUsecases = filterVisibleUsecases(usecases, visibilityOptions);
+
   const matched: Usecase[] = [];
   const seen = new Set<string>();
 
-  for (const uc of usecases) {
-    const isSourceMatch = matchedCats.has(uc.source);
-    const isTargetMatch = matchedCats.has(uc.target);
-    const isNameInTags = (uc.tags || []).some(t => t.toLowerCase() === normalizedName);
-    const isNameInLabel = uc.label.toLowerCase().includes(normalizedName);
+  for (const uc of candidateUsecases) {
+    let isMatch = false;
 
-    if (isSourceMatch || isTargetMatch || isNameInTags || isNameInLabel) {
-      if (!seen.has(uc.id)) {
-        seen.add(uc.id);
-        matched.push(uc);
+    // A. External Case Management / Ticketing tool (Jira, ServiceNow, Zendesk, etc.)
+    // In Shuffle Security, Shuffle itself is the case management platform.
+    // External ticketing tools are destinations for forwarding tickets (Phase 3 Response),
+    // NOT ingestion sources or response actions like containment/disable accounts.
+    if (matchedCats.has('case_management')) {
+      if (uc.id === 'case_management_cases_forward_1') {
+        isMatch = true;
       }
+    }
+
+    // B. Match by tool category for other tool categories
+    for (const cat of matchedCats) {
+      if (cat === 'case_management') continue;
+
+      // 1. Phase 1 (Ingest): Ingestion usecases ingest from a source tool into Shuffle (or SIEM).
+      // The app must match the ingestion source (e.g. SIEM alerts -> source: 'siem', EDR alerts -> source: 'edr').
+      // For log-forwarding into SIEM (e.g. network flow logs, cloud audit logs), the app can also match uc.target === 'siem'.
+      if (uc.phase === 'ingest') {
+        if (uc.source === cat) {
+          isMatch = true;
+        } else if (uc.target === cat && cat === 'siem') {
+          isMatch = true;
+        }
+      }
+
+      // 2. Phase 2 (Correlation / Context): Enrichment and context flows.
+      // E.g. Threat intel enrichment (source: threat_intel), Asset context (source: asset_management),
+      // EDR telemetry to SIEM (source: edr, target: siem).
+      else if (uc.phase === 'correlation') {
+        if (uc.source === cat || uc.target === cat) {
+          // Exclude internal Shuffle-to-Shuffle flows unless explicit match
+          if (uc.source === 'case_management' && uc.target === 'case_management') {
+            // Internal routing rules or internal enrichment
+          } else {
+            isMatch = true;
+          }
+        }
+      }
+
+      // 3. Phase 3 (Response): Containment, notifications, block rules, disable accounts, etc.
+      // In response flows (source: case_management -> target: tool), the app is the TARGET tool being acted upon!
+      // (e.g. target: communication for Slack, target: iam for Okta disable accounts, target: edr for host isolation).
+      // Or for threat intel feeds pushed to network/edr: source: threat_intel, target: network/edr.
+      else if (uc.phase === 'response') {
+        if (uc.target === cat) {
+          isMatch = true;
+        } else if (uc.source === cat && cat === 'threat_intel') {
+          // Threat intel pushed to endpoints/network
+          isMatch = true;
+        }
+      }
+    }
+
+    // C. Explicit tag match (app name in tags)
+    if (!isMatch && uc.tags && uc.tags.length > 0) {
+      if (uc.tags.some(t => normalizeAppName(t) === normalizeAppName(appName))) {
+        isMatch = true;
+      }
+    }
+
+    // D. Explicit label match: only if the label explicitly mentions the app as a discrete word
+    if (!isMatch && normalizedName.length >= 3) {
+      const labelWordRegex = new RegExp(`\\b${normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (labelWordRegex.test(uc.label)) {
+        isMatch = true;
+      }
+    }
+
+    if (isMatch && !seen.has(uc.id)) {
+      seen.add(uc.id);
+      matched.push(uc);
     }
   }
 
-  // Always include AI Agents flow because AI Agents can talk to ANY connected tool
-  const aiAgentUc = usecases.find(u => u.id === 'case_management_ai_agents_1');
-  if (aiAgentUc && !seen.has(aiAgentUc.id)) {
-    matched.push(aiAgentUc);
+  // Only include AI Agent flows if the app is an AI tool or if the app specifically matches.
+  const isAiApp = normalizedName.includes('agent') ||
+    normalizedName.includes('openai') ||
+    normalizedName.includes('anthropic') ||
+    normalizedName.includes('gemini') ||
+    normalizedName.includes('bedrock') ||
+    (Array.isArray(appCategories) && appCategories.some(c => c.toLowerCase().includes('ai') || c.toLowerCase().includes('agent') || c.toLowerCase().includes('llm')));
+
+  if (isAiApp) {
+    const aiAgentUc = candidateUsecases.find(u => u.id === 'case_management_ai_agents_1');
+    if (aiAgentUc && !seen.has(aiAgentUc.id)) {
+      matched.push(aiAgentUc);
+    }
   }
 
   return matched;

@@ -3430,6 +3430,13 @@ const AgentUI: React.FC<AgentUIProps> = ({
         const app = entry?.app || entry;
         const name: string | undefined = app?.name;
         if (!name) continue;
+        // Only entries with EXPLICITLY invalid credentials are excluded here —
+        // missing validation data is not enough. isAppAuthenticated() derives
+        // its answer purely from this list, so an entry with validation.valid
+        // === false must NOT be counted as authenticated, otherwise the
+        // "Missing Auth: <tool>" warning never renders for expired keys.
+        const valid = entry?.active || entry?.validation?.valid || entry?.hasValidAuth || app?.is_valid || app?.tested;
+        if (valid === false) continue;
         const key = normalizeAgentAppName(name);
         if (seen.has(key)) continue;
         seen.add(key);

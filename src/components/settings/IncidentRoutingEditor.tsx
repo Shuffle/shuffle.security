@@ -21,7 +21,7 @@
  *   should hide this card when there are no sub-orgs.
  */
 import { Plus as AddIcon, Trash as DeleteOutlineIcon, Copy as ContentCopyIcon, ChevronDown as ExpandMoreIcon, ChevronUp as ExpandLessIcon } from 'lucide-react';
-import { useEffect, useMemo, useState, type JSX } from 'react';
+import { useEffect, useMemo, useState, useCallback, type JSX } from 'react';
 import {
   RoutingActionFields,
   ROUTING_ACTION_TYPE_LABELS,
@@ -51,12 +51,27 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Select,
+  Divider,
 } from '@mui/material';
 import { toast } from '@/lib/toast';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import { useDatastore } from '@/hooks/useDatastore';
 import { useSubOrgs } from '@/hooks/useSubOrgs';
 import { useAuth } from '@/context/AuthContext';
+import { useWorkflows } from '@/hooks/useWorkflows';
+import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
+import { getDatastoreByCategory } from '@/Shuffle-MCPs/datastore';
+import {
+  findRoutingWorkflow,
+  getExpectedRoutingWorkflowLabel,
+  evaluateRoutingWorkflowHealth,
+  type RoutingWorkflowHealth,
+  type RoutingWorkflowExecutionSummary,
+} from '@/utils/routingWorkflowUtils';
+import {
+  evaluateRoutingRules,
+} from '@/utils/routingRuleEvaluator';
 import {
   MAX_GROUP_DEPTH,
   emptyLeaf,
@@ -139,12 +154,18 @@ export interface RoutingRule {
   updatedTs?: number;
   lastMatchedTs?: number;
   matchCount?: number;
+  /**
+   * Datastore category this rule applies to (e.g.
+   * `shuffle-security_incidents`, `shuffle-security_vulns`). Rules saved
+   * before this field existed are treated as incident rules.
+   */
+  entityCategory?: string;
 }
 
 const FIELD_SUGGESTIONS = ROUTING_FIELD_SUGGESTIONS;
 
 const FIELD_LABELS: Record<string, string> = {
-  '*': '* (whole incident, auto base64-decoded)',
+  '*': '* (whole item, auto base64-decoded)',
 };
 
 
@@ -251,6 +272,7 @@ const parseRule = (key: string, value: string): RoutingRule | null => {
       updatedTs: parsed.updatedTs,
       lastMatchedTs: parsed.lastMatchedTs,
       matchCount: Number.isFinite(parsed.matchCount) ? parsed.matchCount : 0,
+      entityCategory: typeof parsed.entityCategory === 'string' ? parsed.entityCategory : undefined,
     };
   } catch {
     return null;
@@ -271,15 +293,40 @@ const summarizeAction = (a: RoutingAction, orgName?: string): string => {
   }
 };
 
+export const DEFAULT_ROUTING_ENTITY_CATEGORY = 'shuffle-security_incidents';
+
 interface IncidentRoutingEditorProps {
   /**
    * When true, render even if no sub-orgs exist. The component will warn
    * inline that rules need a target tenant. Useful for previewing.
    */
   forceShow?: boolean;
+  /**
+   * Datastore category the rules apply to. Rules are stamped with it and
+   * the list is filtered by it, so the same editor serves incidents,
+   * vulnerabilities, assets and so on.
+   */
+  entityCategory?: string;
+  /** Entity naming used in copy. Defaults to incident/incidents. */
+  entityLabel?: { singular: string; plural: string };
+  /**
+   * Category passed to POST /api/v2/workflows/generate when the backing
+   * routing workflow is auto-created. Defaults to "cases" for incidents, or
+   * entityCategory for other entities.
+   */
+  generateCategory?: string;
 }
 
-export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEditorProps) => {
+export const IncidentRoutingEditor = ({
+  forceShow = false,
+  entityCategory = DEFAULT_ROUTING_ENTITY_CATEGORY,
+  entityLabel = { singular: 'incident', plural: 'incidents' },
+  generateCategory,
+}: IncidentRoutingEditorProps) => {
+  const entityPluralCap = entityLabel.plural.charAt(0).toUpperCase() + entityLabel.plural.slice(1);
+  const effectiveGenerateCategory =
+    generateCategory ||
+    (entityCategory === DEFAULT_ROUTING_ENTITY_CATEGORY ? 'cases' : entityCategory);
   const { userInfo } = useAuth();
   const currentOrgId = userInfo?.active_org?.id;
   const { subOrgs, isParentOrg } = useSubOrgs(currentOrgId);
@@ -287,6 +334,273 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
   const { items, isLoading, hasFetched, fetchItems, addItem, removeItem } = useDatastore({
     category: ROUTING_DATASTORE_CATEGORY,
   });
+
+  const { data: workflows = [], isLoading: workflowsLoading, refetch: refetchWorkflows } = useWorkflows();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleUpdate = () => {
+      refetchWorkflows();
+    };
+    window.addEventListener('shuffle-workflows-updated', handleUpdate);
+    window.addEventListener('shuffle-workflow-toggled', handleUpdate);
+    return () => {
+      window.removeEventListener('shuffle-workflows-updated', handleUpdate);
+      window.removeEventListener('shuffle-workflow-toggled', handleUpdate);
+    };
+  }, [refetchWorkflows]);
+
+  const matchedWorkflow = useMemo(
+    () => findRoutingWorkflow(workflows, entityLabel, entityCategory),
+    [workflows, entityLabel, entityCategory],
+  );
+
+  const [categoryConfig, setCategoryConfig] = useState<any>(null);
+  const [lastExecution, setLastExecution] = useState<RoutingWorkflowExecutionSummary | null>(null);
+  const [isLoadingHealth, setIsLoadingHealth] = useState(false);
+  const [isHookingWorkflow, setIsHookingWorkflow] = useState(false);
+
+  const fetchWorkflowHealth = useCallback(async () => {
+    if (!currentOrgId) return;
+    setIsLoadingHealth(true);
+    try {
+      const catRes: any = await getDatastoreByCategory(entityCategory, undefined, 1, currentOrgId).catch(() => null);
+      if (catRes?.categoryConfig) {
+        setCategoryConfig(catRes.categoryConfig);
+      }
+
+      if (matchedWorkflow?.id) {
+        try {
+          const execRes = await fetch(getApiUrl(`/api/v2/workflows/${matchedWorkflow.id}/executions?limit=1`), {
+            credentials: 'include',
+            headers: { ...getAuthHeader() },
+          });
+          if (execRes.ok) {
+            const execData = await execRes.json();
+            const list = Array.isArray(execData) ? execData : execData?.executions || [];
+            if (list.length > 0) {
+              const latest = list[0];
+              setLastExecution({
+                id: latest.execution_id || latest.id,
+                status: latest.status || 'unknown',
+                started_at: latest.started_at || latest.created_at,
+                completed_at: latest.completed_at,
+                error: latest.error || latest.failure_reason,
+              });
+            } else {
+              setLastExecution(null);
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to fetch workflow executions:', e);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load category config:', err);
+    } finally {
+      setIsLoadingHealth(false);
+    }
+  }, [currentOrgId, entityCategory, matchedWorkflow?.id]);
+
+  useEffect(() => {
+    fetchWorkflowHealth();
+  }, [fetchWorkflowHealth]);
+
+  const workflowHealth: RoutingWorkflowHealth = useMemo(() => {
+    return evaluateRoutingWorkflowHealth({
+      workflow: matchedWorkflow,
+      categoryConfig,
+      lastExecution,
+      loading: workflowsLoading || isLoadingHealth,
+      entityLabel,
+    });
+  }, [matchedWorkflow, categoryConfig, lastExecution, workflowsLoading, isLoadingHealth, entityLabel]);
+
+  const handleLinkHook = async () => {
+    if (!matchedWorkflow?.id || !currentOrgId) return;
+    setIsHookingWorkflow(true);
+    try {
+      const currentAutomations = Array.isArray(categoryConfig?.automations)
+        ? [...categoryConfig.automations]
+        : Array.isArray(categoryConfig?.Automations)
+          ? [...categoryConfig.Automations]
+          : [];
+
+      const existingIdx = currentAutomations.findIndex(
+        (a: any) => (a?.name || a?.Name || '').toLowerCase() === 'run workflow'
+      );
+
+      if (existingIdx >= 0) {
+        const existingAuto = { ...currentAutomations[existingIdx] };
+        existingAuto.enabled = true;
+        const options = Array.isArray(existingAuto.options)
+          ? [...existingAuto.options]
+          : Array.isArray(existingAuto.Options)
+            ? [...existingAuto.Options]
+            : [];
+        const wfOptIdx = options.findIndex((o: any) => (o.key || o.Key || '').toLowerCase() === 'workflow_id');
+        if (wfOptIdx >= 0) {
+          const currentVal = String(options[wfOptIdx].value || options[wfOptIdx].Value || '');
+          const ids = currentVal.split(',').map((id: string) => id.trim()).filter(Boolean);
+          if (!ids.includes(matchedWorkflow.id)) {
+            ids.push(matchedWorkflow.id);
+          }
+          options[wfOptIdx] = { ...options[wfOptIdx], value: ids.join(',') };
+        } else {
+          options.push({ key: 'workflow_id', value: matchedWorkflow.id });
+        }
+        existingAuto.options = options;
+        currentAutomations[existingIdx] = existingAuto;
+      } else {
+        currentAutomations.push({
+          name: 'Run workflow',
+          description: 'Runs one or more workflows with the updated value as runtime argument',
+          type: 'workflow',
+          enabled: true,
+          options: [{ key: 'workflow_id', value: matchedWorkflow.id }],
+        });
+      }
+
+      const payload = {
+        category: entityCategory,
+        automations: currentAutomations,
+        settings: categoryConfig?.settings || categoryConfig?.Settings || {},
+      };
+
+      const res = await fetch(getApiUrl('/api/v2/datastore/automate'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to update category automation (${res.status})`);
+      }
+
+      toast.success(`Added "${matchedWorkflow.name}" to Automation for ${entityPluralCap}`);
+      window.dispatchEvent(
+        new CustomEvent('shuffle-category-automations-updated', {
+          detail: { category: entityCategory },
+        }),
+      );
+      await fetchWorkflowHealth();
+    } catch (err: any) {
+      console.error('Failed to link category automation hook:', err);
+      toast.error(err?.message || 'Failed to add workflow to category automations');
+    } finally {
+      setIsHookingWorkflow(false);
+    }
+  };
+
+  const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
+  const handleGenerateWorkflow = async () => {
+    setIsGeneratingWorkflow(true);
+    const targetLabel = getExpectedRoutingWorkflowLabel(entityLabel, entityCategory);
+    const effectiveCategory =
+      entityCategory === 'shuffle-security_incidents' ? 'cases' : entityCategory;
+    try {
+      const res = await fetch(getApiUrl('/api/v2/workflows/generate'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...getAuthHeader(currentOrgId), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: targetLabel,
+          category: effectiveCategory,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.reason || `Failed to create workflow (${res.status})`);
+      }
+      invalidateWorkflowsCache();
+      toast.success(`Workflow "${targetLabel}" created`);
+      window.dispatchEvent(
+        new CustomEvent('shuffle-workflow-toggled', {
+          detail: { label: targetLabel, enabled: true },
+        }),
+      );
+      window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
+      window.dispatchEvent(
+        new CustomEvent('shuffle-category-automations-updated', {
+          detail: { category: entityCategory },
+        }),
+      );
+      await refetchWorkflows();
+      await fetchWorkflowHealth();
+    } catch (err: any) {
+      console.error('Failed to create routing workflow:', err);
+      toast.error(err?.message || 'Failed to create routing workflow');
+    } finally {
+      setIsGeneratingWorkflow(false);
+    }
+  };
+
+  // Test modal state
+  const [testModalOpen, setTestModalOpen] = useState(false);
+  const [testRecords, setTestRecords] = useState<any[]>([]);
+  const [loadingTestRecords, setLoadingTestRecords] = useState(false);
+  const [selectedRecordId, setSelectedRecordId] = useState<string>('manual');
+  const [customRecordJson, setCustomRecordJson] = useState<string>(
+    JSON.stringify(
+      {
+        title: 'Suspicious PowerShell Execution',
+        description: 'Encoded PowerShell command executed by WIN-SRV01\\svc-backup',
+        severity: 'high',
+        status: 'open',
+        source: 'CrowdStrike',
+        labels: ['malware', 'powershell', 't1059.001'],
+        observables: [
+          { type: 'ip', value: '198.51.100.42' },
+          { type: 'hostname', value: 'WIN-SRV01' },
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+
+  const handleOpenTestModal = async () => {
+    setTestModalOpen(true);
+    if (!currentOrgId) return;
+    setLoadingTestRecords(true);
+    try {
+      const res: any = await getDatastoreByCategory(entityCategory, undefined, 5, currentOrgId).catch(() => null);
+      const itemsList = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+      setTestRecords(itemsList);
+      if (itemsList.length > 0) {
+        const first = itemsList[0];
+        const recordId = first.id || first.key || '0';
+        setSelectedRecordId(recordId);
+        setCustomRecordJson(JSON.stringify(first.data || first, null, 2));
+      }
+    } catch {
+      // Best-effort
+    } finally {
+      setLoadingTestRecords(false);
+    }
+  };
+
+  const handleSelectRecord = (id: string) => {
+    setSelectedRecordId(id);
+    if (id === 'manual') return;
+    const found = testRecords.find((r) => (r.id || r.key) === id);
+    if (found) {
+      setCustomRecordJson(JSON.stringify(found.data || found, null, 2));
+    }
+  };
+
+  const parsedTestContext = useMemo(() => {
+    try {
+      return JSON.parse(customRecordJson);
+    } catch {
+      return null;
+    }
+  }, [customRecordJson]);
+
 
   // Local draft state — only saved on explicit "Save" per rule.
   const [drafts, setDrafts] = useState<Record<string, RoutingRule>>({});
@@ -312,11 +626,16 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
       }
       for (const it of items) {
         const rule = parseRule(it.key, typeof it.value === 'string' ? it.value : JSON.stringify(it.value));
-        if (rule) next[rule.id] = rule;
+        if (!rule) continue;
+        // Only show rules belonging to the entity this editor is scoped to.
+        // Rules saved before `entityCategory` existed are incident rules.
+        const cat = rule.entityCategory || DEFAULT_ROUTING_ENTITY_CATEGORY;
+        if (cat !== entityCategory) continue;
+        next[rule.id] = rule;
       }
       return next;
     });
-  }, [items, localOnlyIds]);
+  }, [items, localOnlyIds, entityCategory]);
 
   const sortedRules = useMemo(
     () =>
@@ -331,6 +650,11 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
       }),
     [drafts, localOnlyIds]
   );
+
+  const testEvaluationResults = useMemo(() => {
+    if (!parsedTestContext) return [];
+    return evaluateRoutingRules(parsedTestContext, sortedRules, entityCategory);
+  }, [parsedTestContext, sortedRules, entityCategory]);
 
   const updateRule = (id: string, patch: Partial<RoutingRule>) => {
     setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch, updatedTs: Date.now() } }));
@@ -413,6 +737,7 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
         createdBy: rule.createdBy || userInfo?.username || userInfo?.id,
         createdTs: rule.createdTs || Date.now(),
         updatedTs: Date.now(),
+        entityCategory,
       };
       // Pass skipRefresh=false so `items` includes the new rule before we
       // remove it from `localOnlyIds` — otherwise the drafts-rebuild effect
@@ -420,21 +745,26 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
       const ok = await addItem(rule.id, JSON.stringify(payload), false);
       if (ok) {
         toast.success('Routing rule saved');
-        if (items.length === 0) {
+        if (items.length === 0 || !matchedWorkflow) {
           try {
+            const genLabel = getExpectedRoutingWorkflowLabel(entityLabel, entityCategory);
             await fetch(getApiUrl('/api/v2/workflows/generate'), {
               method: 'POST',
               credentials: 'include',
               headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                label: 'Incident Routing Rules',
-                category: 'cases',
+                label: genLabel,
+                category: effectiveGenerateCategory,
               }),
             });
-            window.dispatchEvent(new CustomEvent('shuffle-workflow-toggled', {
-              detail: { label: 'Incident Routing Rules', enabled: true },
-            }));
+            invalidateWorkflowsCache();
+            window.dispatchEvent(
+              new CustomEvent('shuffle-workflow-toggled', {
+                detail: { label: genLabel, enabled: true },
+              }),
+            );
             window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
+            await refetchWorkflows();
           } catch (e) {
             console.warn('Auto-enable routing workflow failed:', e);
           }
@@ -516,6 +846,7 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
       matchMode: rule.matchMode,
       conditions: rule.conditions.map((c) => ({ ...c })),
       actions: rule.actions.map((a) => ({ ...a })),
+      entityCategory,
     });
     setDrafts((prev) => ({ ...prev, [copy.id]: copy }));
     setLocalOnlyIds((prev) => new Set(prev).add(copy.id));
@@ -525,6 +856,7 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
   const handleAdd = () => {
     const fresh = emptyRule({
       actions: [{ type: 'suggest_move', targetOrgId: subOrgs[0]?.id || '', reason: '' }],
+      entityCategory,
     });
     setDrafts((prev) => ({ ...prev, [fresh.id]: fresh }));
     setLocalOnlyIds((prev) => new Set(prev).add(fresh.id));
@@ -586,13 +918,220 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
   if (!isParentOrg && !forceShow) {
     return (
       <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
-        Incident Routing Rules are only available when you have one or more child tenants.
+        {entityPluralCap} Routing Rules are only available when you have one or more child tenants.
       </Typography>
     );
   }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Workflow automation status banner */}
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 1.5,
+          borderRadius: 1.5,
+          borderColor:
+            workflowHealth.status === 'automated'
+              ? 'hsl(var(--severity-low) / 0.35)'
+              : workflowHealth.status === 'hook_missing'
+                ? 'hsl(var(--severity-medium) / 0.35)'
+                : workflowHealth.status === 'execution_error'
+                  ? 'hsl(var(--destructive) / 0.35)'
+                  : 'hsl(var(--border))',
+          bgcolor:
+            workflowHealth.status === 'automated'
+              ? 'hsl(var(--severity-low) / 0.05)'
+              : workflowHealth.status === 'hook_missing'
+                ? 'hsl(var(--severity-medium) / 0.05)'
+                : workflowHealth.status === 'execution_error'
+                  ? 'hsl(var(--destructive) / 0.05)'
+                  : 'hsl(var(--muted) / 0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
+          <Chip
+            label={workflowHealth.label}
+            size="small"
+            sx={{
+              height: 22,
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              flexShrink: 0,
+              bgcolor:
+                workflowHealth.status === 'automated'
+                  ? 'hsl(var(--severity-low) / 0.15)'
+                  : workflowHealth.status === 'hook_missing'
+                    ? 'hsl(var(--severity-medium) / 0.15)'
+                    : workflowHealth.status === 'execution_error'
+                      ? 'hsl(var(--destructive) / 0.15)'
+                      : 'hsl(var(--muted))',
+              color:
+                workflowHealth.status === 'automated'
+                  ? 'hsl(var(--severity-low))'
+                  : workflowHealth.status === 'hook_missing'
+                    ? 'hsl(var(--severity-medium))'
+                    : workflowHealth.status === 'execution_error'
+                      ? 'hsl(var(--destructive))'
+                      : 'hsl(var(--muted-foreground))',
+              border: '1px solid',
+              borderColor:
+                workflowHealth.status === 'automated'
+                  ? 'hsl(var(--severity-low) / 0.4)'
+                  : workflowHealth.status === 'hook_missing'
+                    ? 'hsl(var(--severity-medium) / 0.4)'
+                    : workflowHealth.status === 'execution_error'
+                      ? 'hsl(var(--destructive) / 0.4)'
+                      : 'hsl(var(--border))',
+              '& .MuiChip-label': { px: 1 },
+            }}
+          />
+          <Typography
+            variant="body2"
+            sx={{
+              fontSize: '0.8rem',
+              color: 'hsl(var(--foreground))',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {workflowHealth.status === 'checking' ? (
+              'Checking workflow automation and category settings...'
+            ) : workflowHealth.status === 'automated' && matchedWorkflow ? (
+              <>
+                Rules evaluated in realtime by{' '}
+                <Box component="span" sx={{ fontWeight: 600 }}>
+                  {matchedWorkflow.name}
+                </Box>
+                {lastExecution?.started_at ? ` · Last run: ${new Date(typeof lastExecution.started_at === 'number' && lastExecution.started_at < 1e11 ? lastExecution.started_at * 1000 : lastExecution.started_at).toLocaleTimeString()}` : ''}
+              </>
+            ) : workflowHealth.status === 'hook_missing' && matchedWorkflow ? (
+              <>
+                Workflow exists ({matchedWorkflow.name}), but is not in "Automation for {entityPluralCap}" category settings. Edits will not trigger rules.
+              </>
+            ) : workflowHealth.status === 'execution_error' && matchedWorkflow ? (
+              <>
+                Workflow {matchedWorkflow.name} run error: {lastExecution?.error || 'Last execution encountered an error.'}
+              </>
+            ) : (
+              `No workflow found for ${entityLabel.plural}. Rules will not run until a workflow is created.`
+            )}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleOpenTestModal}
+            sx={{
+              height: 28,
+              fontSize: '0.75rem',
+              textTransform: 'none',
+              borderColor: 'hsl(var(--border))',
+              color: 'hsl(var(--foreground))',
+              '&:hover': {
+                borderColor: 'hsl(var(--primary))',
+                color: 'hsl(var(--primary))',
+              },
+            }}
+          >
+            Test rules
+          </Button>
+
+          {workflowHealth.status === 'hook_missing' && (
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={isHookingWorkflow}
+              onClick={handleLinkHook}
+              sx={{
+                height: 28,
+                fontSize: '0.75rem',
+                textTransform: 'none',
+                borderColor: 'hsl(var(--severity-medium) / 0.5)',
+                color: 'hsl(var(--severity-medium))',
+                bgcolor: 'hsl(var(--severity-medium) / 0.08)',
+                '&:hover': {
+                  borderColor: 'hsl(var(--severity-medium))',
+                  bgcolor: 'hsl(var(--severity-medium) / 0.15)',
+                },
+              }}
+            >
+              {isHookingWorkflow ? 'Adding…' : 'Add to category automations'}
+            </Button>
+          )}
+
+          {workflowHealth.status === 'not_automated' && (
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={isGeneratingWorkflow}
+              onClick={handleGenerateWorkflow}
+              sx={{
+                height: 28,
+                fontSize: '0.75rem',
+                textTransform: 'none',
+                borderColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))',
+                '&:hover': {
+                  borderColor: 'hsl(var(--primary))',
+                  color: 'hsl(var(--primary))',
+                },
+              }}
+            >
+              {isGeneratingWorkflow ? 'Creating…' : 'Create workflow'}
+            </Button>
+          )}
+
+          {matchedWorkflow ? (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => window.open(`/workflows/${matchedWorkflow.id}`, '_blank')}
+              sx={{
+                height: 28,
+                fontSize: '0.75rem',
+                textTransform: 'none',
+                borderColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))',
+                '&:hover': {
+                  borderColor: 'hsl(var(--primary))',
+                  color: 'hsl(var(--primary))',
+                },
+              }}
+            >
+              Open workflow
+            </Button>
+          ) : (
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={isGeneratingWorkflow}
+              onClick={handleGenerateWorkflow}
+              sx={{
+                height: 28,
+                fontSize: '0.75rem',
+                textTransform: 'none',
+                borderColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))',
+                '&:hover': {
+                  borderColor: 'hsl(var(--primary))',
+                  color: 'hsl(var(--primary))',
+                },
+              }}
+            >
+              {isGeneratingWorkflow ? 'Creating…' : 'Create workflow'}
+            </Button>
+          )}
+        </Box>
+      </Paper>
+
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box>
           <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
@@ -619,7 +1158,7 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
 
       {isLoading && !hasFetched && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress size={20} />
+          <CircularProgress size={20} sx={{ color: 'hsl(var(--primary))' }} />
         </Box>
       )}
 
@@ -637,7 +1176,7 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
             No routing rules yet.
           </Typography>
           <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))' }}>
-            Rules are evaluated by your incident automation. When a rule matches, an incident shows
+            Rules are evaluated by your {entityLabel.singular} automation. When a rule matches, a {entityLabel.singular} shows
             a suggestion banner with a "Move" CTA — your team confirms before anything happens.
           </Typography>
         </Paper>
@@ -1387,15 +1926,29 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
               size="small"
               onClick={() => handleSave(rule)}
               disabled={!!saving[rule.id]}
+              startIcon={
+                saving[rule.id] ? (
+                  <CircularProgress
+                    size={14}
+                    thickness={4}
+                    sx={{ color: 'hsl(var(--primary-foreground))' }}
+                  />
+                ) : undefined
+              }
               sx={{
                 height: 36,
                 bgcolor: 'hsl(var(--primary))',
                 color: 'hsl(var(--primary-foreground))',
                 textTransform: 'none',
+                fontWeight: 500,
                 '&:hover': { bgcolor: 'hsl(var(--primary) / 0.9)' },
+                '&.Mui-disabled': {
+                  bgcolor: 'hsl(var(--primary) / 0.7)',
+                  color: 'hsl(var(--primary-foreground))',
+                },
               }}
             >
-              {saving[rule.id] ? <CircularProgress size={16} /> : 'Save rule'}
+              {saving[rule.id] ? 'Saving...' : 'Save rule'}
             </Button>
           </Box>
           </>
@@ -1419,7 +1972,7 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
         <DialogContent>
           <DialogContentText sx={{ color: 'hsl(var(--muted-foreground))' }}>
             This will permanently delete the rule <strong style={{ color: 'hsl(var(--foreground))' }}>"{pendingDelete?.name}"</strong>.
-            Incidents will no longer be evaluated against it. This action cannot be undone.
+            {entityPluralCap} will no longer be evaluated against it. This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -1434,17 +1987,302 @@ export const IncidentRoutingEditor = ({ forceShow = false }: IncidentRoutingEdit
             onClick={confirmDelete}
             disabled={deleting}
             variant="contained"
+            startIcon={
+              deleting ? (
+                <CircularProgress
+                  size={14}
+                  thickness={4}
+                  sx={{ color: 'hsl(var(--destructive-foreground))' }}
+                />
+              ) : undefined
+            }
             sx={{
               height: 36,
               textTransform: 'none',
               bgcolor: 'hsl(var(--destructive))',
               color: 'hsl(var(--destructive-foreground))',
+              fontWeight: 500,
               '&:hover': { bgcolor: 'hsl(var(--destructive) / 0.9)' },
+              '&.Mui-disabled': {
+                bgcolor: 'hsl(var(--destructive) / 0.7)',
+                color: 'hsl(var(--destructive-foreground))',
+              },
             }}
           >
-            {deleting ? <CircularProgress size={16} /> : 'Delete rule'}
+            {deleting ? 'Deleting...' : 'Delete rule'}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Test Rules Dialog */}
+      <Dialog
+        open={testModalOpen}
+        onClose={() => setTestModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: 'hsl(var(--background))',
+            color: 'hsl(var(--foreground))',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: 2,
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            pb: 1.5,
+            borderBottom: '1px solid hsl(var(--border))',
+            fontSize: '1rem',
+            fontWeight: 600,
+          }}
+        >
+          <Box>Test {entityPluralCap} Routing Rules</Box>
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => setTestModalOpen(false)}
+            sx={{
+              minWidth: 'auto',
+              p: 0.5,
+              fontSize: '0.8rem',
+              color: 'hsl(var(--muted-foreground))',
+              '&:hover': { color: 'hsl(var(--foreground))' },
+            }}
+          >
+            Close
+          </Button>
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+                Test Record Source
+              </Typography>
+              {loadingTestRecords && (
+                <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))' }}>
+                  Loading recent {entityLabel.plural}...
+                </Typography>
+              )}
+            </Box>
+            <Select
+              size="small"
+              value={selectedRecordId}
+              onChange={(e) => handleSelectRecord(e.target.value)}
+              sx={{
+                fontSize: '0.8rem',
+                bgcolor: 'hsl(var(--muted) / 0.3)',
+                '& .MuiSelect-select': { py: 0.75 },
+              }}
+            >
+              <MenuItem value="manual" sx={{ fontSize: '0.8rem' }}>
+                Custom JSON payload
+              </MenuItem>
+              {testRecords.map((rec) => {
+                const recId = rec.id || rec.key || 'unknown';
+                const recData = rec.data || rec;
+                const desc = recData.title || recData.cve || recData.name || recId;
+                return (
+                  <MenuItem key={recId} value={recId} sx={{ fontSize: '0.8rem' }}>
+                    {recId} — {desc}
+                  </MenuItem>
+                );
+              })}
+            </Select>
+          </Box>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+              Record Payload (JSON)
+            </Typography>
+            <TextField
+              multiline
+              rows={6}
+              value={customRecordJson}
+              onChange={(e) => {
+                setCustomRecordJson(e.target.value);
+                setSelectedRecordId('manual');
+              }}
+              error={!parsedTestContext}
+              helperText={!parsedTestContext ? 'Invalid JSON format' : undefined}
+              sx={{
+                '& .MuiInputBase-root': {
+                  fontFamily: 'monospace',
+                  fontSize: '0.75rem',
+                  bgcolor: 'hsl(var(--muted) / 0.2)',
+                },
+              }}
+            />
+          </Box>
+
+          <Divider sx={{ borderColor: 'hsl(var(--border))' }} />
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                Evaluation Results
+              </Typography>
+              <Chip
+                size="small"
+                label={
+                  !parsedTestContext
+                    ? 'Invalid input'
+                    : testEvaluationResults.length > 0
+                      ? `${testEvaluationResults.length} rule${testEvaluationResults.length === 1 ? '' : 's'} matched`
+                      : '0 rules matched'
+                }
+                sx={{
+                  height: 20,
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  bgcolor:
+                    testEvaluationResults.length > 0
+                      ? 'hsl(var(--severity-low) / 0.15)'
+                      : 'hsl(var(--muted))',
+                  color:
+                    testEvaluationResults.length > 0
+                      ? 'hsl(var(--severity-low))'
+                      : 'hsl(var(--muted-foreground))',
+                  border: '1px solid',
+                  borderColor:
+                    testEvaluationResults.length > 0
+                      ? 'hsl(var(--severity-low) / 0.4)'
+                      : 'hsl(var(--border))',
+                  '& .MuiChip-label': { px: 1 },
+                }}
+              />
+            </Box>
+
+            {testEvaluationResults.length === 0 ? (
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  textAlign: 'center',
+                  borderColor: 'hsl(var(--border))',
+                  bgcolor: 'hsl(var(--muted) / 0.1)',
+                }}
+              >
+                <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.8rem' }}>
+                  {!parsedTestContext
+                    ? 'Enter a valid JSON payload above to run dry-run evaluation.'
+                    : `No active rules in ${entityLabel.plural} matched this test record.`}
+                </Typography>
+              </Paper>
+            ) : (
+              <Stack spacing={1.5}>
+                {testEvaluationResults.map((match, idx) => {
+                  const rule = match.rule;
+                  return (
+                    <Paper
+                      key={rule.id || idx}
+                      variant="outlined"
+                      sx={{
+                        p: 1.5,
+                        borderColor: 'hsl(var(--border))',
+                        bgcolor: 'hsl(var(--muted) / 0.15)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1,
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                            {rule.name}
+                          </Typography>
+                          <Chip
+                            size="small"
+                            label={`Priority ${rule.priority}`}
+                            sx={{
+                              height: 18,
+                              fontSize: '0.65rem',
+                              bgcolor: 'hsl(var(--muted))',
+                              color: 'hsl(var(--foreground))',
+                            }}
+                          />
+                        </Box>
+                        <Chip
+                          size="small"
+                          label="Matched"
+                          sx={{
+                            height: 18,
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            bgcolor: 'hsl(var(--severity-low) / 0.15)',
+                            color: 'hsl(var(--severity-low))',
+                          }}
+                        />
+                      </Box>
+
+                      {/* Matched conditions */}
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem' }}>
+                          Matched conditions ({match.matched.length}):
+                        </Typography>
+                        {match.matched.map((c, cIdx) => (
+                          <Box
+                            key={cIdx}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              fontSize: '0.75rem',
+                              fontFamily: 'monospace',
+                              bgcolor: 'hsl(var(--muted) / 0.25)',
+                              px: 1,
+                              py: 0.25,
+                              borderRadius: 0.75,
+                            }}
+                          >
+                            <Box component="span" sx={{ color: 'hsl(var(--severity-low))', fontWeight: 600 }}>
+                              Passed
+                            </Box>
+                            <Box component="span" sx={{ color: 'hsl(var(--foreground))' }}>
+                              {c.field} {c.op} {c.value ? `"${c.value}"` : ''}
+                            </Box>
+                          </Box>
+                        ))}
+                      </Box>
+
+                      {/* Resulting actions */}
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, pt: 0.5 }}>
+                        <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem' }}>
+                          Actions that would execute:
+                        </Typography>
+                        {(rule.actions || []).map((action, aIdx) => (
+                          <Box
+                            key={aIdx}
+                            sx={{
+                              fontSize: '0.75rem',
+                              color: 'hsl(var(--foreground))',
+                              bgcolor: 'hsl(var(--background))',
+                              p: 0.75,
+                              borderRadius: 0.75,
+                              border: '1px solid hsl(var(--border))',
+                            }}
+                          >
+                            <Box component="span" sx={{ fontWeight: 600 }}>
+                              {ROUTING_ACTION_TYPE_LABELS[action.type] || action.type}
+                            </Box>
+                            {action.targetOrgId && ` -> tenant ${action.targetOrgId}`}
+                            {action.field && ` -> field "${action.field}"`}
+                            {action.value && ` -> ${action.value}`}
+                            {action.reason && ` (reason: "${action.reason}")`}
+                          </Box>
+                        ))}
+                      </Box>
+                    </Paper>
+                  );
+                })}
+              </Stack>
+            )}
+          </Box>
+        </DialogContent>
       </Dialog>
     </Box>
   );

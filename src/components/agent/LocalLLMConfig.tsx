@@ -418,7 +418,7 @@ const _LegacyLocalLLMConfig = ({ compact, hasOpenAIAuth, globalUrl }: LocalLLMCo
           py: 2,
           borderRadius: 2,
           border: '1px solid hsl(var(--border))',
-          bgcolor: 'hsl(var(--muted) / 0.3)',
+          bgcolor: 'transparent',
         }}>
           <Typography sx={{ fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>
             {isShuffleAI ? (

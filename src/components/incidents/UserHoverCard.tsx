@@ -19,7 +19,7 @@ import { useState } from 'react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
 import singulAgentIcon from '@/assets/singul-agent-icon.png';
-import { isAIAssignee } from '@/lib/utils';
+import { isAIAssignee, AI_AGENT_HANDLE } from '@/lib/utils';
 import { useUsers, type User } from '@/hooks/useUsers';
 import { openAgentDrawer } from '@/lib/agentDrawer';
 
@@ -37,6 +37,11 @@ interface UserHoverCardProps {
    * so shortening never loses information.
    */
   maxChars?: number;
+  /**
+   * Optional custom trigger element (e.g. an Avatar). When supplied, this element
+   * is wrapped as the hover trigger instead of rendering the text username.
+   */
+  children?: React.ReactNode;
 }
 
 /** Shorten a username for dense layouts, keeping it recognisable. */
@@ -77,7 +82,7 @@ export const resolveUserAvatar = (
   };
 };
 
-export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHoverCardProps) => {
+export const UserHoverCard = ({ username, isAgent, className, maxChars, children }: UserHoverCardProps) => {
   const { users } = useUsers();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -87,6 +92,7 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
   const verifiedAgent = looksLikeAgent || (isAgent === true && !realUser);
   const githubUrl = realUser?.public_profile?.github_url;
   const githubAvatar = realUser?.public_profile?.github_avatar;
+  const displayName = verifiedAgent ? AI_AGENT_HANDLE : username;
 
   // Clicking the agent name should open the same hover popup instead of
   // redirecting to another page. This keeps the interaction lightweight and
@@ -103,8 +109,19 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
     }
   };
 
-  // Plain text for unknown users (no hover card, no click).
+  // Plain text / trigger for unknown users (no hover card, no click).
   if (!verifiedAgent && !realUser) {
+    if (children) {
+      return (
+        <Box
+          component="span"
+          title={username}
+          sx={{ display: 'inline-flex', alignItems: 'center' }}
+        >
+          {children}
+        </Box>
+      );
+    }
     return (
       <Typography
         component="span"
@@ -128,28 +145,32 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
             display: 'inline-flex',
             alignItems: 'center',
             cursor: 'pointer',
-            borderRadius: 0.75,
-            px: 0.4,
-            mx: -0.4,
-            transition: 'background-color 0.15s',
-            '&:hover': {
-              bgcolor: 'hsl(var(--muted) / 0.6)',
-            },
+            borderRadius: children ? undefined : 0.75,
+            px: children ? 0 : 0.4,
+            mx: children ? 0 : -0.4,
+            transition: 'opacity 0.15s, background-color 0.15s',
+            '&:hover': children
+              ? { opacity: 0.85 }
+              : {
+                  bgcolor: 'hsl(var(--muted) / 0.6)',
+                },
           }}
         >
-          <Typography
-            component="span"
-            variant="caption"
-            className={className}
-            sx={{
-              fontWeight: 600,
-              fontSize: '0.75rem',
-              color: verifiedAgent ? 'hsl(var(--primary))' : 'text.primary',
-            }}
-            title={username}
-          >
-            {shortenName(username, maxChars)}
-          </Typography>
+          {children || (
+            <Typography
+              component="span"
+              variant="caption"
+              className={className}
+              sx={{
+                fontWeight: 600,
+                fontSize: '0.75rem',
+                color: 'text.primary',
+              }}
+              title={displayName}
+            >
+              {shortenName(displayName, maxChars)}
+            </Typography>
+          )}
         </Box>
       </HoverCardTrigger>
       <HoverCardContent
@@ -163,10 +184,8 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
             sx={{
               width: 36,
               height: 36,
-              bgcolor: verifiedAgent
-                ? 'hsl(var(--primary) / 0.18)'
-                : 'hsl(var(--muted))',
-              color: verifiedAgent ? 'hsl(var(--primary))' : 'text.secondary',
+              bgcolor: 'hsl(var(--muted))',
+              color: 'text.secondary',
             }}
           >
             {verifiedAgent ? <AgentIcon size={18} /> : <PersonIcon size={18} />}
@@ -177,7 +196,7 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
               sx={{ fontWeight: 600, fontSize: '0.85rem', lineHeight: 1.2 }}
               noWrap
             >
-              {username}
+              {displayName}
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
               {verifiedAgent ? 'AI Agent · automated responder' : (realUser?.role || 'Team member')}
@@ -209,7 +228,7 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars }: UserHo
                   Verified
                 </Typography>
                 <Chip
-                  label={looksLikeAgent ? 'Name match' : 'is_agent flag'}
+                  label="Automated responder"
                   size="small"
                   sx={{
                     height: 16,

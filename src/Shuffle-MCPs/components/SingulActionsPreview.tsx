@@ -22,6 +22,7 @@ import {
   IconButton,
   Tooltip,
   Avatar,
+  useTheme,
 } from '@mui/material';
 import {
   Code2,
@@ -32,6 +33,8 @@ import {
   Play as PlayArrowIcon
 } from 'lucide-react';
 import { API_CONFIG, getApiUrl, getAuthHeader, getTrackedOrgId } from '@/Shuffle-MCPs/api';
+import { getTopSurfaceZIndex, POPUP_OFFSET } from '@/Shuffle-MCPs/drawerLayer';
+import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 import JsonView from 'react18-json-view';
 import 'react18-json-view/src/style.css';
 import 'react18-json-view/src/dark.css';
@@ -347,6 +350,10 @@ const SingulActionsPreview = ({
   activeOrgId,
   onAuthenticate,
 }: SingulActionsPreviewProps) => {
+  const theme = useTheme();
+  const themeScope = useShuffleMcpTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const scopeClassName = themeScope?.scopeClassName ?? (isDark ? 'shuffle-mcp-scope dark' : 'shuffle-mcp-scope light');
   const defaultCategory = useMemo(() => pickDefaultCategory(categories), [categories]);
   const actions = ALL_ACTIONS;
   // Sort so that the app's default category appears first, rest follow original order.
@@ -387,7 +394,9 @@ const SingulActionsPreview = ({
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(snippet);
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(snippet);
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -535,11 +544,13 @@ const SingulActionsPreview = ({
                 }}
                 slotProps={{
                   popper: {
+                    className: scopeClassName,
                     sx: {
-                      zIndex: 10020,
+                      zIndex: (_theme) => Math.max(getTopSurfaceZIndex() + POPUP_OFFSET, 10050),
                     },
                   },
                   paper: {
+                    className: scopeClassName,
                     sx: {
                       backgroundColor: 'hsl(var(--card))',
                       color: 'hsl(var(--foreground))',
@@ -846,7 +857,7 @@ const SingulActionsPreview = ({
                 >
                   <JsonView
                     src={deepParseJsonStrings(parsedResult)}
-                    dark
+                    dark={isDark}
                     collapsed={defaultCollapsed}
                     collapseStringMode="word"
                     collapseStringsAfterLength={120}

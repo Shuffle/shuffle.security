@@ -1,7 +1,8 @@
 import { Plus as AddIcon, Trash as DeleteOutlineIcon, GripVertical as DragIndicatorIcon } from 'lucide-react';
 import { useState, useMemo } from 'react';
-import { Box, Typography, Chip, IconButton, TextField, Button } from '@mui/material';
+import { Box, Typography, Chip, IconButton, TextField, Button, CircularProgress } from '@mui/material';
 import { IncidentTask, taskCategories } from '@/config/ocsfIncidentSchema';
+import { TaskAiAssignButton } from './TaskAiAssignButton';
 import { useTaskStatuses } from '@/hooks/useEntityLabel';
 import { TaskAssigneeChip } from './TaskAssigneeChip';
 import { TaskEditDialog } from './TaskEditDialog';
@@ -38,6 +39,8 @@ const getLane = (
   return openLanes[0] || laneKeys[0];
 };
 
+const TASK_HISTORY_DEDUP_WINDOW_MS = 5 * 60 * 1000;
+
 const applyLane = (
   task: IncidentTask & { _lane?: LaneKey },
   lane: LaneKey,
@@ -46,19 +49,39 @@ const applyLane = (
 ): IncidentTask & { _lane?: LaneKey } => {
   const previousLane = getLane(task, laneKeys);
   if (previousLane === lane) return task;
-  const historyEntry = {
-    from: previousLane,
-    to: lane,
-    at: Date.now(),
-    by: by || undefined,
-  };
-  const nextHistory = [...(task.statusHistory || []), historyEntry];
+  const now = Date.now();
+  const prevHistory = task.statusHistory || [];
+  const lastEntry = prevHistory.length > 0 ? prevHistory[prevHistory.length - 1] : null;
+  let nextHistory: typeof prevHistory;
+
+  if (lastEntry && now - (lastEntry.at || 0) <= TASK_HISTORY_DEDUP_WINDOW_MS) {
+    if (lane === lastEntry.from) {
+      // Reverted back to the state before the last transition within the dedup window
+      nextHistory = prevHistory.slice(0, -1);
+    } else {
+      // Transitioned to another lane within the window - merge the transition
+      nextHistory = [
+        ...prevHistory.slice(0, -1),
+        { ...lastEntry, to: lane, at: now, by: by || lastEntry.by },
+      ];
+    }
+  } else {
+    nextHistory = [
+      ...prevHistory,
+      {
+        from: previousLane,
+        to: lane,
+        at: now,
+        by: by || undefined,
+      },
+    ];
+  }
   if (lane === 'done') {
     return {
       ...task,
       _lane: 'done',
       completed: true,
-      completedAt: task.completedAt || Date.now(),
+      completedAt: task.completedAt || now,
       statusHistory: nextHistory,
     };
   }
@@ -79,6 +102,11 @@ interface TaskKanbanBoardProps {
   currentUser: string;
   /** Task id to briefly flash, e.g. when the user clicked it in the timeline. */
   highlightTaskId?: string | null;
+  onDeleteTask?: (taskId: string) => void;
+  onAssignAi?: (task: IncidentTask, reRun?: boolean) => void;
+  assigningTaskIds?: Record<string, boolean>;
+  /** Disables mutating controls (public/read-only incident views). */
+  readOnly?: boolean;
 }
 
 /**
@@ -94,6 +122,10 @@ export const TaskKanbanBoard = ({
   incidentId,
   currentUser,
   highlightTaskId = null,
+  onDeleteTask,
+  onAssignAi,
+  assigningTaskIds,
+  readOnly = false,
 }: TaskKanbanBoardProps) => {
   const taskStatuses = useTaskStatuses();
   const laneKeys = useMemo(() => taskStatuses.map((s) => s.key), [taskStatuses]);
@@ -104,6 +136,24 @@ export const TaskKanbanBoard = ({
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [localAssigningIds, setLocalAssigningIds] = useState<Record<string, boolean>>({});
+
+  const handleAssignAi = (task: IncidentTask, reRun: boolean = false) => {
+    if (!onAssignAi || !task) return;
+    const taskId = String(task.id || "").trim();
+    if (!taskId) return;
+    if (!assigningTaskIds) {
+      setLocalAssigningIds((prev) => ({ ...prev, [taskId]: true }));
+      setTimeout(() => {
+        setLocalAssigningIds((prev) => {
+          const next = { ...prev };
+          delete next[taskId];
+          return next;
+        });
+      }, 8000);
+    }
+    onAssignAi(task, reRun);
+  };
 
   // ---------------------------------------------------------------- handlers
   const handleAddTask = () => {
@@ -129,11 +179,15 @@ export const TaskKanbanBoard = ({
   const confirmDeleteTask = () => {
     if (!pendingDeleteId) return;
     const id = pendingDeleteId;
-    onTasksChange(
-      tasks
-        .map((t) => (t.id === id ? { ...t, disabled: true } : t))
-        .filter((t) => !t.disabled),
-    );
+    if (onDeleteTask) {
+      onDeleteTask(id);
+    } else {
+      onTasksChange(
+        tasks
+          .map((t) => (t.id === id ? { ...t, disabled: true } : t))
+          .filter((t) => !t.disabled),
+      );
+    }
     setPendingDeleteId(null);
   };
 
@@ -396,16 +450,32 @@ export const TaskKanbanBoard = ({
                           >
                             {task.title}
                           </Typography>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPendingDeleteId(task.id);
-                            }}
-                            sx={{ p: 0.25 }}
-                          >
-                            <DeleteOutlineIcon size={14} />
-                          </IconButton>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                            {onAssignAi && (
+                              <TaskAiAssignButton
+                                task={task}
+                                incidentId={incidentId}
+                                isAssigning={Boolean(
+                                  task.id &&
+                                    (assigningTaskIds
+                                      ? assigningTaskIds[task.id]
+                                      : localAssigningIds[task.id]),
+                                )}
+                                readOnly={readOnly}
+                                onAssignAi={handleAssignAi}
+                              />
+                            )}
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPendingDeleteId(task.id);
+                              }}
+                              sx={{ p: 0.25 }}
+                            >
+                              <DeleteOutlineIcon size={14} />
+                            </IconButton>
+                          </Box>
                         </Box>
                         <Box
                           sx={{

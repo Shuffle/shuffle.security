@@ -41,6 +41,7 @@ import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
 import AgentUI, { type AgentUIProps } from '@/Shuffle-MCPs/components/AgentUI';
 import { type AgentRunDrawerTab } from '@/Shuffle-MCPs/components/AgentRunDrawer';
 import LocalLLMConfig from '@/Shuffle-MCPs/components/LocalLLMConfig';
+import { openSupportEscalation } from '@/Shuffle-MCPs/supportEscalation';
 import { type ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
 import {
@@ -60,6 +61,12 @@ export interface AgentDrawerOpenDetail {
   tab?: AgentRunDrawerTab;
   source?: string;
   defaultInput?: string;
+  autoSubmit?: boolean;
+  taskId?: string;
+  incidentId?: string;
+  incidentContext?: Record<string, any>;
+  executionId?: string | null;
+  resetExecution?: boolean;
 }
 
 export const ASK_AI_PANEL_WIDTH_STORAGE_KEY = 'shuffle:ask_ai_panel_width';
@@ -67,6 +74,10 @@ export const MIN_ASK_AI_PANEL_WIDTH = 340;
 export const MAX_ASK_AI_PANEL_WIDTH = 960;
 
 export interface AskAiSidePanelProps extends ShuffleHostProps {
+  /** Target incident ID */
+  incidentId?: string;
+  /** Structured incident context */
+  incidentContext?: Record<string, any>;
   /** Whether the side panel is open */
   open: boolean;
   /** Callback to close the side panel */
@@ -153,6 +164,8 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   defaultInput,
   serverside,
   colorMode,
+  incidentId: propIncidentId,
+  incidentContext: propIncidentContext,
   sx,
 }) => {
   const themeScope = useShuffleMcpTheme();
@@ -271,6 +284,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   const currentTab = propActiveTab !== undefined ? propActiveTab : internalTab;
 
   const [controlledDefaultInput, setControlledDefaultInput] = useState<string | undefined>(defaultInput);
+  const [controlledAutoSubmit, setControlledAutoSubmit] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
     if (defaultInput !== undefined) {
@@ -279,6 +293,16 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   }, [defaultInput]);
 
   const effectiveDefaultInput = controlledDefaultInput ?? defaultInput ?? agentUIProps?.defaultInput;
+  const effectiveAutoSubmit = controlledAutoSubmit ?? agentUIProps?.autoSubmit;
+
+  const isBetaRoute =
+    context.isBeta === true ||
+    currentPathname.startsWith('/incidents') ||
+    currentPathname.startsWith('/incidents-simple') ||
+    currentPathname.startsWith('/cases') ||
+    currentPathname.startsWith('/alerts') ||
+    currentPathname.startsWith('/tickets') ||
+    currentPathname.startsWith('/docs');
 
   const handleTabChange = useCallback(
     (nextTab: AgentRunDrawerTab) => {
@@ -305,6 +329,28 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
     prevOpenRef.current = open;
   }, [open, initialTab, onTabChange]);
 
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
+  const [activeIncidentId, setActiveIncidentId] = useState<string | null>(null);
+  const [activeIncidentContext, setActiveIncidentContext] = useState<Record<string, any> | null>(null);
+  const [runResetKey, setRunResetKey] = useState<number>(0);
+  const [lastRunInfo, setLastRunInfo] = useState<{
+    input?: string;
+    executionId?: string;
+    authorization?: string;
+    error?: string;
+    success?: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setActiveTaskId(null);
+      setActiveExecutionId(null);
+      setActiveIncidentId(null);
+      setActiveIncidentContext(null);
+    }
+  }, [open]);
+
   // Broadcast mounted status so AgentUI knows a drawer/panel is present
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -330,12 +376,128 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       if (detail?.defaultInput !== undefined) {
         setControlledDefaultInput(detail.defaultInput);
       }
+      if (detail?.autoSubmit !== undefined) {
+        setControlledAutoSubmit(detail.autoSubmit);
+      }
+      if (detail?.taskId !== undefined) {
+        setActiveTaskId(detail.taskId || null);
+      } else if (!detail?.tab) {
+        setActiveTaskId(null);
+      }
+      if (detail?.incidentId !== undefined) {
+        setActiveIncidentId(detail.incidentId || null);
+      }
+      if (detail?.incidentContext !== undefined) {
+        setActiveIncidentContext(detail.incidentContext || null);
+      }
+      if (detail?.resetExecution) {
+        setActiveExecutionId(null);
+        setLastRunInfo(null);
+        setRunResetKey((k) => k + 1);
+      } else if (detail?.executionId !== undefined) {
+        setActiveExecutionId(detail.executionId || null);
+      } else if (detail?.taskId) {
+        setActiveExecutionId(null);
+      }
     };
     window.addEventListener(AGENT_DRAWER_OPEN_EVENT, onOpen as EventListener);
     return () => {
       window.removeEventListener(AGENT_DRAWER_OPEN_EVENT, onOpen as EventListener);
     };
   }, [handleTabChange]);
+
+  const handleAgentRun = useCallback(
+    (event: { input: string; success: boolean; executionId?: string; authorization?: string; error?: string }) => {
+      setLastRunInfo({
+        input: event.input,
+        executionId: event.executionId,
+        authorization: event.authorization,
+        error: event.error,
+        success: event.success,
+      });
+      if (event.executionId) {
+        setActiveExecutionId(event.executionId);
+      }
+      if (event.executionId && activeTaskId) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('shuffle:task_ai_execution', {
+              detail: {
+                taskId: activeTaskId,
+                executionId: event.executionId,
+                status: event.success ? 'running' : 'failed',
+              },
+            }),
+          );
+        }
+      }
+    },
+    [activeTaskId],
+  );
+
+  const effectiveStorageKey = activeTaskId
+    ? `${context.storageKey}:task:${activeTaskId}`
+    : context.storageKey;
+
+  const urlExecutionId = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const s = search ?? window.location.search;
+    return new URLSearchParams(s).get('execution_id');
+  }, [search]);
+
+  const urlAuthorization = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const s = search ?? window.location.search;
+    return new URLSearchParams(s).get('authorization');
+  }, [search]);
+
+  const hasAgentRun = Boolean(
+    lastRunInfo?.executionId ||
+    lastRunInfo?.input ||
+    activeExecutionId ||
+    urlExecutionId ||
+    (runResetKey === 0 && effectiveStorageKey && getPageContextChoice(effectiveStorageKey)?.executionId)
+  );
+
+  const handleEscalateToSupport = useCallback(() => {
+    const savedChoice = effectiveStorageKey ? getPageContextChoice(effectiveStorageKey) : null;
+    const execId = lastRunInfo?.executionId || activeExecutionId || urlExecutionId || savedChoice?.executionId;
+    const auth = lastRunInfo?.authorization || urlAuthorization || savedChoice?.authorization;
+    const execStatus =
+      lastRunInfo?.success !== undefined
+        ? (lastRunInfo.success ? 'FINISHED' : 'FAILED')
+        : (savedChoice?.executionStatus || (execId ? 'EXECUTING' : undefined));
+    const question = lastRunInfo?.input || effectiveDefaultInput || savedChoice?.draftPrompt;
+    const currentFullUrl = typeof window !== 'undefined' ? window.location.href : undefined;
+
+    openSupportEscalation({
+      userdata,
+      sourceUrl: currentFullUrl,
+      pathname: currentPathname,
+      search: currentSearch,
+      entityTitle,
+      initialQuestion: question,
+      executionId: execId || undefined,
+      authorization: auth || undefined,
+      executionStatus: execStatus,
+      error: lastRunInfo?.error,
+    });
+  }, [
+    userdata,
+    currentPathname,
+    currentSearch,
+    entityTitle,
+    lastRunInfo,
+    activeExecutionId,
+    urlExecutionId,
+    urlAuthorization,
+    effectiveDefaultInput,
+    effectiveStorageKey,
+  ]);
+
+  const agentUiKey = activeTaskId
+    ? `${context.storageKey}:task:${activeTaskId}:${activeExecutionId || 'fresh'}:${runResetKey}`
+    : `${context.storageKey}:${runResetKey}`;
 
   const effectiveLocalLLMSlot =
     localLLMSlot ?? (
@@ -427,20 +589,45 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
     const startX = e.clientX;
     const startW = panelWidth;
 
+    let rafId: number | null = null;
+    let currentNextWidth = startW;
+
+    if (typeof document !== 'undefined') {
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'col-resize';
+    }
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = startX - moveEvent.clientX;
       const maxAllowed = Math.min(MAX_ASK_AI_PANEL_WIDTH, (window.innerWidth || 1200) - 40);
       const nextWidth = Math.round(
         Math.max(MIN_ASK_AI_PANEL_WIDTH, Math.min(maxAllowed, startW + deltaX))
       );
-      setPanelWidth(nextWidth);
-      if (typeof document !== 'undefined') {
-        document.documentElement.style.setProperty('--ask-ai-panel-width', `${nextWidth}px`);
+      currentNextWidth = nextWidth;
+
+      if (!rafId) {
+        rafId = window.requestAnimationFrame(() => {
+          rafId = null;
+          if (panelRef.current) {
+            panelRef.current.style.width = `${currentNextWidth}px`;
+          }
+          if (typeof document !== 'undefined') {
+            document.documentElement.style.setProperty('--ask-ai-panel-width', `${currentNextWidth}px`);
+          }
+        });
       }
     };
 
     const handleMouseUp = (upEvent: MouseEvent) => {
       setIsResizing(false);
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      if (typeof document !== 'undefined') {
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+      }
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
       const deltaX = startX - upEvent.clientX;
@@ -448,9 +635,16 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       const finalWidth = Math.round(
         Math.max(MIN_ASK_AI_PANEL_WIDTH, Math.min(maxAllowed, startW + deltaX))
       );
-      try {
-        localStorage.setItem(ASK_AI_PANEL_WIDTH_STORAGE_KEY, String(finalWidth));
-      } catch {}
+      setPanelWidth(finalWidth);
+      if (panelRef.current) {
+        panelRef.current.style.width = '';
+      }
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.setProperty('--ask-ai-panel-width', `${finalWidth}px`);
+        try {
+          localStorage.setItem(ASK_AI_PANEL_WIDTH_STORAGE_KEY, String(finalWidth));
+        } catch {}
+      }
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -463,6 +657,9 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
     const startX = e.touches[0].clientX;
     const startW = panelWidth;
 
+    let rafId: number | null = null;
+    let currentNextWidth = startW;
+
     const handleTouchMove = (moveEvent: TouchEvent) => {
       if (moveEvent.touches.length !== 1) return;
       const deltaX = startX - moveEvent.touches[0].clientX;
@@ -470,14 +667,27 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       const nextWidth = Math.round(
         Math.max(MIN_ASK_AI_PANEL_WIDTH, Math.min(maxAllowed, startW + deltaX))
       );
-      setPanelWidth(nextWidth);
-      if (typeof document !== 'undefined') {
-        document.documentElement.style.setProperty('--ask-ai-panel-width', `${nextWidth}px`);
+      currentNextWidth = nextWidth;
+
+      if (!rafId) {
+        rafId = window.requestAnimationFrame(() => {
+          rafId = null;
+          if (panelRef.current) {
+            panelRef.current.style.width = `${currentNextWidth}px`;
+          }
+          if (typeof document !== 'undefined') {
+            document.documentElement.style.setProperty('--ask-ai-panel-width', `${currentNextWidth}px`);
+          }
+        });
       }
     };
 
     const handleTouchEnd = (endEvent: TouchEvent) => {
       setIsResizing(false);
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+        rafId = null;
+      }
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
       const clientX = endEvent.changedTouches[0]?.clientX ?? startX;
@@ -486,9 +696,16 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       const finalWidth = Math.round(
         Math.max(MIN_ASK_AI_PANEL_WIDTH, Math.min(maxAllowed, startW + deltaX))
       );
-      try {
-        localStorage.setItem(ASK_AI_PANEL_WIDTH_STORAGE_KEY, String(finalWidth));
-      } catch {}
+      setPanelWidth(finalWidth);
+      if (panelRef.current) {
+        panelRef.current.style.width = '';
+      }
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.setProperty('--ask-ai-panel-width', `${finalWidth}px`);
+        try {
+          localStorage.setItem(ASK_AI_PANEL_WIDTH_STORAGE_KEY, String(finalWidth));
+        } catch {}
+      }
     };
 
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -545,6 +762,19 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
 
   return (
     <>
+      {/* Full-screen drag overlay to prevent pointer events / iframe hijacking during resize */}
+      {isResizing && (
+        <Box
+          sx={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            cursor: 'col-resize',
+            userSelect: 'none',
+          }}
+        />
+      )}
+
       {/* Mobile-only backdrop overlay to close easily on small screens */}
       <Box
         onClick={onClose}
@@ -564,7 +794,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       <Box
         ref={panelRef}
         component="aside"
-        aria-label="Ask AI"
+        aria-label="Ask Shuffle"
         aria-hidden={!isVisible}
         className={themeScope?.scopeClassName}
         sx={[
@@ -602,24 +832,49 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
           onTouchStart={handleTouchResizeStart}
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize Ask AI panel"
+          aria-label="Resize Ask Shuffle panel"
           sx={{
             position: 'absolute',
             top: 0,
             bottom: 0,
-            left: 0,
-            width: 8,
+            left: -6,
+            width: 14,
             cursor: 'col-resize',
             zIndex: 1300,
             transition: 'background-color 0.15s ease',
             userSelect: 'none',
-            display: { xs: 'none', sm: 'block' },
+            display: { xs: 'none', sm: 'flex' },
+            alignItems: 'center',
+            justifyContent: 'center',
             '&:hover, &:active': {
-              bgcolor: 'hsl(var(--primary) / 0.35)',
+              bgcolor: 'hsl(var(--primary) / 0.15)',
+              '& .resize-grip': {
+                bgcolor: 'hsl(var(--primary))',
+                opacity: 1,
+              },
             },
-            ...(isResizing ? { bgcolor: 'hsl(var(--primary) / 0.55)' } : {}),
+            ...(isResizing ? {
+              bgcolor: 'hsl(var(--primary) / 0.2)',
+              '& .resize-grip': {
+                bgcolor: 'hsl(var(--primary))',
+                opacity: 1,
+              },
+            } : {}),
           }}
-        />
+        >
+          {/* Subtle vertical grip affordance bar */}
+          <Box
+            className="resize-grip"
+            sx={{
+              width: 3,
+              height: 36,
+              borderRadius: 1.5,
+              bgcolor: 'hsl(var(--muted-foreground))',
+              opacity: 0.35,
+              transition: 'opacity 0.15s ease, background-color 0.15s ease',
+            }}
+          />
+        </Box>
 
         {/* Top Header Bar */}
         <Box
@@ -635,7 +890,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
           }}
         >
           {/* Logo & Tab/Panel Title */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
             <Box
               sx={{
                 width: 24,
@@ -659,11 +914,15 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
               )}
             </Box>
             <Typography
+              noWrap
               sx={{
                 fontWeight: 700,
                 fontSize: '0.86rem',
                 color: 'hsl(var(--foreground))',
                 letterSpacing: '-0.01em',
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
               {safeActiveTab === 'permissions'
@@ -672,7 +931,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                   ? 'Local LLM Settings'
                   : (context.headerTitleFn ? context.headerTitleFn(entityTitle) : context.headerTitle) ||
                     (context.buttonLabelFn ? context.buttonLabelFn(entityTitle) : context.buttonLabel) ||
-                    'Ask AI'}
+                    'Ask Shuffle'}
             </Typography>
             <Box
               sx={{
@@ -683,21 +942,66 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                 px: 0.75,
                 py: 0.2,
                 borderRadius: '4px',
-                bgcolor: context.isBeta ? 'hsla(var(--primary) / 0.12)' : 'hsl(var(--muted))',
-                color: context.isBeta ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-                border: context.isBeta ? '1px solid hsla(var(--primary) / 0.26)' : '1px solid hsl(var(--border))',
+                bgcolor: isBetaRoute ? 'hsla(var(--primary) / 0.12)' : 'hsl(var(--muted))',
+                color: isBetaRoute ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+                border: isBetaRoute ? '1px solid hsla(var(--primary) / 0.26)' : '1px solid hsl(var(--border))',
+                flexShrink: 0,
               }}
             >
-              {context.isBeta ? 'Beta' : (isLoggedIn ? (isSupport ? 'Support' : 'Agent') : 'Guest')}
+              {isBetaRoute ? 'Beta' : (isLoggedIn ? (isSupport ? 'Support' : 'Agent') : 'Guest')}
             </Box>
           </Box>
 
           {/* Header Action Controls */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+            <Tooltip
+              title={
+                hasAgentRun
+                  ? 'Talk to support'
+                  : 'Run an agent first to provide context for support'
+              }
+              arrow
+              placement="bottom"
+            >
+              <span style={{ display: 'inline-flex', cursor: hasAgentRun ? 'pointer' : 'not-allowed' }}>
+                <Button
+                  onClick={handleEscalateToSupport}
+                  disabled={!hasAgentRun}
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    height: 24,
+                    minHeight: 24,
+                    px: 1,
+                    py: 0,
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    whiteSpace: 'nowrap',
+                    borderRadius: '6px',
+                    borderColor: 'hsl(var(--border))',
+                    color: hasAgentRun ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
+                    bgcolor: 'transparent',
+                    '&:hover': {
+                      borderColor: 'hsl(var(--primary))',
+                      bgcolor: 'hsl(var(--muted))',
+                      color: 'hsl(var(--primary))',
+                    },
+                    '&.Mui-disabled': {
+                      borderColor: 'hsl(var(--border) / 0.5)',
+                      color: 'hsl(var(--muted-foreground) / 0.6)',
+                      opacity: 0.6,
+                    },
+                  }}
+                >
+                  Talk to support
+                </Button>
+              </span>
+            </Tooltip>
             <IconButton
               onClick={onClose}
               size="small"
-              aria-label="Close Ask AI panel"
+              aria-label="Close Ask Shuffle panel"
               sx={{
                 color: 'hsl(var(--muted-foreground))',
                 p: 0.75,
@@ -917,12 +1221,13 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
               }}
             >
               <AgentUI
-                key={context.storageKey}
+                {...agentUIProps}
+                key={agentUiKey}
                 sidebarLayout={true}
                 compact={true}
                 mobileView={true}
                 hideHeroIcon={true}
-                title={displayTitle}
+                title={activeTaskId ? 'Task AI Agent' : displayTitle}
                 subtitle={null}
                 hideChooseLLM={!isLoggedIn}
                 isLoggedIn={isLoggedIn}
@@ -933,16 +1238,21 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                 initialPresetId={context.presetId}
                 placeholder={context.placeholder}
                 contextCategory={context.sourceCategory}
-                contextStorageKey={context.storageKey}
+                contextStorageKey={effectiveStorageKey}
                 contextParams={context.params}
                 composeSubmitInput={context.composeInput}
                 defaultInput={effectiveDefaultInput}
+                autoSubmit={effectiveAutoSubmit}
+                executionId={activeExecutionId || undefined}
+                initialExecution={activeExecutionId ? { execution_id: activeExecutionId } : undefined}
+                onRun={handleAgentRun}
                 onAppsChange={handleAppsChange}
                 onSelectPreset={handleSelectPreset}
                 onChooseLLM={() => handleTabChange('localLLM')}
+                incidentId={activeIncidentId || propIncidentId || agentUIProps?.incidentId}
+                incidentContext={activeIncidentContext || propIncidentContext || agentUIProps?.incidentContext}
                 apiBaseUrl={globalUrl || agentUIProps?.apiBaseUrl}
                 theme={effectiveTheme}
-                {...agentUIProps}
                 sx={{
                   flex: 1,
                   height: '100%',

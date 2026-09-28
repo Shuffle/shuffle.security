@@ -33,9 +33,16 @@ const CollapsibleContent: React.FC<CollapsibleContentProps> = ({
       setOverflowing(el.scrollHeight > maxHeight + 4);
     };
     measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      try {
+        ro = new ResizeObserver(measure);
+        ro.observe(el);
+      } catch {
+        ro = null;
+      }
+    }
+    return () => ro?.disconnect();
   }, [maxHeight, children]);
 
   const toggle = () => {

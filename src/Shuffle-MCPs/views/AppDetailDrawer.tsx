@@ -9,6 +9,7 @@ import { Drawer } from '@mui/material';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 import AppDetailContent, { checkAppNameMatch } from '@/Shuffle-MCPs/views/AppDetailContent';
+import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
 
 export { checkAppNameMatch };
 
@@ -20,6 +21,8 @@ export interface AppDetailDrawerProps extends ShuffleHostProps {
   /** Pre-resolved Algolia objectID — bypasses Algolia lookup when provided (e.g. when the
    *  caller already had the hit, like AppSearchDrawer / "Add Ingestion Source"). */
   appId?: string | null;
+  /** Pre-resolved app icon/image (optional fast path from chip/picker) */
+  appImage?: string | null;
   /** Anchor side */
   anchor?: 'left' | 'right';
   /** Width in px */
@@ -44,6 +47,7 @@ export default function AppDetailDrawer({
   onClose,
   appName,
   appId,
+  appImage,
   anchor = 'right',
   width = 520,
   minWidth = 380,
@@ -66,6 +70,7 @@ export default function AppDetailDrawer({
   const drawerWidth = `min(${width}px, 100vw)`;
   const drawerMinWidth = `min(${minWidth}px, 100vw)`;
   const drawerMaxWidth = `min(${maxWidth}px, 100vw)`;
+  const drawerZIndex = useDrawerLayer(open);
 
   const handleClose = () => {
     onRefresh?.();
@@ -99,7 +104,7 @@ export default function AppDetailDrawer({
       }}
       {...({ PaperProps: drawerPaperProps } as any)}
       sx={{
-        zIndex: 9999,
+        zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
           width: `${drawerWidth} !important`,
@@ -114,6 +119,7 @@ export default function AppDetailDrawer({
         open={open}
         appName={appName}
         appId={appId}
+        appImage={appImage}
         onClose={handleClose}
         onRefresh={onRefresh}
         onAddToCanvas={onAddToCanvas}

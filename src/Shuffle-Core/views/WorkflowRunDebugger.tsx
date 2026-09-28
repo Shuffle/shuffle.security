@@ -1047,7 +1047,7 @@ export const WorkflowRunDebugger: React.FC<WorkflowRunDebuggerProps> = ({
             { name: 'Sensor Actions', id: 'SENSOR_ACTION' },
             ...workflows,
           ]}
-          sx={{ flex: 1, minWidth: 220 }}
+          sx={{ width: { xs: '100%', sm: 220, md: 240 }, minWidth: 180 }}
           onChange={(_, newValue: any) => {
             if (typeof newValue === 'string' && newValue.startsWith('$')) {
               handleWorkflowSelectionUpdate({
@@ -1067,7 +1067,7 @@ export const WorkflowRunDebugger: React.FC<WorkflowRunDebuggerProps> = ({
           slotProps={{
             textField: {
               size: 'small',
-              sx: { minWidth: 200 },
+              sx: { width: { xs: '100%', sm: 215, md: 225 }, minWidth: 200 },
             },
           }}
           ampm={false}
@@ -1080,7 +1080,7 @@ export const WorkflowRunDebugger: React.FC<WorkflowRunDebuggerProps> = ({
           slotProps={{
             textField: {
               size: 'small',
-              sx: { minWidth: 200 },
+              sx: { width: { xs: '100%', sm: 215, md: 225 }, minWidth: 200 },
             },
           }}
           ampm={false}
@@ -1125,7 +1125,7 @@ export const WorkflowRunDebugger: React.FC<WorkflowRunDebuggerProps> = ({
             );
           }}
           disabled={searchLoading}
-          sx={{ minWidth: 100, height: 40 }}
+          sx={{ minWidth: 90, height: 40 }}
         >
           {searchLoading ? <CircularProgress size={20} color="inherit" /> : 'Search'}
         </Button>

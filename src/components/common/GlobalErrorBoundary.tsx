@@ -96,6 +96,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
               p: { xs: 3, sm: 4 },
               borderRadius: 3,
               bgcolor: 'hsl(var(--card))',
+              color: 'hsl(var(--foreground))',
               border: '1px solid hsl(var(--border))',
               textAlign: 'center',
               boxSizing: 'border-box',
@@ -115,7 +116,15 @@ export class GlobalErrorBoundary extends Component<Props, State> {
               <AlertTriangle size={36} />
             </Box>
 
-            <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, fontSize: { xs: '1.25rem', sm: '1.45rem' } }}>
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 700,
+                mb: 1,
+                fontSize: { xs: '1.25rem', sm: '1.45rem' },
+                color: 'hsl(var(--foreground))',
+              }}
+            >
               Application Error Recovered
             </Typography>
 

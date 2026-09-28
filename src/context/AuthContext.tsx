@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback, useRef } from 'react';
 import { getApiUrl, getAuthHeader, getSessionAuthHeader, setRegionUrl, resetRegionUrl, getTrackedOrgId, applyRegionFromPayload, setHostBaseUrl, getHostBaseUrl, setSessionToken as persistSessionToken, clearAuthTokens, getSessionToken, isDevEnvironment, isCloud, mapCloudRegionUrl, getDefaultBaseUrl, getRegionUrl, isCapacitorNative, isCrossDomainBackend } from '@/Shuffle-MCPs/api';
 import { setRuntimeOrgId } from '@/Shuffle-MCPs/datastore';
 import { invalidateAuthenticatedAppsCache } from '@/Shuffle-MCPs/authenticatedApps';
@@ -299,7 +299,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
+      // A single 401/403 must never drop a working session: a backend that is
+      // mid-state-update, a gateway hiccup or a cold start can answer once with
+      // an auth error and then be fine. Confirm with a second, delayed attempt
+      // and only tear down the session if it still says unauthenticated.
       if (result === 'unauthenticated') {
+        await new Promise((resolve) => window.setTimeout(resolve, 1200));
+        const confirm = await fetchUserInfo(preferBearer ? token : null);
+        if (confirm === 'ok') {
+          setIsAuthenticated(true);
+          result = 'ok';
+        } else if (confirm !== 'unauthenticated') {
+          // Second attempt was transient → keep whatever we hydrated.
+          result = 'error';
+        }
+      }
+
+      if (result === 'unauthenticated') {
+        // Preserve where the user was so login can send them back, even when
+        // this happens during an unexpected reload.
+        try {
+          const path = window.location.pathname + window.location.search;
+          if (path && !path.startsWith('/login') && !path.startsWith('/register')) {
+            sessionStorage.setItem('shuffle_redirect_after_login', path);
+          }
+        } catch { /* ignore */ }
         if (token) {
           localStorage.removeItem('session_token');
           setSessionToken(null);
@@ -531,6 +555,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!response.ok) {
         console.warn('Org change API returned non-OK:', response.status);
+        const detail = await response.text().catch(() => '');
+        throw new Error(
+          response.status === 401 || response.status === 403
+            ? 'You do not have access to that tenant.'
+            : `Tenant change failed (${response.status})${detail ? ': ' + detail.slice(0, 200) : ''}`,
+        );
       } else {
         // /change responds with the new tenant's region_url and resolved org_id (e.g. support pivot UUID)
         const changeData = await response.json().catch(() => null);
@@ -548,8 +578,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       window.location.reload();
     } catch (err) {
       console.error('Failed to change org:', err);
-      // Still reload on error to ensure a clean state
-      window.location.reload();
+      // Roll back to the tenant/region we came from so the user stays on a
+      // working session, then surface the failure to the caller instead of
+      // reloading into an ambiguous state.
+      try {
+        if (previousRegionUrl) {
+          setRegionUrl(previousRegionUrl, previousOrgId);
+        } else {
+          resetRegionUrl();
+        }
+        setRuntimeOrgId(previousOrgId || null);
+        await fetchUserInfo();
+      } catch { /* ignore */ }
+      throw err instanceof Error ? err : new Error('Tenant change failed');
     }
   }, [fetchUserInfo, userInfo]);
 
@@ -623,3 +664,23 @@ export const useAuth = () => {
 
 /** Non-throwing variant for components that may render outside the provider (e.g. during HMR). */
 export const useOptionalAuth = () => useContext(AuthContext);
+
+export const AuthFallbackProvider = ({ children }: { children: ReactNode }) => {
+  const existing = useContext(AuthContext);
+  const fallback = useMemo<AuthContextType>(() => {
+    let userInfo: UserInfo | null = null;
+    try {
+      const raw = typeof window !== 'undefined'
+        ? window.localStorage.getItem('shuffle_user_info') || window.localStorage.getItem('userinfo')
+        : null;
+      const parsed = raw ? JSON.parse(raw) : null;
+      userInfo = parsed && typeof parsed === 'object' ? (parsed as UserInfo) : null;
+    } catch { userInfo = null; }
+    return {
+      isAuthenticated: !!userInfo, sessionToken: null, userInfo, isLoading: false, orgMismatchWarning: false,
+      login: async () => false, logout: async () => {}, refreshUserInfo: async () => {}, setActiveOrg: async () => {}, dismissOrgMismatch: () => {},
+    };
+  }, []);
+  if (existing !== undefined) return <>{children}</>;
+  return <AuthContext.Provider value={fallback}>{children}</AuthContext.Provider>;
+};

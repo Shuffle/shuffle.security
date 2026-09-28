@@ -93,7 +93,7 @@ export const CategoryAutomations: React.FC<CategoryAutomationsProps> = ({
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <AutoFixHighIcon size={16} style={{ color: 'primary.main' }} />
+        <AutoFixHighIcon size={16} style={{ color: 'hsl(var(--primary))' }} />
         <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           Active Automations
         </Typography>

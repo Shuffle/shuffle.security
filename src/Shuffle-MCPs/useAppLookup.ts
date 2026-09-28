@@ -17,6 +17,7 @@ import { API_CONFIG } from '@/Shuffle-MCPs/api';
 import { fetchAppsViaApiConfig } from '@/Shuffle-MCPs/appsCache';
 import { fetchAppConfig } from '@/Shuffle-MCPs/appConfigFetch';
 import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
+import { isNoAuthApp, getBuiltInAppMetadata, getBuiltInAppImage } from '@/Shuffle-MCPs/noAuthApps';
 import type { AlgoliaSearchApp } from '@/Shuffle-MCPs/shuffle-mcp.helpers';
 
 export interface AppLookupResult {
@@ -136,7 +137,24 @@ export function useAppLookup(appName: string | null): AppLookupResult {
         }
       }
 
-      setInfo((prev) => prev ?? { name: searchName, description: '', image: '', categories: [] });
+      const isBuiltIn = isNoAuthApp(appName);
+      const builtInMeta = isBuiltIn ? getBuiltInAppMetadata(appName) : null;
+
+      setInfo((prev) => {
+        const next = prev ?? {
+          name: builtInMeta?.displayName || searchName,
+          description: builtInMeta?.description || '',
+          image: builtInMeta?.image || '',
+          categories: builtInMeta?.categories || ['Built-in'],
+        };
+        return {
+          ...next,
+          name: next.name || builtInMeta?.displayName || searchName,
+          description: next.description || builtInMeta?.description || '',
+          image: next.image || builtInMeta?.image || '',
+          categories: next.categories?.length ? next.categories : (builtInMeta?.categories || ['Built-in']),
+        };
+      });
       setLoading(false);
     })();
   }, [appName]);
@@ -154,8 +172,11 @@ export function useAppLookup(appName: string | null): AppLookupResult {
       const img = (entry as any).app?.large_image || (entry as any).large_image;
       if (img) return img;
     }
+    if (isNoAuthApp(appName || '')) {
+      return getBuiltInAppImage(appName || '') || '';
+    }
     return '';
-  }, [info, matchingEntries]);
+  }, [info, matchingEntries, appName]);
 
   const algoliaApp: AlgoliaSearchApp | null = useMemo(() => {
     if (!appName) return null;

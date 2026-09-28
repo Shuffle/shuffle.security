@@ -9,6 +9,9 @@
 // CSS custom properties. Host overrides still win (defaults use :where(:root),
 // specificity 0).
 import './shuffle-mcp.css';
+import '@/Shuffle-MCPs/uuid';
+import '@/Shuffle-MCPs/clipboard';
+import '@/lib/browser-shims';
 import React from 'react';
 import { ShuffleMcpThemeProvider, type ShuffleMcpColorMode } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 
@@ -81,6 +84,7 @@ import AskAiSidePanelRaw, {
   MAX_ASK_AI_PANEL_WIDTH,
 } from '@/Shuffle-MCPs/components/AskAiSidePanel';
 import AskAiWidgetRaw from '@/Shuffle-MCPs/components/AskAiWidget';
+import ApiCallViewerRaw from '@/Shuffle-MCPs/components/ApiCallViewer';
 
 export { ShuffleMcpThemeProvider } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 export type { ShuffleMcpColorMode, ShuffleMcpThemeProviderProps } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
@@ -133,7 +137,14 @@ export {
 } from '@/Shuffle-MCPs/components/AskAiSidePanel';
 export const AskAiWidget = withMcpTheme(AskAiWidgetRaw as React.ComponentType<any>, 'AskAiWidget');
 export type { AskAiWidgetProps } from '@/Shuffle-MCPs/components/AskAiWidget';
-export { useContextAwareAgent } from '@/Shuffle-MCPs/components/AskAiWidget';
+export const ApiCallViewer = withMcpTheme(ApiCallViewerRaw as React.ComponentType<any>, 'ApiCallViewer');
+export type { ApiCallViewerProps, ApiCallConfig } from '@/Shuffle-MCPs/components/ApiCallViewer';
+export {
+  useContextAwareAgent,
+  AGENT_DRAWER_OPEN_EVENT,
+  AGENT_DRAWER_CLOSE_EVENT,
+  AGENT_DRAWER_STATE_EVENT,
+} from '@/Shuffle-MCPs/components/AskAiWidget';
 export {
   registerAgentContextRule,
   getAgentContextRules,
@@ -234,6 +245,7 @@ export {
   getDatastoreItemPublic,
   getDatastoreByCategory,
   getDatastorePageSize,
+  filterItemsByCategory,
   deleteDatastoreItem,
   deleteDatastoreItems,
   DATASTORE_CATEGORIES,
@@ -302,3 +314,15 @@ export {
   fetchConnectedTools,
 } from '@/Shuffle-MCPs/connectedSourcesService';
 export type { ConnectedToolApp } from '@/Shuffle-MCPs/connectedSourcesService';
+
+// Support escalation
+export {
+  buildSupportEscalationUrl,
+  openSupportEscalation,
+  resolveContactUserInfo,
+} from '@/Shuffle-MCPs/supportEscalation';
+export type {
+  SupportEscalationContext,
+  ResolvedContactUserInfo,
+} from '@/Shuffle-MCPs/supportEscalation';
+

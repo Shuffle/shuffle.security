@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/toast';
 import { unlinkMergePair } from '@/lib/incidentRelations';
 import { UnmergeConfirmDialog } from '@/components/incidents/UnmergeConfirmDialog';
+import { getIncidentUrl, toCanonicalIncidentId } from '@/lib/incidentUrl';
 import type { LinkedIncidentSummary } from '@/hooks/useRelatedIncidents';
 
 interface MergedIncidentBannerProps {
@@ -33,7 +34,8 @@ export const MergedIncidentBanner = ({
   const primaryId = primary?.id || primaryPointerId;
   if (!primaryId) return null;
 
-  const primaryHref = `/incidents/${encodeURIComponent(primaryId)}`;
+  const canonicalPrimaryId = toCanonicalIncidentId(primaryId);
+  const primaryHref = getIncidentUrl(canonicalPrimaryId);
   const jump = (e?: React.MouseEvent) => {
     if (!primaryId) return;
     // If a modifier key is held, let the anchor's default behavior (new tab
@@ -92,7 +94,7 @@ export const MergedIncidentBanner = ({
             ? 'Loading primary incident...'
             : primary
               ? primary.title
-              : `Primary: ${primaryId}`}
+              : `Primary: ${canonicalPrimaryId}`}
         </Typography>
       </Box>
       <Tooltip title="Unmerge (rarely recommended)">

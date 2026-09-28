@@ -21,6 +21,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { broadcastAgentAborted, setLastOpenedAgentRun } from '@/Shuffle-MCPs/agentRunSync';
+import { safeRandomUUID } from '@/Shuffle-MCPs/uuid';
 
 import {
   Plus as AddIcon,
@@ -47,7 +48,7 @@ import {
   Search as SearchIcon,
   Image as ImageIcon,
   Plus as PlusIcon,
-  
+  Loader2 as Loader2Icon,
 } from 'lucide-react';
 import { fetchExecution as fetchExecutionSnapshot } from '@/Shuffle-Core/components/WorkflowRunExplorer';
 import { useNavigate, useSearchParams } from '@/lib/router-compat';
@@ -93,10 +94,13 @@ import ShuffleMarkdown from '@/Shuffle-MCPs/components/Markdown';
 
 import safeHandler from '@/Shuffle-MCPs/safeHandler';
 import AgentPresets, { AGENT_PRESETS, filterAgentPresets, isRequiredPresetApp, isSupportUser, type AgentPreset } from '@/Shuffle-MCPs/components/AgentPresets';
+import { getToolsForSkill, AGENT_TOOLS_CHANGED_EVENT } from '@/lib/agentTools';
 
 import { useAgentPromptPrefix } from '@/Shuffle-MCPs/useAgentPromptPrefix';
 import { runAgent, resolveAgentNodeId } from '@/Shuffle-MCPs/agentRun';
 import { toast } from '@/Shuffle-MCPs/toast';
+import { getPopupZIndex } from '@/Shuffle-MCPs/drawerLayer';
+import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 
 // Normalize agent answer text so react-markdown renders it correctly:
 // - Decode literal escape sequences ("\n", "\t", "\r") that come back
@@ -171,6 +175,19 @@ const readPresetAppsOverride = (presetId: string): Array<{ name: string; id?: st
   } catch {
     return null;
   }
+};
+
+const resolvePresetApps = (preset: AgentPreset): Array<{ name: string; id?: string; icon?: string }> => {
+  const baseApps = (preset.defaultApps || []).map((app) => ({ name: app.name, id: app.id, icon: app.icon }));
+  const assigned = getToolsForSkill(preset.id);
+  const merged = [...baseApps];
+  for (const t of assigned) {
+    const key = (t.id || t.name).toLowerCase();
+    if (!merged.some((m) => (m.id || m.name).toLowerCase() === key)) {
+      merged.push({ name: t.name, id: t.id, icon: (t as any).icon || undefined });
+    }
+  }
+  return merged;
 };
 
 const writePresetAppsOverride = (presetId: string, apps: Array<{ name: string; id?: string; icon?: string }>) => {
@@ -524,7 +541,11 @@ const RunFinishedSummary: React.FC<RunFinishedSummaryProps> = ({
     <>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         {isRunning ? (
-          <CircularProgress size={16} sx={{ color: 'hsl(var(--primary))' }} />
+          <Loader2Icon
+            size={16}
+            className="animate-spin"
+            style={{ color: 'hsl(var(--primary))', flexShrink: 0 }}
+          />
         ) : status === 'FINISHED' ? (
           <CheckCircleIcon size={18} color={'hsl(142 70% 45%)'} />
         ) : (
@@ -636,7 +657,7 @@ const RunFinishedSummary: React.FC<RunFinishedSummaryProps> = ({
         </Typography>
       )}
 
-      {bottomContent}
+      {status !== 'FINISHED' && status !== 'SUCCESS' && bottomContent}
     </>
   );
 };
@@ -808,7 +829,7 @@ export interface AgentUIProps {
     [k: string]: any;
   };
   /** Called whenever a run finishes (success or failure). */
-  onRun?: (info: { input: string; success: boolean; executionId?: string; error?: string }) => void;
+  onRun?: (info: { input: string; success: boolean; executionId?: string; authorization?: string; error?: string }) => void;
   /** Called whenever the chip set under the prompt changes (add/remove apps). */
   onAppsChange?: (apps: AgentUIApp[]) => void;
   /** Called whenever the active top-level view changes (start / simple / detailed). */
@@ -884,6 +905,8 @@ export interface AgentUIProps {
   contextParams?: Record<string, string>;
   /** Optional target incident ID for incident-handler skill */
   incidentId?: string;
+  /** Optional target incident context (observables, summary, tasks) */
+  incidentContext?: Record<string, unknown>;
   /** Optional target vulnerability ID for vulnerability skill */
   vulnerabilityId?: string;
   /** Optional target workflow ID for edit-workflow skill */
@@ -1042,6 +1065,7 @@ const normalizeAgentAppName = (name: string) => normalizeAppName(name);
 
 const extractAuthRequest = (decision: any): { appName: string; appId: string | null } | null => {
   if (!decision || typeof decision !== 'object') return null;
+
   const raw = decision?.run_details?.raw_response;
   let parsed: any = null;
   if (typeof raw === 'string') {
@@ -1049,8 +1073,13 @@ const extractAuthRequest = (decision: any): { appName: string; appId: string | n
   } else if (raw && typeof raw === 'object') {
     parsed = raw;
   }
-  const needsAuth = parsed && (parsed.action === 'app_authentication' || parsed.app_authentication === true);
-  if (!needsAuth) return null;
+
+  const candidateObjects = [
+    parsed,
+    decision?.result,
+    decision?.run_details,
+    decision,
+  ].filter(Boolean);
 
   let toolAppName: string | undefined;
   let appId: string | null = null;
@@ -1065,8 +1094,61 @@ const extractAuthRequest = (decision: any): { appName: string; appId: string | n
     }
   }
 
-  let appName: string | undefined = parsed.app || parsed.app_name || parsed.appname;
-  if (!appName) appName = toolAppName;
+  let needsAuth = false;
+  let candidateAppName: string | undefined;
+
+  for (const obj of candidateObjects) {
+    if (
+      obj.action === 'app_authentication' ||
+      obj.app_authentication === true ||
+      obj.action === 'authenticate' ||
+      obj.needs_auth === true ||
+      obj.auth_required === true
+    ) {
+      needsAuth = true;
+    }
+    const candidate = obj.app || obj.app_name || obj.appname;
+    if (typeof candidate === 'string' && candidate.trim()) {
+      candidateAppName = candidate.trim();
+    }
+  }
+
+  const textSources = [
+    decision?.error,
+    decision?.reason,
+    decision?.status_message,
+    decision?.message,
+    decision?.run_details?.error,
+    typeof raw === 'string' ? raw : '',
+  ];
+  const combinedText = textSources.filter(Boolean).join(' ').toLowerCase();
+  if (
+    combinedText.includes('app_authentication') ||
+    combinedText.includes('requires authentication') ||
+    combinedText.includes('missing authentication') ||
+    combinedText.includes('unauthorized') ||
+    combinedText.includes('not authenticated') ||
+    combinedText.includes('invalid credentials') ||
+    combinedText.includes('missing api key')
+  ) {
+    needsAuth = true;
+  }
+
+  if (
+    !needsAuth &&
+    (decision?.status === 'WAITING' ||
+      decision?.status === 'PENDING' ||
+      decision?.run_details?.status === 'WAITING' ||
+      decision?.run_details?.status === 'PENDING')
+  ) {
+    if (toolAppName && appRequiresAuthentication(toolAppName)) {
+      needsAuth = true;
+    }
+  }
+
+  if (!needsAuth) return null;
+
+  let appName: string | undefined = candidateAppName || toolAppName;
   if (!appName) {
     const f = (decision?.fields || []).find((x: any) => x?.key === 'app' || x?.key === 'app_name');
     if (f?.value) appName = f.value;
@@ -1082,17 +1164,22 @@ const STATUS_COLORS = {
   running: 'hsl(var(--primary))',
 };
 
-// The execution status and the agent status can disagree (e.g. agent says
-// RUNNING while the execution already says FINISHED). If *either* side reports
-// a terminal state, the run is over — prefer that terminal status everywhere.
 const TERMINAL_RUN_STATUSES = ['FINISHED', 'FAILURE', 'ABORTED', 'CANCELLED', 'CANCELED'];
 
-const resolveRunStatus = (executionStatus?: unknown, agentStatus?: unknown): string => {
-  const exec = String(executionStatus || '').toUpperCase();
-  const agent = String(agentStatus || '').toUpperCase();
-  if (TERMINAL_RUN_STATUSES.includes(exec)) return exec;
-  if (TERMINAL_RUN_STATUSES.includes(agent)) return agent;
-  return exec || agent || '';
+// The execution status and the agent status can disagree (e.g. agent says
+// RUNNING while the execution already says FINISHED). If *either* side reports
+// a terminal state, the run is complete.
+const resolveRunStatus = (execStatus?: string, agentStatus?: string): string => {
+  const e = (execStatus || '').toUpperCase();
+  const a = (agentStatus || '').toUpperCase();
+  if (e === 'FINISHED' || a === 'FINISHED' || e === 'SUCCESS' || a === 'SUCCESS') return 'FINISHED';
+  if (e === 'FAILURE' || a === 'FAILURE') return 'FAILURE';
+  if (e === 'ABORTED' || a === 'ABORTED') return 'ABORTED';
+  if (e === 'CANCELLED' || a === 'CANCELLED' || e === 'CANCELED' || a === 'CANCELED') return 'CANCELLED';
+  if (e === 'WAITING' || a === 'WAITING') return 'WAITING';
+  if (e === 'PENDING' || a === 'PENDING') return 'PENDING';
+  if (e === 'RUNNING' || a === 'RUNNING' || e === 'EXECUTING' || a === 'EXECUTING') return 'RUNNING';
+  return e || a || '';
 };
 
 const buildToolName = (apps: AgentUIApp[]): string => {
@@ -1138,7 +1225,11 @@ const DurationCountdown: React.FC<{ resumeAtMs: number }> = ({ resumeAtMs }) => 
 };
 
 
-const StatusIcon: React.FC<{ status?: string; resumeAtMs?: number }> = ({ status, resumeAtMs }) => {
+const StatusIcon: React.FC<{ status?: string; resumeAtMs?: number; authBlockedApp?: string | null }> = ({
+  status,
+  resumeAtMs,
+  authBlockedApp,
+}) => {
   const s = (status || '').toUpperCase();
   const isScheduledWait = s === 'WAITING' && !!resumeAtMs;
   // Tick while a scheduled wait is counting down so the tooltip stays accurate.
@@ -1150,7 +1241,11 @@ const StatusIcon: React.FC<{ status?: string; resumeAtMs?: number }> = ({ status
   }, [isScheduledWait]);
   let node: React.ReactNode;
   let label: string;
-  if (s === 'RUNNING' || s === 'EXECUTING' || s === '') {
+
+  if (authBlockedApp) {
+    node = <LockIcon size={20} color={'hsl(var(--destructive))'} />;
+    label = `Authentication required for ${formatAppDisplayName(authBlockedApp)} — step cannot proceed until connected`;
+  } else if (s === 'RUNNING' || s === 'EXECUTING' || s === '') {
     node = <CircularProgress size={18} sx={{ color: STATUS_COLORS.running }} />;
     label = 'Running';
   } else if (s === 'WAITING') {
@@ -1480,11 +1575,17 @@ const TimelineRow: React.FC<TimelineRowProps> = ({
     return s === 'WAITING' || s === 'RUNNING' || s === 'EXECUTING' || s === '';
   })();
 
+  const rowAuthReq = extractAuthRequest(details);
+  const isRowAuthBlocked =
+    !!rowAuthReq &&
+    !isAppAuthenticated?.(rowAuthReq.appName, rowAuthReq.appId) &&
+    (effectiveStatus === 'WAITING' || effectiveStatus === 'PENDING' || effectiveStatus === 'FAILURE' || effectiveStatus === 'ABORTED');
+
   // Default bar color: only failed executions stand out; everything else is
   // neutral so the timeline does not look like a color parade.
   const barColor = isProcessing
     ? 'hsl(var(--muted-foreground) / 0.45)'
-    : isFailed
+    : (isFailed || isRowAuthBlocked)
       ? STATUS_COLORS.error
       : 'hsl(var(--muted-foreground) / 0.35)';
   // On hover we reveal the real status color so context is still one tap away.
@@ -1492,7 +1593,7 @@ const TimelineRow: React.FC<TimelineRowProps> = ({
     ? 'hsl(var(--muted-foreground) / 0.45)'
     : effectiveStatus === 'FINISHED' || effectiveStatus === 'IGNORED'
       ? STATUS_COLORS.finished
-      : isFailed
+      : (isFailed || isRowAuthBlocked)
         ? STATUS_COLORS.error
         : STATUS_COLORS.running;
 
@@ -1514,9 +1615,25 @@ const TimelineRow: React.FC<TimelineRowProps> = ({
             : open
               ? 'hsl(var(--muted) / 0.3)'
               : 'transparent',
-        transition: 'background 0.6s ease, box-shadow 0.6s ease, opacity 0.2s ease',
-        scrollMarginTop: 96,
+        transition: 'background-color 0.2s ease',
+        '&:hover': {
+          bgcolor: 'hsl(var(--muted) / 0.4)',
+        },
         position: 'relative',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 3,
+          bgcolor: barColor,
+          transition: 'background-color 0.15s ease',
+        },
+        '&:hover::before': {
+          bgcolor: hoverBarColor,
+        },
+        scrollMarginTop: 96,
         boxShadow: highlight
           ? 'inset 0 0 0 2px hsla(var(--severity-medium) / 0.55)'
           : isRerunTarget
@@ -1527,19 +1644,14 @@ const TimelineRow: React.FC<TimelineRowProps> = ({
       }}
     >
       <Box
-        onClick={isProcessing ? undefined : onToggle}
+        onClick={onToggle}
         sx={{
           display: 'flex',
           alignItems: 'center',
           gap: 1.5,
-          px: 2,
-          py: 1.25,
-          cursor: isProcessing ? 'default' : 'pointer',
-          '--timeline-bar-color': barColor,
-          '&:hover': isProcessing ? {} : {
-            bgcolor: 'hsl(var(--muted) / 0.4)',
-            '--timeline-bar-color': hoverBarColor,
-          },
+          p: 1.5,
+          cursor: 'pointer',
+          userSelect: 'none',
         }}
       >
         <Box sx={{ width: 24, display: 'flex', justifyContent: 'center' }}>
@@ -1558,7 +1670,7 @@ const TimelineRow: React.FC<TimelineRowProps> = ({
               <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'hsl(var(--muted-foreground) / 0.5)' }} />
             )
           ) : (
-            <StatusIcon status={effectiveStatus} resumeAtMs={scheduledResumeMs} />
+            <StatusIcon status={effectiveStatus} resumeAtMs={scheduledResumeMs} authBlockedApp={isRowAuthBlocked ? rowAuthReq.appName : null} />
           )}
         </Box>
         <Box sx={{ width: 24, display: 'flex', justifyContent: 'center' }}>
@@ -2181,6 +2293,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   composeSubmitInput: propComposeSubmitInput,
   contextParams,
   incidentId: propIncidentId,
+  incidentContext: propIncidentContext,
   vulnerabilityId: propVulnerabilityId,
   workflowId: propWorkflowId,
 }) => {
@@ -2201,11 +2314,35 @@ const AgentUI: React.FC<AgentUIProps> = ({
     return h;
   }, [apiKey, orgId]);
   const hasApiKey = !!apiKey || !!API_CONFIG.apiKey;
+
+  const resolvedIncidentId = propIncidentId || (
+    contextCategory === 'incidents' ? contextParams?.id : undefined
+  ) || (
+    typeof window !== 'undefined' ? (window as any).__shuffleActiveIncidentId : undefined
+  );
+
+  const resolvedIncidentContext = propIncidentContext || (
+    typeof window !== 'undefined' ? (window as any).__shuffleActiveIncidentContext : undefined
+  );
+
+  const resolvedVulnerabilityId = propVulnerabilityId || (
+    contextCategory === 'vulnerabilities' ? contextParams?.id : undefined
+  ) || (
+    typeof window !== 'undefined' ? (window as any).__shuffleActiveVulnerabilityId : undefined
+  );
+
+  const resolvedWorkflowId = propWorkflowId || (
+    contextCategory === 'workflows' ? contextParams?.id : undefined
+  ) || (
+    typeof window !== 'undefined' ? (window as any).__shuffleActiveWorkflowId : undefined
+  );
   // Phone-sized viewports get a condensed starter block: no hero icon,
   // smaller title, tighter vertical rhythm. Desktop is unchanged.
   // When mobileView is explicitly provided, it overrides the viewport check.
   const isPhoneScreen = useMediaQuery('(max-width:600px)', { noSsr: true });
   const isPhone = mobileView !== undefined ? mobileView : isPhoneScreen;
+  const themeScope = useShuffleMcpTheme();
+  const scopeClassName = themeScope?.scopeClassName || 'shuffle-mcp-scope';
   const [actionInput, setActionInput] = useState<string>(() => {
     if (contextStorageKey) {
       const saved = getPageContextChoice(contextStorageKey);
@@ -2322,12 +2459,20 @@ const AgentUI: React.FC<AgentUIProps> = ({
       setSelectedPreset(match);
       // Restoring a template must also restore ITS tools — unless custom tools were already provided
       if (defaultApps === undefined && !apps) {
+        const resolved = resolvePresetApps(match);
         const override = readPresetAppsOverride(match.id);
-        if (override) {
-          // An empty override is a real choice ("I removed every tool") — honor it.
-          setChosenApps(override);
-        } else if (match.defaultApps && match.defaultApps.length > 0) {
-          setChosenApps(match.defaultApps.map((app) => ({ name: app.name, id: app.id, icon: app.icon })));
+        if (override && override.length > 0) {
+          // Merge in any newly assigned tools from permissions that weren't in the override
+          const merged = [...override];
+          for (const app of resolved) {
+            const key = (app.id || app.name).toLowerCase();
+            if (!merged.some((m) => (m.id || m.name).toLowerCase() === key)) {
+              merged.push(app);
+            }
+          }
+          setChosenApps(merged);
+        } else {
+          setChosenApps(resolved);
         }
       }
       seededPresetIdRef.current = match.id;
@@ -2335,6 +2480,19 @@ const AgentUI: React.FC<AgentUIProps> = ({
       /* ignore storage errors */
     }
   }, [presets, defaultInput, isEffectiveSupport, initialPresetId, defaultApps, apps]);
+
+  useEffect(() => {
+    const handleToolsChanged = () => {
+      const targetPreset = selectedPreset || AGENT_PRESETS.find((p) => p.id === 'incident-response') || AGENT_PRESETS[0];
+      if (targetPreset) {
+        const next = resolvePresetApps(targetPreset);
+        setChosenApps(next);
+        writePresetAppsOverride(targetPreset.id, next);
+      }
+    };
+    window.addEventListener(AGENT_TOOLS_CHANGED_EVENT, handleToolsChanged);
+    return () => window.removeEventListener(AGENT_TOOLS_CHANGED_EVENT, handleToolsChanged);
+  }, [selectedPreset]);
 
 
 
@@ -2359,8 +2517,15 @@ const AgentUI: React.FC<AgentUIProps> = ({
     // changes; without observing it the prefilled text (e.g. on "Rerun")
     // renders underneath the chip.
     const el = presetsChipNodeRef.current;
-    const ro = el ? new ResizeObserver(measure) : null;
-    if (el && ro) ro.observe(el);
+    let ro: ResizeObserver | null = null;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      try {
+        ro = new ResizeObserver(measure);
+        ro.observe(el);
+      } catch {
+        ro = null;
+      }
+    }
 
     let cancelled = false;
     const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
@@ -2637,6 +2802,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // Populated by `loadAuthenticatedApps` so the "Choose LLM" chip can show
   // the matching vendor logo and label.
   const [detectedLLM, setDetectedLLM] = useState<{ label: string; url: string; logo: string } | null>(null);
+  /** Optimistically chosen provider label, held until the backend agrees. */
+  const pendingLLMRef = useRef<string | null>(null);
   const [configuredLLMOptions, setConfiguredLLMOptions] = useState<Array<{ label: string; id?: string }>>([]);
   const [llmMenuAnchor, setLlmMenuAnchor] = useState<null | HTMLElement>(null);
   // Apps actually allowed for the current execution, derived from the agent's
@@ -2653,7 +2820,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const [appSearchQuery, setAppSearchQuery] = useState('');
   /** Category chip the app search was opened for, so the pick can replace it. */
   const [categoryTarget, setCategoryTarget] = useState<string | null>(null);
-  const [authDrawerApp, setAuthDrawerApp] = useState<{ name: string; id?: string | null } | null>(null);
+  const [authDrawerApp, setAuthDrawerApp] = useState<{ name: string; id?: string | null; icon?: string | null } | null>(null);
   const [agentRequestLoading, setAgentRequestLoading] = useState(false);
   // Optimistic UI: track which decision the user just clicked Rerun on so we
   // can immediately hide later decisions and show a spinner on that row while
@@ -2704,13 +2871,19 @@ const AgentUI: React.FC<AgentUIProps> = ({
 
   const handleSelectPresetInternal = useCallback((preset: AgentPreset) => {
     try { localStorage.setItem(LAST_PRESET_STORAGE_KEY, preset.id); } catch { /* ignore */ }
+    const resolved = resolvePresetApps(preset);
     const override = readPresetAppsOverride(preset.id);
     if (override && override.length > 0) {
-      setChosenApps(override);
-    } else if (preset.defaultApps && preset.defaultApps.length > 0) {
-      setChosenApps(preset.defaultApps.map((app) => ({ name: app.name, id: app.id, icon: app.icon })));
+      const merged = [...override];
+      for (const app of resolved) {
+        const key = (app.id || app.name).toLowerCase();
+        if (!merged.some((m) => (m.id || m.name).toLowerCase() === key)) {
+          merged.push(app);
+        }
+      }
+      setChosenApps(merged);
     } else {
-      setChosenApps([]);
+      setChosenApps(resolved);
     }
     seededPresetIdRef.current = preset.id;
 
@@ -2864,17 +3037,22 @@ const AgentUI: React.FC<AgentUIProps> = ({
 
     measure();
     if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(() => {
-        measure();
-      });
-      ro.observe(node);
-      chipBarResizeObserverRef.current = ro;
+      try {
+        const ro = new ResizeObserver(() => {
+          measure();
+        });
+        ro.observe(node);
+        chipBarResizeObserverRef.current = ro;
+      } catch {
+        chipBarResizeObserverRef.current = null;
+      }
     }
   }, []);
   // Tracks the execution_id we currently want to display. Used to discard
   // stale poll responses from a previous run after the user has started a
   // new one (otherwise an in-flight fetch can repaint the old execution).
   const activeExecutionIdRef = useRef<string | null>(
+    executionId ||
     initialExecution?.execution_id ||
     (contextStorageKey ? getPageContextChoice(contextStorageKey)?.executionId || null : null),
   );
@@ -3035,13 +3213,17 @@ const AgentUI: React.FC<AgentUIProps> = ({
     });
   }, [availableApps]);
 
-  // Unique apps (across all decisions) that returned `app_authentication`
-  // and are not yet authenticated. Powers the Simple-view banners.
+  // Unique apps that require authentication and are not yet authenticated.
+  // Combines:
+  // 1) Any decisions waiting for or reporting missing auth
+  // 2) Any app selected in executionApps or chosenApps that requires auth and is not authenticated
   const pendingAuthApps = useMemo(() => {
     if (authAppsLoading) return [];
-    const decisions: any[] = (agentData?.decisions as any[]) || [];
     const seen = new Set<string>();
     const out: { appName: string; appId: string | null; icon: string }[] = [];
+
+    // 1) From decisions
+    const decisions: any[] = (agentData?.decisions as any[]) || [];
     for (const d of decisions) {
       const req = extractAuthRequest(d);
       if (!req) continue;
@@ -3053,8 +3235,26 @@ const AgentUI: React.FC<AgentUIProps> = ({
       const icon = appsById[req.appName]?.icon || appsById[slug]?.icon || (appId ? appsById[appId]?.icon : '') || '';
       out.push({ appName: req.appName, appId, icon });
     }
+
+    // 2) Check active execution apps and chosen apps
+    const hasAllowed = Array.isArray((agentData as any)?.allowed_actions)
+      && ((agentData as any).allowed_actions as unknown[]).length > 0;
+    const activeAppList = hasAllowed ? executionApps : chosenApps;
+
+    for (const app of activeAppList) {
+      if (!app?.name) continue;
+      const slug = normalizeAgentAppName(app.name);
+      if (seen.has(slug)) continue;
+      if (appRequiresAuthentication(slug) && !isAppAuthenticated(app.name, (app as any).id || null)) {
+        seen.add(slug);
+        const appId = (app as any).id || appsById[app.name]?.id || appsById[slug]?.id || null;
+        const icon = app.icon || appsById[app.name]?.icon || appsById[slug]?.icon || (appId ? appsById[appId]?.icon : '') || '';
+        out.push({ appName: app.name, appId, icon });
+      }
+    }
+
     return out;
-  }, [agentData, appsById, authAppsLoading, isAppAuthenticated]);
+  }, [agentData, executionApps, chosenApps, appsById, authAppsLoading, isAppAuthenticated]);
 
   // Sync controlled `apps` prop into local state.
   useEffect(() => {
@@ -3230,6 +3430,11 @@ const AgentUI: React.FC<AgentUIProps> = ({
         const app = entry?.app || entry;
         const name: string | undefined = app?.name;
         if (!name) continue;
+        // Only entries with EXPLICITLY invalid credentials are excluded here —
+        // missing validation data is not enough. isAppAuthenticated() derives
+        // its answer purely from this list, so an entry with validation.valid
+        // === false must NOT be counted as authenticated, otherwise the
+        // "Missing Auth: <tool>" warning never renders for expired keys.
         const valid = entry?.active || entry?.validation?.valid || entry?.hasValidAuth || app?.is_valid || app?.tested;
         if (valid === false) continue;
         const key = normalizeAgentAppName(name);
@@ -3306,7 +3511,16 @@ const AgentUI: React.FC<AgentUIProps> = ({
       // Shared resolver — the exact same logic the LocalLLM sidebar uses, so
       // the chip and the sidebar can never disagree. Runs on the RAW list
       // (validation state must not hide an active provider).
-      setDetectedLLM(resolveActiveLLMProvider(list));
+      // An optimistic pick wins until the backend echoes the same provider —
+      // a stale list must never flip the chip back.
+      const resolvedLLM = resolveActiveLLMProvider(list);
+      const pendingLabel = pendingLLMRef.current;
+      if (!pendingLabel) {
+        setDetectedLLM(resolvedLLM);
+      } else if ((resolvedLLM?.label || SHUFFLE_AI_PRESET) === pendingLabel) {
+        pendingLLMRef.current = null;
+        setDetectedLLM(resolvedLLM);
+      }
 
       const llmEntries = list.filter(isOpenAICompatibleAuthEntry);
       const configuredMap = new Map<string, string>();
@@ -3350,9 +3564,14 @@ const AgentUI: React.FC<AgentUIProps> = ({
         const label = customEvent.detail.activeProvider;
         const url = customEvent.detail.url || '';
         const logo = customEvent.detail.logo || getProviderLogoUrl(label, url);
-        setDetectedLLM({ label, url, logo });
+        // Do not let an unrelated broadcast overwrite a pending optimistic pick.
+        if (!pendingLLMRef.current || pendingLLMRef.current === label) {
+          setDetectedLLM({ label, url, logo });
+        }
       }
-      loadAuthenticatedApps();
+      if (!pendingLLMRef.current) {
+        loadAuthenticatedApps();
+      }
     };
     window.addEventListener('integrations-changed', handler);
     return () => window.removeEventListener('integrations-changed', handler);
@@ -3648,13 +3867,19 @@ const AgentUI: React.FC<AgentUIProps> = ({
     let initialStatus: string = 'EXECUTING';
     let savedViewMode: 'start' | 'simple' | 'detailed' | null = null;
 
-    if (executionId && authorization) {
+    if (executionId) {
       eid = executionId;
-      auth = authorization;
+      auth = authorization || null;
     } else if (readUrlParams) {
       const params = new URLSearchParams(window.location.search);
       eid = params.get('execution_id');
       auth = params.get('authorization');
+      if (!eid && typeof window !== 'undefined') {
+        const pathMatch = window.location.pathname.match(/\/agents\/([a-zA-Z0-9_.-]+)/);
+        if (pathMatch && pathMatch[1] && pathMatch[1] !== 'index') {
+          eid = pathMatch[1];
+        }
+      }
     } else if (contextStorageKey) {
       const saved = getPageContextChoice(contextStorageKey);
       if (saved?.executionId) {
@@ -3850,23 +4075,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
       }, { replace: true });
     }
 
-    const resolvedIncidentId = propIncidentId || (
-      contextCategory === 'incidents' ? contextParams?.id : undefined
-    ) || (
-      typeof window !== 'undefined' ? (window as any).__shuffleActiveIncidentId : undefined
-    );
-
-    const resolvedVulnerabilityId = propVulnerabilityId || (
-      contextCategory === 'vulnerabilities' ? contextParams?.id : undefined
-    ) || (
-      typeof window !== 'undefined' ? (window as any).__shuffleActiveVulnerabilityId : undefined
-    );
-
-    const resolvedWorkflowId = propWorkflowId || (
-      contextCategory === 'workflows' ? contextParams?.id : undefined
-    ) || (
-      typeof window !== 'undefined' ? (window as any).__shuffleActiveWorkflowId : undefined
-    );
 
     const result = await runAgent({
       input: composed.trim(),
@@ -3876,6 +4084,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       ...(apiBaseUrl ? { apiBaseUrl } : {}),
       ...(orgId ? { orgId } : {}),
       ...(resolvedIncidentId ? { incidentId: resolvedIncidentId } : {}),
+      ...(resolvedIncidentContext ? { incidentContext: resolvedIncidentContext } : {}),
       ...(resolvedVulnerabilityId ? { vulnerabilityId: resolvedVulnerabilityId } : {}),
       ...(resolvedWorkflowId ? { workflowId: resolvedWorkflowId } : {}),
       // Send a single comma-separated `tool_name` in the format
@@ -3964,6 +4173,13 @@ const AgentUI: React.FC<AgentUIProps> = ({
       // Seed an EXECUTING stub so the poll effect starts immediately,
       // then kick off the first fetch. The poller continues until terminal.
       activeExecutionIdRef.current = eid;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('shuffle:agent_execution_status', {
+            detail: { executionId: eid, status: 'running', incidentId: resolvedIncidentId },
+          }),
+        );
+      }
       if (contextStorageKey) {
         setPageContextChoice(contextStorageKey, {
           draftPrompt: '',
@@ -3984,7 +4200,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
         }, { replace: true });
       }
       getExecution(eid, auth);
-      onRun?.({ input: text, success: true, executionId: eid });
+      onRun?.({ input: text, success: true, executionId: eid, authorization: auth });
     } else {
       if (contextStorageKey && eid) {
         setPageContextChoice(contextStorageKey, {
@@ -3997,7 +4213,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       }
       // Direct response (no async execution): synthesize a single-step view
       setExecution({
-        execution_id: eid || crypto.randomUUID(),
+        execution_id: eid || safeRandomUUID(),
         authorization: auth,
         status: 'FINISHED',
         results: [{ action: { app_name: 'AI Agent' }, result: raw }],
@@ -4008,21 +4224,21 @@ const AgentUI: React.FC<AgentUIProps> = ({
       } else {
         setAgentData({ original_input: text, status: 'FINISHED', message: result.content });
       }
-      onRun?.({ input: text, success: true, executionId: eid });
+      onRun?.({ input: text, success: true, executionId: eid, authorization: auth });
     }
     // `selectedPreset` MUST be a dependency: without it the callback keeps a
     // stale skill (e.g. "Build Workflows") and keeps posting to
     // /api/v1/agent/workflow-edit after the skill was unselected.
   }, [chosenApps, executionApps, getExecution, onRun, attachedImages, readUrlParams, setSearchParams, viewMode, selectedPreset, isLoggedIn]);
 
-  // Auto-submit on mount when caller provides a defaultInput + autoSubmit.
-  const autoSubmittedRef = useRef(false);
+  // Auto-submit on mount or when defaultInput updates with autoSubmit.
+  const lastSubmittedInputRef = useRef<string | null>(null);
   useEffect(() => {
-    if (autoSubmit && defaultInput && !autoSubmittedRef.current && !executionId) {
-      autoSubmittedRef.current = true;
+    if (autoSubmit && defaultInput && defaultInput !== lastSubmittedInputRef.current) {
+      lastSubmittedInputRef.current = defaultInput;
       submitInput(defaultInput);
     }
-  }, [autoSubmit, defaultInput, executionId, submitInput]);
+  }, [autoSubmit, defaultInput, submitInput]);
 
   // ── Submit answers / continuation ──
   const submitQuestions = useCallback(async (
@@ -4552,7 +4768,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     // finish decision exists, the backend still needs a marker so we send
     // "MISSING_<short_id>" rather than guessing a fallback decision ID.
     if (!finishId && runIsFinished) {
-      const shortId = (execution?.execution_id || '').slice(-8) || crypto.randomUUID().slice(0, 8);
+      const shortId = (execution?.execution_id || '').slice(-8) || safeRandomUUID().slice(0, 8);
       finishId = `MISSING_${shortId}`;
     }
 
@@ -4709,6 +4925,40 @@ const AgentUI: React.FC<AgentUIProps> = ({
     setRunComplete(Boolean(isTerminal && !hasPendingDecision && (finishAnswer || finishDecisionId)));
   }, [execution?.status, agentData?.decisions, finishAnswer, finishDecisionId]);
 
+  // Broadcast execution status changes so assigned tasks update their state and status dots
+  useEffect(() => {
+    const eid = execution?.execution_id || activeExecutionIdRef.current;
+    const status = (execution?.status || agentData?.status || '').toUpperCase();
+    if (!eid || !status || typeof window === 'undefined') return;
+
+    if (status === 'FINISHED' || status === 'SUCCESS') {
+      window.dispatchEvent(
+        new CustomEvent('shuffle:agent_execution_status', {
+          detail: { executionId: eid, status: 'completed', incidentId: resolvedIncidentId },
+        }),
+      );
+      if (resolvedIncidentId) {
+        window.dispatchEvent(
+          new CustomEvent('incident:refresh', {
+            detail: { id: resolvedIncidentId, incidentId: resolvedIncidentId, executionId: eid },
+          }),
+        );
+      }
+    } else if (['FAILURE', 'ABORTED', 'CANCELLED', 'CANCELED'].includes(status)) {
+      window.dispatchEvent(
+        new CustomEvent('shuffle:agent_execution_status', {
+          detail: { executionId: eid, status: 'failed', incidentId: resolvedIncidentId },
+        }),
+      );
+    } else if (['RUNNING', 'EXECUTING', 'IN_PROGRESS', 'WAITING'].includes(status)) {
+      window.dispatchEvent(
+        new CustomEvent('shuffle:agent_execution_status', {
+          detail: { executionId: eid, status: 'running', incidentId: resolvedIncidentId },
+        }),
+      );
+    }
+  }, [execution?.execution_id, execution?.status, agentData?.status, resolvedIncidentId]);
+
   // Auto-focus the continuation field when the run finishes, so it is obvious
   // the execution can be continued.
   useEffect(() => {
@@ -4742,14 +4992,21 @@ const AgentUI: React.FC<AgentUIProps> = ({
   }, [onChooseLLM]);
 
   const isAiAuthIssue = useMemo(() => {
+    // If the run finished cleanly, it cannot be an AI model authentication failure.
+    const status = (execution?.status || agentData?.status || '').toUpperCase();
+    const isFinished = status === 'FINISHED' || status === 'SUCCESS';
+    if (isFinished && !isAiAuthText(error)) {
+      return false;
+    }
+
     // If the agent completed with a valid final answer that is NOT an AI auth error,
     // it did not fail AI authentication.
     if (finishAnswer && finishAnswer.trim().length > 0 && !isAiAuthText(finishAnswer)) {
-      const diagnosable = execution?.results?.length ? execution : (agentData as any);
-      if (!isAiAuthFailure(diagnosable, error || '')) return false;
+      return false;
     }
+
     const diagnosable = execution?.results?.length ? execution : (agentData as any);
-    return isAiAuthFailure(diagnosable, error || finishAnswer || '');
+    return isAiAuthFailure(diagnosable, error || '');
   }, [execution, agentData, finishAnswer, error]);
 
   const aiAuthSuggestionNode = isAiAuthIssue ? (
@@ -5164,15 +5421,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     });
   }, [finishedRunInput, chosenApps]);
 
-  // Same signal the starter view shows ("X is not authenticated"), reused in
-  // the post-run block so both views agree on what is actually missing.
-  const postRunUnauthedApps = useMemo(() => {
-    if (authAppsLoading) return [] as typeof chosenApps;
-    return chosenApps.filter((a) => {
-      const slug = normalizeAgentAppName(a.name || '');
-      return appRequiresAuthentication(slug) && !isAppAuthenticated(a.name || '', a.id || null);
-    });
-  }, [authAppsLoading, chosenApps, isAppAuthenticated]);
+
 
 
 
@@ -5270,7 +5519,23 @@ const AgentUI: React.FC<AgentUIProps> = ({
         options={[
           { value: 'start', label: 'Start', disabled: disableStartTab, title: disableStartTab ? 'Open a new agent run from the /agents page to start a new prompt' : undefined },
           { value: 'simple', label: 'Simple', disabled: !hasExecution },
-          { value: 'detailed', label: 'Detailed', disabled: !hasExecution },
+          {
+            value: 'detailed',
+            label: runIsActive ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                Detailed
+                <Loader2Icon
+                  size={12}
+                  className="animate-spin"
+                  style={{ color: 'hsl(var(--primary))' }}
+                />
+              </span>
+            ) : (
+              'Detailed'
+            ),
+            disabled: !hasExecution,
+            title: runIsActive ? 'Current agent run is in progress — view live detailed timeline' : undefined,
+          },
           { type: 'divider', key: 'div' },
           {
             type: 'action',
@@ -5298,35 +5563,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
               }
             },
           },
-          // The live run indicator is rendered via the `trailing` slot below so
-          // it can use a proper MUI Tooltip while still lining up inside the
-          // pill with the other items.
+          // The live run indicator is rendered in the Detailed tab label above.
         ]}
-        trailing={
-          runIsActive && activeTab === 'start' ? (
-            <>
-              <span
-                aria-hidden
-                style={{
-                  width: 1,
-                  height: 18,
-                  margin: '0 10px',
-                  background: 'hsl(var(--border))',
-                  alignSelf: 'center',
-                }}
-              />
-              <Tooltip title="Current agent run is still in progress" arrow>
-                <span style={{ display: 'inline-flex', alignItems: 'center', paddingRight: 6 }}>
-                  <CircularProgress
-                    size={14}
-                    thickness={5}
-                    sx={{ color: 'hsl(var(--muted-foreground))', display: 'block' }}
-                  />
-                </span>
-              </Tooltip>
-            </>
-          ) : undefined
-        }
       />
     </Box>
   );
@@ -5723,7 +5961,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // missing app/category requirements we show before a run, so the finished
   // state can help set it up. Used by both the compact and detailed views.
   // Hidden except for support users to guide towards things working better over time.
-  const postRunDiscovery = isEffectiveSupport && ((Boolean(postRunScheduleHint) && !scheduleDisabledReason) || postRunAppReqs.length > 0 || postRunUnauthedApps.length > 0) ? (
+  const postRunDiscovery = isEffectiveSupport && ((Boolean(postRunScheduleHint) && !scheduleDisabledReason) || postRunAppReqs.length > 0) ? (
     <Box
       sx={{
         display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1,
@@ -5788,27 +6026,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
           </Box>
         </Tooltip>
       )}
-      {postRunUnauthedApps.map((a) => (
-        <Tooltip key={`post-auth-${a.id || a.name}`} title={`${(a.name || '').replace(/_/g, ' ')} is not authenticated yet — click to set it up`} arrow>
-          <Box
-            role="button"
-            onClick={() => setAuthDrawerApp({ name: a.name, id: a.id || null })}
-            sx={{
-              display: 'inline-flex', alignItems: 'center', gap: 0.5,
-              px: 1, py: 0.25, borderRadius: 999,
-              border: '1px solid hsl(var(--severity-medium) / 0.55)',
-              bgcolor: 'hsl(var(--severity-medium) / 0.12)',
-              color: 'hsl(var(--foreground))',
-              fontSize: '0.8rem', textTransform: 'capitalize',
-              cursor: 'pointer',
-              '&:hover': { bgcolor: 'hsl(var(--severity-medium) / 0.2)' },
-            }}
-          >
-            <WarningIcon size={13} color={'hsl(var(--severity-medium))'} />
-            {`Authenticate ${(a.name || '').replace(/_/g, ' ')}`}
-          </Box>
-        </Tooltip>
-      ))}
       {postRunAppReqs.map((req) => (
         <Tooltip
           key={`post-${req.kind}-${req.value}`}
@@ -5968,6 +6185,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   ) : null;
 
   // Continuation form (after a finish decision)
+  const continuationMultiline = continuationText.includes('\n') || continuationText.length > 80;
   const continuationElement = (finishDecisionId && !optimisticRunning) ? (
     <Box sx={{ width: '100%', maxWidth: 640, mx: 'auto' }}>
       <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))', mb: 0.75, textAlign: 'center' }}>
@@ -5982,11 +6200,16 @@ const AgentUI: React.FC<AgentUIProps> = ({
           }
         }}
         sx={{
-          display: 'flex', alignItems: 'flex-end', gap: 1,
-          p: 1.25, borderRadius: 999,
+          display: 'flex',
+          alignItems: continuationMultiline ? 'flex-end' : 'center',
+          gap: 1,
+          borderRadius: isPhone ? (continuationMultiline ? '20px' : '28px') : '28px',
           border: '1.5px solid hsl(var(--border))',
           bgcolor: 'hsl(var(--card))',
-          transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+          px: isPhone ? 1.5 : 2.25,
+          py: isPhone ? (continuationMultiline ? 1.25 : 1) : 1,
+          boxSizing: 'border-box',
+          transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
           '&:focus-within': {
             borderColor: 'hsl(var(--primary))',
             boxShadow: '0 0 0 3px hsla(var(--primary) / 0.12)',
@@ -6008,7 +6231,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
           value={continuationText}
           onChange={(e) => setContinuationText(e.target.value)}
           onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            if (e.nativeEvent.isComposing) return;
+            if ((e.key === 'Enter' && !e.shiftKey) || ((e.metaKey || e.ctrlKey) && e.key === 'Enter')) {
               e.preventDefault();
               if (continuationText.trim() && !agentRequestLoading) {
                 submitQuestions(finishDecisionId, { continue: continuationText }, true);
@@ -6016,20 +6240,45 @@ const AgentUI: React.FC<AgentUIProps> = ({
             }
           }}
           disabled={agentRequestLoading}
-          sx={{ fontSize: '0.9rem', color: 'hsl(var(--foreground))', px: 2 }}
-        />
-        <IconButton
-          type="submit"
-          disabled={!continuationText.trim() || agentRequestLoading}
           sx={{
-            width: 36, height: 36,
-            bgcolor: continuationText.trim() && !agentRequestLoading ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
-            color: continuationText.trim() && !agentRequestLoading ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))',
-            '&:hover': continuationText.trim() && !agentRequestLoading ? { filter: 'brightness(1.1)', bgcolor: 'hsl(var(--primary))' } : {},
+            fontSize: '0.9rem',
+            color: 'hsl(var(--foreground))',
+            py: 0,
+            flex: '1 1 auto',
+            minWidth: 0,
+            '& .MuiInputBase-input': {
+              pt: '5px',
+              pb: '6px',
+              lineHeight: 1.5,
+            },
+            '& textarea::placeholder': {
+              color: 'hsl(var(--muted-foreground))',
+              opacity: 0.7,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            },
           }}
-        >
-          {agentRequestLoading ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : <SendIcon size={18} />}
-        </IconButton>
+        />
+        <Tooltip title={submitTooltip === '⌘+Enter to send' ? 'Enter to send, Shift+Enter for new line' : submitTooltip} placement="top" arrow>
+          <span>
+            <IconButton
+              type="submit"
+              disabled={!continuationText.trim() || agentRequestLoading}
+              sx={{
+                width: 32,
+                height: 32,
+                flexShrink: 0,
+                bgcolor: continuationText.trim() && !agentRequestLoading ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
+                color: continuationText.trim() && !agentRequestLoading ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))',
+                '&:hover': continuationText.trim() && !agentRequestLoading ? { filter: 'brightness(1.1)', bgcolor: 'hsl(var(--primary))' } : {},
+                '&.Mui-disabled': { bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' },
+              }}
+            >
+              {agentRequestLoading ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : (submitIcon ?? <PlayArrowRoundedIcon />)}
+            </IconButton>
+          </span>
+        </Tooltip>
       </Box>
     </Box>
   ) : null;
@@ -6602,12 +6851,16 @@ const AgentUI: React.FC<AgentUIProps> = ({
               open={suggestionsOpen}
               anchorEl={promptAnchorRef.current}
               placement="bottom-start"
-              style={{ zIndex: 1300, width: promptAnchorRef.current?.offsetWidth }}
+              className={scopeClassName}
+              data-shuffle-layer="popup"
+              style={{ zIndex: getPopupZIndex(), width: promptAnchorRef.current?.offsetWidth }}
               modifiers={[{ name: 'offset', options: { offset: [0, 6] } }]}
             >
               <ClickAwayListener onClickAway={() => setSuggestionsDismissed(true)}>
                 <Paper
                   elevation={6}
+                  className={scopeClassName}
+                  data-shuffle-layer="popup"
                   sx={{
                     bgcolor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
@@ -6845,13 +7098,37 @@ const AgentUI: React.FC<AgentUIProps> = ({
                           key={opt.label}
                           onClick={async () => {
                             setLlmMenuAnchor(null);
+                            if (isActive) return;
                             const target = opt.label === SHUFFLE_AI_PRESET ? SHUFFLE_AI_PRESET : (opt.id || opt.label);
+                            const previous = detectedLLM;
+                            pendingLLMRef.current = opt.label;
                             setDetectedLLM({
                               label: opt.label,
                               url: '',
                               logo: getProviderLogoUrl(opt.label, ''),
                             });
-                            await switchActiveLLM(target);
+                            try {
+                              const result = await switchActiveLLM(target);
+                              if (!result?.success) {
+                                pendingLLMRef.current = null;
+                                setDetectedLLM(previous);
+                                toast({
+                                  title: 'Could not change AI provider',
+                                  description: `Failed to switch to ${opt.label}.`,
+                                  variant: 'destructive',
+                                });
+                                return;
+                              }
+                            } catch (err) {
+                              pendingLLMRef.current = null;
+                              setDetectedLLM(previous);
+                              toast({
+                                title: 'Could not change AI provider',
+                                description: err instanceof Error ? err.message : 'Failed to switch provider.',
+                                variant: 'destructive',
+                              });
+                              return;
+                            }
                             loadAuthenticatedApps();
                           }}
                           sx={{
@@ -6949,6 +7226,10 @@ const AgentUI: React.FC<AgentUIProps> = ({
                   const isUnavailable = !authAppsLoading && !isAvailable && !needsAuth;
                   const isRequired = isRequiredPresetApp(selectedPreset, app.name || '');
                   const appDisplayName = formatAppDisplayName(app.name || '');
+                  const appIcon =
+                    app.icon ||
+                    availableApps.find((a) => normalizeAgentAppName(a.name || '') === slug)?.icon ||
+                    resolvedToolApps[slug]?.icon;
                   return (
                   <Tooltip
                     key={`${app.name}-${i}`}
@@ -6964,7 +7245,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                     arrow
                   >
                   <Box
-                    onClick={!agentRequestLoading ? () => setAuthDrawerApp({ name: app.name, id: app.id || null }) : undefined}
+                    onClick={!agentRequestLoading ? () => setAuthDrawerApp({ name: app.name, id: app.id || null, icon: appIcon || null }) : undefined}
                     sx={{
                       display: 'inline-flex', alignItems: 'center', gap: 0.5,
                       pl: 0.5,
@@ -6997,22 +7278,14 @@ const AgentUI: React.FC<AgentUIProps> = ({
                       } : {},
                     }}
                   >
-                    {(() => {
-                      const appIcon =
-                        app.icon ||
-                        availableApps.find((a) => normalizeAgentAppName(a.name || '') === slug)?.icon ||
-                        resolvedToolApps[slug]?.icon;
-                      return (
-                        <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, flexShrink: 0 }}>
-                          <AppFallbackIcon
-                            name={app.name}
-                            imageUrl={appIcon}
-                            size={18}
-                            style={{ borderRadius: 3, objectFit: 'contain' }}
-                          />
-                        </Box>
-                      );
-                    })()}
+                    <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, flexShrink: 0 }}>
+                      <AppFallbackIcon
+                        name={app.name}
+                        imageUrl={appIcon}
+                        size={18}
+                        style={{ borderRadius: 3, objectFit: 'contain' }}
+                      />
+                    </Box>
                     {!isPhone && (
                       <Typography
                         component="span"
@@ -7029,9 +7302,47 @@ const AgentUI: React.FC<AgentUIProps> = ({
                         {formatAppDisplayName(app.name || '')}
                       </Typography>
                     )}
-                    {(needsAuth || isUnavailable) && (
-                      <WarningIcon size={14} color={'hsl(var(--severity-medium))'} style={{ marginRight: 2 }} />
-                    )}
+                    {needsAuth ? (
+                      <Box
+                        component="span"
+                        sx={{
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          color: 'hsl(var(--destructive))',
+                          bgcolor: 'hsl(var(--destructive) / 0.12)',
+                          border: '1px solid hsl(var(--destructive) / 0.3)',
+                          borderRadius: 1,
+                          px: 0.6,
+                          py: 0.1,
+                          letterSpacing: '0.02em',
+                          textTransform: 'uppercase',
+                          ml: 0.5,
+                          mr: 0.25,
+                        }}
+                      >
+                        Missing auth
+                      </Box>
+                    ) : isUnavailable ? (
+                      <Box
+                        component="span"
+                        sx={{
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          color: 'hsl(var(--severity-medium))',
+                          bgcolor: 'hsl(var(--severity-medium) / 0.12)',
+                          border: '1px solid hsl(var(--severity-medium) / 0.3)',
+                          borderRadius: 1,
+                          px: 0.6,
+                          py: 0.1,
+                          letterSpacing: '0.02em',
+                          textTransform: 'uppercase',
+                          ml: 0.5,
+                          mr: 0.25,
+                        }}
+                      >
+                        Unavailable
+                      </Box>
+                    ) : null}
                     {isRequired ? (
                       <LockIcon
                         size={11}
@@ -7223,12 +7534,23 @@ const AgentUI: React.FC<AgentUIProps> = ({
                   return list;
                 })().map((app, i) => {
                   const slug = normalizeAgentAppName(app.name || '');
+                  const appNeedsAuth =
+                    !authAppsLoading &&
+                    appRequiresAuthentication(slug) &&
+                    !isAppAuthenticated(app.name || '', (app as any).id || null);
                   const appIcon =
                     app.icon ||
                     availableApps.find((a) => normalizeAgentAppName(a.name || '') === slug)?.icon ||
                     resolvedToolApps[slug]?.icon;
                   return (
-                    <Tooltip key={i} title={formatAppDisplayName(app.name || '')}>
+                    <Tooltip
+                      key={i}
+                      title={
+                        appNeedsAuth
+                          ? `${formatAppDisplayName(app.name || '')} — Missing authentication (Click to connect)`
+                          : formatAppDisplayName(app.name || '')
+                      }
+                    >
                       <Box
                         onClick={() => setAuthDrawerApp({ name: app.name, id: (app as any).id || null })}
                         sx={{
@@ -7242,6 +7564,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
                           bgcolor: 'hsl(var(--muted))',
                           cursor: 'pointer',
                           transition: 'transform 0.15s ease, border-color 0.15s ease',
+                          border: appNeedsAuth ? '2px solid hsl(var(--destructive)) !important' : 'none',
+                          boxShadow: appNeedsAuth ? '0 0 0 1px hsl(var(--destructive) / 0.4)' : 'none',
                           '&:hover': { transform: 'scale(1.08)', borderColor: 'hsl(var(--primary)) !important' },
                         }}
                       >
@@ -7260,8 +7584,33 @@ const AgentUI: React.FC<AgentUIProps> = ({
                 <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--foreground))', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {extractCleanDisplayPrompt(agentData?.original_input) || actionInput || 'Agent run'}
                 </Typography>
-                <Typography sx={{ fontSize: '0.7rem', color: 'hsl(var(--muted-foreground))' }}>
-                  Status: {execution?.status || agentData?.status || '—'} · {execution?.execution_id?.slice(0, 8) || ''}
+                <Typography sx={{ fontSize: '0.7rem', color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.25 }}>
+                  <span>Status: {execution?.status || agentData?.status || '—'} · {execution?.execution_id?.slice(0, 8) || ''}</span>
+                  {pendingAuthApps.map((a) => (
+                    <Box
+                      key={a.appName}
+                      component="span"
+                      onClick={() => setAuthDrawerApp({ name: a.appName, id: a.appId })}
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        px: 0.75,
+                        py: 0.15,
+                        borderRadius: 1,
+                        bgcolor: 'hsl(var(--destructive) / 0.12)',
+                        border: '1px solid hsl(var(--destructive) / 0.35)',
+                        color: 'hsl(var(--destructive))',
+                        fontSize: '0.68rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textTransform: 'none',
+                        '&:hover': { bgcolor: 'hsl(var(--destructive) / 0.2)' },
+                      }}
+                    >
+                      Missing Auth: {formatAppDisplayName(a.appName)}
+                    </Box>
+                  ))}
                 </Typography>
               </Box>
               <AgentAttachmentsButton attachments={llmImageAttachments} />
@@ -7477,6 +7826,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
               }}
             />
 
+
             {/* Simple summary view */}
             {viewMode === 'simple' && (
               <Box sx={{
@@ -7545,60 +7895,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
                         showMeta
                         bottomContent={aiAuthSuggestionNode}
                       >
-                        {pendingAuthApps.map(({ appName, appId, icon }) => {
-                          const pretty = appName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-                          return (
-                            <Box
-                              key={`auth-${appName}`}
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1.5,
-                                p: 1.5,
-                                borderRadius: 1.5,
-                                border: '1px solid hsla(var(--severity-medium) / 0.3)',
-                                bgcolor: 'hsla(var(--severity-medium) / 0.08)',
-                              }}
-                            >
-                              <LockIcon size={22} color={'hsl(var(--severity-medium))'} />
-                              <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
-                                  {pretty} requires authentication
-                                </Typography>
-                                <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
-                                  Connect your {pretty} account so the agent can complete this step, then rerun.
-                                </Typography>
-                              </Box>
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={
-                                  <Avatar
-                                    src={icon || undefined}
-                                    alt=""
-                                    variant="rounded"
-                                    sx={{
-                                      width: 18, height: 18, borderRadius: 0.5,
-                                      bgcolor: 'hsl(var(--background) / 0.4)',
-                                      color: 'hsl(var(--background))',
-                                      fontSize: '0.7rem', fontWeight: 700,
-                                      '& img': { objectFit: 'contain' },
-                                    }}
-                                  >
-                                    {pretty.charAt(0)}
-                                  </Avatar>
-                                }
-                                onClick={() => setAuthDrawerApp({ name: appName, id: appId })}
-                                sx={{
-                                  height: 36, textTransform: 'none', fontWeight: 600,
-                                }}
-                              >
-                                Authenticate {pretty}
-                              </Button>
-                            </Box>
-                          );
-                        })}
-
                         {/* Discovery: keep surfacing the schedule intent and the
                             apps this prompt needs, now that the run finished. */}
                         {!isRunning && postRunDiscovery}
@@ -7693,9 +7989,16 @@ const AgentUI: React.FC<AgentUIProps> = ({
                           );
                         })()
                       ) : !finishAnswer && isRunning ? (
-                        <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))' }}>
-                          Agent is running…
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
+                          <Loader2Icon
+                            size={14}
+                            className="animate-spin"
+                            style={{ color: 'hsl(var(--muted-foreground))', flexShrink: 0 }}
+                          />
+                          <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))' }}>
+                            Agent is running…
+                          </Typography>
+                        </Box>
                       ) : !finishAnswer ? (
                         <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))' }}>
                           No final answer returned.
@@ -8015,6 +8318,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
           onRefresh={() => { loadAuthenticatedApps(); }}
           appName={authDrawerApp?.name || null}
           appId={authDrawerApp?.id || null}
+          appImage={authDrawerApp?.icon || null}
           activeOrgId={orgId || null}
           globalUrl={apiBaseUrl}
           theme={theme}

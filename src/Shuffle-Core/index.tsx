@@ -22,6 +22,7 @@ import {
   QueryClientProvider,
   QueryClientContext,
 } from "@tanstack/react-query";
+import { AuthFallbackProvider } from "@/context/AuthContext";
 
 import UsecasesRaw, {
   UsecaseDrawer as UsecaseDrawerRaw,
@@ -104,6 +105,7 @@ const withTheme = <P extends object>(
 ) => {
   const Wrapped: React.FC<WithTheme<P>> = ({ theme, colorMode, ...rest }) => (
     <EnsureQueryClient>
+      <AuthFallbackProvider>
       <ShuffleCoreThemeProvider mode={resolveMode(theme, colorMode)}>
         {/* Forward `theme` to the inner component too — internal scoped
          *  surfaces (e.g. Usecases, UsecaseDrawer) need it for their own
@@ -112,6 +114,7 @@ const withTheme = <P extends object>(
          *  through. Stripping it broke that chain. */}
         <Inner {...(rest as P)} theme={theme} colorMode={colorMode} />
       </ShuffleCoreThemeProvider>
+      </AuthFallbackProvider>
     </EnsureQueryClient>
   );
   Wrapped.displayName = `ShuffleCore(${displayName})`;
@@ -270,7 +273,13 @@ export const SearchDialog = withTheme(
   SearchDialogRaw,
   "SearchDialog",
 );
-export { SEARCH_OPEN_EVENT } from "./components/SearchDialog";
+export {
+  SEARCH_OPEN_EVENT,
+  BASE_NAV_ITEMS,
+  SYNONYM_MAP,
+  getSynonymsForQuery,
+  algoliaDocToItem,
+} from "./components/SearchDialog";
 export type {
   SearchDialogProps,
   SearchResult,
@@ -280,6 +289,10 @@ export type {
   AppResult,
   DocResult,
   CorrelationResult,
+  AlgoliaDocHit,
+  AlgoliaSearchApp,
+  DocItem,
+  CorrelationItem,
 } from "./components/SearchDialog";
 
 // Notification settings (device push, critical pager, agent requests, general
@@ -386,6 +399,10 @@ export const MonitorHostTable = withTheme<MonitorHostTableProps>(
   "MonitorHostTable",
 );
 export type { MonitorHostTableProps } from "./views/monitors/MonitorHostTable";
+export const HostMonitor = MonitorHostTable;
+export const LocationHostMonitors = MonitorHostTable;
+export type HostMonitorProps = MonitorHostTableProps;
+export type LocationHostMonitorsProps = MonitorHostTableProps;
 
 import {
   AddHostDialog as AddHostDialogRaw,
@@ -424,5 +441,14 @@ export type {
   DateTimePreset,
   DateRangePickerProps,
 } from "./components/DateTimePicker";
+
+export { useUsecases } from "./hooks/useUsecases";
+export {
+  type Usecase,
+  ACTIVE_USECASE_IDS,
+  findWorkflowsForUsecase,
+  categoryLabel,
+  slugify,
+} from "./config/usecases";
 
 

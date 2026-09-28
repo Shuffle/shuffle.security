@@ -86,6 +86,7 @@ declare module '@/components/common/ShuffleLogo' {
 declare module '@/context/AuthContext' {
   export function useAuth(...args: any[]): any;
   export function useOptionalAuth(...args: any[]): any;
+  export function AuthFallbackProvider(props: any): any;
 }
 
 declare module '@/context/ThemeContext' {
@@ -338,6 +339,7 @@ declare module '@shuffleio/shuffle-mcps' {
   export const setDatastoreItem: any;
   export const setDatastoreItems: any;
   export const getDatastorePageSize: any;
+  export const filterItemsByCategory: any;
   export const deleteDatastoreItem: any;
   export const searchAgentActivity: any;
   export const findIngestTicketsWorkflow: any;

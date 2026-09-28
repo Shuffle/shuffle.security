@@ -79,9 +79,9 @@ const TemplatesPage = () => {
     setFormDescription(template.description || '');
     setFormSeverity(template.severity || 'medium');
     // Convert TemplateTask to IncidentTask for editing
-    setFormTasks(template.tasks.map((t, idx) => ({
+    setFormTasks((template.tasks || []).map((t, idx) => ({
       id: `task-${idx}`,
-      title: t.title,
+      title: t.title || '',
       description: t.description || '',
       category: t.category || '',
       assignee: t.assignee || '',
@@ -235,7 +235,7 @@ const TemplatesPage = () => {
           border: '1px dashed',
           borderColor: 'divider',
         }}>
-          <AssignmentIcon size={48} style={{ color: 'text.disabled', marginBottom: '16px' }} />
+          <AssignmentIcon size={48} style={{ color: 'hsl(var(--muted-foreground))', marginBottom: '16px' }} />
           <Typography variant="h6" sx={{ color: 'text.secondary', mb: 1 }}>
             No templates yet
           </Typography>
@@ -354,7 +354,7 @@ const TemplatesPage = () => {
                         }}
                       />
                       <Chip
-                        label={`${template.tasks.length} task${template.tasks.length !== 1 ? 's' : ''}`}
+                        label={`${template.tasks?.length ?? 0} task${(template.tasks?.length ?? 0) !== 1 ? 's' : ''}`}
                         size="small"
                         sx={{ backgroundColor: 'rgba(148, 163, 184, 0.1)' }}
                       />

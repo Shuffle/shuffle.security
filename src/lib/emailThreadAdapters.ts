@@ -34,7 +34,7 @@ const gmailIsDraft = (labelIds: unknown): boolean => {
  * draft, fall back to the first (newest overall) so the UI still has a
  * message expanded by default.
  */
-const assignLatest = (messages: EmailMessage[]): EmailMessage[] => {
+export const assignLatest = (messages: EmailMessage[]): EmailMessage[] => {
   if (messages.length === 0) return messages;
   let latestIdx = messages.findIndex(m => !m.isDraft);
   if (latestIdx === -1) latestIdx = 0;
@@ -286,9 +286,18 @@ const outlookToEmailThread = (raw: any, forceDraft?: boolean): EmailMessage[] =>
 const isGenericEmailEnvelope = (raw: any): boolean => {
   if (!raw || typeof raw !== 'object') return false;
   const hasFrom = !!(raw.from || raw.sender || raw.From || raw.Sender || raw.fromEmail || raw.from_email);
-  const hasBody = !!(raw.body || raw.text || raw.html || raw.Body || raw.HtmlBody || raw.TextBody || raw.content || raw.message);
-  const hasSubjectish = !!(raw.subject || raw.Subject || raw.title || raw.Title);
-  return (hasFrom && (hasBody || hasSubjectish)) || (hasSubjectish && hasBody);
+  const hasTo = !!(raw.to || raw.To || raw.recipient || raw.toRecipients);
+  const hasSubject = !!(raw.subject || raw.Subject);
+  const hasBody = !!(raw.body || raw.text || raw.html || raw.Body || raw.HtmlBody || raw.TextBody || (hasFrom && (raw.content || raw.message)));
+
+  // A generic email must have an actual sender or recipient paired with a subject or body,
+  // or an explicit email Subject header paired with an email body.
+  // Standard alert fields like `title` and `message` alone must never qualify as an email.
+  if (hasFrom && (hasSubject || hasBody)) return true;
+  if (hasTo && (hasSubject || hasBody)) return true;
+  if (hasSubject && hasBody) return true;
+
+  return false;
 };
 
 const genericToEmailThread = (raw: any, forceDraft?: boolean): EmailMessage[] => {
@@ -421,6 +430,25 @@ export const resolveEmailThread = (rawOCSF: any): ResolvedEmailThread | null => 
 export const isDraftOnlyIncident = (rawOCSF: any): boolean => {
   const resolved = resolveEmailThread(rawOCSF);
   if (!resolved || resolved.messages.length === 0) return false;
-  return resolved.messages.every(m => m.isDraft === true);
+  return resolved.messages.every((m) => m.isDraft === true);
 };
 
+/**
+ * True when the incident's resolved email thread has at least one draft message.
+ */
+export const hasDraftMessages = (rawOCSF: any): boolean => {
+  if (!rawOCSF) return false;
+  const resolved = resolveEmailThread(rawOCSF);
+  if (!resolved || resolved.messages.length === 0) return false;
+  return resolved.messages.some((m) => m.isDraft === true);
+};
+
+/**
+ * True when the incident's resolved email thread has at least one non-draft (sent) message.
+ */
+export const hasNonDraftMessages = (rawOCSF: any): boolean => {
+  if (!rawOCSF) return false;
+  const resolved = resolveEmailThread(rawOCSF);
+  if (!resolved || resolved.messages.length === 0) return false;
+  return resolved.messages.some((m) => !m.isDraft);
+};

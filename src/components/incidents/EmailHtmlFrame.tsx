@@ -262,10 +262,12 @@ const EmailHtmlFrame = ({ html, maxHeight = 4000 }: EmailHtmlFrameProps) => {
         // the load event fired) would leave the frame collapsed until the
         // user popped out and docked back.
         if (doc.body) {
-          try {
-            resizeObserver = new ResizeObserver(measure);
-            resizeObserver.observe(doc.body);
-          } catch { /* ignore */ }
+          if (typeof ResizeObserver !== 'undefined') {
+            try {
+              resizeObserver = new ResizeObserver(measure);
+              resizeObserver.observe(doc.body);
+            } catch { /* ignore */ }
+          }
           try {
             mutationObserver = new MutationObserver(measure);
             mutationObserver.observe(doc.body, { childList: true, subtree: true, characterData: true });

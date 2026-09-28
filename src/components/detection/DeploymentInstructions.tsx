@@ -122,7 +122,11 @@ export const DeploymentInstructions = ({
         ghcr.io/shuffle/shuffle-orborus:latest`;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(dockerCommand);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(dockerCommand);
+      }
+    } catch {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

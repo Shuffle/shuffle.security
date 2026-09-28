@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useRef, useState, CSSProperties } from 'react';
+import { isNoAuthApp, getBuiltInAppImage } from '@/Shuffle-MCPs/noAuthApps';
 
 const norm = (s: string) => s.toLowerCase().replace(/[\s_\-]+/g, '_');
 
@@ -66,6 +67,10 @@ const lookupCache = new Map<string, Promise<string>>();
 const lookupImageByName = (name: string): Promise<string> => {
   const key = norm(name);
   if (!key) return Promise.resolve('');
+  if (isNoAuthApp(key) || isNoAuthApp(name)) {
+    const builtInImg = getBuiltInAppImage(key) || getBuiltInAppImage(name);
+    if (builtInImg) return Promise.resolve(builtInImg);
+  }
   const hit = lookupCache.get(key);
   if (hit) return hit;
 
@@ -105,6 +110,17 @@ export const rememberAppImage = (name: string, url: string) => {
   writePersisted(norm(name), url);
 };
 
+const resolveInitialSrc = (imageUrl?: string, name?: string): string => {
+  if (imageUrl) return imageUrl;
+  const key = norm(name || '');
+  if (!key) return '';
+  if (isNoAuthApp(key) || isNoAuthApp(name || '')) {
+    const builtInImg = getBuiltInAppImage(key) || getBuiltInAppImage(name || '');
+    if (builtInImg) return builtInImg;
+  }
+  return readPersistedFresh(key) || '';
+};
+
 // Stable, accessible color from a string (HSL hue 0-360).
 const colorFromName = (name: string): string => {
   let h = 0;
@@ -129,8 +145,8 @@ export const AppFallbackIcon = ({
   className,
   alt,
 }: AppFallbackIconProps) => {
-  // Initial src: prop > persisted-localStorage hit > empty (will lookup).
-  const [src, setSrc] = useState<string>(() => imageUrl || readPersistedFresh(norm(name || '')) || '');
+  // Initial src: prop > built-in image > persisted-localStorage hit > empty (will lookup).
+  const [src, setSrc] = useState<string>(() => resolveInitialSrc(imageUrl, name));
   const [errored, setErrored] = useState(false);
   const lookedUpRef = useRef(false);
 
@@ -141,7 +157,7 @@ export const AppFallbackIcon = ({
 
   // Reset when props change
   useEffect(() => {
-    setSrc(imageUrl || readPersistedFresh(norm(name || '')) || '');
+    setSrc(resolveInitialSrc(imageUrl, name));
     setErrored(false);
     lookedUpRef.current = false;
   }, [imageUrl, name]);

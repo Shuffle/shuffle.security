@@ -40,6 +40,7 @@ import {
   Typography,
   type TextFieldProps,
 } from '@mui/material';
+import { getTopSurfaceZIndex } from '@/Shuffle-MCPs/drawerLayer';
 export type PopupTextEditorSyntax = 'plain' | 'yaml' | 'json' | 'markdown';
 
 export interface PopupTextEditorProps {
@@ -202,7 +203,7 @@ export const PopupTextEditor: React.FC<PopupTextEditorProps> = ({
         onClose={() => setOpen(false)}
         maxWidth="md"
         fullWidth
-        sx={{ zIndex: 9999 }}
+        sx={{ zIndex: (_theme: any) => Math.max(getTopSurfaceZIndex() + 10, 10060) }}
         PaperProps={{
           sx: {
             background: 'hsl(var(--card))',

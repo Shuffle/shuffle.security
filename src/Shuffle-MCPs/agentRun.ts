@@ -45,6 +45,8 @@ export interface AgentRunRequest {
   presetId?: string;
   /** Optional target incident ID for the incident-handler skill */
   incidentId?: string;
+  /** Optional structured incident context (observables, summary, tasks) */
+  incidentContext?: Record<string, unknown>;
   /** Optional target vulnerability ID for the vulnerability skill */
   vulnerabilityId?: string;
   /** Optional target workflow ID for the edit-workflow skill */
@@ -295,6 +297,9 @@ export const runAgent = async (request: AgentRunRequest): Promise<AgentRunRespon
   }
   if (request.incidentId) {
     input.incident_id = request.incidentId;
+  }
+  if (request.incidentContext) {
+    input.incident_context = request.incidentContext;
   }
   if (request.vulnerabilityId) {
     input.vulnerability_id = request.vulnerabilityId;

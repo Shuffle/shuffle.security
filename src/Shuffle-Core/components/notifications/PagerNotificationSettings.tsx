@@ -683,7 +683,9 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const handleCopySettingsPath = async () => {
     if (!permissionHelp.internalUrl) return;
     try {
-      await navigator.clipboard.writeText(permissionHelp.internalUrl);
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(permissionHelp.internalUrl);
+      }
       setCopiedPath(true);
       setTimeout(() => setCopiedPath(false), 2000);
     } catch {

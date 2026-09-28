@@ -71,8 +71,16 @@ const applyValidationStaleness = (data: AuthenticatedAppRaw[]): AuthenticatedApp
   });
 };
 
-const doFetch = async (crossOrgId?: string | null): Promise<AuthenticatedAppRaw[]> => {
-  if (!hasShuffleAuth()) return [];
+interface FetchOutcome {
+  data: AuthenticatedAppRaw[];
+  /** True when the request could not be completed (offline, 5xx, parse error).
+   *  Failures must never be cached as an empty-but-valid result, otherwise a
+   *  brief loss of connectivity leaves rows blank until a full page reload. */
+  failed: boolean;
+}
+
+const doFetch = async (crossOrgId?: string | null): Promise<FetchOutcome> => {
+  if (!hasShuffleAuth()) return { data: [], failed: false };
 
   // getAuthHeader() now scopes to the active org by default; pass crossOrgId
   // explicitly to override when reading from a different tenant.
@@ -84,12 +92,13 @@ const doFetch = async (crossOrgId?: string | null): Promise<AuthenticatedAppRaw[
       credentials: 'include',
       headers,
     });
-    if (!resp.ok) return [];
+    if (!resp.ok) return { data: [], failed: true };
     const result = await resp.json();
     const data = result?.data || result;
-    return Array.isArray(data) ? applyValidationStaleness(data) : [];
+    if (!Array.isArray(data)) return { data: [], failed: true };
+    return { data: applyValidationStaleness(data), failed: false };
   } catch {
-    return [];
+    return { data: [], failed: true };
   }
 };
 
@@ -109,19 +118,27 @@ export const fetchAuthenticatedApps = (crossOrgId?: string | null): Promise<Auth
   if (entry.promise) return entry.promise;
 
   const promise = doFetch(crossOrgId)
-    .then((data) => {
-      cache.set(key, { data, fetchedAt: Date.now() });
-      return data;
+    .then((outcome) => {
+      if (outcome.failed) {
+        // Keep any previously fetched data available, but clear the in-flight
+        // promise and timestamp so the very next call retries the network.
+        const previous = cache.get(key)?.data;
+        cache.delete(key);
+        return previous || [];
+      }
+      cache.set(key, { data: outcome.data, fetchedAt: Date.now() });
+      return outcome.data;
     })
-    .catch((err) => {
+    .catch(() => {
       // On failure, drop the in-flight promise so the next caller can retry.
       cache.delete(key);
-      throw err;
+      return [];
     });
 
   cache.set(key, { ...entry, promise });
   return promise;
 };
+
 
 /**
  * Invalidate the cached entry for one (or all) cross-org keys. Call after

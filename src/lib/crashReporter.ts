@@ -231,7 +231,7 @@ export const exportCrashLogsAsText = (): string => {
  */
 export const copyCrashLogsToClipboard = async (): Promise<boolean> => {
   const report = exportCrashLogsAsText();
-  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(report);
       return true;

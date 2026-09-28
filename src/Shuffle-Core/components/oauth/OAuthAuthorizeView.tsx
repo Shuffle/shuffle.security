@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import { getApiUrl, getAuthHeader } from '../../api';
 import { toast } from '../../toast';
+import { safeRandomUUID } from '@/utils/uuid';
 import { ShuffleCompanyLogo } from '@/components/common/ShuffleLogo';
 import { useOptionalAuth } from '@/context/AuthContext';
 
@@ -772,7 +773,7 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
     setAuthorizingStep('authorizing');
 
     try {
-      const generatedCode = `shf_auth_${typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID().replace(/-/g, '') : Date.now().toString(36) + Math.random().toString(36).substring(2)}`;
+      const generatedCode = `shf_auth_${safeRandomUUID().replace(/-/g, '')}`;
       const approvedScopeString = Array.from(selectedScopeIds).join(' ');
 
       // Backend authorization sync
@@ -952,7 +953,11 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
 
   const handleCopySimulatedUrl = useCallback(() => {
     if (!simulatedCallbackUrl) return;
-    navigator.clipboard.writeText(simulatedCallbackUrl);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(simulatedCallbackUrl).catch(() => {});
+      }
+    } catch {}
     setCopiedSimulatedUrl(true);
     setTimeout(() => setCopiedSimulatedUrl(false), 2000);
   }, [simulatedCallbackUrl]);
@@ -1180,7 +1185,11 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
             </Box>
             <IconButton
               onClick={() => {
-                navigator.clipboard.writeText(authCode);
+                try {
+                  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                    navigator.clipboard.writeText(authCode).catch(() => {});
+                  }
+                } catch {}
                 setCopiedCode(true);
                 setTimeout(() => setCopiedCode(false), 2000);
               }}
@@ -1394,7 +1403,11 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
                     variant="outlined"
                     startIcon={copiedDebug ? <Check size={12} color="#22C55E" /> : <Copy size={12} />}
                     onClick={() => {
-                      navigator.clipboard.writeText(JSON.stringify(debugPayload, null, 2));
+                      try {
+                        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                          navigator.clipboard.writeText(JSON.stringify(debugPayload, null, 2)).catch(() => {});
+                        }
+                      } catch {}
                       setCopiedDebug(true);
                       setTimeout(() => setCopiedDebug(false), 2000);
                     }}

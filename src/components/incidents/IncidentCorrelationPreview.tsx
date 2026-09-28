@@ -2,6 +2,7 @@ import { ExternalLink as OpenInNewIcon, ExternalLink as LaunchIcon, Trash as Del
 import { useEffect, useState } from 'react';
 import { Box, Typography, Chip, CircularProgress, Button, Divider, Alert } from '@mui/material';
 import { Link } from '@/lib/router-compat';
+import { getIncidentUrl, toCanonicalIncidentId } from '@/lib/incidentUrl';
 import { lookupIncidentCached } from './incidentPreviewCache';
 
 interface IncidentCorrelationPreviewProps {
@@ -116,7 +117,7 @@ export const IncidentCorrelationPreview = ({
   }, [incidentKey, category]);
 
 
-  const targetUrl = `/incidents/${incidentKey}?tab=correlations&correlation=${encodeURIComponent(correlationKey)}${currentIncidentId ? `&focus=${encodeURIComponent(currentIncidentId)}` : ''}`;
+  const targetUrl = `${getIncidentUrl(incidentKey)}?tab=correlations&correlation=${encodeURIComponent(correlationKey)}${currentIncidentId ? `&focus=${encodeURIComponent(toCanonicalIncidentId(currentIncidentId))}` : ''}`;
 
   // Severity → color (matches the rest of the app's incident severity tokens).
   const sev = (preview?.severity || '').toLowerCase();

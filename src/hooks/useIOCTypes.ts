@@ -187,18 +187,21 @@ const STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const fetchIOCTypes = async (): Promise<IOCType[]> => {
   const response = await getDatastoreByCategory(DATASTORE_CATEGORIES.IOCS);
   if (response.success && response.data && response.data.length > 0) {
-    return response.data.map(item => {
-      try {
-        const obj = JSON.parse(item.value) as IOCType;
-        // Fix double-escaped regex patterns from datastore serialization
-        if (obj.regex && obj.regex.includes('\\\\')) {
-          obj.regex = obj.regex.replace(/\\\\/g, '\\');
+    const validItems = response.data.filter(item => !item.category || item.category === DATASTORE_CATEGORIES.IOCS);
+    if (validItems.length > 0) {
+      return validItems.map(item => {
+        try {
+          const obj = JSON.parse(item.value) as IOCType;
+          // Fix double-escaped regex patterns from datastore serialization
+          if (obj.regex && obj.regex.includes('\\\\')) {
+            obj.regex = obj.regex.replace(/\\\\/g, '\\');
+          }
+          return normalizeDefaultIOCType({ ...obj, name: obj.name || item.key });
+        } catch {
+          return normalizeDefaultIOCType({ name: item.key, regex: typeof item.value === 'string' ? item.value : '', description: '' } as IOCType);
         }
-        return normalizeDefaultIOCType({ ...obj, name: obj.name || item.key });
-      } catch {
-        return normalizeDefaultIOCType({ name: item.key, regex: item.value, description: '' } as IOCType);
-      }
-    });
+      });
+    }
   }
   // No items in datastore — use built-in defaults
   return DEFAULT_IOC_TYPES;

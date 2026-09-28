@@ -82,6 +82,8 @@ export interface AppAuthentication {
     id: string;
     name: string;
     large_image: string;
+    categories?: string[];
+    description?: string;
   };
   fields: Array<{ key: string; value: string }>;
   id: string;
@@ -92,6 +94,7 @@ export interface AppAuthentication {
     /** Whether the authentication has been validated (tests ran successfully) */
     valid: boolean;
     error?: string;
+    last_valid?: number;
   };
 }
 

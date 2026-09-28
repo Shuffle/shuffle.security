@@ -1,3 +1,5 @@
+import "./lib/crypto-polyfill";
+import "./lib/browser-shims";
 import "./lib/ssr-storage";
 import "./lib/error-capture";
 

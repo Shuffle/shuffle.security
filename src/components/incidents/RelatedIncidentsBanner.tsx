@@ -13,6 +13,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 import { unlinkMergePair } from '@/lib/incidentRelations';
 import { UnmergeConfirmDialog } from '@/components/incidents/UnmergeConfirmDialog';
+import { getIncidentUrl, toCanonicalIncidentId } from '@/lib/incidentUrl';
 import type { LinkedIncidentSummary } from '@/hooks/useRelatedIncidents';
 
 interface RelatedIncidentsBannerProps {
@@ -106,7 +107,7 @@ export const RelatedIncidentsBanner = ({
   };
 
 
-  const openIncident = (id: string) => navigate(`/incidents/${encodeURIComponent(id)}`);
+  const openIncident = (id: string) => navigate(getIncidentUrl(id));
 
   return (
     <Box
@@ -214,11 +215,12 @@ export const RelatedIncidentsBanner = ({
       {expanded && linked.length > 1 && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 1.5, maxHeight: 260, overflowY: 'auto', pr: 0.5 }}>
           {sorted.map((l) => {
-            const isFlashed = highlightId === l.id;
+            const canonicalId = toCanonicalIncidentId(l.id);
+            const isFlashed = !!highlightId && toCanonicalIncidentId(highlightId) === canonicalId;
             return (
             <Box
               key={l.id}
-              data-related-id={l.id}
+              data-related-id={canonicalId}
               className={isFlashed ? 'incident-new-flash' : undefined}
               sx={{
                 display: 'flex',
@@ -246,7 +248,7 @@ export const RelatedIncidentsBanner = ({
                 {l.title}
               </Typography>
               <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))' }}>
-                {l.id.substring(0, 10)}…
+                {toCanonicalIncidentId(l.id).substring(0, 10)}…
               </Typography>
               <Tooltip title="Open">
                 <IconButton

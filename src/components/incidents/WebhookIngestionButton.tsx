@@ -1,6 +1,6 @@
-import { Webhook as WebhookIcon, Copy as ContentCopyIcon, Check as CheckIcon, CheckCircle as CheckCircleOutlineIcon, Ban as BlockIcon } from 'lucide-react';
+import { Webhook as WebhookIcon, Copy as ContentCopyIcon, Check as CheckIcon, CheckCircle as CheckCircleOutlineIcon, Ban as BlockIcon, Send as SendIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Box, IconButton, Popover, Typography, Tooltip, InputBase, Button, Chip } from '@mui/material';
+import { Box, IconButton, Popover, Typography, Tooltip, InputBase, Button, Chip, CircularProgress } from '@mui/material';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import { trackPredefinedEvent, GA_EVENTS } from '@/lib/analytics';
 import { toast } from '@/lib/toast';
@@ -8,6 +8,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useDemo } from '@/context/DemoContext';
 
 import { EntityHealth } from '@/services/workflowHealth';
+import {
+  sendSampleIncidentAndValidate,
+  IngestionValidationResult,
+  IngestionStage,
+} from '@/services/incidentIngestValidation';
 
 export interface WebhookIngestionInfo {
   /** Webhook URL to display (null if workflow doesn't exist yet) */
@@ -72,12 +77,55 @@ export const WebhookIngestionButton = ({
   const handleCopy = async () => {
     if (!webhook.url) return;
     try {
-      await navigator.clipboard.writeText(webhook.url);
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(webhook.url);
+      }
       setCopied(true);
       toast.success('Webhook URL copied');
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error('Failed to copy');
+    }
+  };
+
+  const isIncidentWebhook =
+    !workflowLabel ||
+    workflowLabel === 'Ingest Tickets_webhook' ||
+    workflowLabel.toLowerCase().includes('ticket') ||
+    (!workflowLabel.toLowerCase().includes('vulnerabilit') && !workflowLabel.toLowerCase().includes('asset'));
+
+  const [validationStage, setValidationStage] = useState<IngestionStage>('idle');
+  const [lastValidationResult, setLastValidationResult] = useState<IngestionValidationResult | null>(null);
+
+  const handleSendSampleIncident = async () => {
+    if (!webhook.url || !isEnabled || isBlocked || validationStage !== 'idle') return;
+    setValidationStage('sending');
+    setLastValidationResult(null);
+
+    try {
+      const result = await sendSampleIncidentAndValidate({
+        webhookUrl: webhook.url,
+        workflowId: webhook.workflowId,
+        onProgress: (p) => {
+          setValidationStage(p.stage);
+        },
+      });
+
+      setLastValidationResult(result);
+
+      if (result.success) {
+        const execSnippet = result.executionId ? ` (Execution ${result.executionId.slice(0, 8)})` : '';
+        toast.success(`Ingested test incident (${result.alert.sourceName})${execSnippet}`);
+        queryClient.invalidateQueries({ queryKey: ['incidents'] });
+        onToggled?.();
+      } else {
+        toast.error(result.errorMessage || 'Ingest validation encountered an issue');
+      }
+    } catch (error: any) {
+      console.error('Failed to validate ingest:', error);
+      toast.error(error?.message ? `Failed to send alert: ${error.message}` : 'Failed to send test incident to webhook');
+    } finally {
+      setValidationStage('idle');
     }
   };
 
@@ -293,24 +341,133 @@ export const WebhookIngestionButton = ({
           </Box>
         )}
 
-        {/* Enable / Disable button */}
-        <Button
-          size="small"
-          startIcon={isEnabled ? <BlockIcon size={14} /> : <CheckCircleOutlineIcon size={14} />}
-          onClick={handleToggle}
-          sx={{
-            justifyContent: 'flex-start',
-            textTransform: 'none',
-            fontSize: '0.75rem',
-            color: isEnabled ? 'hsl(var(--destructive))' : 'hsl(var(--severity-low))',
-            px: 1,
-            py: 0.5,
-            borderRadius: 1,
-            '&:hover': { bgcolor: isEnabled ? 'hsl(var(--destructive) / 0.1)' : 'hsl(var(--severity-low) / 0.1)' },
-          }}
-        >
-          {isEnabled ? 'Disable Webhook' : 'Enable Webhook'}
-        </Button>
+        {/* Action buttons stack */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+          {/* Send Test Incident button (incidents webhook only, above Disable Webhook) */}
+          {isIncidentWebhook && (
+            <Tooltip
+              title={
+                !isEnabled
+                  ? 'Enable the webhook to send a test incident'
+                  : !webhook.url
+                    ? 'Webhook URL is not yet available'
+                    : isBlocked
+                      ? 'Webhook runtime is offline'
+                      : 'Send a raw alert from a cybersecurity tool (CrowdStrike, Defender, SentinelOne, Wazuh, etc.) to the webhook'
+              }
+              placement="top"
+            >
+              <Box component="span" sx={{ display: 'block', width: '100%' }}>
+                <Button
+                  size="small"
+                  fullWidth
+                  startIcon={
+                    validationStage !== 'idle' ? (
+                      <CircularProgress size={14} sx={{ color: 'inherit' }} />
+                    ) : (
+                      <SendIcon size={14} />
+                    )
+                  }
+                  disabled={!isEnabled || !webhook.url || isBlocked || validationStage !== 'idle'}
+                  onClick={handleSendSampleIncident}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    fontSize: '0.75rem',
+                    color: 'hsl(var(--foreground))',
+                    px: 1,
+                    py: 0.5,
+                    borderRadius: 1,
+                    '&:hover': {
+                      bgcolor: 'hsl(var(--accent) / 0.5)',
+                    },
+                    '&.Mui-disabled': {
+                      opacity: 0.45,
+                      color: 'hsl(var(--muted-foreground))',
+                    },
+                  }}
+                >
+                  {validationStage === 'sending'
+                    ? 'Sending alert…'
+                    : validationStage === 'validating'
+                      ? 'Validating ingest…'
+                      : validationStage === 'polling'
+                        ? 'Polling incident…'
+                        : 'Send Test Incident'}
+                </Button>
+              </Box>
+            </Tooltip>
+          )}
+
+          {/* Enable / Disable button */}
+          <Button
+            size="small"
+            fullWidth
+            startIcon={isEnabled ? <BlockIcon size={14} /> : <CheckCircleOutlineIcon size={14} />}
+            onClick={handleToggle}
+            sx={{
+              justifyContent: 'flex-start',
+              textTransform: 'none',
+              fontSize: '0.75rem',
+              color: isEnabled ? 'hsl(var(--destructive))' : 'hsl(var(--severity-low))',
+              px: 1,
+              py: 0.5,
+              borderRadius: 1,
+              '&:hover': {
+                bgcolor: isEnabled
+                  ? 'hsl(var(--destructive) / 0.1)'
+                  : 'hsl(var(--severity-low) / 0.1)',
+              },
+            }}
+          >
+            {isEnabled ? 'Disable Webhook' : 'Enable Webhook'}
+          </Button>
+        </Box>
+
+        {/* Ingestion validation feedback */}
+        {isIncidentWebhook && lastValidationResult && (
+          <Box
+            sx={{
+              mt: 1,
+              p: 0.75,
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: lastValidationResult.success
+                ? 'hsl(140 60% 45% / 0.35)'
+                : 'hsl(var(--destructive) / 0.4)',
+              bgcolor: lastValidationResult.success
+                ? 'hsl(140 60% 45% / 0.08)'
+                : 'hsl(var(--destructive) / 0.08)',
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                display: 'block',
+                fontWeight: 600,
+                color: lastValidationResult.success ? 'hsl(140 60% 55%)' : 'hsl(var(--destructive))',
+              }}
+            >
+              {lastValidationResult.success
+                ? `Verified Ingestion: ${lastValidationResult.alert.sourceName}`
+                : 'Ingestion Issue Detected'}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                display: 'block',
+                color: 'hsl(var(--muted-foreground))',
+                wordBreak: 'break-word',
+                lineHeight: 1.25,
+                mt: 0.25,
+              }}
+            >
+              {lastValidationResult.success
+                ? `${lastValidationResult.executionId ? `Execution ${lastValidationResult.executionId.slice(0, 8)} Passed` : 'Execution Passed'}${lastValidationResult.incidentKey ? ' • Incident Materialized' : ''}`
+                : lastValidationResult.errorMessage || 'Execution encountered an error'}
+            </Typography>
+          </Box>
+        )}
       </Popover>
     </Box>
   );

@@ -3,10 +3,10 @@ import { Box, Typography, IconButton, Tooltip, CircularProgress } from '@mui/mat
 import { Plus as AddIcon, Play as PlayArrowIcon } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
 import {
   extractValidatedIngestionApps,
   extractWorkflowAppNames,
-  isWorkflowScheduleStopped,
   normalizeAppName,
   ValidatedIngestionApp,
 } from '@/Shuffle-MCPs/ingestionDetection';
@@ -80,7 +80,6 @@ export const IngestionSourcesRow = ({
   const [ingestionLoading, setIngestionLoading] = useState(true);
   const loadedOnceRef = useRef(false);
   const [ingestWorkflowId, setIngestWorkflowId] = useState<string | null>(null);
-  const [scheduleStopped, setScheduleStopped] = useState(false);
   const [webhook, setWebhook] = useState<WebhookIngestionInfo>({ url: null, exists: false, enabled: false, workflowId: null });
   const [isSyncing, setIsSyncing] = useState(false);
   const [isUpdatingApps, setIsUpdatingApps] = useState(false);
@@ -116,38 +115,41 @@ export const IngestionSourcesRow = ({
 
   const fetchIngestionApps = useCallback(async () => {
     if (!loadedOnceRef.current) setIngestionLoading(true);
+    let loadFailed = false;
     try {
-      const [authResponse, workflowsResponse] = await Promise.all([
-        fetch(getApiUrl('/api/v1/apps/authentication'), {
-          credentials: 'include',
-          headers: { ...getAuthHeader() },
-        }),
+
+      const [authApps, workflowsResponse] = await Promise.all([
+        fetchAuthenticatedApps(currentOrgId).catch(() => []),
         fetch(getApiUrl('/api/v1/workflows'), {
           credentials: 'include',
           headers: { ...getAuthHeader() },
-        }),
+        }).catch(() => null),
       ]);
 
-      if (!authResponse.ok) return;
-      const result = await authResponse.json();
-      const authApps = Array.isArray(result) ? result : (result.data || []);
+      if (!Array.isArray(authApps)) return;
+
+      // Connectivity loss: never overwrite what is already on screen with an
+      // empty list, and allow the next attempt to load normally again.
+      if (!workflowsResponse || !workflowsResponse.ok) {
+        loadFailed = true;
+        return;
+      }
+
 
       let workflowAppNames: Set<string> | undefined;
       if (workflowsResponse.ok) {
+
         const workflows = await workflowsResponse.json();
         const workflowList = Array.isArray(workflows) ? workflows : (workflows.workflows || []);
 
         // Match the ingest workflow by exact name (== workflowLabel).
         const ingestWorkflow = workflowList.find((w: any) => w.name === workflowLabel) || null;
         if (ingestWorkflow) {
-          const stopped = isWorkflowScheduleStopped(ingestWorkflow);
-          setScheduleStopped(stopped);
-          if (!stopped) workflowAppNames = extractWorkflowAppNames(ingestWorkflow);
+          workflowAppNames = extractWorkflowAppNames(ingestWorkflow);
           const wfOrgId = ingestWorkflow.org_id || ingestWorkflow.org || ingestWorkflow.execution_org;
           const ownedByActiveOrg = !wfOrgId || !currentOrgId || wfOrgId === currentOrgId;
           setIngestWorkflowId(ownedByActiveOrg ? ingestWorkflow.id : null);
         } else {
-          setScheduleStopped(false);
           setIngestWorkflowId(null);
         }
 
@@ -185,7 +187,7 @@ export const IngestionSourcesRow = ({
       // Backfill missing images the same way IncidentsPage does.
       try {
         const { backfillAppImages, deduplicateAuthApps } = await import('@/lib/utils');
-        const deduped = deduplicateAuthApps(authApps.filter((a: any) => a.active || a.validation?.valid));
+        const deduped = deduplicateAuthApps(authApps.filter((a: any) => a.active || a.validation?.valid) as any);
         await backfillAppImages(deduped);
         const imgMap = new Map<string, string>();
         deduped.forEach((d: any) => { if (d.bestImage) imgMap.set(normalizeAppName(d.app.name), d.bestImage); });
@@ -194,14 +196,32 @@ export const IngestionSourcesRow = ({
 
       setIngestionApps(results);
     } catch (error) {
+      loadFailed = true;
       console.error('Failed to fetch ingestion apps:', error);
     } finally {
       setIngestionLoading(false);
-      loadedOnceRef.current = true;
+      // Only remember a successful load; a failed one must be retried from a
+      // clean state instead of leaving the row permanently empty.
+      loadedOnceRef.current = loadedOnceRef.current || !loadFailed;
     }
   }, [workflowLabel, webhookWorkflowName, currentOrgId]);
 
-  useEffect(() => { fetchIngestionApps(); }, [fetchIngestionApps]);
+  useEffect(() => {
+    fetchIngestionApps();
+    const handleIntegrationsChanged = () => {
+      fetchIngestionApps();
+    };
+    const handleBackOnline = () => {
+      fetchIngestionApps();
+    };
+    window.addEventListener('integrations-changed', handleIntegrationsChanged);
+    window.addEventListener('online', handleBackOnline);
+    return () => {
+      window.removeEventListener('integrations-changed', handleIntegrationsChanged);
+      window.removeEventListener('online', handleBackOnline);
+    };
+  }, [fetchIngestionApps]);
+
 
   const triggerSync = useCallback(async (overrideWorkflowId?: string) => {
     const wfId = overrideWorkflowId || ingestWorkflowId;
@@ -461,6 +481,7 @@ export const IngestionSourcesRow = ({
             incidentCount={incidentCountsBySource.get(normalizeAppName(app.name)) || 0}
             isBlocked={Boolean(app.enabled && isParentBlocked)}
             health={parentHealth}
+            category={category}
           />
         ))}
 
@@ -478,6 +499,7 @@ export const IngestionSourcesRow = ({
                   incidentCount={incidentCountsBySource.get(normalizeAppName(app.name)) || 0}
                   isBlocked={Boolean(app.enabled && isParentBlocked)}
                   health={parentHealth}
+                  category={category}
                 />
               ))}
             </Box>
@@ -530,12 +552,6 @@ export const IngestionSourcesRow = ({
           </Tooltip>
         )}
       </Box>
-
-      {scheduleStopped && (
-        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'hsl(var(--severity-medium))' }}>
-          Automatic ingestion is paused — the "{workflowLabel}" workflow schedule has been stopped. Sources are shown as disabled until the schedule is re-enabled.
-        </Typography>
-      )}
 
       <AppSearchDrawer
         theme={resolvedTheme}

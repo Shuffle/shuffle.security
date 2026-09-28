@@ -32,7 +32,12 @@ import {
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { isNoAuthRequired, type AppAuthentication } from '@/Shuffle-MCPs/components/AppAuthConfig';
-import { appRequiresAuthentication } from '@/Shuffle-MCPs/noAuthApps';
+import {
+  appRequiresAuthentication,
+  isNoAuthApp,
+  getBuiltInAppMetadata,
+  getBuiltInAppImage,
+} from '@/Shuffle-MCPs/noAuthApps';
 import type { AlgoliaSearchApp } from '@/Shuffle-MCPs/shuffle-mcp.helpers';
 import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
@@ -43,6 +48,10 @@ import AppAuthSection from '@/Shuffle-MCPs/components/AppAuthSection';
 import TryMcpSection from '@/Shuffle-MCPs/views/TryMcpSection';
 import SingulActionsPreview from '@/Shuffle-MCPs/components/SingulActionsPreview';
 import ApiCallViewer from '@/Shuffle-MCPs/components/ApiCallViewer';
+import AppRelatedUsecases from '@/Shuffle-MCPs/components/AppRelatedUsecases';
+import { useQueryClient } from '@tanstack/react-query';
+import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/hooks/useWorkflows';
+import { isVulnScannerApp, normalizeAppName, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 
 export interface AppInfo {
@@ -65,6 +74,8 @@ export interface AppDetailContentProps extends ShuffleHostProps {
   appName: string | null;
   /** Pre-resolved Algolia objectID (optional fast path) */
   appId?: string | null;
+  /** Pre-resolved app icon/image (optional fast path from chip/picker) */
+  appImage?: string | null;
   /** Callback to close the view (drawer mode) */
   onClose?: () => void;
   /** Callback when data is refreshed */
@@ -204,6 +215,7 @@ export default function AppDetailContent({
   open = true,
   appName,
   appId,
+  appImage,
   onClose,
   onRefresh,
   onAddToCanvas,
@@ -236,6 +248,9 @@ export default function AppDetailContent({
   const [appNotFound, setAppNotFound] = useState(false);
   const [isNameMismatch, setIsNameMismatch] = useState(false);
   const [configError, setConfigError] = useState<{ status: number; message: string } | null>(null);
+  const queryClient = useQueryClient();
+  const { data: workflows = [], refetch: refetchWorkflows } = useWorkflows();
+  const [ingestLoading, setIngestLoading] = useState(false);
 
   const {
     authStates,
@@ -279,10 +294,19 @@ export default function AppDetailContent({
       try {
         const { algoliasearch } = await import('algoliasearch');
         const client = algoliasearch('JNSS5CFDZZ', '33e4e3564f4f060e96e0531957bed552');
-        const res = await client.search({
-          requests: [{ indexName: 'appsearch', query: searchName, hitsPerPage: 10 }],
-        });
-        const hits = (res as any)?.results?.[0]?.hits || [];
+        let hits: any[] = [];
+        try {
+          const res = await (client as any).searchSingleIndex({
+            indexName: 'appsearch',
+            searchParams: { query: searchName, hitsPerPage: 10 },
+          });
+          hits = (res?.hits as any[]) || [];
+        } catch {
+          const res = await client.search({
+            requests: [{ indexName: 'appsearch', query: searchName, hitsPerPage: 10 }],
+          });
+          hits = (res as any)?.results?.[0]?.hits || [];
+        }
         const exact =
           (appId && hits.find((h: any) => h.objectID === appId)) ||
           hits.find((h: any) =>
@@ -307,6 +331,12 @@ export default function AppDetailContent({
       let algoliaId: string | null = appId || null;
       let foundMatch = false;
 
+      const isBuiltIn = isNoAuthApp(appName);
+      const builtInMeta = isBuiltIn ? getBuiltInAppMetadata(appName) : null;
+      if (isBuiltIn) {
+        foundMatch = true;
+      }
+
       const configResult = await configPromise;
       if (cancelled) return;
       const configData = configResult?.ok ? configResult.data : null;
@@ -323,7 +353,7 @@ export default function AppDetailContent({
       if (configData?.name) {
         foundMatch = true;
         const matchCheck = checkAppNameMatch(appName, configData.name);
-        if (matchCheck.mismatch) {
+        if (!isBuiltIn && matchCheck.mismatch) {
           setIsNameMismatch(true);
         }
         setAppInfo(prev => ({
@@ -345,7 +375,7 @@ export default function AppDetailContent({
           setResolvedAlgoliaId(match.objectID);
         }
         const matchCheck = checkAppNameMatch(appName, match.name);
-        if (isFallback || matchCheck.mismatch) {
+        if (!isBuiltIn && (isFallback || matchCheck.mismatch)) {
           setIsNameMismatch(true);
         }
         setAppInfo(prev => ({
@@ -406,7 +436,10 @@ export default function AppDetailContent({
 
       if (cancelled) return;
 
-      if (Array.isArray(appsList)) {
+      if (isBuiltIn) {
+        setIsActivated(null);
+        setActivatedAppId(null);
+      } else if (Array.isArray(appsList)) {
         const activeMatch = appsList.find((a: any) =>
           (a.name || '').toLowerCase().replace(/[\s_\-]+/g, '_') === normalizedName && a.activated
         );
@@ -418,19 +451,32 @@ export default function AppDetailContent({
 
       setAppInfo(prev => {
         const next = prev ?? {
-          name: searchName,
-          description: '',
-          large_image: '',
-          categories: [],
+          name: builtInMeta?.displayName || searchName,
+          description: builtInMeta?.description || '',
+          large_image: builtInMeta?.image || appImage || '',
+          categories: builtInMeta?.categories || ['Built-in'],
         };
-        const finalCheck = checkAppNameMatch(appName, next.name);
-        if (finalCheck.mismatch) {
-          setIsNameMismatch(true);
+        if (!isBuiltIn) {
+          const finalCheck = checkAppNameMatch(appName, next.name);
+          if (finalCheck.mismatch) {
+            setIsNameMismatch(true);
+          }
         }
-        return next;
+        return {
+          ...next,
+          name: next.name || builtInMeta?.displayName || searchName,
+          description: next.description || builtInMeta?.description || '',
+          large_image: next.large_image || builtInMeta?.image || appImage || '',
+          categories: next.categories?.length ? next.categories : (builtInMeta?.categories || ['Built-in']),
+        };
       });
 
-      setAppNotFound(!foundMatch);
+      if (isBuiltIn) {
+        setIsNameMismatch(false);
+        setAppNotFound(false);
+      } else {
+        setAppNotFound(!foundMatch);
+      }
       setAppLoading(false);
     })();
 
@@ -496,27 +542,39 @@ export default function AppDetailContent({
     });
   }, [appName, appInfo, isAuthenticated, authenticatedApps, resolvedAlgoliaId]);
 
+  const isBuiltIn = isNoAuthApp(appInfo?.name || appName || '');
+
   const resolvedImage = useMemo(() => {
+    if (appImage) return appImage;
     if (appInfo?.large_image) return appInfo.large_image;
     for (const entry of matchingEntries) {
       const img = (entry as any).app?.large_image || (entry as any).large_image;
       if (img) return img;
     }
+    if (isBuiltIn) {
+      return getBuiltInAppImage(appInfo?.name || appName) || '';
+    }
     return '';
-  }, [appInfo, matchingEntries]);
+  }, [appImage, appInfo, matchingEntries, isBuiltIn, appName]);
 
-  const displayName = (appInfo?.name || appName || '').replace(/_/g, ' ');
+  const displayName = useMemo(() => {
+    if (isBuiltIn) {
+      const meta = getBuiltInAppMetadata(appInfo?.name || appName);
+      if (meta?.displayName) return meta.displayName;
+    }
+    return (appInfo?.name || appName || '').replace(/_/g, ' ');
+  }, [isBuiltIn, appInfo?.name, appName]);
 
   const algoliaApp: AlgoliaSearchApp | null = useMemo(() => {
     if (!appName && !appInfo?.name) return null;
     return {
       objectID: resolvedAlgoliaId || (appInfo as any)?.id || appName || '',
-      name: appInfo?.name || appName || '',
+      name: displayName,
       image_url: resolvedImage,
       description: appInfo?.description || '',
       categories: appInfo?.categories || [],
     } as AlgoliaSearchApp;
-  }, [appName, appInfo, resolvedImage, resolvedAlgoliaId]);
+  }, [appName, appInfo, displayName, resolvedImage, resolvedAlgoliaId]);
 
   const authStateKey = appInfo?.name || appName || '';
   const authState = authStates[authStateKey] || authStates[appName || ''] || {
@@ -528,9 +586,11 @@ export default function AppDetailContent({
   const skipAuthentication = !appRequiresAuthentication(appInfo?.name || appName || '');
   const hasValidAuth = matchingEntries.some(e => e.validation?.valid === true);
   const hasAnyAuth = matchingEntries.length > 0 && !skipAuthentication;
-  const effectiveActivated = isActivated === null
-    ? (hasAnyAuth ? true : null)
-    : (isActivated || hasAnyAuth);
+  const effectiveActivated = isBuiltIn
+    ? null
+    : isActivated === null
+      ? (hasAnyAuth ? true : null)
+      : (isActivated || hasAnyAuth);
   const authCount = matchingEntries.length;
 
   // Auto-collapse / expand auth card
@@ -593,7 +653,7 @@ export default function AppDetailContent({
   const autoActivateFiredRef = useRef<string | null>(null);
   const [autoActivatePulse, setAutoActivatePulse] = useState(false);
   useEffect(() => {
-    if (!open || !autoActivate || !appName) return;
+    if (!open || !autoActivate || !appName || isBuiltIn) return;
     const key = `${appName}`;
     if (autoActivateFiredRef.current === key) return;
     if (isActivated !== false) return;
@@ -604,7 +664,7 @@ export default function AppDetailContent({
     handleActivateToggle({ silent: true }).finally(() => {
       setTimeout(() => setAutoActivatePulse(false), 1200);
     });
-  }, [open, autoActivate, appName, isActivated, resolvedAlgoliaId, activateLoading]);
+  }, [open, autoActivate, appName, isActivated, resolvedAlgoliaId, activateLoading, isBuiltIn]);
 
   useEffect(() => {
     if (!open) {
@@ -612,6 +672,113 @@ export default function AppDetailContent({
       setAutoActivatePulse(false);
     }
   }, [open, appName]);
+
+  // Ingestion workflow calculation and toggle handler
+  const isVuln = useMemo(() => isVulnScannerApp(appName || ''), [appName]);
+  const targetWorkflowName = isVuln ? 'Ingest Vulnerabilities' : 'Ingest Tickets';
+  const targetCategory = isVuln ? 'vulnerabilities' : 'cases';
+
+  const ingestWorkflow = useMemo(() => {
+    return workflows?.find(w => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
+  }, [workflows, targetWorkflowName]);
+
+  const isIngestEnabled = useMemo(() => {
+    if (!appName || !ingestWorkflow) return false;
+    const names = extractWorkflowAppNames(ingestWorkflow);
+    return names.has(normalizeAppName(appName));
+  }, [appName, ingestWorkflow]);
+
+  const handleToggleIngest = async () => {
+    if (!appName || ingestLoading) return;
+    setIngestLoading(true);
+    const willEnable = !isIngestEnabled;
+    try {
+      const canonicalName = appInfo?.name || appName;
+      const normalizedTarget = normalizeAppName(canonicalName);
+
+      const freshWfs = await fetchWorkflows(undefined, true);
+      const currentIngestWf = freshWfs.find(w => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
+      const existingNames = currentIngestWf ? Array.from(extractWorkflowAppNames(currentIngestWf)) : [];
+
+      let nextAppNames: string[];
+      if (willEnable) {
+        const alreadyIn = existingNames.some(n => normalizeAppName(n) === normalizedTarget);
+        nextAppNames = alreadyIn ? existingNames : [...existingNames, canonicalName];
+      } else {
+        nextAppNames = existingNames.filter(n => normalizeAppName(n) !== normalizedTarget);
+      }
+
+      const body: Record<string, string> = {
+        label: targetWorkflowName,
+        category: targetCategory,
+      };
+
+      if (nextAppNames.length > 0) {
+        body.app_name = nextAppNames.join(',');
+      } else {
+        body.action_name = 'remove';
+      }
+
+      const resp = await fetch(getApiUrl('/api/v2/workflows/generate'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      let payload: any = null;
+      try {
+        payload = await resp.json();
+      } catch {
+        /* empty */
+      }
+      if (!resp.ok || (payload && payload.success === false)) {
+        const reason = payload?.reason || `Failed to update ingestion sources (${resp.status})`;
+        toast.error(reason);
+        return;
+      }
+
+      invalidateWorkflowsCache();
+      queryClient.invalidateQueries({ queryKey: ['workflows'] });
+      await refetchWorkflows();
+
+      if (willEnable) {
+        if (!hasValidAuth) {
+          toast.success(`Ingest enabled for ${displayName}`, {
+            description: `Please configure authentication below so alerts from ${displayName} can be ingested.`,
+          });
+        } else {
+          toast.success(`Ingest enabled for ${displayName}`);
+        }
+      } else {
+        toast.success(`Ingest disabled for ${displayName}`);
+      }
+
+      window.dispatchEvent(new CustomEvent('integrations-changed'));
+
+      if (willEnable) {
+        try {
+          const updatedWfs = await fetchWorkflows(undefined, true);
+          const updatedIngest = updatedWfs.find(w => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
+          if (updatedIngest?.id) {
+            fetch(getApiUrl(`/api/v1/workflows/${updatedIngest.id}/execute`), {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+              body: JSON.stringify({ execution_source: 'manual', start: '' }),
+            }).catch(() => {});
+          }
+        } catch {
+          /* best effort */
+        }
+      }
+    } catch (err: any) {
+      console.error('[Ingest Toggle] Error:', err);
+      toast.error(err?.message || 'Failed to update ingest');
+    } finally {
+      setIngestLoading(false);
+    }
+  };
 
   // UNIFIED AUTH TESTING & SAVING
   const handleTestConnectionUnified = useCallback((_appId: string, authId?: string) => {
@@ -687,8 +854,8 @@ export default function AppDetailContent({
                 />
               )}
             </Box>
-            <Typography sx={{ color: (configError || isNameMismatch) ? 'hsl(var(--severity-medium))' : 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
-              {appLoading ? <Skeleton width={100} /> : (configError ? `Error ${configError.status || ''}`.trim() : (isNameMismatch ? `Unavailable — showing closest catalog match (${displayName})` : (appNotFound ? 'App not found in catalog' : 'App configuration')))}
+            <Typography sx={{ color: (configError || (!isBuiltIn && isNameMismatch)) ? 'hsl(var(--severity-medium))' : 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
+              {appLoading ? <Skeleton width={100} /> : (configError ? `Error ${configError.status || ''}`.trim() : (isBuiltIn ? 'Built-in app' : (isNameMismatch ? `Unavailable — showing closest catalog match (${displayName})` : (appNotFound ? 'App not found in catalog' : 'App configuration'))))}
             </Typography>
           </Box>
           {onClose && (
@@ -763,7 +930,7 @@ export default function AppDetailContent({
               </Box>
             )}
 
-            {isNameMismatch && (
+            {!isBuiltIn && isNameMismatch && (
               <Alert
                 severity="warning"
                 icon={<ErrorOutlineIcon size={18} style={{ color: 'hsl(var(--severity-medium))' }} />}
@@ -794,9 +961,12 @@ export default function AppDetailContent({
               hasAnyAuth={hasAnyAuth}
               isAuthenticated={isAuthenticated}
               categories={appInfo?.categories}
-              isActivated={onAddToCanvas ? null : effectiveActivated}
+              isActivated={onAddToCanvas || isBuiltIn ? null : effectiveActivated}
               activateLoading={activateLoading}
-              onActivateToggle={() => handleActivateToggle()}
+              onActivateToggle={onAddToCanvas || isBuiltIn ? undefined : () => handleActivateToggle()}
+              isIngestEnabled={isIngestEnabled}
+              ingestLoading={ingestLoading}
+              onIngestToggle={handleToggleIngest}
               highlightActivate={autoActivatePulse}
               onAdd={onAddToCanvas && appName ? () => {
                 onAddToCanvas({ name: appName, icon: resolvedImage || '', algoliaId: resolvedAlgoliaId });
@@ -822,31 +992,55 @@ export default function AppDetailContent({
               </Box>
             )}
 
-            {/* Incident Stats (Drawer mode) */}
-            {showIncidentStats && isAuthenticated && incidentStats && incidentStats.ingested > 0 && (
+            {/* Ingestion & Incident Stats */}
+            {isAuthenticated && (isIngestEnabled || (incidentStats && incidentStats.ingested > 0)) && (
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.08 }}>
                 <Box sx={{
                   display: 'flex',
+                  alignItems: 'center',
                   gap: 2,
                   mb: 3,
                   p: 2,
                   borderRadius: 2,
-                  border: '1px solid hsl(var(--border))',
-                  bgcolor: 'hsl(var(--muted) / 0.3)',
+                  border: isIngestEnabled ? '1px solid hsl(var(--severity-low) / 0.4)' : '1px solid hsl(var(--border))',
+                  bgcolor: isIngestEnabled ? 'hsl(var(--severity-low) / 0.04)' : 'hsl(var(--muted) / 0.3)',
+                  flexWrap: 'wrap',
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Download size={14} style={{ color: 'hsl(var(--primary))' }} />
-                    <Box>
-                      <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: 'hsl(var(--foreground))', lineHeight: 1 }}>
-                        {incidentStats.ingested}
-                      </Typography>
-                      <Typography sx={{ fontSize: '0.65rem', color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>
-                        Incidents ingested
-                      </Typography>
-                    </Box>
+                    <Chip
+                      size="small"
+                      label={isIngestEnabled ? 'Ingest Active' : 'Ingest Inactive'}
+                      sx={{
+                        height: 20,
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        bgcolor: isIngestEnabled ? 'hsl(var(--severity-low) / 0.15)' : 'hsl(var(--muted))',
+                        color: isIngestEnabled ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground))',
+                        border: isIngestEnabled ? '1px solid hsl(var(--severity-low) / 0.3)' : '1px solid hsl(var(--border))',
+                        borderRadius: 1,
+                      }}
+                    />
+                    <Typography sx={{ fontSize: '0.74rem', color: 'hsl(var(--muted-foreground))' }}>
+                      Target workflow: <strong>{targetWorkflowName}</strong>
+                    </Typography>
                   </Box>
-                  {incidentStats.forwarded > 0 && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2, pl: 2, borderLeft: '1px solid hsl(var(--border))' }}>
+
+                  {incidentStats && incidentStats.ingested > 0 && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: { xs: 0, sm: 'auto' }, pl: { sm: 2 }, borderLeft: { sm: '1px solid hsl(var(--border))' } }}>
+                      <Download size={14} style={{ color: 'hsl(var(--primary))' }} />
+                      <Box>
+                        <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: 'hsl(var(--foreground))', lineHeight: 1 }}>
+                          {incidentStats.ingested}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.65rem', color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>
+                          Incidents ingested
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {incidentStats && incidentStats.forwarded > 0 && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 2, borderLeft: '1px solid hsl(var(--border))' }}>
                       <Forward size={14} style={{ color: 'hsl(var(--severity-low))' }} />
                       <Box>
                         <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: 'hsl(var(--foreground))', lineHeight: 1 }}>
@@ -898,6 +1092,21 @@ export default function AppDetailContent({
                   />
                 </Box>
               ) : null
+            )}
+
+            {/* Related Usecases */}
+            {appName && (
+              <AppRelatedUsecases
+                appName={appName}
+                displayName={displayName}
+                categories={appInfo?.categories}
+                hasValidAuth={hasValidAuth}
+                onNavigateToAuth={() => {
+                  setAuthExpanded(true);
+                  document.getElementById('app-auth-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                mode={mode}
+              />
             )}
 
             {/* MCP Chat + Individual Actions Testing */}

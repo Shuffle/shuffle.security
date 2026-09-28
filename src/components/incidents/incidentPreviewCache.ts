@@ -14,6 +14,7 @@
  * of hovers on the same chip fires exactly one network call.
  */
 import { getDatastoreItem } from '@/Shuffle-MCPs/datastore';
+import { toCanonicalIncidentId } from '@/lib/incidentUrl';
 
 export type IncidentLookupResult =
   | { status: 'found'; raw: unknown; item: { created?: number; edited?: number; value?: unknown } }
@@ -23,7 +24,7 @@ export type IncidentLookupResult =
 const cache = new Map<string, IncidentLookupResult>();
 const inflight = new Map<string, Promise<IncidentLookupResult>>();
 
-const cacheKey = (key: string, category: string) => `${category}::${key}`;
+const cacheKey = (key: string, category: string) => `${category}::${toCanonicalIncidentId(key)}`;
 
 export const getCachedIncidentLookup = (
   key: string,
@@ -40,7 +41,8 @@ export const lookupIncidentCached = (
   key: string,
   category: string,
 ): Promise<IncidentLookupResult> => {
-  const ck = cacheKey(key, category);
+  const canonicalKey = toCanonicalIncidentId(key);
+  const ck = cacheKey(canonicalKey, category);
   const cached = cache.get(ck);
   if (cached && cached.status !== 'error') return Promise.resolve(cached);
 
@@ -49,7 +51,7 @@ export const lookupIncidentCached = (
 
   const promise = (async (): Promise<IncidentLookupResult> => {
     try {
-      const result = await getDatastoreItem(key, category);
+      const result = await getDatastoreItem(canonicalKey, category);
       if (!result?.success) {
         return { status: 'error', error: result?.error || 'Failed to load incident' };
       }

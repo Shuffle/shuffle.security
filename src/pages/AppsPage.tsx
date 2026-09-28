@@ -371,19 +371,19 @@ export default function AppsPage() {
                   gap: { xs: '12px !important', md: '16px !important' },
                 },
                 '& .singul-dropdown-item': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  backgroundColor: 'hsl(var(--card))',
                   borderRadius: '12px',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  border: '1px solid hsl(var(--border))',
                   transition: 'all 0.2s ease',
                   '&:hover': {
                     backgroundColor: `${primaryColor}14`,
-                    borderColor: `${primaryColor}4D`,
+                    borderColor: `${primaryColor}80`,
                   },
                 },
                 '& .singul-search-input': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  color: '#ffffff',
+                  backgroundColor: 'hsl(var(--input))',
+                  border: '1px solid hsl(var(--border))',
+                  color: 'hsl(var(--foreground))',
                   fontSize: { xs: '0.9rem', md: '1rem' },
                   padding: { xs: '12px 14px', md: '14px 16px' },
                   borderRadius: '12px',
@@ -392,23 +392,23 @@ export default function AppsPage() {
                     boxShadow: `0 0 0 3px ${primaryColor}26`,
                   },
                   '&::placeholder': {
-                    color: 'rgba(255, 255, 255, 0.4)',
+                    color: 'hsl(var(--muted-foreground))',
                   },
                 },
                 '& .singul-app-icon': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  backgroundColor: 'hsl(var(--muted) / 0.5)',
+                  border: '1px solid hsl(var(--border))',
                 },
                 '& .singul-app-name': {
-                  color: '#ffffff',
+                  color: 'hsl(var(--foreground))',
                   fontSize: { xs: '0.8rem', md: '0.9rem' },
                 },
                 '& .singul-app-description': {
-                  color: 'rgba(255, 255, 255, 0.5)',
+                  color: 'hsl(var(--muted-foreground))',
                   fontSize: { xs: '0.7rem', md: '0.75rem' },
                 },
                 '& .singul-empty-state, & .singul-end-of-results': {
-                  color: 'rgba(255, 255, 255, 0.4)',
+                  color: 'hsl(var(--muted-foreground))',
                 },
               }}
             >

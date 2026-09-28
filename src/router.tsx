@@ -1,6 +1,7 @@
-// Must be first: installs the in-memory localStorage/sessionStorage shim so
-// modules that read storage during SSR do not crash the render. The server
-// entry also imports it, but dev SSR does not go through that entry.
+// Must be first: installs crypto.randomUUID polyfill for insecure HTTP contexts
+// and in-memory localStorage/sessionStorage shim for SSR.
+import "./lib/crypto-polyfill";
+import "./lib/browser-shims";
 import "./lib/ssr-storage";
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";

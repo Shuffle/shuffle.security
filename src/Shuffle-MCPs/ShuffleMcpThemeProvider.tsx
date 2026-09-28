@@ -107,7 +107,18 @@ const buildComponentOverrides = (scopeClassName: string) => ({
   MuiButton: { defaultProps: { size: "small" as const } },
   MuiAutocomplete: {
     defaultProps: {
-      slotProps: { popper: { sx: { zIndex: 10020 } } },
+      slotProps: {
+        popper: { className: scopeClassName, sx: { zIndex: 10040 } },
+        paper: { className: scopeClassName },
+      },
+    },
+  },
+  MuiPopper: {
+    defaultProps: {
+      className: scopeClassName,
+    },
+    styleOverrides: {
+      root: { zIndex: 10040 },
     },
   },
   MuiInputBase: {
@@ -170,7 +181,7 @@ const buildComponentOverrides = (scopeClassName: string) => ({
   MuiMenu: {
     defaultProps: { slotProps: { paper: { className: scopeClassName } } },
     styleOverrides: {
-      root: { zIndex: 10020 },
+      root: { zIndex: 10040 },
       paper: {
         backgroundColor: "hsl(var(--popover))",
         color: "hsl(var(--popover-foreground))",
@@ -182,7 +193,7 @@ const buildComponentOverrides = (scopeClassName: string) => ({
   MuiPopover: {
     defaultProps: { slotProps: { paper: { className: scopeClassName } } },
     styleOverrides: {
-      root: { zIndex: 10020 },
+      root: { zIndex: 10040 },
       paper: {
         backgroundColor: "hsl(var(--popover))",
         color: "hsl(var(--popover-foreground))",
@@ -196,7 +207,7 @@ const buildComponentOverrides = (scopeClassName: string) => ({
       slotProps: {
         tooltip: { className: scopeClassName },
         // Render above app drawers, dialogs, menus, and popovers.
-        popper: { sx: { zIndex: 10030 } },
+        popper: { sx: { zIndex: 10050 } },
       },
     },
     styleOverrides: {

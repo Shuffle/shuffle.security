@@ -139,7 +139,11 @@ export const useDatastore = ({ category, orgId: overrideOrgId }: UseDatastoreOpt
         // The backend hands back a cursor even on the final page. A short
         // page (fewer items than the page size) means there is nothing more
         // to fetch, so stop instead of firing a pointless cursor request.
-        if (pageItems.length < getDatastorePageSize(category)) {
+        // Use rawItemCount (before cross-category filtering) so that category
+        // deduplication doesn't falsely truncate pagination when the backend
+        // actually has more pages.
+        const backendItemsCount = response.rawItemCount ?? pageItems.length;
+        if (backendItemsCount < getDatastorePageSize(category)) {
           currentCursor = undefined;
           break;
         }
@@ -192,17 +196,67 @@ export const useDatastore = ({ category, orgId: overrideOrgId }: UseDatastoreOpt
     setHasMore(false);
   }, []);
 
-  // Demo Mode: if data was just seeded for our category, refetch so the open
-  // page updates live as the user advances through the tour.
+  // Reset state and re-fetch when overrideOrgId changes
+  const prevOrgIdRef = useRef(overrideOrgId);
+  useEffect(() => {
+    if (prevOrgIdRef.current !== overrideOrgId) {
+      prevOrgIdRef.current = overrideOrgId;
+      setItems([]);
+      setCursor(null);
+      setHasMore(false);
+      setTotalAmount(null);
+      setHasFetched(false);
+      hasFetchedRef.current = false;
+      fetchItems();
+    }
+  }, [overrideOrgId, fetchItems]);
+
+  // Listen to refresh, tenant change, and cross-tenant incident move events
   useEffect(() => {
     const onRefresh = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail?.category === category) {
+      if (!detail?.category || detail.category === category) {
         fetchItems();
       }
     };
+
+    const onOrgChange = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      const newOrgId = detail?.orgId;
+      if (!overrideOrgId || overrideOrgId === newOrgId) {
+        setItems([]);
+        setCursor(null);
+        setHasMore(false);
+        setTotalAmount(null);
+        setHasFetched(false);
+        hasFetchedRef.current = false;
+        fetchItems();
+      }
+    };
+
+    const onIncidentMoved = () => {
+      if (category === 'incidents' || category === 'cases') {
+        fetchItems();
+      }
+    };
+
+    const onIncidentRefresh = () => {
+      if (category === 'incidents' || category === 'cases') {
+        fetchItems();
+      }
+    };
+
     window.addEventListener('demo:refresh', onRefresh);
-    return () => window.removeEventListener('demo:refresh', onRefresh);
+    window.addEventListener('shuffle:org-change', onOrgChange);
+    window.addEventListener('shuffle:incident-moved', onIncidentMoved);
+    window.addEventListener('incident:refresh', onIncidentRefresh);
+
+    return () => {
+      window.removeEventListener('demo:refresh', onRefresh);
+      window.removeEventListener('shuffle:org-change', onOrgChange);
+      window.removeEventListener('shuffle:incident-moved', onIncidentMoved);
+      window.removeEventListener('incident:refresh', onIncidentRefresh);
+    };
   }, [category, fetchItems, overrideOrgId]);
 
   const addItem = useCallback(async (key: string, value: string | object, skipRefresh = true): Promise<boolean> => {

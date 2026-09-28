@@ -10,6 +10,7 @@
 
 import { getCachedConnectedTools, mergeConnectedTools, MAX_AUTO_ASSIGNED_TOOLS } from './connectedSourcesService';
 import { composeDocPromptInput, isDocsRoute } from '@/lib/docsPromptContext';
+import { composeIncidentPromptInput } from '@/lib/incidentPromptContext';
 import { getDocGroup } from '@/lib/docGroups';
 
 export interface AgentContextApp {
@@ -469,6 +470,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
       const cleanId = formatEntityDisplayId(params.id);
       return `Investigate incident ${cleanId} and recommend next steps: `;
     },
+    composeInput: (raw) => composeIncidentPromptInput(raw),
     placeholder: 'Ask about this incident, triage observables, or correlate...',
     getStorageKey: (params) => `incident_${params.id}`,
     description: 'Focused on the currently viewed incident with Shuffle Incidents MCP',
@@ -493,6 +495,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
       const cleanId = formatEntityDisplayId(params.id);
       return `Investigate incident ${cleanId} and recommend next steps: `;
     },
+    composeInput: (raw) => composeIncidentPromptInput(raw),
     placeholder: 'Ask about this incident, triage observables, or correlate...',
     getStorageKey: (params) => `incident_${params.id}`,
     description: 'Focused on the currently viewed incident with Shuffle Incidents MCP',
@@ -504,6 +507,9 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
+    buttonLabel: 'Ask about this case',
+    headerTitle: 'Ask about this case',
     title: (params, _, entityOverride) => {
       const cleanId = formatEntityDisplayId(params.id);
       const entity = entityOverride || getActivePageEntityName();
@@ -514,6 +520,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
       const cleanId = formatEntityDisplayId(params.id);
       return `Investigate case ${cleanId} and recommend next steps: `;
     },
+    composeInput: (raw) => composeIncidentPromptInput(raw),
     placeholder: 'Review case evidence, correlate events, or recommend response actions...',
     getStorageKey: (params) => `case_${params.id}`,
     description: 'Focused on the currently viewed case with Shuffle Incidents MCP',
@@ -525,6 +532,9 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
+    buttonLabel: 'Ask about this ticket',
+    headerTitle: 'Ask about this ticket',
     title: (params, _, entityOverride) => {
       const cleanId = formatEntityDisplayId(params.id);
       const entity = entityOverride || getActivePageEntityName();
@@ -546,6 +556,9 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
+    buttonLabel: 'Ask about this alert',
+    headerTitle: 'Ask about this alert',
     title: (params, _, entityOverride) => {
       const cleanId = formatEntityDisplayId(params.id);
       const entity = entityOverride || getActivePageEntityName();
@@ -567,6 +580,9 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
+    buttonLabel: 'Ask about incidents',
+    headerTitle: 'Ask about incidents',
     title: 'How can we help handle incidents?',
     subtitle: 'Shuffle Incidents MCP',
     defaultPrompt: 'Investigate this incident and recommend next steps: ',
@@ -581,6 +597,9 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
+    buttonLabel: 'Ask about cases',
+    headerTitle: 'Ask about cases',
     title: 'How can we help handle cases?',
     subtitle: 'Shuffle Incidents MCP',
     defaultPrompt: 'Investigate this case and recommend next steps: ',
@@ -595,6 +614,9 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
+    buttonLabel: 'Ask about tickets',
+    headerTitle: 'Ask about tickets',
     title: 'How can we help handle tickets?',
     subtitle: 'Shuffle Incidents MCP',
     defaultPrompt: 'Investigate this ticket and recommend next steps: ',
@@ -609,6 +631,9 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_incidents' }],
     defaultPresetId: 'incident-response',
     sourceCategory: 'incidents',
+    isBeta: true,
+    buttonLabel: 'Ask about alerts',
+    headerTitle: 'Ask about alerts',
     title: 'How can we help handle alerts?',
     subtitle: 'Shuffle Incidents MCP',
     defaultPrompt: 'Investigate this alert and recommend next steps: ',
@@ -630,6 +655,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     ],
     defaultPresetId: 'vulnerability',
     sourceCategory: 'vulnerabilities',
+    buttonLabel: 'Ask about this vulnerability',
+    headerTitle: 'Ask about this vulnerability',
     title: (params, _, entityOverride) => {
       const cleanId = formatEntityDisplayId(params.id);
       const entity = entityOverride || getActivePageEntityName();
@@ -654,6 +681,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     ],
     defaultPresetId: 'vulnerability',
     sourceCategory: 'vulnerabilities',
+    buttonLabel: 'Ask about vulnerabilities',
+    headerTitle: 'Ask about vulnerabilities',
     title: 'How can we help review vulnerabilities?',
     subtitle: () => 'Shuffle Vulnerabilities & Shuffle Software and Packages',
     defaultPrompt: 'Review my current vulnerabilities and prioritize them by ',
@@ -671,6 +700,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     match: '/monitors/:id/terminal',
     defaultApps: [{ name: 'shuffle_host_monitors' }],
     defaultPresetId: 'host-monitor-control',
+    buttonLabel: 'Ask about terminal',
+    headerTitle: 'Ask about terminal',
     title: (params, _, entityOverride) => {
       const cleanId = formatEntityDisplayId(params.id);
       const entity = entityOverride || getActivePageEntityName();
@@ -691,6 +722,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     match: '/monitors/terminal',
     defaultApps: [{ name: 'shuffle_host_monitors' }],
     defaultPresetId: 'host-monitor-control',
+    buttonLabel: 'Ask about terminal',
+    headerTitle: 'Ask about terminal',
     title: 'How can we help in the host terminal?',
     subtitle: 'Shuffle Host Monitors MCP',
     defaultPrompt: 'Run terminal commands on this host to ',
@@ -704,6 +737,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     match: '/monitors/response',
     defaultApps: [{ name: 'shuffle_host_monitors' }],
     defaultPresetId: 'host-monitor-control',
+    buttonLabel: 'Ask about host response',
+    headerTitle: 'Ask about host response',
     title: 'How can we help with host response?',
     subtitle: 'Shuffle Host Monitors MCP',
     defaultPrompt: 'Take response actions on this host to ',
@@ -717,6 +752,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     match: '/monitors/:id',
     defaultApps: [{ name: 'shuffle_host_monitors' }],
     defaultPresetId: 'host-monitor-control',
+    buttonLabel: 'Ask about this host',
+    headerTitle: 'Ask about this host',
     title: (params, _, entityOverride) => {
       const cleanId = formatEntityDisplayId(params.id);
       const entity = entityOverride || getActivePageEntityName();
@@ -737,6 +774,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     match: (pathname) => pathname.startsWith('/monitors'),
     defaultApps: [{ name: 'shuffle_host_monitors' }],
     defaultPresetId: 'host-monitor-control',
+    buttonLabel: 'Ask about host monitors',
+    headerTitle: 'Ask about host monitors',
     title: 'How can we help with host monitors?',
     subtitle: 'Shuffle Host Monitors MCP',
     defaultPrompt: 'Take control of this host and help me with: ',
@@ -754,6 +793,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     match: '/workflows/:id',
     defaultApps: [{ name: 'shuffle_workflows_builder' }, { name: 'shuffle_apps' }],
     defaultPresetId: 'build-workflows',
+    buttonLabel: 'Ask about this workflow',
+    headerTitle: 'Ask about this workflow',
     title: (params, _, entityOverride) => {
       const cleanId = formatEntityDisplayId(params.id);
       const entity = entityOverride || getActivePageEntityName();
@@ -777,6 +818,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
       pathname.startsWith('/infrastructure/flows'),
     defaultApps: [{ name: 'shuffle_workflows_builder' }, { name: 'shuffle_apps' }],
     defaultPresetId: 'build-workflows',
+    buttonLabel: 'Ask about workflows',
+    headerTitle: 'Ask about workflows',
     title: 'How can we help edit workflows?',
     subtitle: 'Shuffle Workflows Builder & Shuffle Apps',
     defaultPrompt: 'Edit this Shuffle workflow to ',
@@ -795,6 +838,14 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_assets' }, { name: 'shuffle_vulnerabilities' }],
     defaultPresetId: 'vulnerability',
     sourceCategory: 'vulnerabilities',
+    buttonLabel: (params) => {
+      const tabName = (params.tab || 'assets').replace(/[-_]+/g, ' ');
+      return `Ask about ${tabName}`;
+    },
+    headerTitle: (params) => {
+      const tabName = (params.tab || 'assets').replace(/[-_]+/g, ' ');
+      return `Ask about ${tabName}`;
+    },
     title: (params) => {
       const entity = getActivePageEntityName();
       if (entity) return `How can we help with "${entity}"?`;
@@ -814,6 +865,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_assets' }, { name: 'shuffle_vulnerabilities' }],
     defaultPresetId: 'vulnerability',
     sourceCategory: 'vulnerabilities',
+    buttonLabel: 'Ask about assets',
+    headerTitle: 'Ask about assets',
     title: 'How can we help with assets?',
     subtitle: 'Shuffle Assets & Shuffle Vulnerabilities',
     defaultPrompt: 'Audit assets and review vulnerabilities for ',
@@ -828,6 +881,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_software' }, { name: 'shuffle_vulnerabilities' }],
     defaultPresetId: 'vulnerability',
     sourceCategory: 'vulnerabilities',
+    buttonLabel: 'Ask about software',
+    headerTitle: 'Ask about software',
     title: (params) => {
       const entity = getActivePageEntityName();
       return entity ? `How can we help with "${entity}"?` : 'How can we help with software inventory?';
@@ -845,6 +900,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultApps: [{ name: 'shuffle_packages' }, { name: 'shuffle_vulnerabilities' }],
     defaultPresetId: 'vulnerability',
     sourceCategory: 'vulnerabilities',
+    buttonLabel: 'Ask about packages',
+    headerTitle: 'Ask about packages',
     title: (params) => {
       const entity = getActivePageEntityName();
       return entity ? `How can we help with "${entity}"?` : 'How can we help with packages?';
@@ -864,6 +921,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     match: (pathname) => pathname.startsWith('/detection'),
     defaultApps: [{ name: 'shuffle_detection' }],
     defaultPresetId: 'detection',
+    buttonLabel: 'Ask about detections',
+    headerTitle: 'Ask about detections',
     title: 'How can we help tune detections?',
     subtitle: 'Shuffle Detection MCP',
     defaultPrompt: 'Modify my detections to ',
@@ -1028,6 +1087,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     defaultPresetId: null,
     title: 'How can we help on this page?',
     subtitle: 'General Platform Assistant',
+    buttonLabel: 'Ask Shuffle',
+    headerTitle: 'Ask Shuffle',
     defaultPrompt: 'Help me with the following on this page: ',
     placeholder: 'Ask anything about Shuffle, integrations, or workflows...',
     getStorageKey: (params, pathname) => `page_${pathname.replace(/[^a-zA-Z0-9_-]/g, '_')}`,

@@ -20,6 +20,7 @@
 
 import { fetchAppsViaApiConfig } from '@/Shuffle-MCPs/appsCache';
 import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
+import { isNoAuthApp, getBuiltInAppMetadata } from '@/Shuffle-MCPs/noAuthApps';
 
 export interface ResolvedApp {
   /** Canonical id — Algolia objectID when known, otherwise Shuffle app id. */
@@ -69,6 +70,18 @@ export async function resolveApp(idOrName: string): Promise<ResolvedApp | null> 
 
   const work = (async (): Promise<ResolvedApp | null> => {
     let acc: Partial<ResolvedApp> = {};
+
+    if (isNoAuthApp(slug) || isNoAuthApp(rawKey)) {
+      const meta = getBuiltInAppMetadata(slug) || getBuiltInAppMetadata(rawKey);
+      if (meta) {
+        acc = merge(acc, {
+          id: slug,
+          name: meta.displayName,
+          image: meta.image || '',
+          categories: meta.categories || ['Built-in'],
+        });
+      }
+    }
 
     // --- Pass 1: authenticated apps -----------------------------------
     try {

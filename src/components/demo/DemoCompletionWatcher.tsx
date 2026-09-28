@@ -309,11 +309,33 @@ export const DemoCompletionWatcher = () => {
         corrTab?.getAttribute('aria-selected') === 'true'
       ) {
         markStepCompleted('correlations:open-tab');
+        return;
+      }
+
+      // In simple mode, check if the correlations section is in view or active
+      const simpleCorr = document.getElementById('simple-case-correlations');
+      if (simpleCorr) {
+        const rect = simpleCorr.getBoundingClientRect();
+        if (rect.top < window.innerHeight * 0.85 && rect.bottom > 80) {
+          markStepCompleted('correlations:open-tab');
+        }
       }
     };
+
+    const onClick = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('[data-tour="incident-tab-correlations"]') || target?.closest('#simple-case-correlations')) {
+        markStepCompleted('correlations:open-tab');
+      }
+    };
+
     check();
     const id = window.setInterval(check, 600);
-    return () => window.clearInterval(id);
+    document.addEventListener('click', onClick, true);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('click', onClick, true);
+    };
   }, [drawerOpen, step, markStepCompleted]);
 
   // Listen for a correlation pivot click (sub-goal on step 5).

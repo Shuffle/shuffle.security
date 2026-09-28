@@ -256,10 +256,17 @@ const OnboardingFlow = ({
       setRootRect({ left: r.left, width: r.width });
     };
     update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      try {
+        ro = new ResizeObserver(update);
+        ro.observe(el);
+      } catch {
+        ro = null;
+      }
+    }
     window.addEventListener('resize', update);
-    return () => { ro.disconnect(); window.removeEventListener('resize', update); };
+    return () => { ro?.disconnect(); window.removeEventListener('resize', update); };
   }, []);
 
 

@@ -131,9 +131,26 @@ const fetchTemplates = async (): Promise<CaseTemplate[]> => {
   }
 
   const parsed: CaseTemplate[] = response.data
+    .filter(item => !item.category || item.category === CATEGORY)
     .map(item => {
       try {
-        return JSON.parse(item.value) as CaseTemplate;
+        const val = JSON.parse(item.value);
+        if (!val || typeof val !== 'object' || typeof val.name !== 'string' || !val.name.trim()) {
+          return null;
+        }
+        return {
+          id: val.id || item.key,
+          name: val.name,
+          description: typeof val.description === 'string' ? val.description : '',
+          severity: val.severity || 'medium',
+          tlp: val.tlp || 'amber',
+          tasks: Array.isArray(val.tasks) ? val.tasks : [],
+          labels: Array.isArray(val.labels) ? val.labels : [],
+          recommendedFor: Array.isArray(val.recommendedFor) ? val.recommendedFor : [],
+          isCustom: val.isCustom ?? true,
+          created: typeof val.created === 'number' ? val.created : undefined,
+          usageCount: typeof val.usageCount === 'number' ? val.usageCount : 0,
+        } as CaseTemplate;
       } catch {
         return null;
       }

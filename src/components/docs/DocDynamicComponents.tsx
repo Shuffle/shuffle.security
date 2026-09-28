@@ -1961,7 +1961,11 @@ export const DocAddHost: React.FC<DocAddHostProps> = ({
   const currentCommand = commands[selectedOs];
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(currentCommand);
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(currentCommand).catch(() => {});
+      }
+    } catch {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -2544,7 +2548,11 @@ export const DocRegionSelect: React.FC<DocRegionSelectProps> = ({
   };
 
   const handleCopyUrl = () => {
-    navigator.clipboard.writeText(currentBaseUrl);
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(currentBaseUrl).catch(() => {});
+      }
+    } catch {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -3057,7 +3065,11 @@ export const DocDatastoreLink: React.FC<DocDatastoreLinkProps> = ({
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(datastoreUrl);
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(datastoreUrl).catch(() => {});
+      }
+    } catch {}
     setCopied(true);
     toast.success("Datastore link copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
@@ -3425,7 +3437,11 @@ self.set_cache(
   const pythonExample = categoryMeta.pythonCode;
 
   const handleCopy = (code: string, id: string) => {
-    navigator.clipboard.writeText(code);
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(code).catch(() => {});
+      }
+    } catch {}
     setCopiedCode(id);
     toast.success("Snippet copied to clipboard");
     setTimeout(() => setCopiedCode(null), 2000);

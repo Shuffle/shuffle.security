@@ -16,22 +16,48 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, CircularProgress, TextField, Tooltip, Typography } from '@mui/material';
-import { EditorContent, useEditor, type Editor } from '@tiptap/react';
+import {
+  Box,
+  CircularProgress,
+  Dialog,
+  IconButton,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import {
+  EditorContent,
+  useEditor,
+  type Editor,
+  ReactNodeViewRenderer,
+  NodeViewWrapper,
+  type NodeViewProps,
+} from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown } from 'tiptap-markdown';
-import { createAndUploadFile } from '@/services/files';
+import { X as CloseIcon } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  createAndUploadFile,
+  resolveFileUrl,
+  cacheFileBlob,
+  getCachedFileBlob,
+} from '@/services/files';
 
-interface MarkdownDescriptionEditorProps {
+export interface MarkdownDescriptionEditorProps {
   value: string;
   onCommit: (value: string) => void;
   placeholder?: string;
   autoFocus?: boolean;
   readOnly?: boolean;
   minRows?: number;
+  incidentId?: string;
+  taskId?: string;
+  compact?: boolean;
+  rawButtonTop?: number | string;
 }
 
 type BarAction = {
@@ -50,6 +76,220 @@ const isSafeHref = (raw: string): boolean => {
   if (!/^[a-z][a-z0-9+.-]*:/i.test(href)) return true;
   return /^(https?:|mailto:)/i.test(href);
 };
+
+const TiptapImageNodeView = ({ node, selected }: NodeViewProps) => {
+  const { src, alt, title } = node.attrs;
+  const [resolvedSrc, setResolvedSrc] = useState<string>(() => {
+    if (!src) return '';
+    if (src.startsWith('data:') || src.startsWith('blob:')) return src;
+    return getCachedFileBlob(src) || '';
+  });
+  const [loading, setLoading] = useState<boolean>(!resolvedSrc && !!src);
+  const [error, setError] = useState<boolean>(false);
+  const [showPreview, setShowPreview] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!src) {
+      setResolvedSrc('');
+      setLoading(false);
+      return;
+    }
+    if (src.startsWith('data:') || src.startsWith('blob:')) {
+      setResolvedSrc(src);
+      setLoading(false);
+      return;
+    }
+    const cached = getCachedFileBlob(src);
+    if (cached) {
+      setResolvedSrc(cached);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(false);
+
+    resolveFileUrl(src)
+      .then((url) => {
+        if (!cancelled) {
+          setResolvedSrc(url);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('Failed to resolve authenticated image:', err);
+          setError(true);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  return (
+    <NodeViewWrapper
+      as="span"
+      className="tiptap-image-wrapper"
+      style={{
+        display: 'inline-block',
+        maxWidth: '100%',
+        margin: '6px 0',
+        verticalAlign: 'middle',
+      }}
+    >
+      {loading && (
+        <Box
+          component="span"
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 1,
+            px: 1.5,
+            py: 0.75,
+            borderRadius: 1.5,
+            bgcolor: 'hsl(var(--muted) / 0.5)',
+            border: '1px dashed hsl(var(--border))',
+            color: 'hsl(var(--muted-foreground))',
+            fontSize: '0.82rem',
+          }}
+        >
+          <CircularProgress size={13} thickness={5} />
+          <span>Loading {alt || 'image'}...</span>
+        </Box>
+      )}
+      {!loading && error && (
+        <Box
+          component="span"
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.75,
+            px: 1.5,
+            py: 0.75,
+            borderRadius: 1.5,
+            bgcolor: 'hsl(var(--destructive) / 0.08)',
+            border: '1px solid hsl(var(--destructive) / 0.3)',
+            color: 'hsl(var(--destructive))',
+            fontSize: '0.82rem',
+          }}
+        >
+          <span>Failed to load image ({alt || 'image.png'})</span>
+        </Box>
+      )}
+      {!loading && !error && resolvedSrc && (
+        <Box
+          component="span"
+          sx={{
+            display: 'inline-block',
+            position: 'relative',
+            maxWidth: '100%',
+            borderRadius: 1.5,
+            outline: selected ? '2px solid hsl(var(--primary))' : 'none',
+            outlineOffset: 2,
+          }}
+        >
+          <img
+            src={resolvedSrc}
+            alt={alt || ''}
+            title={title || 'Click to view full image'}
+            loading="lazy"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowPreview(true);
+            }}
+            style={{
+              maxWidth: '100%',
+              height: 'auto',
+              borderRadius: 6,
+              display: 'block',
+              cursor: 'pointer',
+            }}
+          />
+          {showPreview && (
+            <Dialog
+              open={showPreview}
+              onClose={(e: any) => {
+                e?.stopPropagation?.();
+                setShowPreview(false);
+              }}
+              maxWidth="xl"
+              PaperProps={{
+                sx: {
+                  bgcolor: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  p: 1.5,
+                  maxWidth: '92vw',
+                  maxHeight: '92vh',
+                },
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  mb: 1,
+                }}
+              >
+                <Typography sx={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                  {alt || 'Image preview'}
+                </Typography>
+                <Tooltip title="Close preview">
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowPreview(false);
+                    }}
+                    sx={{
+                      p: 0.75,
+                      borderRadius: 1.5,
+                      border: '1px solid hsl(var(--border))',
+                    }}
+                  >
+                    <CloseIcon size={18} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'auto',
+                  maxHeight: '80vh',
+                }}
+              >
+                <img
+                  src={resolvedSrc}
+                  alt={alt || ''}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '80vh',
+                    objectFit: 'contain',
+                    borderRadius: 4,
+                  }}
+                />
+              </Box>
+            </Dialog>
+          )}
+        </Box>
+      )}
+    </NodeViewWrapper>
+  );
+};
+
+const AuthenticatedImage = Image.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(TiptapImageNodeView);
+  },
+});
 
 const ACTIONS: BarAction[] = [
   {
@@ -123,7 +363,12 @@ export const MarkdownDescriptionEditor = ({
   autoFocus,
   readOnly,
   minRows = 5,
+  incidentId,
+  taskId,
+  compact = false,
+  rawButtonTop,
 }: MarkdownDescriptionEditorProps) => {
+  const buttonTop = rawButtonTop !== undefined ? rawButtonTop : (compact ? -4 : -44);
   const [raw, setRaw] = useState(false);
   const [rawDraft, setRawDraft] = useState(value);
   const [bar, setBar] = useState<{ top: number; left: number; placement: 'above' | 'below' } | null>(null);
@@ -166,6 +411,8 @@ export const MarkdownDescriptionEditor = ({
     [onCommit],
   );
 
+  const insertImagesRef = useRef<(files: File[]) => Promise<void>>(async () => {});
+
   const editor = useEditor({
     immediatelyRender: false,
     autofocus: autoFocus ? 'end' : false,
@@ -178,7 +425,7 @@ export const MarkdownDescriptionEditor = ({
         protocols: ['http', 'https', 'mailto'],
         validate: (href: string) => isSafeHref(href),
       }),
-      Image,
+      AuthenticatedImage,
       Placeholder.configure({
         placeholder: readOnly ? '' : placeholder,
         showOnlyWhenEditable: true,
@@ -198,6 +445,25 @@ export const MarkdownDescriptionEditor = ({
     editorProps: {
       attributes: {
         class: 'markdown-wysiwyg',
+      },
+      handlePaste: (_view, event) => {
+        const images = imagesFromDataTransfer(event.clipboardData);
+        if (images.length) {
+          event.preventDefault();
+          void insertImagesRef.current(images);
+          return true;
+        }
+        return false;
+      },
+      handleDrop: (_view, event, _slice, moved) => {
+        if (moved) return false;
+        const images = imagesFromDataTransfer(event.dataTransfer);
+        if (images.length) {
+          event.preventDefault();
+          void insertImagesRef.current(images);
+          return true;
+        }
+        return false;
       },
     },
   });
@@ -230,8 +496,8 @@ export const MarkdownDescriptionEditor = ({
     const box = containerRef.current?.getBoundingClientRect();
     if (!box) return;
 
-    // If selection is near top of container, position below to prevent clipping
-    const isAbove = start.top - box.top > 44;
+    // Position above by default; if selection is too close to viewport top, position below
+    const isAbove = start.top > 54;
     const center = (start.left + end.right) / 2 - box.left;
     const clampOffset = linkOpen ? 150 : 80;
 
@@ -242,9 +508,24 @@ export const MarkdownDescriptionEditor = ({
     });
   }, [editor, readOnly, linkOpen]);
 
+  // Dismiss format bar when the routing rule popover opens to avoid screen clutter
+  useEffect(() => {
+    const onRulePopoverOpen = () => {
+      setBar(null);
+      setLinkOpen(false);
+    };
+    window.addEventListener('selection-rule:popover-open', onRulePopoverOpen);
+    return () => window.removeEventListener('selection-rule:popover-open', onRulePopoverOpen);
+  }, []);
+
   useEffect(() => {
     if (!editor) return;
-    const handler = () => refreshBar();
+    const handler = () => {
+      refreshBar();
+      if (typeof document !== 'undefined') {
+        document.dispatchEvent(new Event('selectionchange'));
+      }
+    };
     editor.on('selectionUpdate', handler);
     editor.on('transaction', handler);
     return () => {
@@ -279,24 +560,49 @@ export const MarkdownDescriptionEditor = ({
       if (!files.length || readOnly || !editor) return;
       setUploading(true);
       try {
+        const labels: string[] = [];
+        if (incidentId) labels.push(incidentId);
+        if (taskId) {
+          labels.push(`task-${taskId}`);
+          labels.push(taskId);
+        }
+        labels.push(taskId ? 'task-image' : 'description-image');
+
         for (const file of files) {
-          const result = await createAndUploadFile(file, 'incidents', ['description-image']);
+          const result = await createAndUploadFile(file, 'incidents', labels);
           if (result.success && result.file?.id) {
+            const fileSrc = `/api/v1/files/${result.file.id}/content`;
+            // Cache local object URL so it renders immediately
+            const localBlob = URL.createObjectURL(file);
+            cacheFileBlob(fileSrc, localBlob);
+
             editor
               .chain()
               .focus()
-              .setImage({ src: `/api/v1/files/${result.file.id}/content`, alt: file.name })
+              .setImage({ src: fileSrc, alt: file.name })
               .run();
+          } else {
+            toast.error(result.reason || `Failed to upload ${file.name}`);
           }
         }
         latest.current = editor.storage.markdown.getMarkdown();
+        if (raw) {
+          setRawDraft(latest.current);
+        }
         commit(latest.current);
+      } catch (err) {
+        console.error('Failed to upload image:', err);
+        toast.error('Failed to upload image');
       } finally {
         setUploading(false);
       }
     },
-    [editor, readOnly, commit],
+    [editor, readOnly, commit, incidentId, taskId, raw],
   );
+
+  useEffect(() => {
+    insertImagesRef.current = insertImages;
+  }, [insertImages]);
 
   const imagesFromDataTransfer = (data: DataTransfer | null) =>
     Array.from(data?.files || []).filter((f) => f.type.startsWith('image/'));
@@ -318,7 +624,7 @@ export const MarkdownDescriptionEditor = ({
 
   if (readOnly && !value?.trim()) {
     return (
-      <Typography sx={{ fontSize: '0.95rem', lineHeight: 1.8, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic' }}>
+      <Typography sx={{ fontSize: compact ? '0.82rem' : '0.95rem', lineHeight: 1.8, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic' }}>
         No description provided.
       </Typography>
     );
@@ -327,6 +633,7 @@ export const MarkdownDescriptionEditor = ({
   return (
     <Box
       ref={containerRef}
+      data-incident-field="description"
       onClick={(event) => {
         if (!readOnly && editor && !editor.isFocused) {
           const target = event.target as HTMLElement;
@@ -338,8 +645,8 @@ export const MarkdownDescriptionEditor = ({
       sx={{
         position: 'relative',
         cursor: readOnly ? 'default' : 'text',
-        minHeight: readOnly ? 'auto' : minRows * 28,
-        '&:hover .raw-toggle-btn': { opacity: 0.8 },
+        minHeight: readOnly ? 'auto' : compact ? minRows * 20 : minRows * 28,
+        '&:hover .raw-toggle-btn': { opacity: raw ? 1 : 0.85 },
       }}
     >
       {!readOnly && (
@@ -347,30 +654,48 @@ export const MarkdownDescriptionEditor = ({
           component="button"
           type="button"
           className="raw-toggle-btn"
+          aria-label={raw ? 'Switch to rich text' : 'Edit raw markdown'}
+          title={raw ? 'Switch to rich text' : 'Edit raw markdown'}
           onMouseDown={(event) => event.preventDefault()}
           onClick={toggleRaw}
           sx={{
             position: 'absolute',
-            top: -4,
+            top: buttonTop,
             right: 0,
             zIndex: 5,
-            border: 0,
-            background: 'transparent',
+            border: raw
+              ? '1px solid hsla(var(--primary) / 0.32)'
+              : '1px solid transparent',
+            background: raw
+              ? 'hsla(var(--primary) / 0.12)'
+              : 'transparent',
             cursor: 'pointer',
-            px: 0.75,
+            px: 0.85,
             py: 0.25,
             borderRadius: 1,
-            fontSize: '0.7rem',
-            fontWeight: 600,
+            fontSize: '0.68rem',
+            fontWeight: 700,
             letterSpacing: '0.04em',
             textTransform: 'uppercase',
             color: raw ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-            opacity: raw ? 1 : 0.35,
-            transition: 'opacity 0.15s ease',
-            '&:hover': { bgcolor: 'hsl(var(--muted))', opacity: 1 },
+            opacity: raw ? 1 : 0.45,
+            boxShadow: raw ? '0 0 6px hsla(var(--primary) / 0.12)' : 'none',
+            transition: 'all 0.15s ease',
+            '&:hover': {
+              bgcolor: raw
+                ? 'hsla(var(--primary) / 0.18)'
+                : 'hsl(var(--muted))',
+              borderColor: raw
+                ? 'hsla(var(--primary) / 0.45)'
+                : 'hsl(var(--border))',
+              color: raw
+                ? 'hsl(var(--primary))'
+                : 'hsl(var(--foreground))',
+              opacity: 1,
+            },
           }}
         >
-          {raw ? 'WYSIWYG' : 'Raw'}
+          RAW
         </Box>
       )}
 
@@ -385,6 +710,20 @@ export const MarkdownDescriptionEditor = ({
           onBlur={() => {
             commit(rawDraft);
           }}
+          onPaste={(event) => {
+            const images = imagesFromDataTransfer(event.clipboardData);
+            if (images.length) {
+              event.preventDefault();
+              void insertImages(images);
+            }
+          }}
+          onDrop={(event) => {
+            const images = imagesFromDataTransfer(event.dataTransfer);
+            if (images.length) {
+              event.preventDefault();
+              void insertImages(images);
+            }
+          }}
           fullWidth
           multiline
           minRows={minRows}
@@ -395,8 +734,8 @@ export const MarkdownDescriptionEditor = ({
           sx={{
             '& .MuiInput-root:before, & .MuiInput-root:after': { display: 'none' },
             '& textarea': {
-              fontSize: '0.9rem',
-              lineHeight: 1.7,
+              fontSize: compact ? '0.82rem' : '0.9rem',
+              lineHeight: compact ? 1.55 : 1.7,
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
               color: 'hsl(var(--foreground))',
             },
@@ -419,16 +758,16 @@ export const MarkdownDescriptionEditor = ({
             }
           }}
           sx={{
-            minHeight: readOnly ? 'auto' : minRows * 28,
+            minHeight: readOnly ? 'auto' : compact ? minRows * 20 : minRows * 28,
             '& .markdown-wysiwyg': {
               outline: 'none',
-              fontSize: '0.95rem',
-              lineHeight: 1.8,
-              minHeight: readOnly ? 'auto' : minRows * 28,
+              fontSize: compact ? '0.84rem' : '0.95rem',
+              lineHeight: compact ? 1.6 : 1.8,
+              minHeight: readOnly ? 'auto' : compact ? minRows * 20 : minRows * 28,
               color: 'hsl(var(--foreground))',
             },
             '& .ProseMirror:focus, & .markdown-wysiwyg:focus': { outline: 'none' },
-            '& .markdown-wysiwyg p': { m: 0, mb: 1.25 },
+            '& .markdown-wysiwyg p': { m: 0, mb: compact ? 0.75 : 1.25 },
             '& .markdown-wysiwyg p:last-child': { mb: 0 },
             '& .markdown-wysiwyg h1, & .markdown-wysiwyg h2, & .markdown-wysiwyg h3': {
               fontWeight: 700,
@@ -481,6 +820,9 @@ export const MarkdownDescriptionEditor = ({
 
       {bar && editor && !raw && (
         <Box
+          data-markdown-format-bar="1"
+          data-selection-rule-ignore="1"
+          data-format-bar-placement={bar.placement}
           onMouseDown={(event) => event.preventDefault()}
           sx={{
             position: 'absolute',

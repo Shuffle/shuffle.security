@@ -187,6 +187,7 @@ export interface AuthAppEntry {
   validation?: {
     valid: boolean;
     error?: string;
+    last_valid?: number;
   };
   label?: string;
   id?: string;
@@ -197,6 +198,16 @@ export interface DeduplicatedApp {
   hasValidAuth: boolean;
   bestImage: string;
   instances: { label: string; isValidated: boolean }[];
+}
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function isValidationFresh(validation?: { valid?: boolean; last_valid?: number; error?: string } | null): boolean {
+  if (validation?.valid !== true) return false;
+  if (!validation.last_valid) return true;
+  const cutoff = Date.now() - THIRTY_DAYS_MS;
+  const lastValidMs = validation.last_valid > 1e12 ? validation.last_valid : validation.last_valid * 1000;
+  return lastValidMs >= cutoff;
 }
 
 /**
@@ -210,12 +221,13 @@ export function deduplicateAuthApps(apps: AuthAppEntry[]): DeduplicatedApp[] {
   const appMap = new Map<string, DeduplicatedApp>();
 
   apps.forEach(auth => {
-    if (!auth.active && !auth.validation?.valid) return; // Skip inactive/unvalidated
+    if (!auth.app?.name) return;
+    if (!auth.active && !isValidationFresh(auth.validation)) return; // Skip inactive/unvalidated
     
     // Normalize: lowercase, trim, replace spaces/underscores/hyphens for deduplication
     const normalizedName = auth.app.name.toLowerCase().trim().replace(/[\s_\-]+/g, '_');
     const existing = appMap.get(normalizedName);
-    const isValidated = auth.validation?.valid === true;
+    const isValidated = isValidationFresh(auth.validation);
     const entryImage = auth.app.large_image || '';
     const instance = {
       label: auth.label || auth.id || 'Default',
@@ -356,6 +368,56 @@ export async function backfillAppImages(dedupedApps: DeduplicatedApp[]): Promise
 }
 
 /**
+ * Ensures that every task in the array has a non-empty, unique ID.
+ * If a task lacks an ID or collides with another task's ID, a stable unique ID is generated.
+ */
+export function ensureTaskIds<T extends { id?: string; createdAt?: number }>(tasks: T[]): T[] {
+  if (!Array.isArray(tasks)) return [];
+  const seenIds = new Set<string>();
+  return tasks.map((task, index) => {
+    if (!task || typeof task !== 'object') return task;
+    let id = task.id ? String(task.id).trim() : '';
+    if (!id || seenIds.has(id)) {
+      id = `task-${task.createdAt || Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+    }
+    seenIds.add(id);
+    return {
+      ...task,
+      id,
+    };
+  });
+}
+
+/**
+ * Ensures that every activity item in the array has a non-empty, unique ID.
+ * If an activity lacks an ID or collides with another activity's ID, a deterministic unique ID is generated.
+ */
+export function ensureActivityIds<T extends { id?: string; timestamp?: number; content?: string; user?: string; type?: string }>(activities: T[]): T[] {
+  if (!Array.isArray(activities)) return [];
+  const seenIds = new Set<string>();
+  return activities.map((item, index) => {
+    if (!item || typeof item !== 'object') return item;
+    let id = item.id ? String(item.id).trim() : '';
+    if (!id || seenIds.has(id)) {
+      const ts = item.timestamp || 0;
+      const typeStr = item.type || 'act';
+      const contentStr = String(item.content || '');
+      let hash = 0;
+      for (let i = 0; i < contentStr.length; i++) {
+        hash = ((hash << 5) - hash) + contentStr.charCodeAt(i);
+        hash |= 0;
+      }
+      id = id && !seenIds.has(id) ? id : `${typeStr}-${ts || index}-${index}-${Math.abs(hash)}`;
+    }
+    seenIds.add(id);
+    return {
+      ...item,
+      id,
+    };
+  });
+}
+
+/**
  * Deduplicate tasks by exact match on title + category + description.
  * Keeps the first occurrence (preserving order and IDs).
  */
@@ -372,14 +434,89 @@ export function deduplicateTasks<T>(tasks: T[]): T[] {
   });
 }
 
+export const AI_AGENT_HANDLE = '@AIAgent';
+export const AI_AGENT_DISPLAY_NAME = 'AI Agent';
+
 /**
- * Check if an assignee refers to the AI Agent.
- * Matches variations like "agent", "ai agent", "aiagent", "AI Agent", etc.
+ * Check if an assignee or username refers to the AI Agent.
+ * Matches all standard variations:
+ * - "ai-agent", "@ai-agent", "ai_agent", "@ai_agent", "aiagent", "@aiagent"
+ * - "@AIAgent", "AIAgent", "AI Agent", "@AI Agent"
+ * - "agent", "@agent"
+ * - "ai-agent@shuffler.io", "ai@shuffle.io"
  */
-export function isAIAssignee(assignee?: string): boolean {
+export function isAIAssignee(assignee?: string | null): boolean {
   if (!assignee) return false;
-  const normalized = assignee.toLowerCase().replace(/\s+/g, '');
-  return normalized === 'agent' || normalized === 'aiagent' || normalized.includes('aiagent');
+  const cleaned = assignee.trim().toLowerCase();
+  if (!cleaned) return false;
+
+  // Check email forms like ai-agent@shuffler.io or ai@shuffle.io
+  if (
+    cleaned.startsWith('ai-agent@') ||
+    cleaned.startsWith('ai_agent@') ||
+    cleaned.startsWith('ai@')
+  ) {
+    return true;
+  }
+
+  // Strip leading @, spaces, hyphens, underscores, dots
+  const normalized = cleaned.replace(/^@+/, '').replace(/[\s\-_.]/g, '');
+
+  return (
+    normalized === 'agent' ||
+    normalized === 'aiagent' ||
+    normalized.includes('aiagent') ||
+    normalized.startsWith('aiagent')
+  );
+}
+
+/**
+ * Determines whether a task has actually been assigned to or run by the AI Agent.
+ * A task is only considered AI-assigned if an AI execution has been dispatched or recorded:
+ * - Active or pending status (`aiStatus`)
+ * - Active background run (`aiWorking === true`)
+ * - Dispatched workflow run ID (`aiRunId`)
+ * - Explicit prompt assigned (`aiPrompt`)
+ * - Recorded start timestamp (`aiRunAt`)
+ *
+ * Simply having an assignee string like "AI Agent" (e.g. from a default ingestion schema)
+ * without any AI execution state does NOT constitute an active AI assignment.
+ */
+export function isTaskAiAssigned(task?: {
+  assignee?: string | null;
+  aiStatus?: string | null;
+  aiWorking?: boolean;
+  aiRunId?: string | null;
+  aiPrompt?: string | null;
+  aiRunAt?: number | null;
+} | null): boolean {
+  if (!task) return false;
+  if (task.aiWorking) return true;
+  if (task.aiStatus && task.aiStatus !== '') return true;
+  if (task.aiRunId && task.aiRunId !== '') return true;
+  if (typeof task.aiRunAt === 'number' && task.aiRunAt > 0) return true;
+  if (task.aiPrompt && task.aiPrompt.trim() !== '') return true;
+  return false;
+}
+
+/**
+ * Determines whether a task was handled/completed by the AI Agent.
+ * Only returns true if the task completed under AI execution (`aiStatus === 'completed'`
+ * or the task is marked completed and has an associated AI execution record).
+ */
+export function isTaskAiHandled(task?: {
+  completed?: boolean;
+  assignee?: string | null;
+  aiStatus?: string | null;
+  aiWorking?: boolean;
+  aiRunId?: string | null;
+  aiPrompt?: string | null;
+  aiRunAt?: number | null;
+} | null): boolean {
+  if (!task) return false;
+  if (task.aiStatus === 'completed') return true;
+  if (Boolean(task.completed) && isTaskAiAssigned(task)) return true;
+  return false;
 }
 
 /**

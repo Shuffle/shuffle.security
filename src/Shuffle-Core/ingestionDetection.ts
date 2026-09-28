@@ -3,7 +3,7 @@
  * Used by onboarding (AutomationConfig) and incident automations (CategoryAutomationsDialog).
  */
 
-import { AuthAppEntry, deduplicateAuthApps } from './auth-utils';
+import { AuthAppEntry, deduplicateAuthApps, isValidationFresh } from './auth-utils';
 
 // ============================================================================
 // Category patterns
@@ -235,7 +235,7 @@ export function extractValidatedIngestionApps(
   workflowAppNames?: Set<string>,
 ): ValidatedIngestionApp[] {
   const dedupedApps = deduplicateAuthApps(
-    authApiResponse.filter(auth => auth.active || auth.validation?.valid)
+    authApiResponse.filter(auth => auth.active || isValidationFresh(auth.validation))
   );
 
   const enabledNames = workflowAppNames || new Set<string>();

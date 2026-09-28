@@ -23,6 +23,8 @@ import { X as CloseIcon, GitBranch as CallSplitIcon, ChevronDown as ExpandMoreIc
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Button, IconButton, Stack, Tooltip, Chip } from '@mui/material';
 import { useDatastore } from '@/hooks/useDatastore';
+import { useRoutingWorkflowStatus } from '@/hooks/useRoutingWorkflowStatus';
+
 import {
   ROUTING_DATASTORE_CATEGORY,
   type RoutingRule,
@@ -62,6 +64,8 @@ interface RoutingRulePreviewBannerProps {
    * hidden and applied actions render as muted "done" chips.
    */
   isActionApplied?: (action: RoutingAction) => boolean;
+  entityCategory?: string;
+  entityLabel?: { singular: string; plural: string };
 }
 
 const dismissKey = (incidentId: string | undefined, ruleId: string) =>
@@ -74,10 +78,29 @@ export const RoutingRulePreviewBanner = ({
   onApply,
   onApplyActions,
   isActionApplied,
+  entityCategory = 'shuffle-security_incidents',
+  entityLabel = { singular: 'incident', plural: 'incidents' },
 }: RoutingRulePreviewBannerProps) => {
   const { userInfo } = useAuth();
   const currentOrgId = userInfo?.active_org?.id;
   const { subOrgs, parentOrg } = useSubOrgs(currentOrgId);
+
+  const {
+    matchedWorkflow,
+    workflowExists,
+    isInAutomations,
+    isAutomated,
+    status: workflowStatus,
+    isLoading: isWorkflowStatusLoading,
+    isLinkingHook,
+    isGeneratingWorkflow,
+    linkHook,
+    generateWorkflow,
+  } = useRoutingWorkflowStatus({
+    entityCategory,
+    entityLabel,
+    orgId: currentOrgId,
+  });
 
   // Rules live on the PARENT org. If we're on a parent, that's `currentOrgId`.
   // If we're on a sub-org and the parent is known, fetch from there.
@@ -117,8 +140,8 @@ export const RoutingRulePreviewBanner = ({
   }, [items]);
 
   const matches: RoutingRuleMatch[] = useMemo(
-    () => dedupeMatchesByActionTarget(evaluateRoutingRules(context, rules)),
-    [context, rules]
+    () => dedupeMatchesByActionTarget(evaluateRoutingRules(context, rules, entityCategory)),
+    [context, rules, entityCategory]
   );
 
   // Resolve org names for `suggest_move` actions.
@@ -323,9 +346,97 @@ export const RoutingRulePreviewBanner = ({
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <CallSplitIcon size={14} style={{ color: 'hsl(var(--muted-foreground))', flexShrink: 0 }} />
-        <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: 12, flex: 1 }}>
+        <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>
           {visible.length} routing rule{visible.length === 1 ? '' : 's'} matched
         </Typography>
+
+        {/* Workflow automation indicator */}
+        {isWorkflowStatusLoading ? (
+          <Tooltip title="Checking backing workflow and category automation status">
+            <Chip
+              size="small"
+              label="Checking…"
+              sx={{
+                height: 19,
+                fontSize: '0.65rem',
+                fontWeight: 500,
+                bgcolor: 'hsl(var(--muted))',
+                color: 'hsl(var(--muted-foreground))',
+                border: '1px solid hsl(var(--border))',
+                '& .MuiChip-label': { px: 0.75 },
+              }}
+            />
+          </Tooltip>
+        ) : isAutomated && matchedWorkflow ? (
+          <Tooltip title={`Rules automated in background by "${matchedWorkflow.name}". Click to open workflow.`}>
+            <Chip
+              size="small"
+              label="Automated"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(`/workflows/${matchedWorkflow.id}`, '_blank');
+              }}
+              sx={{
+                height: 19,
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                bgcolor: 'hsl(var(--severity-low) / 0.15)',
+                color: 'hsl(var(--severity-low))',
+                border: '1px solid hsl(var(--severity-low) / 0.4)',
+                '&:hover': { bgcolor: 'hsl(var(--severity-low) / 0.25)' },
+                '& .MuiChip-label': { px: 0.75 },
+              }}
+            />
+          </Tooltip>
+        ) : workflowExists && matchedWorkflow ? (
+          <Tooltip title={`Workflow "${matchedWorkflow.name}" exists, but is not in "Automation for ${entityLabel.plural}" category settings. Click to add.`}>
+            <Chip
+              size="small"
+              label={isLinkingHook ? 'Adding…' : 'Not in category automations'}
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (!isLinkingHook) await linkHook();
+              }}
+              sx={{
+                height: 19,
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                cursor: isLinkingHook ? 'default' : 'pointer',
+                bgcolor: 'hsl(var(--severity-medium) / 0.15)',
+                color: 'hsl(var(--severity-medium))',
+                border: '1px solid hsl(var(--severity-medium) / 0.4)',
+                '&:hover': { bgcolor: 'hsl(var(--severity-medium) / 0.25)' },
+                '& .MuiChip-label': { px: 0.75 },
+              }}
+            />
+          </Tooltip>
+        ) : (
+          <Tooltip title={`No workflow found for ${entityLabel.plural}. Rules will not run automatically until a workflow is created. Click to create.`}>
+            <Chip
+              size="small"
+              label={isGeneratingWorkflow ? 'Creating…' : 'Not automated'}
+              disabled={isGeneratingWorkflow}
+              onClick={(e) => {
+                e.stopPropagation();
+                generateWorkflow();
+              }}
+              sx={{
+                height: 19,
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                bgcolor: 'hsl(var(--muted))',
+                color: 'hsl(var(--muted-foreground))',
+                border: '1px solid hsl(var(--border))',
+                '&:hover': { bgcolor: 'hsl(var(--muted) / 0.8)', color: 'hsl(var(--foreground))' },
+                '& .MuiChip-label': { px: 0.75 },
+              }}
+            />
+          </Tooltip>
+        )}
+
+        <Box sx={{ flex: 1 }} />
         {pendingActions.length > 0 && (
           <Button
             size="small"

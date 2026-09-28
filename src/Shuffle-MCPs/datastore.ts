@@ -75,11 +75,14 @@ export interface DatastoreKeyExisted {
 export interface DatastoreResponse {
   success: boolean;
   data?: DatastoreItem[];
+  items?: DatastoreItem[];
   categoryConfig?: CategoryConfig;
   cursor?: string;
   totalAmount?: number;
   error?: string;
   diagnostics?: DatastoreDiagnostics;
+  /** Raw items count from backend before client-side cross-category filtering */
+  rawItemCount?: number;
   /** Per-key write result reported by the backend (v2 datastore writes). */
   keysExisted?: DatastoreKeyExisted[];
   /** True when the backend reports the stored value actually changed. */
@@ -98,6 +101,7 @@ export interface DatastoreDiagnostics {
   contentType?: string | null;
   responseShape?: 'array' | 'keys' | 'data' | 'object' | 'unknown';
   itemCount?: number;
+  rawItemCount?: number;
   totalAmount?: number | null;
   bodyPreview?: string;
   errorStage?: 'request' | 'response' | 'parse' | 'unknown';
@@ -123,10 +127,19 @@ export const setRuntimeOrgId = (orgId: string | null) => {
 const getOrgId = (): string | null => {
   if (_runtimeOrgId) return _runtimeOrgId;
   try {
-    const userInfo = localStorage.getItem('shuffle_user_info');
+    const userInfo =
+      localStorage.getItem('shuffle_user_info') ||
+      localStorage.getItem('userinfo') ||
+      localStorage.getItem('user_info');
     if (userInfo) {
       const parsed = JSON.parse(userInfo);
-      return parsed.active_org?.id || null;
+      return (
+        parsed.active_org?.id ||
+        parsed.org_id ||
+        parsed.active_org_id ||
+        (parsed.orgs && parsed.orgs[0]?.id) ||
+        null
+      );
     }
   } catch {
     // Ignore parsing errors
@@ -162,10 +175,30 @@ const waitForOrgId = async (): Promise<string | null> => {
 };
 
 
+const decodeDatastoreKey = (key: string): string => {
+  if (!key) return '';
+  if (!key.includes('%')) return key;
+  try {
+    return decodeURIComponent(key);
+  } catch {
+    return key.replace(/%3a/gi, ':');
+  }
+};
+
 const normalizeDatastoreKey = (key: string): string => {
-  if (!key?.includes('::')) return key;
-  const parts = key.split('::').filter(Boolean);
-  return parts.length > 0 ? parts[parts.length - 1] : key;
+  if (!key) return key;
+  const decoded = decodeDatastoreKey(key);
+  if (!decoded.includes('::')) return decoded;
+  const parts = decoded.split('::').filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : decoded;
+};
+
+const extractOrgIdFromDatastoreKey = (key: string): string | null => {
+  if (!key) return null;
+  const decoded = decodeDatastoreKey(key);
+  if (!decoded.includes('::')) return null;
+  const parts = decoded.split('::').filter(Boolean);
+  return parts.length > 1 ? parts[0] : null;
 };
 
 const truncateResponsePreview = (value: string | null | undefined, maxLength = 280): string | undefined => {
@@ -349,7 +382,8 @@ export const setDatastoreItem = async (
   overrideOrgId?: string,
   options?: { regionUrl?: string }
 ): Promise<DatastoreResponse> => {
-  const orgId = overrideOrgId || (await waitForOrgId());
+  const extractedOrgId = !overrideOrgId ? extractOrgIdFromDatastoreKey(key) : null;
+  const orgId = overrideOrgId || extractedOrgId || (await waitForOrgId());
   if (!orgId) {
     return { success: false, error: 'No organization ID found' };
   }
@@ -558,7 +592,8 @@ export const getDatastoreItem = async (
   overrideOrgId?: string,
   options?: { priority?: boolean; regionUrl?: string }
 ): Promise<DatastoreResponse & { item?: DatastoreItem }> => {
-  const orgId = overrideOrgId || (await waitForOrgId());
+  const extractedOrgId = !overrideOrgId ? extractOrgIdFromDatastoreKey(key) : null;
+  const orgId = overrideOrgId || extractedOrgId || (await waitForOrgId());
   if (!orgId) {
     return { success: false, error: 'No organization ID found' };
   }
@@ -918,8 +953,39 @@ const scopeItemsToOrg = <T,>(items: T[], orgId: string): T[] => {
   return items;
 };
 
-
 /**
+ * Defensively filters items returned by datastore list APIs.
+ * The Shuffle Core backend's list_cache API filters the category field with an
+ * analyzed match query instead of an exact term match, causing cross-category
+ * contamination among categories sharing prefixes (e.g. shuffle-security_*).
+ * If an item explicitly carries a `category` property, ensure it matches the
+ * requested category (or known aliases for vulns). Items without a category
+ * property are preserved for backwards compatibility with legacy payloads.
+ */
+export const filterItemsByCategory = <T extends { category?: string }>(items: T[], category: string): T[] => {
+  if (!Array.isArray(items) || !category || category === 'all') return items;
+
+  const targetCategory = category.trim().toLowerCase();
+  const isVulns = targetCategory === 'shuffle-security_vulns' || targetCategory === 'shuffle-security_vulnerabilities' || targetCategory === 'vulns';
+  const vulnAliases = new Set(['shuffle-security_vulns', 'shuffle-security_vulnerabilities', 'vulns']);
+
+  const filtered = items.filter((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const itemCat = typeof item.category === 'string' ? item.category.trim().toLowerCase() : '';
+    // If the backend didn't return a category on the item, preserve it for backwards compatibility.
+    if (!itemCat) return true;
+    if (isVulns) return vulnAliases.has(itemCat);
+    return itemCat === targetCategory;
+  });
+
+  const leakedCount = items.length - filtered.length;
+  if (leakedCount > 0) {
+    console.warn(`[Datastore] Filtered out ${leakedCount}/${items.length} items with mismatched category (requested: "${category}") due to backend analyzed-match leakage`);
+  }
+
+  return filtered;
+};
+
 /**
  * Page size used for a category. Exported so callers that follow cursors can
  * tell a full page (more data may exist) from a short page (definitively the
@@ -1024,9 +1090,13 @@ export const getDatastoreByCategory = async (
     const extracted = tryExtractItemsFromBody(rawBody);
     if (extracted && extracted.items.length > 0) {
       console.warn(`[Datastore] ${response.status} response for category=${category} but body contained ${extracted.items.length} valid items — treating as success`);
+      const rawCount = extracted.items.length;
+      const scoped = scopeItemsToOrg(extracted.items, orgId);
+      const filtered = filterItemsByCategory(scoped, category);
       return {
         success: true,
-        data: scopeItemsToOrg(extracted.items, orgId),
+        data: filtered,
+        rawItemCount: rawCount,
         categoryConfig: extracted.categoryConfig,
         cursor: extracted.cursor,
         totalAmount: extracted.totalAmount,
@@ -1036,7 +1106,8 @@ export const getDatastoreByCategory = async (
           statusText: response.statusText,
           contentType,
           responseShape: extracted.shape,
-          itemCount: extracted.items.length,
+          itemCount: filtered.length,
+          rawItemCount: rawCount,
           totalAmount: extracted.totalAmount ?? null,
         },
       };
@@ -1059,11 +1130,14 @@ export const getDatastoreByCategory = async (
         const retryBody = await retryResponse.text();
         const retryExtracted = tryExtractItemsFromBody(retryBody);
         if (retryResponse.ok || (retryExtracted && retryExtracted.items.length > 0)) {
-          const items = scopeItemsToOrg(retryExtracted?.items || [], orgId);
-          console.warn(`[Datastore] Retry succeeded for category=${category} (status=${retryResponse.status}, items=${items.length})`);
+          const rawCount = (retryExtracted?.items || []).length;
+          const scoped = scopeItemsToOrg(retryExtracted?.items || [], orgId);
+          const filtered = filterItemsByCategory(scoped, category);
+          console.warn(`[Datastore] Retry succeeded for category=${category} (status=${retryResponse.status}, items=${filtered.length})`);
           return {
             success: true,
-            data: items,
+            data: filtered,
+            rawItemCount: rawCount,
             categoryConfig: retryExtracted?.categoryConfig,
             cursor: retryExtracted?.cursor,
             totalAmount: retryExtracted?.totalAmount,
@@ -1073,7 +1147,8 @@ export const getDatastoreByCategory = async (
               statusText: retryResponse.statusText,
               contentType: retryResponse.headers.get('content-type'),
               responseShape: retryExtracted?.shape || 'unknown',
-              itemCount: items.length,
+              itemCount: filtered.length,
+              rawItemCount: rawCount,
               totalAmount: retryExtracted?.totalAmount ?? null,
             },
           };
@@ -1106,12 +1181,16 @@ export const getDatastoreByCategory = async (
         : Array.isArray(data?.data)
           ? 'data'
           : 'unknown';
-    const items = Array.isArray(data) ? data : data.keys || data.data || [];
+    const items: DatastoreItem[] = Array.isArray(data) ? data : data.keys || data.data || [];
+    const rawCount = Array.isArray(items) ? items.length : 0;
+    const scoped = scopeItemsToOrg(items, orgId);
+    const filtered = filterItemsByCategory(scoped, category);
     const totalAmount = data.total_amount ?? data.total ?? data.amount;
 
     return {
       success: true,
-      data: scopeItemsToOrg(items, orgId),
+      data: filtered,
+      rawItemCount: rawCount,
       categoryConfig: data.category_config,
       cursor: data.cursor,
       totalAmount,
@@ -1121,7 +1200,8 @@ export const getDatastoreByCategory = async (
         statusText: response.statusText,
         contentType,
         responseShape,
-        itemCount: Array.isArray(items) ? items.length : 0,
+        itemCount: filtered.length,
+        rawItemCount: rawCount,
         totalAmount: totalAmount ?? null,
       },
     };
@@ -1150,7 +1230,8 @@ export const deleteDatastoreItem = async (
   overrideOrgId?: string,
   options?: { regionUrl?: string }
 ): Promise<DatastoreResponse> => {
-  const orgId = overrideOrgId || (await waitForOrgId());
+  const extractedOrgId = !overrideOrgId ? extractOrgIdFromDatastoreKey(key) : null;
+  const orgId = overrideOrgId || extractedOrgId || (await waitForOrgId());
   if (!orgId) {
     return { success: false, error: 'No organization ID found' };
   }
@@ -1227,6 +1308,7 @@ export const deleteDatastoreItems = async (
 // Category constants for consistency
 export const DATASTORE_CATEGORIES = {
   INCIDENTS: 'shuffle-security_incidents',
+  EVENTS: 'shuffle-security_events',
   VULNERABILITIES: 'shuffle-security_vulns',
   VULNS: 'shuffle-security_vulns',
   ASSETS: 'shuffle-security_assets',

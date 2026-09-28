@@ -296,7 +296,7 @@ export const ToolAuthentication = ({
                           <Alert
                             severity="error"
                             sx={{
-                              backgroundColor: 'hsl(var(--destructive) / 0.1)',
+                              backgroundColor: 'transparent',
                               color: 'hsl(var(--destructive))',
                               border: '1px solid hsl(var(--destructive) / 0.3)',
                               borderRadius: 2,

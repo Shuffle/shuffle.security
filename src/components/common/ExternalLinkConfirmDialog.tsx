@@ -22,6 +22,7 @@ import {
   openExternalLink,
   type ExternalLinkConfirmDetail,
 } from '@/utils/safeExternalLinks';
+import { getTopSurfaceZIndex } from '@/Shuffle-MCPs/drawerLayer';
 
 const ExternalLinkConfirmDialog = () => {
   const [pending, setPending] = useState<ExternalLinkConfirmDetail | null>(null);
@@ -50,7 +51,7 @@ const ExternalLinkConfirmDialog = () => {
           border: '1px solid hsl(var(--border))',
         },
       }}
-      sx={{ zIndex: 9999 }}
+      sx={{ zIndex: (_theme: any) => Math.max(getTopSurfaceZIndex() + 10, 10060) }}
     >
       <DialogTitle sx={{ pr: 6, display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Box

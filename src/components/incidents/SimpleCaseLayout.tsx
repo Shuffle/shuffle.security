@@ -1,9 +1,42 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Box, Button, Typography } from '@mui/material';
-import { FileText, ListChecks, SlidersHorizontal, Fingerprint, Network, Mail } from 'lucide-react';
-import { useNavigate } from '@/lib/router-compat';
-import type { IncidentTask } from '@/config/ocsfIncidentSchema';
-import type { LinkedIncidentSummary } from '@/hooks/useRelatedIncidents';
+import {
+  Fragment,
+  isValidElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { Box, Button, Collapse, Typography } from "@mui/material";
+import {
+  FileText,
+  ListChecks,
+  SlidersHorizontal,
+  Fingerprint,
+  Network,
+  Mail,
+  ChevronDown,
+  EyeOff,
+  Activity,
+} from "lucide-react";
+import { useNavigate } from "@/lib/router-compat";
+import { getIncidentUrl } from "@/lib/incidentUrl";
+import type { IncidentTask } from "@/config/ocsfIncidentSchema";
+import type { LinkedIncidentSummary } from "@/hooks/useRelatedIncidents";
+import { groupTasksByCategory, UNCATEGORIZED_KEY } from "./taskCategoryUtils";
+import { SimpleSlaOverview, type SimpleSlaData } from "./SimpleSlaOverview";
+
+const TIMELINE_WIDTH_STORAGE_KEY = "shuffle_simple_timeline_width";
+const DEFAULT_TIMELINE_WIDTH = 260;
+const MIN_TIMELINE_WIDTH = 180;
+const MAX_TIMELINE_WIDTH = 500;
+
+export interface SimpleCustomFieldItem {
+  key: string;
+  name: string;
+  type?: string;
+  required?: boolean;
+}
 
 interface SimpleCaseLayoutProps {
   narrativeLabel: string;
@@ -19,18 +52,48 @@ interface SimpleCaseLayoutProps {
   customFields?: ReactNode;
   observables: ReactNode;
   correlations: ReactNode;
+  /** Optional events block, rendered below Correlations when the case has events. */
+  events?: ReactNode;
+  eventsCount?: number;
+  /** Optional hidden fields block, rendered below Correlations when the case has unmapped original data. */
+  hiddenFields?: ReactNode;
+  hiddenFieldsCount?: number;
   /** Configuration controls (share access, actions menu) shown above Overview. */
   contentsActions?: ReactNode;
   taskItems: IncidentTask[];
   customFieldsCount?: number;
+  /** Individual custom field definitions, rendered in the Overview rail when expandable. */
+  customFieldItems?: SimpleCustomFieldItem[];
+  /** Minimum count of custom fields to treat as "many" and offer expandable list in Overview rail. Defaults to 3. */
+  manyCustomFieldsThreshold?: number;
   observableCount: number;
   correlationCount: number;
   /** Incidents merged into this one, shown at the bottom of the Overview rail. */
   relatedIncidents?: LinkedIncidentSummary[];
+  /** Closure details shown in the Overview rail once the case is resolved. */
+  resolution?: {
+    reasonLabel: string;
+    notes?: string;
+    resolvedBy?: string;
+    resolvedAt?: number;
+  };
+  /** SLA tracking shown in the Overview rail. */
+  sla?: SimpleSlaData | ReactNode;
+  /** Section currently hovered in the simple timeline, to highlight in the center and Overview rail. */
+  highlightSection?: SectionKey | "overview" | null;
 }
 
-const SECTIONS = ['emailThread', 'narrative', 'tasks', 'customFields', 'observables', 'correlations'] as const;
-type SectionKey = typeof SECTIONS[number];
+const SECTIONS = [
+  "emailThread",
+  "narrative",
+  "tasks",
+  "customFields",
+  "observables",
+  "correlations",
+  "events",
+  "hiddenFields",
+] as const;
+type SectionKey = (typeof SECTIONS)[number];
 
 const SECTION_ICONS: Record<SectionKey, typeof FileText> = {
   emailThread: Mail,
@@ -39,6 +102,26 @@ const SECTION_ICONS: Record<SectionKey, typeof FileText> = {
   customFields: SlidersHorizontal,
   observables: Fingerprint,
   correlations: Network,
+  events: Activity,
+  hiddenFields: EyeOff,
+};
+
+const getScrollContainer = (el: HTMLElement | null): HTMLElement | null => {
+  let parent = el?.parentElement;
+  while (
+    parent &&
+    parent !== document.body &&
+    parent !== document.documentElement
+  ) {
+    const style = window.getComputedStyle(parent);
+    if (style.overflowY === "auto" || style.overflowY === "scroll") {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+  const main = el?.closest("main");
+  if (main instanceof HTMLElement) return main;
+  return null;
 };
 
 export const SimpleCaseLayout = ({
@@ -53,15 +136,37 @@ export const SimpleCaseLayout = ({
   customFields,
   observables,
   correlations,
+  events,
+  eventsCount,
+  hiddenFields,
+  hiddenFieldsCount,
   contentsActions,
   taskItems,
   customFieldsCount,
+  customFieldItems,
+  manyCustomFieldsThreshold = 3,
   observableCount,
   correlationCount,
   relatedIncidents,
+  resolution,
+  sla,
+  highlightSection = null,
 }: SimpleCaseLayoutProps) => {
   const navigate = useNavigate();
-  const [activeSection, setActiveSection] = useState<SectionKey>('narrative');
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [activeSection, setActiveSection] = useState<SectionKey>(() =>
+    emailThread ? "emailThread" : "narrative",
+  );
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeCustomField, setActiveCustomField] = useState<string | null>(
+    null,
+  );
+  const [customFieldsExpanded, setCustomFieldsExpanded] =
+    useState<boolean>(false);
+
+  const hasManyCustomFields =
+    (customFieldItems?.length ?? customFieldsCount ?? 0) >
+    manyCustomFieldsThreshold;
   const refs = useRef<Record<SectionKey, HTMLElement | null>>({
     emailThread: null,
     narrative: null,
@@ -69,7 +174,25 @@ export const SimpleCaseLayout = ({
     customFields: null,
     observables: null,
     correlations: null,
+    events: null,
+    hiddenFields: null,
   });
+
+  const categoryGroups = useMemo(
+    () => groupTasksByCategory(taskItems),
+    [taskItems],
+  );
+
+  const hasCategories = useMemo(
+    () => categoryGroups.some((g) => g.categoryKey !== UNCATEGORIZED_KEY),
+    [categoryGroups],
+  );
+
+  useEffect(() => {
+    if (!emailThread && activeSection === "emailThread") {
+      setActiveSection("narrative");
+    }
+  }, [emailThread, activeSection]);
 
   // A short case fits entirely on one screen, so scroll position alone cannot
   // tell which section the user cares about — clicking "Tasks" would instantly
@@ -98,26 +221,40 @@ export const SimpleCaseLayout = ({
       }
       if (sections.length === 0) return;
 
-      // If the document is not scrollable, maintain current selection
-      const isScrollable = document.documentElement.scrollHeight > window.innerHeight + 60;
+      const scroller = getScrollContainer(rootRef.current);
+      const scrollTop = scroller
+        ? scroller.scrollTop
+        : window.scrollY ||
+          window.pageYOffset ||
+          document.documentElement.scrollTop;
+      const scrollHeight = scroller
+        ? scroller.scrollHeight
+        : document.documentElement.scrollHeight;
+      const clientHeight = scroller
+        ? scroller.clientHeight
+        : window.innerHeight;
+
+      // If the container is not scrollable, maintain current selection
+      const isScrollable = scrollHeight > clientHeight + 60;
       if (!isScrollable) return;
 
-      // Top of document: lock to first section
-      if (window.scrollY <= 10) {
+      // Top of container: lock to first section
+      if (scrollTop <= 10) {
         setActiveSection(sections[0].key);
         return;
       }
 
-      // Bottom of document: lock to last section
-      const scrollBottom = window.innerHeight + window.scrollY;
-      const docHeight = document.documentElement.scrollHeight;
-      if (scrollBottom >= docHeight - 30) {
+      // Bottom of container: lock to last section
+      const scrollBottom = clientHeight + scrollTop;
+      if (scrollBottom >= scrollHeight - 30) {
         setActiveSection(sections[sections.length - 1].key);
         return;
       }
 
       // Reading trigger line: comfortably below sticky overview header
-      const triggerLine = Math.min(240, Math.max(140, window.innerHeight * 0.25));
+      const containerTop = scroller ? scroller.getBoundingClientRect().top : 0;
+      const triggerLine =
+        containerTop + Math.min(240, Math.max(140, clientHeight * 0.25));
 
       let currentKey = sections[0].key;
       for (let i = 0; i < sections.length; i++) {
@@ -130,6 +267,56 @@ export const SimpleCaseLayout = ({
       }
 
       setActiveSection((prev) => (prev === currentKey ? prev : currentKey));
+
+      if (currentKey === "tasks") {
+        const catEls = document.querySelectorAll<HTMLElement>(
+          "[data-simple-task-category]",
+        );
+        if (catEls.length > 0) {
+          let matchedCat: string | null = catEls[0].getAttribute(
+            "data-simple-task-category",
+          );
+          for (let i = 0; i < catEls.length; i++) {
+            const r = catEls[i].getBoundingClientRect();
+            if (r.top <= triggerLine) {
+              matchedCat = catEls[i].getAttribute("data-simple-task-category");
+            } else {
+              break;
+            }
+          }
+          if (matchedCat) {
+            setActiveCategory(matchedCat);
+          }
+        }
+      } else {
+        setActiveCategory(null);
+      }
+
+      if (currentKey === "customFields") {
+        const fieldEls = document.querySelectorAll<HTMLElement>(
+          "[data-simple-custom-field]",
+        );
+        if (fieldEls.length > 0) {
+          let matchedField: string | null = fieldEls[0].getAttribute(
+            "data-simple-custom-field",
+          );
+          for (let i = 0; i < fieldEls.length; i++) {
+            const r = fieldEls[i].getBoundingClientRect();
+            if (r.top <= triggerLine) {
+              matchedField = fieldEls[i].getAttribute(
+                "data-simple-custom-field",
+              );
+            } else {
+              break;
+            }
+          }
+          if (matchedField) {
+            setActiveCustomField(matchedField);
+          }
+        }
+      } else {
+        setActiveCustomField(null);
+      }
     };
 
     const onScroll = () => {
@@ -141,12 +328,111 @@ export const SimpleCaseLayout = ({
 
     computeActiveSection();
 
-    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
-    window.addEventListener('resize', onScroll, { passive: true });
+    const scroller = getScrollContainer(rootRef.current);
+    if (scroller) {
+      scroller.addEventListener("scroll", onScroll, { passive: true });
+    }
+    window.addEventListener("scroll", onScroll, {
+      passive: true,
+      capture: true,
+    });
+    window.addEventListener("resize", onScroll, { passive: true });
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && scroller) {
+      try {
+        resizeObserver = new ResizeObserver(onScroll);
+        resizeObserver.observe(scroller);
+      } catch {
+        resizeObserver = null;
+      }
+    }
 
     return () => {
-      window.removeEventListener('scroll', onScroll, true);
-      window.removeEventListener('resize', onScroll);
+      if (scroller) {
+        scroller.removeEventListener("scroll", onScroll);
+      }
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+      resizeObserver?.disconnect();
+    };
+  }, []);
+
+  // Background refreshes can briefly shrink the page (a section re-renders or a
+  // block unmounts), and the browser then clamps the scroll position back to
+  // the top — the reading position is lost for no reason the user caused.
+  // Watch for that: if the scroll position snaps to the top without any recent
+  // user input or intentional in-app jump, put it back where it was.
+  const allowJumpUntil = useRef(0);
+  const allowScrollJump = (ms = 1500) => {
+    allowJumpUntil.current = Date.now() + ms;
+  };
+
+  useEffect(() => {
+    const scroller = getScrollContainer(rootRef.current);
+    const readTop = () =>
+      scroller
+        ? scroller.scrollTop
+        : window.scrollY ||
+          window.pageYOffset ||
+          document.documentElement.scrollTop ||
+          0;
+    const writeTop = (top: number) => {
+      if (scroller) scroller.scrollTop = top;
+      else window.scrollTo({ top, behavior: "auto" });
+    };
+
+    let lastTop = readTop();
+    let restoring = false;
+
+    const onIntent = () => allowScrollJump(1200);
+
+    const onScroll = () => {
+      if (restoring) return;
+      const top = readTop();
+      if (
+        top <= 4 &&
+        lastTop > 200 &&
+        Date.now() > allowJumpUntil.current &&
+        !document.hidden
+      ) {
+        const restoreTo = lastTop;
+        restoring = true;
+        requestAnimationFrame(() => {
+          writeTop(restoreTo);
+          lastTop = restoreTo;
+          restoring = false;
+        });
+        return;
+      }
+      lastTop = top;
+    };
+
+    const intentEvents: Array<keyof WindowEventMap> = [
+      "wheel",
+      "touchstart",
+      "touchmove",
+      "keydown",
+      "pointerdown",
+      "click",
+    ];
+    intentEvents.forEach((evt) =>
+      window.addEventListener(evt, onIntent, { passive: true, capture: true }),
+    );
+    if (scroller) {
+      scroller.addEventListener("scroll", onScroll, { passive: true });
+    }
+    window.addEventListener("scroll", onScroll, {
+      passive: true,
+      capture: true,
+    });
+
+    return () => {
+      intentEvents.forEach((evt) =>
+        window.removeEventListener(evt, onIntent, true),
+      );
+      if (scroller) scroller.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, []);
 
@@ -155,8 +441,76 @@ export const SimpleCaseLayout = ({
       ? document.querySelector(`[data-simple-task-id="${CSS.escape(taskId)}"]`)
       : refs.current[key];
     focusSection(key, 1500);
+    allowScrollJump();
+    if (key === "tasks" && !taskId && categoryGroups.length > 0) {
+      setActiveCategory(categoryGroups[0].categoryKey);
+    }
+    if (
+      key === "customFields" &&
+      hasManyCustomFields &&
+      customFieldItems &&
+      customFieldItems.length > 0
+    ) {
+      setActiveCustomField(customFieldItems[0].key);
+    }
     if (!(target instanceof HTMLElement)) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const scrollToCategory = (categoryKey: string) => {
+    const target = document.querySelector(
+      `[data-simple-task-category="${CSS.escape(categoryKey)}"]`,
+    );
+    focusSection("tasks", 1500);
+    setActiveCategory(categoryKey);
+    if (!(target instanceof HTMLElement)) {
+      refs.current.tasks?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      return;
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const scrollToCustomField = (fieldKey: string) => {
+    const target = document.querySelector(
+      `[data-simple-custom-field="${CSS.escape(fieldKey)}"]`,
+    );
+    focusSection("customFields", 1500);
+    allowScrollJump();
+    setActiveCustomField(fieldKey);
+    if (!(target instanceof HTMLElement)) {
+      refs.current.customFields?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      return;
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    try {
+      target.animate(
+        [
+          {
+            outline: "2px solid hsl(var(--primary))",
+            backgroundColor: "hsl(var(--primary) / 0.08)",
+          },
+          {
+            outline: "2px solid transparent",
+            backgroundColor: "transparent",
+          },
+        ],
+        { duration: 1600, easing: "ease-out" },
+      );
+    } catch {
+      // Ignore if animate is unavailable
+    }
+    const input = target.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+      "input, textarea, select",
+    );
+    if (input && typeof input.focus === "function") {
+      input.focus({ preventScroll: true });
+    }
   };
 
   /** Shared props so interacting anywhere inside a section highlights it. */
@@ -175,7 +529,7 @@ export const SimpleCaseLayout = ({
   useEffect(() => {
     const findFeed = () => {
       const el = timelineColRef.current;
-      const feed = el?.querySelector('[data-simple-timeline-feed]');
+      const feed = el?.querySelector("[data-simple-timeline-feed]");
       return feed instanceof HTMLElement ? feed : null;
     };
     const update = () => {
@@ -203,64 +557,371 @@ export const SimpleCaseLayout = ({
       });
     };
     update();
-    window.addEventListener('scroll', update, true);
-    window.addEventListener('resize', update);
+    const scroller = getScrollContainer(rootRef.current);
+    if (scroller) {
+      scroller.addEventListener("scroll", update, { passive: true });
+    }
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
     return () => {
-      window.removeEventListener('scroll', update, true);
-      window.removeEventListener('resize', update);
+      if (scroller) {
+        scroller.removeEventListener("scroll", update);
+      }
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
     };
   }, []);
 
-  const openTasks = taskItems.filter((task) => !task.completed && !task.disabled);
-  const sectionData: Array<{ key: SectionKey; label: string; count?: number; icon: typeof FileText }> = [
-    ...(emailThread ? [{
-      key: 'emailThread' as SectionKey,
-      label: 'Email Thread',
-      count: emailThreadCount,
-      icon: SECTION_ICONS.emailThread,
-    }] : []),
-    { key: 'narrative', label: narrativeLabel, icon: SECTION_ICONS.narrative },
-    { key: 'tasks', label: 'Tasks', count: openTasks.length, icon: SECTION_ICONS.tasks },
-    ...(customFields ? [{
-      key: 'customFields' as SectionKey,
-      label: 'Custom Fields',
-      count: customFieldsCount !== undefined ? customFieldsCount : 1,
-      icon: SECTION_ICONS.customFields,
-    }] : []),
-    { key: 'observables', label: 'Observables', count: observableCount, icon: SECTION_ICONS.observables },
-    { key: 'correlations', label: 'Correlations', count: correlationCount, icon: SECTION_ICONS.correlations },
+  const openTasks = taskItems.filter(
+    (task) => !task.completed && !task.disabled,
+  );
+  const sectionData: Array<{
+    key: SectionKey;
+    label: string;
+    count?: number;
+    icon: typeof FileText;
+  }> = [
+    ...(emailThread
+      ? [
+          {
+            key: "emailThread" as SectionKey,
+            label: "Email Thread",
+            count: emailThreadCount,
+            icon: SECTION_ICONS.emailThread,
+          },
+        ]
+      : []),
+    { key: "narrative", label: narrativeLabel, icon: SECTION_ICONS.narrative },
+    {
+      key: "tasks",
+      label: "Tasks",
+      count: openTasks.length,
+      icon: SECTION_ICONS.tasks,
+    },
+    ...(customFields
+      ? [
+          {
+            key: "customFields" as SectionKey,
+            label: "Custom Fields",
+            count:
+              customFieldsCount !== undefined
+                ? customFieldsCount
+                : (customFieldItems?.length ?? 1),
+            icon: SECTION_ICONS.customFields,
+          },
+        ]
+      : []),
+    {
+      key: "observables",
+      label: "Observables",
+      count: observableCount,
+      icon: SECTION_ICONS.observables,
+    },
+    {
+      key: "correlations",
+      label: "Correlations",
+      count: correlationCount,
+      icon: SECTION_ICONS.correlations,
+    },
+    ...(events && (eventsCount ?? 0) > 0
+      ? [
+          {
+            key: "events" as SectionKey,
+            label: "Events",
+            count: eventsCount,
+            icon: SECTION_ICONS.events,
+          },
+        ]
+      : []),
+    ...(hiddenFields && (hiddenFieldsCount ?? 0) > 0
+      ? [
+          {
+            key: "hiddenFields" as SectionKey,
+            label: "Hidden fields",
+            count: hiddenFieldsCount,
+            icon: SECTION_ICONS.hiddenFields,
+          },
+        ]
+      : []),
   ];
+
+  const [timelineWidth, setTimelineWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(TIMELINE_WIDTH_STORAGE_KEY);
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (
+          !Number.isNaN(parsed) &&
+          parsed >= MIN_TIMELINE_WIDTH &&
+          parsed <= MAX_TIMELINE_WIDTH
+        ) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore localStorage read errors
+    }
+    return DEFAULT_TIMELINE_WIDTH;
+  });
+  const [isResizingTimeline, setIsResizingTimeline] = useState(false);
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizingTimeline(true);
+    const startX = e.clientX;
+    const startWidth = timelineWidth;
+
+    if (typeof document !== "undefined") {
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    }
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const maxAllowed = Math.min(
+        MAX_TIMELINE_WIDTH,
+        Math.max(MIN_TIMELINE_WIDTH, (window.innerWidth || 1200) * 0.45),
+      );
+      const nextWidth = Math.round(
+        Math.max(MIN_TIMELINE_WIDTH, Math.min(maxAllowed, startWidth + deltaX)),
+      );
+      setTimelineWidth(nextWidth);
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      setIsResizingTimeline(false);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      if (typeof document !== "undefined") {
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      }
+      const deltaX = upEvent.clientX - startX;
+      const maxAllowed = Math.min(
+        MAX_TIMELINE_WIDTH,
+        Math.max(MIN_TIMELINE_WIDTH, (window.innerWidth || 1200) * 0.45),
+      );
+      const finalWidth = Math.round(
+        Math.max(MIN_TIMELINE_WIDTH, Math.min(maxAllowed, startWidth + deltaX)),
+      );
+      try {
+        localStorage.setItem(TIMELINE_WIDTH_STORAGE_KEY, String(finalWidth));
+      } catch {
+        // Ignore localStorage write errors
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleTouchResizeStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    setIsResizingTimeline(true);
+    const startX = e.touches[0].clientX;
+    const startWidth = timelineWidth;
+
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      if (moveEvent.touches.length !== 1) return;
+      const deltaX = moveEvent.touches[0].clientX - startX;
+      const maxAllowed = Math.min(
+        MAX_TIMELINE_WIDTH,
+        Math.max(MIN_TIMELINE_WIDTH, (window.innerWidth || 1200) * 0.45),
+      );
+      const nextWidth = Math.round(
+        Math.max(MIN_TIMELINE_WIDTH, Math.min(maxAllowed, startWidth + deltaX)),
+      );
+      setTimelineWidth(nextWidth);
+    };
+
+    const handleTouchEnd = (endEvent: TouchEvent) => {
+      setIsResizingTimeline(false);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+      const clientX = endEvent.changedTouches[0]?.clientX ?? startX;
+      const deltaX = clientX - startX;
+      const maxAllowed = Math.min(
+        MAX_TIMELINE_WIDTH,
+        Math.max(MIN_TIMELINE_WIDTH, (window.innerWidth || 1200) * 0.45),
+      );
+      const finalWidth = Math.round(
+        Math.max(MIN_TIMELINE_WIDTH, Math.min(maxAllowed, startWidth + deltaX)),
+      );
+      try {
+        localStorage.setItem(TIMELINE_WIDTH_STORAGE_KEY, String(finalWidth));
+      } catch {
+        // Ignore localStorage write errors
+      }
+    };
+
+    window.addEventListener("touchmove", handleTouchMove);
+    window.addEventListener("touchend", handleTouchEnd);
+  };
 
   const sectionSx = {
     scrollMarginTop: 88,
     pb: { xs: 4, md: 7 },
   } as const;
 
+  const getSectionHighlightSx = (key: SectionKey | "overview") => {
+    const isTargeted = highlightSection === key;
+    return {
+      borderRadius: 2,
+      transition:
+        "background-color 0.2s ease, box-shadow 0.2s ease, outline 0.2s ease",
+      bgcolor: isTargeted ? "hsl(var(--primary) / 0.035)" : "transparent",
+      outline: isTargeted
+        ? "1px solid hsl(var(--primary) / 0.3)"
+        : "1px solid transparent",
+      boxShadow: isTargeted ? "0 0 16px hsl(var(--primary) / 0.08)" : "none",
+    };
+  };
+
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(180px, 220px) minmax(0, 1fr)', lg: 'minmax(220px, 260px) minmax(0, 1fr) minmax(180px, 220px)' }, gap: { xs: 3, md: 3.625 }, alignItems: 'start' }}>
-      <Box ref={timelineColRef} sx={{ order: { xs: 2, md: 1 }, position: { md: 'sticky' }, top: { md: 24 }, minWidth: 0, height: { xs: 'auto', md: timelineHeight ? `${timelineHeight}px` : 'calc(100vh - 48px)' }, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexShrink: 0 }}>
-          <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase' }}>
+    <Box
+      ref={rootRef}
+      sx={{
+        display: "grid",
+        gridTemplateColumns: {
+          xs: "minmax(0, 1fr)",
+          md: `${timelineWidth}px minmax(0, 1fr)`,
+          lg: `${timelineWidth}px minmax(0, 1fr) minmax(180px, 220px)`,
+        },
+        gap: { xs: 3, md: 3.625 },
+        alignItems: "start",
+      }}
+    >
+      <Box
+        ref={timelineColRef}
+        data-tour="incident-activity-feed"
+        sx={{
+          order: { xs: 2, md: 1 },
+          position: { md: "sticky" },
+          top: { md: 24 },
+          minWidth: 0,
+          height: {
+            xs: "auto",
+            md: timelineHeight ? `${timelineHeight}px` : "calc(100vh - 48px)",
+          },
+          display: "flex",
+          flexDirection: "column",
+          overflow: "visible",
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+            mb: 1.5,
+            flexShrink: 0,
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: "0.7rem",
+              fontWeight: 700,
+              color: "hsl(var(--muted-foreground))",
+              textTransform: "uppercase",
+            }}
+          >
             Timeline
           </Typography>
           {timelineActions}
         </Box>
-        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
+          }}
+        >
           {timeline}
         </Box>
+
+        {/* Draggable Divider Handle between Timeline and Central View */}
+        <Box
+          onMouseDown={handleResizeStart}
+          onTouchStart={handleTouchResizeStart}
+          onDoubleClick={() => {
+            setTimelineWidth(DEFAULT_TIMELINE_WIDTH);
+            try {
+              localStorage.setItem(
+                TIMELINE_WIDTH_STORAGE_KEY,
+                String(DEFAULT_TIMELINE_WIDTH),
+              );
+            } catch {
+              // Ignore localStorage write errors
+            }
+          }}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize timeline panel"
+          title="Drag to resize timeline, double-click to reset"
+          sx={{
+            display: { xs: "none", md: "block" },
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            right: { md: -22, lg: -22 },
+            width: 16,
+            cursor: "col-resize",
+            zIndex: 10,
+            userSelect: "none",
+            touchAction: "none",
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: 7,
+              width: 2,
+              borderRadius: 1,
+              bgcolor: isResizingTimeline
+                ? "hsl(var(--primary))"
+                : "transparent",
+              transition: "background-color 0.15s ease",
+            },
+            "&:hover::after": {
+              bgcolor: isResizingTimeline
+                ? "hsl(var(--primary))"
+                : "hsl(var(--muted-foreground) / 0.4)",
+            },
+          }}
+        />
       </Box>
 
-      <Box sx={{ order: { xs: 1, md: 2 }, minWidth: 0, maxWidth: 820, width: '100%', mx: 'auto', pb: '200px' }}>
+      <Box
+        sx={{
+          order: { xs: 1, md: 2 },
+          minWidth: 0,
+          maxWidth: 820,
+          width: "100%",
+          mx: "auto",
+          pb: "200px",
+        }}
+      >
         {/* Overview (source, title, severity/status/assignee) stays pinned to
             the top of the center column while the body scrolls. */}
         {overview && (
           <Box
             sx={{
-              position: 'sticky',
+              position: "sticky",
               top: 0,
               zIndex: 3,
-              bgcolor: 'hsl(var(--background))',
               pt: 1,
+              ...getSectionHighlightSx("overview"),
+              bgcolor:
+                highlightSection === "overview"
+                  ? "hsl(var(--primary) / 0.035)"
+                  : "hsl(var(--background))",
             }}
           >
             {overview}
@@ -269,102 +930,588 @@ export const SimpleCaseLayout = ({
         {emailThread && (
           <Box
             id="simple-case-email-thread"
-            ref={(node: HTMLElement | null) => { refs.current.emailThread = node; }}
+            data-tour="incident-email-thread"
+            ref={(node: HTMLElement | null) => {
+              refs.current.emailThread = node;
+            }}
             data-simple-section="emailThread"
-            sx={sectionSx}
-            {...sectionActivation('emailThread')}
+            sx={{ ...sectionSx, ...getSectionHighlightSx("emailThread") }}
+            {...sectionActivation("emailThread")}
           >
             {emailThread}
           </Box>
         )}
-        <Box id="simple-case-narrative" ref={(node: HTMLElement | null) => { refs.current.narrative = node; }} data-simple-section="narrative" sx={sectionSx} {...sectionActivation('narrative')}>
-          <Typography component="h2" sx={{ fontSize: '1.15rem', fontWeight: 700, mb: 2.5 }}>{narrativeLabel}</Typography>
+        <Box
+          id="simple-case-narrative"
+          ref={(node: HTMLElement | null) => {
+            refs.current.narrative = node;
+          }}
+          data-simple-section="narrative"
+          data-incident-field="description"
+          sx={{ ...sectionSx, ...getSectionHighlightSx("narrative") }}
+          {...sectionActivation("narrative")}
+        >
           {narrative}
         </Box>
-        <Box id="simple-case-tasks" ref={(node: HTMLElement | null) => { refs.current.tasks = node; }} data-simple-section="tasks" sx={sectionSx} {...sectionActivation('tasks')}>
-          <Typography component="h2" sx={{ fontSize: '1.15rem', fontWeight: 700, mb: 2.5 }}>Tasks</Typography>
+        <Box
+          id="simple-case-tasks"
+          ref={(node: HTMLElement | null) => {
+            refs.current.tasks = node;
+          }}
+          data-simple-section="tasks"
+          sx={{ ...sectionSx, ...getSectionHighlightSx("tasks") }}
+          {...sectionActivation("tasks")}
+        >
+          {!hasCategories && (
+            <Typography
+              component="h2"
+              sx={{
+                fontSize: "1.15rem",
+                fontWeight: 700,
+                mb: 2.5,
+                color:
+                  highlightSection === "tasks"
+                    ? "hsl(var(--primary))"
+                    : "inherit",
+                transition: "color 0.2s ease",
+              }}
+            >
+              Tasks
+            </Typography>
+          )}
           {tasks}
         </Box>
         {customFields && (
-          <Box id="simple-case-custom-fields" ref={(node: HTMLElement | null) => { refs.current.customFields = node; }} data-simple-section="customFields" sx={sectionSx} {...sectionActivation('customFields')}>
-            <Typography component="h2" sx={{ fontSize: '1.15rem', fontWeight: 700, mb: 2.5 }}>Custom Fields</Typography>
+          <Box
+            id="simple-case-custom-fields"
+            ref={(node: HTMLElement | null) => {
+              refs.current.customFields = node;
+            }}
+            data-simple-section="customFields"
+            sx={{ ...sectionSx, ...getSectionHighlightSx("customFields") }}
+            {...sectionActivation("customFields")}
+          >
+            <Typography
+              component="h2"
+              sx={{
+                fontSize: "1.15rem",
+                fontWeight: 700,
+                mb: 2.5,
+                color:
+                  highlightSection === "customFields"
+                    ? "hsl(var(--primary))"
+                    : "inherit",
+                transition: "color 0.2s ease",
+              }}
+            >
+              Custom Fields
+            </Typography>
             {customFields}
           </Box>
         )}
-        <Box id="simple-case-observables" ref={(node: HTMLElement | null) => { refs.current.observables = node; }} data-simple-section="observables" sx={sectionSx} {...sectionActivation('observables')}>
-          <Typography component="h2" sx={{ fontSize: '1.15rem', fontWeight: 700, mb: 2.5 }}>Observables</Typography>
+        <Box
+          id="simple-case-observables"
+          ref={(node: HTMLElement | null) => {
+            refs.current.observables = node;
+          }}
+          data-simple-section="observables"
+          sx={{ ...sectionSx, ...getSectionHighlightSx("observables") }}
+          {...sectionActivation("observables")}
+        >
+          <Typography
+            component="h2"
+            sx={{
+              fontSize: "1.15rem",
+              fontWeight: 700,
+              mb: 2.5,
+              color:
+                highlightSection === "observables"
+                  ? "hsl(var(--primary))"
+                  : "inherit",
+              transition: "color 0.2s ease",
+            }}
+          >
+            Observables
+          </Typography>
           {observables}
         </Box>
-        <Box id="simple-case-correlations" ref={(node: HTMLElement | null) => { refs.current.correlations = node; }} data-simple-section="correlations" sx={{ ...sectionSx, pb: 0 }} {...sectionActivation('correlations')}>
-          <Typography component="h2" sx={{ fontSize: '1.15rem', fontWeight: 700, mb: 2.5 }}>Correlations</Typography>
+        <Box
+          id="simple-case-correlations"
+          ref={(node: HTMLElement | null) => {
+            refs.current.correlations = node;
+          }}
+          data-simple-section="correlations"
+          sx={{
+            ...sectionSx,
+            pb: hiddenFields ? { xs: 4, md: 7 } : 0,
+            ...getSectionHighlightSx("correlations"),
+          }}
+          {...sectionActivation("correlations")}
+        >
+          <Typography
+            component="h2"
+            sx={{
+              fontSize: "1.15rem",
+              fontWeight: 700,
+              mb: 2.5,
+              color:
+                highlightSection === "correlations"
+                  ? "hsl(var(--primary))"
+                  : "inherit",
+              transition: "color 0.2s ease",
+            }}
+          >
+            Correlations
+          </Typography>
           {correlations}
         </Box>
+        {events && (eventsCount ?? 0) > 0 && (
+          <Box
+            id="simple-case-events"
+            ref={(node: HTMLElement | null) => {
+              refs.current.events = node;
+            }}
+            data-simple-section="events"
+            sx={{
+              ...sectionSx,
+              ...getSectionHighlightSx("events"),
+            }}
+            {...sectionActivation("events")}
+          >
+            <Typography
+              component="h2"
+              sx={{
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                color:
+                  highlightSection === "events"
+                    ? "hsl(var(--primary))"
+                    : "inherit",
+                transition: "color 0.2s ease",
+                mb: 1.5,
+              }}
+            >
+              Events ({eventsCount})
+            </Typography>
+            {events}
+          </Box>
+        )}
+        {hiddenFields && (
+          <Box
+            id="simple-case-hidden-fields"
+            ref={(node: HTMLElement | null) => {
+              refs.current.hiddenFields = node;
+            }}
+            data-simple-section="hiddenFields"
+            sx={{
+              ...sectionSx,
+              pb: 0,
+              ...getSectionHighlightSx("hiddenFields"),
+            }}
+            {...sectionActivation("hiddenFields")}
+          >
+            {hiddenFields}
+          </Box>
+        )}
       </Box>
 
-      <Box component="nav" aria-label="Case overview" sx={{ display: { xs: 'none', lg: 'block' }, order: 3, position: 'sticky', top: 24, minWidth: 0 }}>
+      <Box
+        component="nav"
+        aria-label="Case overview"
+        sx={{
+          display: { xs: "none", lg: "block" },
+          order: 3,
+          position: "sticky",
+          top: 24,
+          minWidth: 0,
+          width: "100%",
+        }}
+      >
         {contentsActions && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 2.5 }}>
+          <Box
+            sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 2.5 }}
+          >
             {contentsActions}
           </Box>
         )}
-        <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', mb: 1.25 }}>
+        <Typography
+          sx={{
+            fontSize: "0.7rem",
+            fontWeight: 700,
+            color: "hsl(var(--muted-foreground))",
+            textTransform: "uppercase",
+            mb: 1.25,
+          }}
+        >
           Overview
         </Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "stretch",
+          }}
+        >
           {sectionData.map(({ key, label, count, icon: Icon }) => {
-            const isActive = activeSection === key;
+            const isActive = activeSection === key || highlightSection === key;
+            const isCustomFields = key === "customFields";
             return (
-              <Button
-                key={key}
-                onClick={() => scrollTo(key)}
-                sx={{
-                  minHeight: 32,
-                  justifyContent: 'flex-start',
-                  gap: 1,
-                  px: 1,
-                  textTransform: 'none',
-                  fontSize: '0.78rem',
-                  fontWeight: isActive ? 700 : 500,
-                  color: isActive ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
-                  borderRadius: 1,
-                  '&:hover': { bgcolor: 'hsl(var(--muted) / 0.35)' },
-                }}
-              >
-                <Icon size={14} style={{ color: isActive ? 'hsl(var(--primary))' : 'inherit', flexShrink: 0 }} />
-                <Box component="span" sx={{ flex: 1, textAlign: 'left' }}>{label}</Box>
-                {count !== undefined && <span>{count}</span>}
-              </Button>
+              <Fragment key={key}>
+                <Button
+                  onClick={() => {
+                    scrollTo(key);
+                    if (isCustomFields && hasManyCustomFields) {
+                      setCustomFieldsExpanded(true);
+                    }
+                  }}
+                  data-tour={
+                    key === "correlations"
+                      ? "incident-tab-correlations"
+                      : undefined
+                  }
+                  data-active={isActive ? "true" : undefined}
+                  sx={{
+                    minHeight: 32,
+                    justifyContent: "flex-start",
+                    gap: 1,
+                    px: 1,
+                    textTransform: "none",
+                    fontSize: "0.78rem",
+                    fontWeight: isActive ? 700 : 500,
+                    color: isActive
+                      ? "hsl(var(--foreground))"
+                      : "hsl(var(--muted-foreground))",
+                    borderRadius: 1,
+                    "&:hover": { bgcolor: "hsl(var(--muted) / 0.35)" },
+                  }}
+                >
+                  <Icon
+                    size={14}
+                    style={{
+                      color: isActive ? "hsl(var(--primary))" : "inherit",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Box component="span" sx={{ flex: 1, textAlign: "left" }}>
+                    {label}
+                  </Box>
+                  {count !== undefined && (
+                    <Box
+                      component="span"
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                        color: "inherit",
+                      }}
+                    >
+                      <span>{count}</span>
+                      {isCustomFields && hasManyCustomFields && (
+                        <Box
+                          component="span"
+                          role="button"
+                          aria-label={
+                            customFieldsExpanded
+                              ? "Collapse custom fields"
+                              : "Expand custom fields"
+                          }
+                          title={
+                            customFieldsExpanded
+                              ? "Collapse custom fields"
+                              : "Expand custom fields"
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCustomFieldsExpanded((prev) => !prev);
+                          }}
+                          sx={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            p: 0.25,
+                            borderRadius: 0.5,
+                            cursor: "pointer",
+                            color: "hsl(var(--muted-foreground))",
+                            "&:hover": {
+                              color: "hsl(var(--foreground))",
+                              bgcolor: "hsl(var(--muted) / 0.6)",
+                            },
+                          }}
+                        >
+                          <ChevronDown
+                            size={13}
+                            style={{
+                              transform: customFieldsExpanded
+                                ? "rotate(0deg)"
+                                : "rotate(-90deg)",
+                              transition: "transform 0.15s ease",
+                            }}
+                          />
+                        </Box>
+                      )}
+                    </Box>
+                  )}
+                </Button>
+
+                {/* Category Sub-areas under Tasks */}
+                {key === "tasks" && categoryGroups.length > 0 && (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      pl: 2.75,
+                      pr: 0.5,
+                      py: 0.25,
+                      gap: 0.25,
+                    }}
+                  >
+                    {categoryGroups.map((group) => {
+                      const isCatActive =
+                        isActive && activeCategory === group.categoryKey;
+                      return (
+                        <Button
+                          key={group.categoryKey}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            scrollToCategory(group.categoryKey);
+                          }}
+                          sx={{
+                            minHeight: 26,
+                            justifyContent: "flex-start",
+                            px: 1,
+                            py: 0.25,
+                            textTransform: "none",
+                            fontSize: "0.73rem",
+                            fontWeight: isCatActive ? 600 : 400,
+                            color: isCatActive
+                              ? "hsl(var(--foreground))"
+                              : "hsl(var(--muted-foreground))",
+                            borderRadius: 0.75,
+                            borderLeft: isCatActive
+                              ? `2px solid ${group.color}`
+                              : "2px solid transparent",
+                            "&:hover": {
+                              bgcolor: "hsl(var(--muted) / 0.35)",
+                              color: "hsl(var(--foreground))",
+                            },
+                          }}
+                        >
+                          <Box
+                            component="span"
+                            sx={{
+                              flex: 1,
+                              textAlign: "left",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {group.label}
+                          </Box>
+                          <Typography
+                            component="span"
+                            sx={{
+                              fontSize: "0.68rem",
+                              color: isCatActive
+                                ? group.color
+                                : "hsl(var(--muted-foreground))",
+                              fontWeight: 600,
+                              ml: 0.5,
+                            }}
+                          >
+                            {group.openCount > 0 ? group.openCount : "Done"}
+                          </Typography>
+                        </Button>
+                      );
+                    })}
+                  </Box>
+                )}
+
+                {/* Individual Custom Fields list */}
+                {isCustomFields && hasManyCustomFields && customFieldItems && (
+                  <Collapse
+                    in={customFieldsExpanded}
+                    timeout={200}
+                    unmountOnExit
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        pl: 2.75,
+                        pr: 0.5,
+                        py: 0.25,
+                        gap: 0.25,
+                        maxHeight: 280,
+                        overflowY: "auto",
+                        scrollbarWidth: "thin",
+                      }}
+                    >
+                      {customFieldItems.map((field) => {
+                        const isFieldActive =
+                          isActive && activeCustomField === field.key;
+                        return (
+                          <Button
+                            key={field.key}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              scrollToCustomField(field.key);
+                            }}
+                            title={field.name}
+                            sx={{
+                              minHeight: 26,
+                              justifyContent: "flex-start",
+                              px: 1,
+                              py: 0.25,
+                              textTransform: "none",
+                              fontSize: "0.73rem",
+                              fontWeight: isFieldActive ? 600 : 400,
+                              color: isFieldActive
+                                ? "hsl(var(--foreground))"
+                                : "hsl(var(--muted-foreground))",
+                              borderRadius: 0.75,
+                              borderLeft: isFieldActive
+                                ? "2px solid hsl(var(--primary))"
+                                : "2px solid transparent",
+                              "&:hover": {
+                                bgcolor: "hsl(var(--muted) / 0.35)",
+                                color: "hsl(var(--foreground))",
+                              },
+                            }}
+                          >
+                            <Box
+                              component="span"
+                              sx={{
+                                flex: 1,
+                                textAlign: "left",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {field.name}
+                            </Box>
+                            {field.type && (
+                              <Typography
+                                component="span"
+                                sx={{
+                                  fontSize: "0.65rem",
+                                  color: isFieldActive
+                                    ? "hsl(var(--primary))"
+                                    : "hsl(var(--muted-foreground) / 0.7)",
+                                  fontWeight: 500,
+                                  ml: 0.5,
+                                  textTransform: "lowercase",
+                                }}
+                              >
+                                {field.type}
+                              </Typography>
+                            )}
+                          </Button>
+                        );
+                      })}
+                    </Box>
+                  </Collapse>
+                )}
+              </Fragment>
             );
           })}
         </Box>
-        {openTasks.length > 0 && (
+        {sla &&
+          (isValidElement(sla) ? (
+            sla
+          ) : (
+            <SimpleSlaOverview {...(sla as SimpleSlaData)} />
+          ))}
+        {resolution && (
           <Box sx={{ mt: 3 }}>
-            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', mb: 0.75 }}>
-              Open tasks
+            <Typography
+              sx={{
+                fontSize: "0.68rem",
+                fontWeight: 700,
+                color: "hsl(var(--muted-foreground))",
+                textTransform: "uppercase",
+                mb: 0.75,
+              }}
+            >
+              Resolution
             </Typography>
-            {openTasks.slice(0, 8).map((task) => (
-              <Button
-                key={task.id}
-                onClick={() => scrollTo('tasks', task.id)}
-                title={task.title}
-                sx={{ display: 'block', width: '100%', minHeight: 30, px: 1, textAlign: 'left', textTransform: 'none', color: 'hsl(var(--muted-foreground))', fontSize: '0.74rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            <Box
+              sx={{ px: 1, display: "flex", flexDirection: "column", gap: 0.5 }}
+            >
+              <Typography
+                sx={{
+                  fontSize: "0.76rem",
+                  fontWeight: 600,
+                  color: "hsl(var(--foreground))",
+                }}
               >
-                {task.title}
-              </Button>
-            ))}
+                {resolution.reasonLabel}
+              </Typography>
+              {resolution.notes && (
+                <Typography
+                  sx={{
+                    fontSize: "0.72rem",
+                    color: "hsl(var(--muted-foreground))",
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {resolution.notes}
+                </Typography>
+              )}
+              {(resolution.resolvedBy || resolution.resolvedAt) && (
+                <Typography
+                  sx={{
+                    fontSize: "0.66rem",
+                    color: "hsl(var(--muted-foreground))",
+                  }}
+                >
+                  {[
+                    resolution.resolvedBy || null,
+                    resolution.resolvedAt
+                      ? new Date(resolution.resolvedAt).toLocaleString()
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Typography>
+              )}
+            </Box>
           </Box>
         )}
         {(relatedIncidents ?? []).length > 0 && (
           <Box sx={{ mt: 3 }}>
-            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', mb: 0.75 }}>
+            <Typography
+              sx={{
+                fontSize: "0.68rem",
+                fontWeight: 700,
+                color: "hsl(var(--muted-foreground))",
+                textTransform: "uppercase",
+                mb: 0.75,
+              }}
+            >
               Related incidents
             </Typography>
             {(relatedIncidents ?? []).slice(0, 8).map((ri) => (
               <Button
                 key={ri.id}
-                onClick={() => navigate(`/incidents/${encodeURIComponent(ri.id)}`)}
+                onClick={() =>
+                  navigate(getIncidentUrl(ri.id))
+                }
                 title={ri.title}
-                sx={{ display: 'block', width: '100%', minHeight: 30, px: 1, textAlign: 'left', textTransform: 'none', color: 'hsl(var(--muted-foreground))', fontSize: '0.74rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                sx={{
+                  display: "block",
+                  width: "100%",
+                  minHeight: 30,
+                  px: 1,
+                  textAlign: "left",
+                  textTransform: "none",
+                  color: "hsl(var(--muted-foreground))",
+                  fontSize: "0.74rem",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
               >
                 {ri.title}
               </Button>

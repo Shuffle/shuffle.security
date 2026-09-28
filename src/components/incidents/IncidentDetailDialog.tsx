@@ -467,7 +467,7 @@ export const IncidentDetailDialog = ({ open, incident, onClose, onResolve, onUpd
                     sx: {
                       bgcolor: 'hsl(var(--popover))',
                       border: '1px solid hsl(var(--border))',
-                      zIndex: 9999,
+                      zIndex: 10040,
                     },
                   },
                 }}

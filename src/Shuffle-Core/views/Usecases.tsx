@@ -40,7 +40,6 @@ import {
   AppSearchDrawer,
   useAppDetailOptional,
   extractActionAppNames,
-  AiAgentPromptsEditor,
   extractWorkflowAppNames,
   normalizeAppName,
   getIngestionCategory,
@@ -50,6 +49,7 @@ import {
   DATASTORE_CATEGORIES,
   resolveApp,
 } from '@shuffleio/shuffle-mcps';
+import AiAgentPromptsEditor from '@/Shuffle-MCPs/components/AiAgentPromptsEditor';
 import { getAuthHeader, getShuffleCoreWorkflowUrl } from '../api';
 import {
   type IntegrationItem,
@@ -84,6 +84,8 @@ import { useHostMonitorCount } from '@/hooks/useHostMonitorCount';
 import { ThreatIntelReadinessBanner } from '@/components/threat-intel/ThreatIntelReadinessBanner';
 import { useWorkflowHealth } from '@/hooks/useWorkflowHealth';
 import { diagnoseUsecase } from '@/services/workflowHealth';
+import { resolveSkillAllowedApps, isBuiltInSkillApp } from '@/lib/agentTools';
+import { findRoutingWorkflow, isWorkflowHookedToCategory } from '@/utils/routingWorkflowUtils';
 // ── Flow phases ────────────────────────────────────────────────────────────────
 
 export type FlowPhase = 'ingest' | 'correlation' | 'response';
@@ -910,28 +912,22 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
   cloud: ['cloud', 'aws', 'azure', 'gcp', 'google cloud', 'oracle cloud', 'digitalocean', 'cloud provider'],
 };
 
-export function matchAppToCategoryList(appName: string, appCategories: string[]): string[] {
-  // Trust the app's declared categories when present — match keywords ONLY
-  // against the categories text so an app like "Wazuh" (declared SIEM) does
-  // not get pulled into Cases/EDR/Email just because its name or some other
-  // field happens to match a keyword there. Apps without any declared
-  // category fall back to a name-based match across every bucket so they
-  // remain discoverable.
-  const hasCategories = Array.isArray(appCategories) && appCategories.length > 0;
-  const searchText = hasCategories
-    ? appCategories.join(' ').toLowerCase()
-    : (appName || '').toLowerCase();
-  const hits: string[] = [];
-  for (const [catId, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    if (keywords.some(kw => searchText.includes(kw))) hits.push(catId);
-  }
-  return hits;
-}
-
-export function matchAppToCategory(appName: string, appCategories: string[]): string | null {
-  const hits = matchAppToCategoryList(appName, appCategories);
-  return hits.length > 0 ? hits[0] : null;
-}
+import {
+  matchAppToCategoryList,
+  matchAppToCategory,
+  findRelatedUsecasesForApp,
+  isUsecaseVisible,
+  filterVisibleUsecases,
+  type UsecaseVisibilityOptions,
+} from '../config/usecases';
+export {
+  matchAppToCategoryList,
+  matchAppToCategory,
+  findRelatedUsecasesForApp,
+  isUsecaseVisible,
+  filterVisibleUsecases,
+  type UsecaseVisibilityOptions,
+};
 
 // ── Automation-area helpers ────────────────────────────────────────────────────
 
@@ -1390,12 +1386,18 @@ function getActiveOrgId(): string | null {
   }
 }
 
-const DEFAULT_INCIDENT_AI_AGENT_PROMPT = `Triage, investigate, and respond holistically to this incident. Choose the appropriate response path:
+const DEFAULT_INCIDENT_AI_AGENT_PROMPT = `Triage, investigate, and respond holistically to this incident.
 
-1. AUTO-RESOLVE / CLOSE: If this alert is a false positive, benign administrative activity, authorized test/scan, routine noise, or a duplicate of an existing incident:
-- Set "status" to "resolved".
-- Add an activity entry: {"ai_handled": true, "id": "status-\${timenow-unix}", "type": "status", "user": "@AIAgent", "timestamp": \${timenow-unix}, "content": "Resolved: [Specific evidence and rationale explaining why this is benign/FP/duplicate]"}.
-- Do NOT generate unnecessary open tasks.
+OPERATING POSTURE:
+- Simple, benign, or routine alerts (false positives, authorized scanners, duplicate noise): Act as an AUTONOMOUS RESOLVER. Verify technical evidence, document findings in activity, set status to "resolved", and close cleanly with zero open tasks.
+- Complex alerts and confirmed threats (malware, C2 beaconing, ransomware, lateral movement): Act as an ANALYST COPILOT. Do NOT attempt to close the incident autonomously. Your mission is to prepare the case and accelerate the human analyst by correlating telemetry, generating structured response tasks across categories, recommending containment actions with approval_required: true, and setting status to "in_progress" or "escalated".
+
+RESPONSE PATHWAYS:
+
+1. AUTO-RESOLVE / CLOSE (Benign, False Positive, Duplicate, or Test ONLY):
+- ONLY if this alert is definitively verified as a false positive, benign administrative activity, authorized test/scan, routine noise, or a duplicate of an existing incident.
+- CRITICAL RULE: NEVER set "status" to "resolved" if there is an active threat, C2 beaconing, malware, or if ANY open tasks remain. Completing initial triage does NOT resolve the incident.
+- If resolving: Set "status" to "resolved", add activity entry: {"ai_handled": true, "id": "status-\${timenow-unix}", "type": "status", "user": "@AIAgent", "timestamp": \${timenow-unix}, "content": "Resolved: [Specific evidence and rationale explaining why this is benign/FP/duplicate]"}. Do NOT generate open tasks.
 
 2. ESCALATE: If this is a high/critical severity threat, active compromise, ransomware, credential theft, lateral movement, or high ambiguity requiring human judgment:
 - Update "severity" to "high" or "critical".
@@ -1409,15 +1411,16 @@ const DEFAULT_INCIDENT_AI_AGENT_PROMPT = `Triage, investigate, and respond holis
 - For disruptive actions, set approval_required: true and request analyst confirmation.
 
 4. FIX SPAMMY DETECTIONS:
-- If this alert is from a noisy or misconfigured detection rule firing repeatedly on benign operations, propose specific rule tuning/exclusions in the activity log or create a task: {"assignee": "AI Agent", "title": "Tune detection rule: [Rule Name] to exclude [Pattern]", "category": "triage", "completed": false, "createdBy": "ai-agent@shuffler.io"}.
+- If this alert is from a noisy or misconfigured detection rule firing repeatedly on benign operations, propose specific rule tuning/exclusions in the activity log or create a task: {"assignee": "", "title": "Tune detection rule: [Rule Name] to exclude [Pattern]", "category": "triage", "action": "tune", "source": "detection_rule", "completed": false, "createdBy": "ai-agent@shuffler.io"}.
 
 5. TOOL REQUESTS:
 - Utilize available tools (shuffle-datastore, shuffle_incidents, etc.). If an essential tool (EDR, SIEM, Threat Intel, Firewall) is missing or unauthenticated, explicitly state what tool is required, why, and the specific query/action needed.
 
 6. INVESTIGATION & DOCUMENTATION:
-- If ongoing investigation is needed, set "status" to "in_progress" and update "severity" to info/low/medium/high/critical.
-- Generate structured tasks in JSON format: {"tasks": [{"assignee": "AI Agent", "title": "Title of task", "category": "triage/investigation/containment/recovery/communication/documentation", "completed": false, "createdBy": "ai-agent@shuffler.io"}]}.
-- Document findings, timeline, and MITRE ATT&CK techniques in activity and comments. Tackle tasks one by one, self-assigning and completing them as progress is made.
+- If ongoing investigation, containment, or remediation is needed, set "status" to "in_progress" (or "escalated"). NEVER set "status" to "resolved" while open tasks exist.
+- For triage progress or investigation notes, use type "comment", NOT type "status": {"ai_handled": true, "id": "comment-\${timenow-unix}", "type": "comment", "user": "@AIAgent", "timestamp": \${timenow-unix}, "content": "Triage findings: [Summary of verified facts, indicators, and next steps]"}.
+- Generate structured tasks in JSON format: {"tasks": [{"assignee": "", "title": "Title of task", "category": "triage/investigation/containment/recovery/communication/documentation", "action": "isolate/block/revoke/query/tune/document/etc.", "source": "sentinelone/crowdstrike/okta/splunk/virustotal/manual/etc.", "completed": false, "createdBy": "ai-agent@shuffler.io"}]}.
+- Document findings, timeline, and MITRE ATT&CK techniques in activity and comments. Leave generated tasks open (completed: false) for the analyst and incident response team to coordinate and track. Do NOT prematurely mark tasks completed or close the incident.
 
 Update the internal shuffle datastore with the same key and category 'shuffle-security_incidents'. CRITICAL: You MUST ONLY send the specific fields that require a change. NEVER send or echo unchanged fields (such as unchanged tasks, activity, severity, or metadata). Do NOT overwrite unrelated fields.`;
 
@@ -1453,7 +1456,7 @@ export const setAiAgentIncidentAutomation = async (enabled: boolean): Promise<bo
           description: 'Runs an AI Agent to process the updated value. Uses built-in ShuffleAI configs. Learn more: https://shuffler.io/docs/AI',
           type: 'singul',
           enabled: true,
-          options: [{ key: 'action', value: DEFAULT_INCIDENT_AI_AGENT_PROMPT, apps: '48793430d21468f9e371ace402efcd8e,b82668d868f6dc7ac1dc14caa92c674b' }],
+          options: [{ key: 'action', value: DEFAULT_INCIDENT_AI_AGENT_PROMPT, apps: '48793430d21468f9e371ace402efcd8e' }],
         },
       ];
     }
@@ -1693,7 +1696,7 @@ function useAuthLite() {
 // ============================================================================
 // Inlined: workflows query
 // ============================================================================
-interface WorkflowSummary {
+export interface WorkflowSummary {
   id: string;
   name: string;
   tags?: string[];
@@ -1927,6 +1930,53 @@ export function isIngestionUsecaseActive(
   return false;
 }
 
+export function computeEnabledLabels(
+  workflows: WorkflowSummary[],
+  usecasesList: Usecase[] = DEFAULT_USECASES
+): Set<string> {
+  const set = new Set<string>();
+  for (const wf of workflows) {
+    const name = (wf?.name || '').toLowerCase();
+    const tags = ((wf as any)?.tags || []).map((t: any) => String(t).toLowerCase());
+    for (const uc of usecasesList) {
+      if (!uc.automationLabel) continue;
+      const lbl = uc.automationLabel.toLowerCase();
+      const aliases = [lbl];
+      if (lbl.includes('incident routing')) {
+        aliases.push('incident routing', 'incident_routing', 'incident_routing_rules');
+      }
+      if (lbl.includes('schedules & phone') || lbl.includes('schedules_notifications') || lbl.includes('phone notification')) {
+        aliases.push('schedules & phone notifications', 'schedules_&_phone_notifications', 'schedules_notifications', 'phone_notifications', 'assign & escalate', 'assign_&_escalate');
+      }
+      if (lbl.includes('threat feeds') || lbl.includes('ioc extraction')) {
+        aliases.push('enable threat feeds', 'enable threat feeds_webhook', 'realtime ioc extraction', 'threat intel');
+      }
+      const isMatch = aliases.some(a => {
+        const isWebhookWf = name.endsWith('_webhook') || name === 'ingestion webhook' || tags.some((t: string) => t.endsWith('_webhook'));
+        if (!a.includes('webhook') && isWebhookWf) return false;
+        return name === a || name.includes(a) || tags.includes(a) || tags.some((t: string) => t.includes(a));
+      });
+      if (isMatch) {
+        set.add(uc.automationLabel);
+      }
+    }
+  }
+  return set;
+}
+
+export function isUsecaseFlowEnabled(
+  flow: Usecase,
+  workflows: WorkflowSummary[],
+  enabledLabels: Set<string>,
+  validatedCategories: Set<string>,
+  validatedAppNames: Set<string> = new Set()
+): boolean {
+  if (flow.automationArea === 'automatic_ingestion' && flow.target === 'case_management') {
+    return isIngestionUsecaseActive(flow, workflows, validatedCategories, validatedAppNames);
+  }
+  return !!flow.automationLabel && enabledLabels.has(flow.automationLabel);
+}
+
 // ============================================================================
 // Inlined: usecases query
 // ============================================================================
@@ -2066,7 +2116,7 @@ let usecasesLiteCache: {
 } | null = null;
 let usecasesLiteFetchPromise: Promise<any> | null = null;
 
-function useUsecasesLite() {
+export function useUsecasesLite() {
   const [data, setData] = useState<{
     usecases: Usecase[];
     apiCategories: ApiUsecaseCategory[];
@@ -2127,8 +2177,11 @@ function useUsecasesLite() {
 // ============================================================================
 // Helpers
 // ============================================================================
-const categoryLabel = (id: string) =>
-  TOOL_CATEGORIES.find((c) => c.id === id)?.label || id;
+const categoryLabel = (id: any): string => {
+  if (!id) return '';
+  if (typeof id === 'object') return id.label || id.name || id.id || '';
+  return TOOL_CATEGORIES.find((c) => c.id === id)?.label || id;
+};
 
 const phaseIcon = (phase: FlowPhase) => {
   if (phase === 'ingest') return <Download size={14} />;
@@ -2136,8 +2189,9 @@ const phaseIcon = (phase: FlowPhase) => {
   return <Activity size={14} />;
 };
 
-const getToolCategoryMeta = (categoryId: string): { color: string; icon: React.ReactNode; label: string } | null => {
-  const cat = TOOL_CATEGORIES.find((c) => c.id === categoryId);
+const getToolCategoryMeta = (categoryId: any): { color: string; icon: React.ReactNode; label: string } | null => {
+  const cid = typeof categoryId === 'object' ? categoryId?.id || categoryId?.label : categoryId;
+  const cat = TOOL_CATEGORIES.find((c) => c.id === cid);
   if (!cat) return null;
   return { color: cat.color, icon: cat.icon, label: cat.label };
 };
@@ -2604,7 +2658,7 @@ const IntegrationStatusLite = React.memo(function IntegrationStatusLite({
         onClose={() => setPopoverFor(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-        sx={{ zIndex: 9999 }}
+        sx={{ zIndex: 10040 }}
         slotProps={{
           paper: {
             sx: {
@@ -3080,10 +3134,12 @@ function AiIncidentHandlingPromptsBlock() {
             return na - nb;
           });
         const promptList = actionOpts.map((o) => o.value || '');
+        const skillApps = resolveSkillAllowedApps('incident-handler');
         const appList = promptList.map((_, i) => {
           const k = i === 0 ? 'apps' : `apps-${i + 1}`;
           const o = opts.find((x) => x.key === k);
-          return o?.value ? o.value.split(',').map((s) => s.trim()).filter(Boolean) : [];
+          const raw = o?.value ? o.value.split(',').map((s) => s.trim()).filter(Boolean) : [];
+          return Array.from(new Set([...skillApps, ...raw]));
         });
         if (cancelled) return;
         setEnabled(true);
@@ -3178,6 +3234,8 @@ function AiIncidentHandlingPromptsBlock() {
       <AiAgentPromptsEditor
         prompts={prompts}
         apps={apps}
+        skillLabel="Incident Handler"
+        isBuiltInApp={(key: string) => isBuiltInSkillApp('incident-handler', key)}
         readOnly
         resolveAppMeta={resolveAppMeta}
       />
@@ -4217,6 +4275,8 @@ function UsecaseDetailContent({
 
   const sourceCat = getToolCategoryMeta(flow.source);
   const targetCat = getToolCategoryMeta(flow.target);
+  const sourceCatLabel = sourceCat?.label || categoryLabel(flow.source) || 'source';
+  const targetCatLabel = targetCat?.label || categoryLabel(flow.target) || 'destination';
   const phaseInfo = FLOW_PHASES.find((phase) => phase.id === flow.phase) || FLOW_PHASES[0];
   const sourceDetails = TOOL_CATEGORIES.find((item) => item.id === flow.source);
   const targetDetails = TOOL_CATEGORIES.find((item) => item.id === flow.target);
@@ -4444,9 +4504,9 @@ function UsecaseDetailContent({
                 <Tooltip
                   title={
                     detailIsBlocked
-                      ? `${detailHealth.primaryProblem?.title || 'Execution blocked'}: ${detailHealth.primaryProblem?.description || 'Runtime location is offline.'} Click to view details / fix.`
+                      ? `${detailHealth.primaryProblem?.title || 'Execution blocked'}: ${detailHealth.primaryProblem?.description || 'Runtime location is offline.'} Click to disable.`
                       : !effectiveEnabled && !hasValidatedSource && !isShuffleSourcedFlow
-                        ? `No active ${sourceCat} integration is connected. Activating will not do anything until a ${sourceCat} tool is authenticated — the workflow will be disabled again automatically.`
+                        ? `No active ${sourceCatLabel} integration is connected. Activating will not do anything until a ${sourceCatLabel} tool is authenticated — the workflow will be disabled again automatically.`
                         : !effectiveEnabled && (flow.id === 'case_management_cases_forward_1' || flow.id === 'case_management_communication_1')
                           ? 'Click to activate (choose a destination tool)'
                           : effectiveEnabled
@@ -4460,7 +4520,7 @@ function UsecaseDetailContent({
                     <Button
                       size="small"
                       disableElevation
-                      onClick={detailIsBlocked && detailHealth.primaryProblem?.actionUrl ? () => navigate(detailHealth.primaryProblem!.actionUrl!) : handleToggle}
+                      onClick={handleToggle}
                       disabled={toggling}
                       startIcon={
                         toggling ? (
@@ -5891,12 +5951,14 @@ function UsecasesPageInner() {
   // logic only needs to handle one shape.
   useEffect(() => {
     if (routeParams.flowId) return;
-    const selected = searchParams.get('selected_object');
+    const selected = searchParams.get('selected_object') || searchParams.get('tab') || searchParams.get('flow');
     if (!selected) return;
     const slug = slugify(selected);
     if (!slug) return;
     const next = new URLSearchParams(searchParams);
     next.delete('selected_object');
+    next.delete('tab');
+    next.delete('flow');
     const qs = next.toString();
     const match = resolveUsecaseBySlug(selected, usecases);
     if (match) {
@@ -6037,6 +6099,9 @@ function UsecasesPageInner() {
         }
         if (lbl.includes('threat feeds') || lbl.includes('ioc extraction')) {
           aliases.push('enable threat feeds', 'enable threat feeds_webhook', 'realtime ioc extraction', 'threat intel');
+        }
+        if (lbl.includes('vulnerabilit') && (lbl.includes('ingest') || lbl.includes('ingestion'))) {
+          aliases.push('ingest vulnerabilities', 'ingest_vulnerabilities', 'vulnerabilities webhook', 'vulnerabilities_webhook');
         }
         const isMatch = aliases.some(a => {
           const isWebhookWf = name.endsWith('_webhook') || name === 'ingestion webhook' || tags.some(t => t.endsWith('_webhook'));
@@ -6215,9 +6280,10 @@ function UsecasesPageInner() {
   // Detect whether the "Run AI Agent" automation is enabled on the
   // shuffle-security_incidents category. Powers the Agent Response usecase.
   const [aiAgentAutomationActive, setAiAgentAutomationActive] = useState(false);
+  const [incidentsCategoryConfig, setIncidentsCategoryConfig] = useState<any>(null);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const fetchIncidentsCat = async () => {
       try {
         const info = localStorage.getItem('shuffle_user_info');
         const orgId = info ? JSON.parse(info)?.active_org?.id : null;
@@ -6227,7 +6293,10 @@ function UsecasesPageInner() {
           { credentials: 'include', headers: { ...authHeader() } },
         );
         if (!data) return;
-        const automations: any[] = data?.category_config?.automations || [];
+        if (!cancelled && (data?.category_config || data?.categoryConfig)) {
+          setIncidentsCategoryConfig(data?.category_config || data?.categoryConfig);
+        }
+        const automations: any[] = data?.category_config?.automations || data?.category_config?.Automations || [];
         const active = automations.some(
           (a) => a?.enabled && (a?.type === 'ai_agent' || a?.name === 'Run AI Agent'),
         );
@@ -6235,8 +6304,21 @@ function UsecasesPageInner() {
       } catch {
         /* keep previous state */
       }
-    })();
-    return () => { cancelled = true; };
+    };
+    fetchIncidentsCat();
+
+    const handleCatUpdate = () => {
+      fetchIncidentsCat();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('shuffle-category-automations-updated', handleCatUpdate);
+    }
+    return () => {
+      cancelled = true;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('shuffle-category-automations-updated', handleCatUpdate);
+      }
+    };
   }, [apiUrl, authHeader]);
 
   useEffect(() => {
@@ -6303,18 +6385,13 @@ function UsecasesPageInner() {
       // an app in its specific source category is active (authenticated and wired into the workflow).
       // They must NOT be marked active merely because the webhook is active or because
       // the org has total incident outcomes > 0.
-      if (flow.automationArea === 'automatic_ingestion' && flow.target === 'case_management') {
+      if (
+        flow.automationArea === 'automatic_ingestion' &&
+        flow.target === 'case_management' &&
+        flow.id !== 'vulnerability_ingestion_1'
+      ) {
         return isIngestionUsecaseActive(flow, workflows, validatedCategories, validatedAppNames);
       }
-
-      // Presence-based override: if the outcome bundle proves the usecase is
-      // producing data (enrichments performed, IOCs managed, incidents
-      // ingested, …) treat it as enabled regardless of workflow-name / auth
-      // heuristics. The outcomes hook reads directly from list_cache so this
-      // is the ground-truth signal — workflows may be renamed, untagged, or
-      // driven by an upstream feed that does not appear in the auth list.
-      const outcomeValue = getPageOutcome(flow.id)?.primary?.value;
-      if (typeof outcomeValue === 'number' && outcomeValue > 0) return true;
 
       // Agent Response / AI Incident Handling are driven by the category
       // automation (Run AI Agent on shuffle-security_incidents), not a workflow.
@@ -6322,7 +6399,7 @@ function UsecasesPageInner() {
         flow.id === 'case_management_agent_response_1' ||
         flow.id === 'case_management_agent_ai_incident_handling_1'
       ) return aiAgentAutomationActive;
-      // Host Monitoring is presence-driven: as soon as ≥1 host monitor is
+      // Host Monitoring is presence-driven: as soon as >=1 host monitor is
       // deployed, treat it as enabled — there is no separate workflow to gate.
       if (flow.id === 'case_management_asset_management_monitors_1') {
         return monitorsDeployedCount >= 1;
@@ -6350,10 +6427,20 @@ function UsecasesPageInner() {
         const count = (appNames as any)?.size ?? (appNames as any)?.length ?? 0;
         return count > 0;
       }
-      // Incident Routing Rules is Cases-sourced / rule-driven:
-      // driven solely by whether its workflow exists.
+      // Incident Routing Rules requires both:
+      // 1. Does the workflow exist?
+      // 2. Is it in the "Automation for Incidents" category settings?
       if (flow.id === 'case_management_incident_routing_1') {
-        return !!flow.automationLabel && enabledLabels.has(flow.automationLabel);
+        const wf = findRoutingWorkflow(
+          workflows as any,
+          { singular: 'incident', plural: 'incidents' },
+          'shuffle-security_incidents',
+        );
+        if (!wf) return false;
+        if (!incidentsCategoryConfig) {
+          return !!flow.automationLabel && enabledLabels.has(flow.automationLabel);
+        }
+        return isWorkflowHookedToCategory(wf.id, incidentsCategoryConfig);
       }
       // Schedules & Phone Notifications is Cases-sourced / schedule-driven:
       // driven solely by whether its workflow exists.
@@ -6362,22 +6449,28 @@ function UsecasesPageInner() {
       }
       // Vulnerability Correlation and Vulnerability Ingestion are self-contained / schedule-driven —
       // driven solely by whether their workflows exist.
-      if (
-        flow.id === 'asset_management_case_management_vuln_1' ||
-        flow.id === 'vulnerability_ingestion_1'
-      ) {
+      if (flow.id === 'asset_management_case_management_vuln_1') {
         return !!flow.automationLabel && enabledLabels.has(flow.automationLabel);
       }
+      if (flow.id === 'vulnerability_ingestion_1') {
+        return (
+          !!flow.automationLabel &&
+          (enabledLabels.has(flow.automationLabel) || enabledLabels.has('vulnerabilities_webhook'))
+        );
+      }
       // Threat-intel usecases are presence-driven: they "work" as soon as the
-      // org has IOCs/feeds populated or enrichments running, even if no
       // dedicated "Realtime IOC extraction" / "Enable Threat feeds" workflow
-      // is wired up. The outcome check above already covers the positive
-      // case; here we just skip the source-tool gate so a missing
-      // threat-intel auth does not force the card to "Disabled".
+      // is wired up.
       if (flow.source === 'threat_intel') {
         return !!flow.automationLabel && enabledLabels.has(flow.automationLabel);
       }
-      if (!flow.automationLabel) return false;
+      if (!flow.automationLabel) {
+        // Presence-based fallback: for unmanaged or external feeds without a dedicated
+        // workflow label, if the outcome bundle proves data is flowing, treat it as enabled.
+        const outcomeValue = getPageOutcome(flow.id)?.primary?.value;
+        if (typeof outcomeValue === 'number' && outcomeValue > 0) return true;
+        return false;
+      }
       if (!enabledLabels.has(flow.automationLabel)) return false;
       if (!validatedCategories.has(flow.source)) return false;
 
@@ -6465,40 +6558,7 @@ function UsecasesPageInner() {
   }, [workflows]);
 
   const filtered = useMemo(() => {
-    let list = usecases;
-
-    // Support-only usecases (e.g. Vulnerability Response) are strictly hidden for non-support users
-    if (!isSupport) {
-      list = list.filter((u) => !u.supportOnly);
-    }
-
-    // Only Support users with the "show all" toggle see inactive or supportOnly usecases.
-    // Everyone else — guests and regular authenticated users — sees only
-    // the activated (animated) ones, so the catalog reflects what's live.
-    if (!(isSupport && showAllAsSupport)) {
-      list = list.filter((u) => u.animated === true && !u.supportOnly);
-    }
-
-    // "IOC feeds" belongs strictly in Ingest
-    list = list.filter((u) => u.id !== 'threat_intel_cloud_1' && !(u.label === 'IOC feeds' && u.phase !== 'ingest'));
-
-    // Guests have no org-level activation state, so the API's `disabled`
-    // flag can't distinguish "live for this org" from "exists in catalog".
-    // Restrict guests to the curated default-visible set (animated=true in
-    // DEFAULT_USECASES) so the public view matches the regular-user view.
-    if (!isAuthenticated && !(isSupport && showAllAsSupport)) {
-      const allowedLabels = new Set(
-        DEFAULT_USECASES
-          .filter((u) => u.animated === true && !u.supportOnly)
-          .map((u) => u.label.toLowerCase())
-      );
-      list = list.filter((u) => allowedLabels.has(u.label.toLowerCase()));
-    }
-
-    // Always hide "Logs" usecases (even for guests) — not a primary entry point.
-    if (!(isSupport && showAllAsSupport)) {
-      list = list.filter((u) => !/log/i.test(u.label));
-    }
+    let list = filterVisibleUsecases(usecases, { isSupport, showAllAsSupport, isAuthenticated });
 
     if (phaseFilter !== 'all') {
       list = list.filter((u) => u.phase === phaseFilter);
@@ -6863,7 +6923,7 @@ function UsecasesPageInner() {
           },
         }}
         sx={{
-          zIndex: 9999,
+          zIndex: 10030,
           '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
             width: { xs: '100%', sm: 720, md: 900 },
@@ -6944,25 +7004,10 @@ function UsecasesPageInner() {
 }
 
 
-function UsecaseCard({
-  flow,
-  drift,
-  apiLoaded,
-  isEnabled,
-  hasInterest = false,
-  isSupport = false,
-  showImage = false,
-  canToggle,
-  isAuthenticated = true,
-  hasValidatedSource = true,
-  onToggled,
-  workflows = [],
-  onClick,
-  onEnable,
-}: {
+export interface UsecaseCardProps {
   flow: Usecase;
   drift?: UsecaseDrift;
-  apiLoaded: boolean;
+  apiLoaded?: boolean;
   isEnabled: boolean;
   hasInterest?: boolean;
   isSupport?: boolean;
@@ -6980,10 +7025,27 @@ function UsecaseCard({
    *  it, so the user can watch the workflow appear in realtime. Disable
    *  still happens inline (no need for context). */
   onEnable?: () => void;
-}) {
-  const sourceCat = categoryLabel(flow.source);
+}
+
+export function UsecaseCard({
+  flow,
+  drift,
+  apiLoaded = true,
+  isEnabled,
+  hasInterest = false,
+  isSupport = false,
+  showImage = false,
+  canToggle,
+  isAuthenticated = true,
+  hasValidatedSource = true,
+  onToggled,
+  workflows = [],
+  onClick,
+  onEnable,
+}: UsecaseCardProps) {
+  const sourceCat = categoryLabel(flow.source) || 'source';
   const isComingSoon = !ACTIVE_USECASE_IDS.includes(flow.id);
-  const targetCat = categoryLabel(flow.target);
+  const targetCat = categoryLabel(flow.target) || 'destination';
   const [toggling, setToggling] = useState(false);
   const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
   const effectiveEnabled = optimisticEnabled !== null ? optimisticEnabled : isEnabled;
@@ -7301,7 +7363,7 @@ function UsecaseCard({
               <Tooltip
                 title={
                   isBlocked
-                    ? `${usecaseHealth.primaryProblem?.title || 'Execution blocked'}: ${usecaseHealth.primaryProblem?.description || 'Runtime location is offline.'} Click to fix.`
+                    ? `${usecaseHealth.primaryProblem?.title || 'Execution blocked'}: ${usecaseHealth.primaryProblem?.description || 'Runtime location is offline.'} Click to disable.`
                     : isMonitorsFlow
                       ? 'Host Monitoring is active on endpoints · Managed in Monitors view'
                       : canDisable
@@ -7316,24 +7378,15 @@ function UsecaseCard({
                   type="button"
                   disabled={toggling}
                   onClick={
-                    isBlocked
+                    isMonitorsFlow
                       ? (e: React.MouseEvent) => {
                           e.stopPropagation();
-                          if (usecaseHealth.primaryProblem?.actionUrl) {
-                            navigate(usecaseHealth.primaryProblem.actionUrl);
-                          } else {
-                            onClick();
-                          }
+                          e.preventDefault();
+                          navigate('/monitors');
                         }
-                      : isMonitorsFlow
-                        ? (e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            navigate('/monitors');
-                          }
-                        : canDisable
-                          ? handleToggle
-                          : undefined
+                      : canDisable
+                        ? handleToggle
+                        : undefined
                   }
                   sx={{
                     display: 'inline-flex',
@@ -7356,12 +7409,12 @@ function UsecaseCard({
                     fontWeight: 700,
                     letterSpacing: '0.02em',
                     lineHeight: 1,
-                    cursor: (isBlocked || isMonitorsFlow) ? 'pointer' : canDisable ? (toggling ? 'default' : 'pointer') : 'default',
+                    cursor: isMonitorsFlow ? 'pointer' : canDisable ? (toggling ? 'default' : 'pointer') : 'default',
                     outline: 'none',
                     boxShadow: 'none',
                     flexShrink: 0,
                     transition: 'all 0.15s ease',
-                    '&:hover': (isBlocked || isMonitorsFlow || canDisable) ? {
+                    '&:hover': (isMonitorsFlow || canDisable) ? {
                       bgcolor: isBlocked
                         ? 'hsl(var(--destructive) / 0.22)'
                         : 'hsl(var(--severity-low) / 0.22)',
@@ -7683,36 +7736,7 @@ function UsecaseDrawerInner({
   // for the standalone drawer (presence-based gates like agent-response /
   // monitor count are out of scope here; opening the drawer is the user's
   // entry point into the full Usecases page if they want richer state).
-  const enabledLabels = useMemo(() => {
-    const set = new Set<string>();
-    for (const wf of workflows) {
-      const name = (wf.name || '').toLowerCase();
-      const tags = (wf.tags || []).map(t => String(t).toLowerCase());
-      for (const uc of usecases) {
-        if (!uc.automationLabel) continue;
-        const lbl = uc.automationLabel.toLowerCase();
-        const aliases = [lbl];
-        if (lbl.includes('incident routing')) {
-          aliases.push('incident routing', 'incident_routing', 'incident_routing_rules');
-        }
-        if (lbl.includes('schedules & phone') || lbl.includes('schedules_notifications') || lbl.includes('phone notification')) {
-          aliases.push('schedules & phone notifications', 'schedules_&_phone_notifications', 'schedules_notifications', 'phone_notifications', 'assign & escalate', 'assign_&_escalate');
-        }
-        if (lbl.includes('threat feeds') || lbl.includes('ioc extraction')) {
-          aliases.push('enable threat feeds', 'enable threat feeds_webhook', 'realtime ioc extraction', 'threat intel');
-        }
-        const isMatch = aliases.some(a => {
-          const isWebhookWf = name.endsWith('_webhook') || name === 'ingestion webhook' || tags.some(t => t.endsWith('_webhook'));
-          if (!a.includes('webhook') && isWebhookWf) return false;
-          return name === a || name.includes(a) || tags.includes(a) || tags.some(t => t.includes(a));
-        });
-        if (isMatch) {
-          set.add(uc.automationLabel);
-        }
-      }
-    }
-    return set;
-  }, [workflows, usecases]);
+  const enabledLabels = useMemo(() => computeEnabledLabels(workflows, usecases), [workflows, usecases]);
 
   // Fetch validated source categories (same call as UsecasesPageInner). Skips
   // out gracefully if the user is not authenticated.
@@ -7773,9 +7797,7 @@ function UsecaseDrawerInner({
   useEffect(() => { setActiveFlowId(flowId); }, [flowId]);
 
   const flow = activeFlowId ? usecases.find(u => u.id === activeFlowId) : null;
-  const isEnabled = flow?.automationArea === 'automatic_ingestion' && flow?.target === 'case_management'
-    ? isIngestionUsecaseActive(flow, workflows, validatedCategories, validatedAppNames)
-    : !!flow?.automationLabel && enabledLabels.has(flow.automationLabel);
+  const isEnabled = flow ? isUsecaseFlowEnabled(flow, workflows, enabledLabels, validatedCategories, validatedAppNames) : false;
   const canToggle = isAuthenticated && !!flow?.automationLabel;
   const hasValidatedSource = flow ? validatedCategories.has(flow.source) : true;
 
@@ -7807,7 +7829,7 @@ function UsecaseDrawerInner({
         },
       }}
       sx={{
-        zIndex: 9999,
+        zIndex: 10030,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
           width: width || { xs: '100%', sm: 720, md: 900 },

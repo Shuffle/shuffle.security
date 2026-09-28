@@ -22,6 +22,7 @@ import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 import { AuthStatusChip } from '@/Shuffle-MCPs/components/AuthStatusChip';
 import { getValidatedAuthIds, rememberValidatedAuth } from '@/Shuffle-MCPs/validatedAuthMemory';
+import { getPopupZIndex } from '@/Shuffle-MCPs/drawerLayer';
 
 import {
   ENDPOINT_PRESETS,
@@ -35,6 +36,7 @@ import {
   switchActiveLLM,
   maskSecretFields,
 } from '@/Shuffle-MCPs/llmActiveProvider';
+import { toast } from '@/Shuffle-MCPs/toast';
 
 const OPENAI_APP_NAME = 'OpenAI';
 const OPENAI_APP_ID = '5d19dd82517870c68d40cacad9b5ca91';
@@ -273,6 +275,19 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
     if (!activeEntryRaw) return null;
     return providerOfEntry(activeEntryRaw);
   }, [optimisticActiveProvider, activeEntryRaw, providerOfEntry]);
+
+  /** Release the optimistic pick only once the backend reports the same
+   *  provider — never on a mere round-trip completing. */
+  useEffect(() => {
+    if (optimisticActiveProvider === null) return;
+    const serverLabel = activeEntryRaw ? providerOfEntry(activeEntryRaw) : SHUFFLE_AI_PRESET;
+    if (serverLabel === optimisticActiveProvider) {
+      setOptimisticActiveProvider(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optimisticActiveProvider, activeEntryRaw]);
+
+
 
 
   const effectivePreset = useMemo(() => {
@@ -574,18 +589,44 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
   const applyShuffleAI = async () => {
     // Flip the UI to Shuffle AI immediately and deactivate the
     // saved LLM authentications. Nothing is deleted.
+    const previousActive = activeProviderLabel;
+    const previousPreset = selectedPreset;
     setOptimisticActiveProvider(SHUFFLE_AI_PRESET);
     setSelectedPreset(SHUFFLE_AI_PRESET);
     rememberPreset(SHUFFLE_AI_PRESET);
     setCustomUrl('');
     handleAuthChange(OPENAI_APP_ID, {});
     try {
-      await switchActiveLLM(SHUFFLE_AI_PRESET);
+      const res = await switchActiveLLM(SHUFFLE_AI_PRESET);
+      if (!res.success) {
+        // Only a failed "active" write rolls the selection back.
+        setOptimisticActiveProvider(null);
+        const rollback = previousPreset || previousActive;
+        if (rollback) {
+          setSelectedPreset(rollback);
+          rememberPreset(rollback);
+        }
+        toast({
+          title: 'Could not change AI provider',
+          description: 'Failed to switch to Shuffle AI.',
+          variant: 'destructive',
+        });
+        return;
+      }
       await refreshAuth();
     } catch (err) {
       console.error('[LocalLLMConfig] Failed to deactivate provider auths:', err);
-    } finally {
       setOptimisticActiveProvider(null);
+      const rollback = previousPreset || previousActive;
+      if (rollback) {
+        setSelectedPreset(rollback);
+        rememberPreset(rollback);
+      }
+      toast({
+        title: 'Could not change AI provider',
+        description: err instanceof Error ? err.message : 'Failed to switch to Shuffle AI.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -595,6 +636,9 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
       void applyShuffleAI();
       return;
     }
+
+    const previousActive = activeProviderLabel;
+    const previousPreset = selectedPreset;
 
     setSelectedPreset(label);
     rememberPreset(label);
@@ -607,12 +651,35 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
       setOptimisticActiveProvider(label);
       void (async () => {
         try {
-          await switchActiveLLM(existingId);
+          const res = await switchActiveLLM(existingId);
+          if (!res.success) {
+            setOptimisticActiveProvider(null);
+            const rollback = previousPreset || previousActive;
+            if (rollback) {
+              setSelectedPreset(rollback);
+              rememberPreset(rollback);
+            }
+            toast({
+              title: 'Could not change AI provider',
+              description: 'Failed to switch to ' + label + '.',
+              variant: 'destructive',
+            });
+            return;
+          }
           await refreshAuth();
         } catch (err) {
           console.error('[LocalLLMConfig] Failed to switch active LLM provider:', err);
-        } finally {
           setOptimisticActiveProvider(null);
+          const rollback = previousPreset || previousActive;
+          if (rollback) {
+            setSelectedPreset(rollback);
+            rememberPreset(rollback);
+          }
+          toast({
+            title: 'Could not change AI provider',
+            description: err instanceof Error ? err.message : 'Failed to switch active LLM provider.',
+            variant: 'destructive',
+          });
         }
       })();
     }
@@ -845,7 +912,7 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
           slotProps={{
             paper: { sx: { bgcolor: 'hsl(var(--popover))', color: 'hsl(var(--popover-foreground))', border: '1px solid hsl(var(--border))', maxWidth: '100vw', overflow: 'hidden' } },
             listbox: { sx: { maxWidth: '100%', '& li': { minWidth: 0 } } },
-            popper: { sx: { zIndex: 9999, maxWidth: '100vw' } },
+            popper: { sx: { zIndex: (_theme) => getPopupZIndex(), maxWidth: '100vw' } },
           }}
         />
       </Box>
@@ -854,7 +921,7 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
         const preset = ENDPOINT_PRESETS.find((p) => p.label === effectivePreset);
         const hasProviderDocs = !!preset && (!!preset.apiKeyUrl || !!preset.apiKeyHint);
         return (
-          <Box sx={{ px: 2.5, py: 2, borderRadius: 2, border: '1px solid hsl(var(--border))', bgcolor: 'hsl(var(--muted) / 0.3)' }}>
+          <Box sx={{ px: 2.5, py: 2, borderRadius: 2, border: '1px solid hsl(var(--border))', bgcolor: 'transparent' }}>
             <Typography sx={{ fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>
               {isShuffleAI ? (
                 <>
@@ -954,7 +1021,7 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
                         isOptionEqualToValue={(opt, val) => opt === val}
                         slotProps={{
                           paper: { sx: { bgcolor: 'hsl(var(--popover))', color: 'hsl(var(--popover-foreground))', border: '1px solid hsl(var(--border))' } },
-                          popper: { sx: { zIndex: 9999 } },
+                          popper: { sx: { zIndex: (_theme) => getPopupZIndex() } },
                         }}
                         renderInput={(params) => (
                           <TextField {...params} placeholder="Select a model…" />

@@ -21,7 +21,7 @@ import { HostMonitoringDetailSlot } from '@/components/usecases/HostMonitoringDe
 import React, { useState, useCallback, useEffect } from 'react';
 import { setCachedWorkflows } from '@/Shuffle-Core/views/appsFetchCache';
 
-const WEBHOOK_FLOW_IDS = new Set(['siem_case_management_1', 'edr_case_management_1']);
+const WEBHOOK_FLOW_IDS = new Set(['siem_case_management_1', 'edr_case_management_1', 'email_case_management_1']);
 
 /** Vulnerability usecases — they all read from the exact same status hook
  *  (`useVulnerabilityAutomationStatus`) as /vulnerabilities. */

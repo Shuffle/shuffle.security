@@ -60,7 +60,7 @@ export const AppHeader = ({ title = 'Dashboard' }: AppHeaderProps) => {
               mr: 2,
             }}
           >
-            <SearchIcon style={{ color: 'text.secondary', marginRight: '8px' }} />
+            <SearchIcon style={{ color: 'hsl(var(--muted-foreground))', marginRight: '8px' }} />
             <InputBase
               placeholder={t('Search incidents...')}
               sx={{

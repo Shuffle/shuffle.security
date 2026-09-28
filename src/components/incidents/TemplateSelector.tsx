@@ -40,9 +40,9 @@ export const TemplateSelector = ({ onApplyTemplate, currentUsername = '' }: Temp
 
   const handleApplyTemplate = async (template: CaseTemplate) => {
     // Convert template tasks to incident tasks with all fields initialized
-    const newTasks: IncidentTask[] = template.tasks.map((t: TemplateTask, index: number) => ({
+    const newTasks: IncidentTask[] = (template.tasks || []).map((t: TemplateTask, index: number) => ({
       id: `task-${Date.now()}-${index}`,
-      title: t.title,
+      title: t.title || '',
       description: t.description || '',
       category: t.category || '',
       completed: false,
@@ -129,7 +129,7 @@ export const TemplateSelector = ({ onApplyTemplate, currentUsername = '' }: Temp
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
                     <Chip 
-                      label={`${template.tasks.length} tasks`} 
+                      label={`${template.tasks?.length ?? 0} tasks`} 
                       size="small" 
                       sx={{ 
                         height: 18, 

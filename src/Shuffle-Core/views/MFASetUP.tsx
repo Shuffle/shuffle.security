@@ -138,7 +138,11 @@ export const MFASetUP: React.FC<MFASetupProps> = ({
 
   const handleCopySecret = () => {
     if (!secret2FA) return;
-    navigator.clipboard.writeText(secret2FA);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(secret2FA).catch(() => {});
+      }
+    } catch {}
     setCopiedSecret(true);
     setTimeout(() => setCopiedSecret(false), 2000);
   };

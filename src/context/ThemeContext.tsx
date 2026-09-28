@@ -25,7 +25,11 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
 
 export const getSystemTheme = (): 'light' | 'dark' => {
   if (typeof window === 'undefined') return 'dark';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  try {
+    return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ? 'dark' : 'light';
+  } catch {
+    return 'dark';
+  }
 };
 
 export const resolveTheme = (mode: ThemeMode): 'light' | 'dark' => {

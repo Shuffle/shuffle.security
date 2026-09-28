@@ -15,6 +15,7 @@ import {
 import { IOC_CATEGORIES, IOCType, IOCCategory } from '@/hooks/useIOCTypes';
 import { useDatastore } from '@/hooks/useDatastore';
 import { DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getPopupZIndex } from '@/Shuffle-MCPs/drawerLayer';
 
 interface ObservableTypeSelectorProps {
   value: string;
@@ -42,8 +43,8 @@ export const ObservableTypeSelector = ({
     if (!searchQuery.trim()) return iocTypes;
     const query = searchQuery.toLowerCase();
     return iocTypes.filter(t =>
-      t.name.toLowerCase().includes(query) ||
-      t.description?.toLowerCase().includes(query)
+      (t.name || '').toLowerCase().includes(query) ||
+      (t.description || '').toLowerCase().includes(query)
     );
   }, [iocTypes, searchQuery]);
 
@@ -63,7 +64,7 @@ export const ObservableTypeSelector = ({
       const enabledA = a.enabled !== false ? 1 : 0;
       const enabledB = b.enabled !== false ? 1 : 0;
       if (enabledA !== enabledB) return enabledB - enabledA;
-      return a.name.localeCompare(b.name);
+      return (a.name || '').localeCompare(b.name || '');
     });
     
     for (const type of sorted) {
@@ -76,7 +77,7 @@ export const ObservableTypeSelector = ({
 
   // Check if search query matches any existing type
   const exactMatch = useMemo(() => {
-    return iocTypes.some(t => t.name.toLowerCase() === searchQuery.toLowerCase());
+    return iocTypes.some(t => (t.name || '').toLowerCase() === searchQuery.toLowerCase());
   }, [iocTypes, searchQuery]);
 
   const canCreate = searchQuery.trim() && !exactMatch;
@@ -154,7 +155,8 @@ export const ObservableTypeSelector = ({
           open={open}
           anchorEl={anchorRef.current}
           placement="bottom-start"
-          style={{ zIndex: 1400, width: anchorRef.current?.offsetWidth || 280, minWidth: 280 }}
+          data-shuffle-layer="popup"
+          style={{ zIndex: getPopupZIndex(), width: anchorRef.current?.offsetWidth || 280, minWidth: 280 }}
         >
           <Paper
             sx={{
@@ -182,7 +184,7 @@ export const ObservableTypeSelector = ({
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <SearchIcon size={18} style={{ color: 'text.secondary' }} />
+                      <SearchIcon size={18} style={{ color: 'hsl(var(--muted-foreground))' }} />
                     </InputAdornment>
                   ),
                 }}

@@ -31,26 +31,43 @@ import { hostUrlSegment } from '@/utils/hostUrlSegment';
 import { ActionOutputView } from './ActionOutputView';
 import { HostNameDisplay } from '@/components/monitors/HostNameDisplay';
 import { AddHostDialog, MonitoringGroupLike } from './AddHostDialog';
+import { fetchHostSupplements, mergeHosts } from '@/lib/mergeMonitorHosts';
 
 
 // ── Helpers (identical to the originals on VulnAssetsPage) ─────────────────
-const OsIcon = ({ os, size = 14, className = '' }: { os?: string; size?: number; className?: string }) => {
-  const lower = (os || '').toLowerCase();
-  if (lower.includes('darwin') || lower.includes('mac') || lower.includes('ios')) {
+const TABLE_GRID_TEMPLATE = '2rem minmax(130px, 1.3fr) 3.5rem 3.5rem 4.5rem 4rem 4rem 5rem minmax(70px, 0.7fr) minmax(110px, 0.9fr) 68px';
+
+const OsIcon = ({
+  os,
+  platform,
+  kernel,
+  hostname,
+  size = 14,
+  className = '',
+}: {
+  os?: string;
+  platform?: string;
+  kernel?: string;
+  hostname?: string;
+  size?: number;
+  className?: string;
+}) => {
+  const text = `${os || ''} ${platform || ''} ${kernel || ''} ${hostname || ''}`.toLowerCase();
+  if (text.includes('darwin') || text.includes('mac') || text.includes('ios') || text.includes('apple') || text.includes('osx')) {
     return (
       <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="currentColor">
         <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
       </svg>
     );
   }
-  if (lower.includes('windows') || lower.includes('win')) {
+  if (text.includes('windows') || text.includes('win') || text.includes('microsoft')) {
     return (
       <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="currentColor">
         <path d="M3 12V6.5l8-1.1V12H3zm10 0V5.2l8-1.2V12h-8zM3 13h8v6.7l-8-1.1V13zm10 0h8v6.9l-8 1.2V13z"/>
       </svg>
     );
   }
-  if (lower.includes('linux') || lower.includes('ubuntu') || lower.includes('debian') || lower.includes('centos') || lower.includes('redhat') || lower.includes('fedora')) {
+  if (text.includes('linux') || text.includes('ubuntu') || text.includes('debian') || text.includes('centos') || text.includes('redhat') || text.includes('fedora') || text.includes('arch') || text.includes('alpine')) {
     return (
       <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="currentColor" aria-label="Linux">
         <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.077 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139zm.484 14.35c.296 0 .523.043.682.13.158.085.226.214.205.387l-.022.135-.13.612c-.097.456-.222.823-.376 1.103a1.31 1.31 0 01-.602.59c-.247.118-.566.176-.957.176s-.71-.058-.957-.176a1.31 1.31 0 01-.602-.59c-.154-.28-.28-.647-.376-1.103l-.13-.612-.022-.135c-.02-.173.047-.302.205-.387.16-.087.387-.13.682-.13zm-2.31-7.45c.27 0 .493.092.67.276.176.184.265.41.265.677 0 .268-.089.494-.265.678a.886.886 0 01-.67.276.886.886 0 01-.67-.276.945.945 0 01-.265-.678c0-.267.089-.493.265-.677a.886.886 0 01.67-.276zm4.62 0c.267 0 .493.092.67.276.176.184.264.41.264.677 0 .268-.088.494-.264.678a.886.886 0 01-.67.276.886.886 0 01-.67-.276.945.945 0 01-.266-.678c0-.267.09-.493.266-.677a.886.886 0 01.67-.276z"/>
@@ -130,14 +147,31 @@ export interface MonitorHostTableProps {
   hosts: MonitorHost[];
   /** Called after a successful action to let the parent reload data. */
   onRefresh?: () => void;
-  /** If true, renders the Add Host button in the header bar and empty state. */
+  /** If true, renders the Add Host button in the header bar and empty state. Defaults to true. */
   showAddHost?: boolean;
   /** Optional monitoring group information for binding new host deployments directly to this group. */
   group?: MonitoringGroupLike;
+  /** Custom title for the card header. Defaults to 'Host Monitors' (or group name if specific). */
+  title?: string;
+  /** Custom subtitle for the card header. Defaults to 'Deploy lightweight monitors on endpoints to check compliance & posture'. */
+  subtitle?: string;
+  /** If true, hides the top card header bar (used in nested contexts like AssetsPage). Defaults to false. */
+  hideHeader?: boolean;
+  /** Optional organization ID for datastore posture queries. Falls back to localStorage userinfo/shuffle_user_info. */
+  orgId?: string;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
-export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: MonitorHostTableProps) => {
+export const MonitorHostTable = ({
+  hosts,
+  onRefresh,
+  showAddHost = true,
+  group,
+  title,
+  subtitle,
+  hideHeader = false,
+  orgId,
+}: MonitorHostTableProps) => {
   const navigate = useNavigate();
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set());
   const [sortCol, setSortCol] = useState<string | null>(null);
@@ -183,6 +217,33 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
     };
   }, [expandedHosts, hosts]);
 
+  const [supplementedHosts, setSupplementedHosts] = useState<MonitorHost[]>(hosts);
+
+  useEffect(() => {
+    // If hosts are empty or already have detailed software/posture fields, keep them
+    const needsSupplement = hosts.some(h =>
+      h.hd_encrypted === undefined &&
+      h.automatic_screen_lock_enabled === undefined &&
+      (!h.installed_software || (Array.isArray(h.installed_software) && h.installed_software.length === 0))
+    );
+
+    if (!needsSupplement || hosts.length === 0) {
+      setSupplementedHosts(hosts);
+      return;
+    }
+
+    let isMounted = true;
+    fetchHostSupplements(orgId).then(supplements => {
+      if (!isMounted) return;
+      const merged = mergeHosts(hosts as any[], supplements);
+      setSupplementedHosts(merged as MonitorHost[]);
+    }).catch(err => {
+      console.warn('[MonitorHostTable] Failed to load supplements:', err);
+      if (isMounted) setSupplementedHosts(hosts);
+    });
+
+    return () => { isMounted = false; };
+  }, [hosts, orgId]);
 
   const toggleSort = (col: string) => {
     if (sortCol === col) {
@@ -197,7 +258,7 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
     if (cb !== ca) return cb - ca;
     return (a.hostname || '').localeCompare(b.hostname || '');
   };
-  const allHosts = !sortCol ? [...hosts].sort(defaultSort) : [...hosts].sort((a, b) => {
+  const allHosts = !sortCol ? [...supplementedHosts].sort(defaultSort) : [...supplementedHosts].sort((a, b) => {
     let cmp = 0;
     switch (sortCol) {
       case 'os': cmp = (a.os || '').localeCompare(b.os || ''); break;
@@ -486,48 +547,135 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="border border-border rounded-lg overflow-hidden bg-card">
-        {(showAddHost || group) && (
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/20">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-foreground">
-                {group?.name || group?.Name || 'Monitored Hosts'}
-              </span>
-              <span className="text-xs text-muted-foreground font-mono">
-                ({allHosts.length} {allHosts.length === 1 ? 'host' : 'hosts'})
-              </span>
+      <div
+        className="border border-border rounded-lg overflow-hidden bg-card"
+        style={{
+          border: '1px solid hsl(var(--border))',
+          borderRadius: 8,
+          overflow: 'hidden',
+          backgroundColor: 'hsl(var(--card))',
+        }}
+      >
+        {!hideHeader && (
+          <div
+            className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-card"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 20px',
+              borderBottom: '1px solid hsl(var(--border))',
+              backgroundColor: 'hsl(var(--card))',
+            }}
+          >
+            <div className="flex items-center gap-3" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  backgroundColor: 'rgba(249, 115, 22, 0.15)',
+                  color: '#f97316',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Laptop size={18} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="text-sm font-semibold text-foreground" style={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                    {title || (group?.name && group.name !== 'Monitored Hosts' ? `${group.name} - Host Monitors` : 'Host Monitors')}
+                  </span>
+                  <span
+                    className="text-xs text-muted-foreground font-mono"
+                    style={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}
+                  >
+                    ({allHosts.length} {allHosts.length === 1 ? 'host' : 'hosts'})
+                  </span>
+                </div>
+                <p
+                  className="text-xs text-muted-foreground"
+                  style={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))', margin: '2px 0 0 0' }}
+                >
+                  {subtitle || 'Deploy lightweight monitors on endpoints to check compliance & posture'}
+                </p>
+              </div>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5 h-8 text-xs"
-              onClick={() => setAddHostOpen(true)}
-            >
-              <Plus size={13} />
-              Add Host
-            </Button>
+            {showAddHost && (
+              <div className="flex items-center gap-1.5" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-8 text-xs"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, fontSize: '0.75rem' }}
+                  onClick={() => setAddHostOpen(true)}
+                >
+                  <Plus size={13} />
+                  Add Host
+                </Button>
+              </div>
+            )}
           </div>
         )}
-        {/* Table header */}
-        <div className="grid grid-cols-[2rem_1.5fr_2rem_2rem_2rem_2rem_2rem_2rem_0.7fr_0.8fr_2.5rem] gap-2 px-5 py-2 border-b border-border bg-muted/30 items-center">
-          <TooltipProvider delayDuration={200}>
-            <Tooltip><TooltipTrigger asChild>
-              <span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none flex items-center gap-1" onClick={() => toggleSort('os')}>
-                OS{sortArrow('os')}
+        {/* Table scroll container */}
+        <div style={{ width: '100%', overflowX: 'auto' }}>
+          <div style={{ minWidth: 920 }}>
+            {/* Table header */}
+            <div
+              className="grid gap-2 px-5 py-2.5 border-b border-border bg-muted/30 items-center select-none"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: TABLE_GRID_TEMPLATE,
+                gap: 8,
+                columnGap: 8,
+                padding: '8px 20px',
+                borderBottom: '1px solid hsl(var(--border))',
+                backgroundColor: 'hsla(var(--muted), 0.3)',
+                alignItems: 'center',
+              }}
+            >
+              <TooltipProvider delayDuration={200}>
+                <Tooltip><TooltipTrigger asChild>
+                  <span className="text-xs font-semibold text-muted-foreground cursor-pointer flex items-center justify-center gap-1" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }} onClick={() => toggleSort('os')}>
+                    OS{sortArrow('os')}
+                  </span>
+                </TooltipTrigger><TooltipContent>Sort by Operating System</TooltipContent></Tooltip>
+              </TooltipProvider>
+              <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} onClick={() => toggleSort('hostname')}>
+                Hostname{sortArrow('hostname')}
               </span>
-            </TooltipTrigger><TooltipContent>Sort by Operating System</TooltipContent></Tooltip>
-          </TooltipProvider>
-          <span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort('hostname')}>Hostname{sortArrow('hostname')}</span>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="flex justify-center cursor-pointer" onClick={() => toggleSort('hd')}><HardDrive size={13} className="text-muted-foreground" /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">HD Encrypted{sortArrow('hd')}</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="flex justify-center cursor-pointer" onClick={() => toggleSort('screenlock')}><Lock size={13} className="text-muted-foreground" /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Screenlock{sortArrow('screenlock')}</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="flex justify-center cursor-pointer" onClick={() => toggleSort('software')}><Package size={13} className="text-muted-foreground" /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Installed Software{sortArrow('software')}</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="flex justify-center cursor-pointer" onClick={() => toggleSort('codescan')}><FileCode size={13} className="text-muted-foreground" /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Code Package Scanner{sortArrow('codescan')}</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="flex justify-center cursor-pointer" onClick={() => toggleSort('processes')}><Activity size={13} className="text-muted-foreground" /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Active Processes{sortArrow('processes')}</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
-          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="flex justify-center cursor-pointer" onClick={() => toggleSort('response')}><Zap size={13} className="text-muted-foreground" /></span></TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Response Actions{sortArrow('response')}</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
-          <span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort('group')}>Group{sortArrow('group')}</span>
-          <span className="text-xs font-semibold text-muted-foreground cursor-pointer select-none" onClick={() => toggleSort('checkin')}>Last Check-in{sortArrow('checkin')}</span>
-          <span className="text-xs font-semibold text-muted-foreground">Actions</span>
-        </div>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('hd')}>Disk{sortArrow('hd')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">HD Encrypted</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('screenlock')}>Lock{sortArrow('screenlock')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Screenlock</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('software')}>Software{sortArrow('software')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Installed Software</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('codescan')}>Code{sortArrow('codescan')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Code Package Scanner</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('processes')}>Procs{sortArrow('processes')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Active Processes</p><p className="text-[0.65rem] text-muted-foreground">Click to sort by count</p></TooltipContent></Tooltip></TooltipProvider>
+              <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ display: 'block', textAlign: 'center', width: '100%' }} onClick={() => toggleSort('response')}>Response{sortArrow('response')}</span>
+              </TooltipTrigger><TooltipContent side="bottom" className="max-w-[200px]"><p className="font-semibold text-xs">Response Actions</p><p className="text-[0.65rem] text-muted-foreground">Click to sort</p></TooltipContent></Tooltip></TooltipProvider>
+              <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} onClick={() => toggleSort('group')}>
+                Group{sortArrow('group')}
+              </span>
+              <span className="text-xs font-semibold text-muted-foreground cursor-pointer" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} onClick={() => toggleSort('checkin')}>
+                Last Check-in{sortArrow('checkin')}
+              </span>
+              <span className="text-xs font-semibold text-muted-foreground" style={{ display: 'block', textAlign: 'right', width: '100%', paddingRight: 4 }}>
+                Actions
+              </span>
+            </div>
         {/* Host rows */}
         {allHosts.length === 0 ? (
           <div className="px-5 py-12 flex flex-col items-center justify-center text-center gap-3">
@@ -564,11 +712,10 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
           const responseActionsOn = responseActionsState.enabled;
           const responseActionsMode = responseActionsState.mode;
           const activeProcessesCount = countActiveProcesses(host);
-          // Stable per-row key: uuid when present, otherwise groupId+hostname+idx.
-          // Avoids collapsing all uuid-less rows into a single expansion entry.
-          const rowKey = (host.uuid && String(host.uuid).trim())
-            ? `uuid:${host.uuid}`
-            : `gh:${(host as any).groupId || ''}::${(host.hostname || '').toLowerCase()}::${idx}`;
+          // Stable per-row key. Must be unique per rendered row: the same uuid can
+          // appear in more than one monitor group, and keying on uuid alone made a
+          // single click expand every matching row (details shown more than once).
+          const rowKey = `row:${(host as any).groupId || ''}::${(host.hostname || '').toLowerCase()}::${String(host.uuid || '').trim()}::${idx}`;
           const isExpanded = expandedHosts.has(rowKey);
           const toggleExpanded = () => {
             setExpandedHosts(prev => {
@@ -578,18 +725,35 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
               return next;
             });
           };
+          const getDotColorStyle = (s?: 'on' | 'off' | 'empty', isOn?: boolean, customColor?: string) => {
+            if (s === 'off') return 'hsl(var(--severity-critical, 0 84% 60%))';
+            if (!isOn) return 'rgba(140, 140, 140, 0.3)';
+            if (customColor === 'medium' || customColor?.includes('medium')) return 'hsl(var(--severity-medium, 45 93% 47%))';
+            if (customColor === 'high' || customColor?.includes('high')) return 'hsl(var(--severity-high, 12 92% 52%))';
+            return 'hsl(var(--severity-low, 142 71% 45%))';
+          };
           const CheckDot = ({ on, tip, color, state }: { on: boolean; tip: string; color?: string; state?: 'on' | 'off' | 'empty' }) => {
             const dotColor = state === 'off'
               ? 'bg-[hsl(var(--severity-critical))]'
               : on
                 ? (color || 'bg-[hsl(var(--severity-low))]')
                 : 'bg-muted-foreground/30';
+            const dotBg = getDotColorStyle(state, on, color);
             return (
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="flex justify-center">
-                      <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
+                    <span className="flex justify-center items-center" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full ${dotColor}`}
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: '50%',
+                          backgroundColor: dotBg,
+                          flexShrink: 0,
+                        }}
+                      />
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>{tip}</TooltipContent>
@@ -600,14 +764,30 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
           return (
             <div key={rowKey}>
               <div
-                className="grid grid-cols-[2rem_1.5fr_2rem_2rem_2rem_2rem_2rem_2rem_0.7fr_0.8fr_2.5rem] gap-2 px-5 py-3 border-b border-border last:border-b-0 hover:bg-muted/20 transition-colors items-center cursor-pointer"
+                className="grid gap-2 px-5 py-3 border-b border-border last:border-b-0 hover:bg-muted/20 transition-colors items-center cursor-pointer"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: TABLE_GRID_TEMPLATE,
+                  gap: 8,
+                  columnGap: 8,
+                  padding: '12px 20px',
+                  borderBottom: '1px solid hsl(var(--border))',
+                  alignItems: 'center',
+                }}
                 onClick={toggleExpanded}
               >
-                <div className="flex items-center justify-center">
-                  <OsIcon os={host.os} size={14} className="text-muted-foreground" />
+                <div className="flex items-center justify-center" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <OsIcon
+                    os={host.os}
+                    platform={host.platform as string}
+                    kernel={host.kernel as string}
+                    hostname={host.hostname}
+                    size={14}
+                    className="text-muted-foreground"
+                  />
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
+                <div className="flex flex-col min-w-0" style={{ minWidth: 0 }}>
+                  <div className="flex items-center gap-2 min-w-0" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                     <ChevronRight size={14} className={`text-muted-foreground shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                     <HostNameDisplay
                       hostname={host.hostname}
@@ -647,13 +827,22 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
                   tip={`response_actions = ${fmtRaw(responseActionsRaw)}`}
                   color={responseActionsMode === 'full' ? 'bg-[hsl(var(--severity-high))]' : 'bg-[hsl(var(--severity-low))]'}
                 />
-                <span className="text-xs text-muted-foreground truncate">{host.groupName}</span>
+                <span className="text-xs text-muted-foreground truncate" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{host.groupName}</span>
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex items-center gap-1.5 cursor-help">
-                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRecent ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
-                        <span className="text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5 cursor-help" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'help' }}>
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRecent ? 'bg-green-500' : 'bg-muted-foreground/40'}`}
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            backgroundColor: isRecent ? '#22c55e' : 'rgba(150, 150, 150, 0.4)',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span className="text-xs text-muted-foreground" style={{ fontSize: 12 }}>
                           {checkinDate ? checkinDate.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                         </span>
                       </div>
@@ -686,7 +875,11 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
                   </Tooltip>
                 </TooltipProvider>
                 {/* Actions popover */}
-                <div className="flex items-center justify-end gap-2.5" onClick={e => e.stopPropagation()}>
+                <div
+                  className="flex items-center justify-end gap-1.5"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, width: '100%' }}
+                  onClick={e => e.stopPropagation()}
+                >
                   {responseActionsOn ? (
                     <Popover
                       onOpenChange={(open) => {
@@ -900,6 +1093,8 @@ export const MonitorHostTable = ({ hosts, onRefresh, showAddHost, group }: Monit
           );
         })
       )}
+          </div>
+        </div>
       </div>
 
       <AlertDialog open={!!pendingDisableRce} onOpenChange={(o) => { if (!o) setPendingDisableRce(null); }}>

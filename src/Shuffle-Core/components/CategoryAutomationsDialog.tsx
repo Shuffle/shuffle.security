@@ -1,5 +1,6 @@
-import { Rocket as RocketLaunchIcon, RotateCcw as RestoreIcon, X as CloseIcon, Network as AccountTreeIcon, Webhook as WebhookIcon, Lock as EnhancedEncryptionIcon, Trash2 as DeleteSweepIcon, Shield as SecurityIcon, ChevronDown as ExpandMoreIcon, Download as DownloadIcon, Plus as AddIcon, Settings as SettingsIcon } from 'lucide-react';
+import { Rocket as RocketLaunchIcon, RotateCcw as RestoreIcon, X as CloseIcon, Network as AccountTreeIcon, Route as RouteIcon, Webhook as WebhookIcon, Lock as EnhancedEncryptionIcon, Trash2 as DeleteSweepIcon, Shield as SecurityIcon, ChevronDown as ExpandMoreIcon, Download as DownloadIcon, Plus as AddIcon, Settings as SettingsIcon } from 'lucide-react';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from '@/lib/router-compat';
 import {
   Dialog,
@@ -36,8 +37,24 @@ import { useAuthenticatedApps } from '../useAuthenticatedApps';
 
 import { CategoryAutomation, DATASTORE_CATEGORIES, getDatastoreByCategory, RBACConfig } from '@/Shuffle-MCPs/datastore';
 import { ShareAccessModal } from '@/components/common/ShareAccessModal';
+import { IncidentRoutingEditor } from '@/components/settings/IncidentRoutingEditor';
+import { useIsSupport } from '@/hooks/useIsSupport';
 import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
+import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
 import { fetchAppsCached, fetchWorkflowsCached } from '../views/appsFetchCache';
+import {
+  getToolsForSkill,
+  getAgentTools,
+  setAgentTools,
+  saveAgentTools,
+  removeAgentTool,
+  getSkillForCategory,
+  getSkillLabel,
+  isBuiltInSkillApp,
+  resolveSkillAllowedApps,
+  AGENT_TOOLS_CHANGED_EVENT,
+  ToolRef,
+} from '@/lib/agentTools';
 
 // API format for automations
 interface AutomationApiFormat {
@@ -69,8 +86,8 @@ export interface CategoryAutomationsDialogProps {
    *  storage) when omitted — pass this explicitly on hosts that don't use
    *  that storage key (e.g. shaffuru). */
   orgId?: string | null;
-  /** Which view to start on: 'automations' or 'settings'. Defaults to 'automations'. */
-  initialView?: 'automations' | 'settings';
+  /** Which view to start on: 'automations', 'settings', or 'routing'. Defaults to 'automations'. */
+  initialView?: 'automations' | 'settings' | 'routing';
   /** Whether to show the top-right swap icon button to toggle between views. Defaults to true. */
   showViewToggle?: boolean;
 }
@@ -191,12 +208,18 @@ const getOrgId = (): string | null => {
 };
 
 const DEFAULT_INCIDENT_AI_PROMPTS: string[] = [
-  `Triage, investigate, and respond holistically to this incident. Choose the appropriate response path:
+  `Triage, investigate, and respond holistically to this incident.
 
-1. AUTO-RESOLVE / CLOSE: If this alert is a false positive, benign administrative activity, authorized test/scan, routine noise, or a duplicate of an existing incident:
-- Set "status" to "resolved".
-- Add an activity entry: {"ai_handled": true, "id": "status-\${timenow-unix}", "type": "status", "user": "@AIAgent", "timestamp": \${timenow-unix}, "content": "Resolved: [Specific evidence and rationale explaining why this is benign/FP/duplicate]"}.
-- Do NOT generate unnecessary open tasks.
+OPERATING POSTURE:
+- Simple, benign, or routine alerts (false positives, authorized scanners, duplicate noise): Act as an AUTONOMOUS RESOLVER. Verify technical evidence, document findings in activity, set status to "resolved", and close cleanly with zero open tasks.
+- Complex alerts and confirmed threats (malware, C2 beaconing, ransomware, lateral movement): Act as an ANALYST COPILOT. Do NOT attempt to close the incident autonomously. Your mission is to prepare the case and accelerate the human analyst by correlating telemetry, generating structured response tasks across categories, recommending containment actions with approval_required: true, and setting status to "in_progress" or "escalated".
+
+RESPONSE PATHWAYS:
+
+1. AUTO-RESOLVE / CLOSE (Benign, False Positive, Duplicate, or Test ONLY):
+- ONLY if this alert is definitively verified as a false positive, benign administrative activity, authorized test/scan, routine noise, or a duplicate of an existing incident.
+- CRITICAL RULE: NEVER set "status" to "resolved" if there is an active threat, C2 beaconing, malware, or if ANY open tasks remain. Completing initial triage does NOT resolve the incident.
+- If resolving: Set "status" to "resolved", add activity entry: {"ai_handled": true, "id": "status-\${timenow-unix}", "type": "status", "user": "@AIAgent", "timestamp": \${timenow-unix}, "content": "Resolved: [Specific evidence and rationale explaining why this is benign/FP/duplicate]"}. Do NOT generate open tasks.
 
 2. ESCALATE: If this is a high/critical severity threat, active compromise, ransomware, credential theft, lateral movement, or high ambiguity requiring human judgment:
 - Update "severity" to "high" or "critical".
@@ -210,19 +233,20 @@ const DEFAULT_INCIDENT_AI_PROMPTS: string[] = [
 - For disruptive actions, set approval_required: true and request analyst confirmation.
 
 4. FIX SPAMMY DETECTIONS:
-- If this alert is from a noisy or misconfigured detection rule firing repeatedly on benign operations, propose specific rule tuning/exclusions in the activity log or create a task: {"assignee": "AI Agent", "title": "Tune detection rule: [Rule Name] to exclude [Pattern]", "category": "triage", "completed": false, "createdBy": "ai-agent@shuffler.io"}.
+- If this alert is from a noisy or misconfigured detection rule firing repeatedly on benign operations, propose specific rule tuning/exclusions in the activity log or create a task: {"assignee": "", "title": "Tune detection rule: [Rule Name] to exclude [Pattern]", "category": "triage", "action": "tune", "source": "detection_rule", "completed": false, "createdBy": "ai-agent@shuffler.io"}.
 
 5. TOOL REQUESTS:
 - Utilize available tools (shuffle-datastore, shuffle_incidents, etc.). If an essential tool (EDR, SIEM, Threat Intel, Firewall) is missing or unauthenticated, explicitly state what tool is required, why, and the specific query/action needed.
 
 6. INVESTIGATION & DOCUMENTATION:
-- If ongoing investigation is needed, set "status" to "in_progress" and update "severity" to info/low/medium/high/critical.
-- Generate structured tasks in JSON format: {"tasks": [{"assignee": "AI Agent", "title": "Title of task", "category": "triage/investigation/containment/recovery/communication/documentation", "completed": false, "createdBy": "ai-agent@shuffler.io"}]}.
-- Document findings, timeline, and MITRE ATT&CK techniques in activity and comments. Tackle tasks one by one, self-assigning and completing them as progress is made.
+- If ongoing investigation, containment, or remediation is needed, set "status" to "in_progress" (or "escalated"). NEVER set "status" to "resolved" while open tasks exist.
+- For triage progress or investigation notes, use type "comment", NOT type "status": {"ai_handled": true, "id": "comment-\${timenow-unix}", "type": "comment", "user": "@AIAgent", "timestamp": \${timenow-unix}, "content": "Triage findings: [Summary of verified facts, indicators, and next steps]"}.
+- Generate structured tasks in JSON format: {"tasks": [{"assignee": "", "title": "Title of task", "category": "triage/investigation/containment/recovery/communication/documentation", "action": "isolate/block/revoke/query/tune/document/etc.", "source": "sentinelone/crowdstrike/okta/splunk/virustotal/manual/etc.", "completed": false, "createdBy": "ai-agent@shuffler.io"}]}.
+- Document findings, timeline, and MITRE ATT&CK techniques in activity and comments. Leave generated tasks open (completed: false) for the analyst and incident response team to coordinate and track. Do NOT prematurely mark tasks completed or close the incident.
 
 Update the internal shuffle datastore with the same key and category 'shuffle-security_incidents'. CRITICAL: You MUST ONLY send the specific fields that require a change. NEVER send or echo unchanged fields (such as unchanged tasks, activity, severity, or metadata). Do NOT overwrite unrelated fields.`,
 ];
-const DEFAULT_INCIDENT_AI_APPS: string[][] = [['48793430d21468f9e371ace402efcd8e', 'b82668d868f6dc7ac1dc14caa92c674b']];
+const DEFAULT_INCIDENT_AI_APPS: string[][] = [['48793430d21468f9e371ace402efcd8e']];
 
 const DEFAULT_VULNERABILITY_AI_PROMPTS: string[] = [
   `Review, analyze, and remediate this vulnerability. Follow this evaluation process:
@@ -263,7 +287,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
   showViewToggle = true,
 }) => {
   // Which view is active: 'automations' or 'settings'
-  const [currentView, setCurrentView] = useState<'automations' | 'settings'>(initialView);
+  const [currentView, setCurrentView] = useState<'automations' | 'settings' | 'routing'>(initialView);
 
   // Sync view when dialog opens or initialView changes
   useEffect(() => {
@@ -297,6 +321,11 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
     (activeCategory === category ? entityLabel?.plural : undefined) || activeOption?.plural || 'incidents';
   const entitySingularCap = entitySingular.charAt(0).toUpperCase() + entitySingular.slice(1);
   const entityPluralCap = entityPlural.charAt(0).toUpperCase() + entityPlural.slice(1);
+  // Support-only: routing rules view. Category the backing routing workflow
+  // is generated for — incidents use the legacy "cases" category.
+  const isSupportUser = useIsSupport();
+  const routingGenerateCategory =
+    activeCategory === DATASTORE_CATEGORIES.INCIDENTS ? 'cases' : activeCategory;
   const navigate = useNavigate();
   const [automations, setAutomations] = useState<CategoryAutomation[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -315,6 +344,14 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
   const [aiAgentApps, setAiAgentApps] = useState<string[][]>([[]]);
   const [aiAgentSkill, setAiAgentSkill] = useState<string>('incident-response');
 
+  const effectiveSkill = useMemo(() => {
+    return getSkillForCategory(activeCategory, aiAgentSkill);
+  }, [activeCategory, aiAgentSkill]);
+
+  const activeSkillLabel = useMemo(() => {
+    return getSkillLabel(effectiveSkill);
+  }, [effectiveSkill]);
+
   const selectedSkillPreset = useMemo(() => {
     if (!aiAgentSkill) return null;
     return (
@@ -330,9 +367,34 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
     );
   }, [aiAgentSkill]);
 
+  // Keep allowed apps in sync when permissions are updated elsewhere
+  useEffect(() => {
+    if (!open) return;
+    const handleToolsChanged = () => {
+      const skillApps = resolveSkillAllowedApps(effectiveSkill);
+      setAiAgentApps((prev) => {
+        if (prev.length === 0) return [skillApps];
+        return prev.map((arr, i) => {
+          if (i === 0) {
+            return Array.from(new Set([...skillApps, ...arr]));
+          }
+          return arr;
+        });
+      });
+    };
+
+    window.addEventListener(AGENT_TOOLS_CHANGED_EVENT, handleToolsChanged);
+    return () => {
+      window.removeEventListener(AGENT_TOOLS_CHANGED_EVENT, handleToolsChanged);
+    };
+  }, [open, effectiveSkill]);
+
   const handleSelectSkillPreset = (preset: AgentPreset) => {
     setAiAgentSkill(preset.id);
     setHasChanges(true);
+
+    const canonicalSkill = getSkillForCategory(activeCategory, preset.id);
+    const skillAllowed = resolveSkillAllowedApps(canonicalSkill);
 
     const isEmptyPrompt =
       aiAgentPrompts.length === 0 ||
@@ -341,20 +403,18 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
     if (preset.id === 'incident-response') {
       if (isEmptyPrompt) {
         setAiAgentPrompts([...DEFAULT_INCIDENT_AI_PROMPTS]);
-        setAiAgentApps(DEFAULT_INCIDENT_AI_APPS.map((a) => [...a]));
       }
+      setAiAgentApps([skillAllowed]);
     } else if (preset.id === 'vulnerability') {
       if (isEmptyPrompt) {
         setAiAgentPrompts([...DEFAULT_VULNERABILITY_AI_PROMPTS]);
-        setAiAgentApps(DEFAULT_VULNERABILITY_AI_APPS.map((a) => [...a]));
       }
+      setAiAgentApps([skillAllowed]);
     } else {
       if (isEmptyPrompt && preset.defaultPrompt) {
         setAiAgentPrompts([preset.defaultPrompt]);
-        if (preset.defaultApps && preset.defaultApps.length > 0) {
-          setAiAgentApps([preset.defaultApps.map((a) => a.name)]);
-        }
       }
+      setAiAgentApps([skillAllowed]);
     }
   };
 
@@ -501,19 +561,14 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
 
   const fetchIngestionApps = async () => {
     try {
-      const [authResponse, wfList] = await Promise.all([
-        fetchAppsCached(getApiUrl('/api/v1/apps/authentication'), {
-          credentials: 'include',
-          headers: { ...getAuthHeader() },
-        }),
+      const [authApps, wfList] = await Promise.all([
+        fetchAuthenticatedApps().catch(() => []),
         fetchWorkflowsCached(getApiUrl('/api/v1/workflows'), {
           credentials: 'include',
           headers: { ...getAuthHeader() },
         }),
       ]);
-      if (authResponse.ok) {
-        const result = await authResponse.json();
-        const authApps = Array.isArray(result) ? result : (result.data || []);
+      if (Array.isArray(authApps)) {
         let workflowAppNames: Set<string> | undefined;
         const ingestWf = findIngestTicketsWorkflow(wfList);
         if (ingestWf) {
@@ -692,36 +747,43 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         const finalPrompts = prompts.length > 0 ? prompts : [''];
         setAiAgentPrompts(finalPrompts);
 
+        const firstOpt = actionOptions[0] as any;
+        const savedSkill = firstOpt?.template || firstOpt?.skill;
+        const activeSkill = savedSkill || defaultSkillForCat;
+        setAiAgentSkill(activeSkill);
+
+        const canonicalSkill = getSkillForCategory(activeCategory, activeSkill);
+        const skillAllowedApps = resolveSkillAllowedApps(canonicalSkill);
+
         // Apps live inside the same option as the prompt (option.apps).
         // Legacy fallback: parallel "apps" / "apps-N" options.
         const appsByIdx: string[][] = actionOptions.map((opt, i) => {
           const inline = (opt as any)?.apps;
+          let loaded: string[] = [];
           if (Array.isArray(inline)) {
-            return inline.map((s: unknown) => String(s).trim()).filter(Boolean);
+            loaded = inline.map((s: unknown) => String(s).trim()).filter(Boolean);
+          } else {
+            const key = i === 0 ? 'apps' : `apps-${i + 1}`;
+            const legacy = aiAutomation.options?.find(o => o.key === key);
+            loaded = legacy?.value
+              ? legacy.value.split(',').map(s => s.trim()).filter(Boolean)
+              : [];
           }
-          const key = i === 0 ? 'apps' : `apps-${i + 1}`;
-          const legacy = aiAutomation.options?.find(o => o.key === key);
-          return legacy?.value
-            ? legacy.value.split(',').map(s => s.trim()).filter(Boolean)
-            : [];
+          // Merge loaded apps with the skill's assigned permissions and built-in apps
+          const merged = Array.from(new Set([...skillAllowedApps, ...loaded]));
+          return merged.length > 0 ? merged : skillAllowedApps;
         });
-        setAiAgentApps(appsByIdx.length > 0 ? appsByIdx : [[]]);
-
-        const firstOpt = actionOptions[0] as any;
-        const savedSkill = firstOpt?.template || firstOpt?.skill;
-        if (savedSkill) {
-          setAiAgentSkill(savedSkill);
-        } else {
-          setAiAgentSkill(defaultSkillForCat);
-        }
+        setAiAgentApps(appsByIdx.length > 0 ? appsByIdx : [skillAllowedApps]);
       } else {
+        const canonicalSkill = getSkillForCategory(activeCategory, defaultSkillForCat);
+        const skillAllowedApps = resolveSkillAllowedApps(canonicalSkill);
         setAiAgentSkill(defaultSkillForCat);
         if (isVuln) {
           setAiAgentPrompts([...DEFAULT_VULNERABILITY_AI_PROMPTS]);
-          setAiAgentApps(DEFAULT_VULNERABILITY_AI_APPS.map(a => [...a]));
+          setAiAgentApps([skillAllowedApps]);
         } else {
           setAiAgentPrompts(['']);
-          setAiAgentApps([[]]);
+          setAiAgentApps([skillAllowedApps]);
         }
       }
     }
@@ -771,7 +833,8 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         } else if (config.type === 'ai_agent') {
           // Use "action", "action-2", "action-3" format. The per-prompt app
           // allow-list lives INSIDE the same option object as `apps`.
-          const effectiveSkill = aiAgentSkill || (activeCategory.includes('vuln') ? 'vulnerability' : 'incident-response');
+          const effectiveSkillForSave = aiAgentSkill || (activeCategory.includes('vuln') ? 'vulnerability' : 'incident-response');
+          const canonicalSkill = getSkillForCategory(activeCategory, effectiveSkillForSave);
           const pairs = aiAgentPrompts
             .map((prompt, idx) => ({ prompt, apps: aiAgentApps[idx] || [] }))
             .filter(p => p.prompt.trim());
@@ -779,18 +842,28 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
             key: idx === 0 ? 'action' : `action-${idx + 1}`,
             value: p.prompt,
             apps: p.apps.length > 0 ? p.apps : null,
-            template: effectiveSkill,
-            skill: effectiveSkill,
+            template: effectiveSkillForSave,
+            skill: effectiveSkillForSave,
           }));
           if (options.length === 0) {
             options = [{
               key: 'action',
               value: '',
               apps: null,
-              template: effectiveSkill,
-              skill: effectiveSkill,
+              template: effectiveSkillForSave,
+              skill: effectiveSkillForSave,
             }];
           }
+
+          // Persist assigned tools to datastore permissions so both configurations match
+          const allAssignedApps: ToolRef[] = Array.from(new Set(aiAgentApps.flat()))
+            .filter((appKey) => !isBuiltInSkillApp(canonicalSkill, appKey))
+            .map((appKey) => {
+              const meta = resolveAppMeta(appKey);
+              return { name: meta.name || appKey, id: appKey };
+            });
+          setAgentTools(allAssignedApps, canonicalSkill);
+          saveAgentTools(allAssignedApps, canonicalSkill);
         } else {
           options = [{ key: config.optionKey || '', value: '' }];
         }
@@ -903,7 +976,8 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
       } else if (config.type === 'security_rules') {
         options = [{ key: config.optionKey || '', value: securityRulesText }];
       } else if (config.type === 'ai_agent') {
-        const effectiveSkill = aiAgentSkill || (activeCategory.includes('vuln') ? 'vulnerability' : 'incident-response');
+        const effectiveSkillForSave = aiAgentSkill || (activeCategory.includes('vuln') ? 'vulnerability' : 'incident-response');
+        const canonicalSkill = getSkillForCategory(activeCategory, effectiveSkillForSave);
         const pairs = aiAgentPrompts
           .map((prompt, idx) => ({ prompt, apps: aiAgentApps[idx] || [] }))
           .filter(p => p.prompt.trim());
@@ -911,18 +985,28 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
           key: idx === 0 ? 'action' : `action-${idx + 1}`,
           value: p.prompt,
           apps: p.apps.length > 0 ? p.apps : null,
-          template: effectiveSkill,
-          skill: effectiveSkill,
+          template: effectiveSkillForSave,
+          skill: effectiveSkillForSave,
         }));
         if (options.length === 0) {
           options = [{
             key: 'action',
             value: '',
             apps: null,
-            template: effectiveSkill,
-            skill: effectiveSkill,
+            template: effectiveSkillForSave,
+            skill: effectiveSkillForSave,
           }];
         }
+
+        // Persist assigned tools to datastore permissions so both configurations match
+        const allAssignedApps: ToolRef[] = Array.from(new Set(aiAgentApps.flat()))
+          .filter((appKey) => !isBuiltInSkillApp(canonicalSkill, appKey))
+          .map((appKey) => {
+            const meta = resolveAppMeta(appKey);
+            return { name: meta.name || appKey, id: appKey };
+          });
+        setAgentTools(allAssignedApps, canonicalSkill);
+        saveAgentTools(allAssignedApps, canonicalSkill);
       } else {
         options = [{ key: config.optionKey || '', value: '' }];
       }
@@ -997,13 +1081,14 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth="sm"
+      maxWidth={currentView === 'routing' ? 'lg' : 'sm'}
       fullWidth
       PaperProps={{
         sx: {
           background: 'hsl(var(--card))',
           border: '1px solid hsl(var(--border))',
           borderRadius: 2,
+          transition: 'max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         },
       }}
     >
@@ -1011,32 +1096,53 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {currentView === 'automations' ? (
             <RocketLaunchIcon size={26} style={{ color: enabledCount > 0 ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground))' }} />
+          ) : currentView === 'routing' ? (
+            <RouteIcon size={26} style={{ color: 'hsl(var(--foreground))' }} />
           ) : (
             <SettingsIcon size={26} style={{ color: 'hsl(var(--foreground))' }} />
           )}
           <Typography variant="h6" sx={{ fontSize: '1.1rem', fontWeight: 600 }}>
             {currentView === 'automations'
               ? `Automation for ${entityPluralCap}`
-              : `Settings for ${entityPluralCap}`}
+              : currentView === 'routing'
+                ? `Routing for ${entityPluralCap}`
+                : `Settings for ${entityPluralCap}`}
           </Typography>
+          {currentView === 'routing' && (
+            <Chip
+              label="Support only"
+              size="small"
+              sx={{
+                height: 20,
+                fontSize: '0.65rem',
+                fontWeight: 500,
+                color: 'hsl(var(--muted-foreground))',
+                bgcolor: 'hsl(var(--muted) / 0.5)',
+                border: '1px solid hsl(var(--border))',
+                '& .MuiChip-label': { px: 1 },
+              }}
+            />
+          )}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {showViewToggle && (
+          {isSupportUser && (
             <Tooltip
               title={
-                currentView === 'automations'
-                  ? `Switch to Settings for ${entityPluralCap}`
-                  : `Switch to Automation for ${entityPluralCap}`
+                currentView === 'routing'
+                  ? `Switch to Automation for ${entityPluralCap}`
+                  : 'Routing rules are a support-only preview and are not visible to regular users yet.'
               }
             >
               <IconButton
                 size="small"
-                onClick={() => setCurrentView(currentView === 'automations' ? 'settings' : 'automations')}
+                onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
                 sx={{
-                  color: 'text.secondary',
+                  color: currentView === 'routing' ? 'hsl(var(--primary))' : 'text.secondary',
                   border: '1px solid hsl(var(--border))',
+                  borderColor: currentView === 'routing' ? 'hsl(var(--primary))' : 'hsl(var(--border))',
                   borderRadius: 1.5,
                   p: 0.75,
+                  bgcolor: currentView === 'routing' ? 'hsl(var(--muted) / 0.5)' : 'transparent',
                   '&:hover': {
                     color: 'text.primary',
                     bgcolor: 'hsl(var(--muted) / 0.5)',
@@ -1044,10 +1150,39 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                   },
                 }}
               >
-                {currentView === 'automations' ? (
-                  <SettingsIcon size={18} />
-                ) : (
+                <RouteIcon size={18} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {showViewToggle && (
+            <Tooltip
+              title={
+                currentView === 'settings'
+                  ? `Switch to Automation for ${entityPluralCap}`
+                  : `Switch to Settings for ${entityPluralCap}`
+              }
+            >
+              <IconButton
+                size="small"
+                onClick={() => setCurrentView(currentView === 'settings' ? 'automations' : 'settings')}
+                sx={{
+                  color: currentView === 'settings' ? 'hsl(var(--primary))' : 'text.secondary',
+                  border: '1px solid hsl(var(--border))',
+                  borderColor: currentView === 'settings' ? 'hsl(var(--primary))' : 'hsl(var(--border))',
+                  borderRadius: 1.5,
+                  p: 0.75,
+                  bgcolor: currentView === 'settings' ? 'hsl(var(--muted) / 0.5)' : 'transparent',
+                  '&:hover': {
+                    color: 'text.primary',
+                    bgcolor: 'hsl(var(--muted) / 0.5)',
+                    borderColor: 'hsl(var(--primary))',
+                  },
+                }}
+              >
+                {currentView === 'settings' ? (
                   <RocketLaunchIcon size={18} />
+                ) : (
+                  <SettingsIcon size={18} />
                 )}
               </IconButton>
             </Tooltip>
@@ -1065,7 +1200,37 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         </Box>
       </DialogTitle>
 
-      <DialogContent sx={{ px: 4, pb: 3 }}>
+      <DialogContent sx={{ px: 4, pb: 3, overflowX: 'hidden' }}>
+        <AnimatePresence mode="wait" initial={false}>
+          {currentView === 'routing' ? (
+            <motion.div
+              key="routing"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18, ease: 'easeInOut' }}
+            >
+              <Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.8rem' }}>
+                  Rules are evaluated when a {entitySingular} is created or edited. Conditions are
+                  generic field checks, so the same mechanism works for every category.
+                </Typography>
+                <IncidentRoutingEditor
+                  forceShow
+                  entityCategory={activeCategory}
+                  entityLabel={{ singular: entitySingular, plural: entityPlural }}
+                  generateCategory={routingGenerateCategory}
+                />
+              </Box>
+            </motion.div>
+          ) : (
+            <motion.div
+              key={currentView}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18, ease: 'easeInOut' }}
+            >
         {/* Trigger Section */}
         <Box sx={{ mb: 4 }}>
           <Typography
@@ -1331,6 +1496,8 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                       <AiAgentPromptsEditor
                         prompts={aiAgentPrompts}
                         apps={aiAgentApps}
+                        skillLabel={activeSkillLabel}
+                        isBuiltInApp={(key) => isBuiltInSkillApp(effectiveSkill, key)}
                         resolveAppMeta={resolveAppMeta}
                         onChangePrompt={(idx, next) => {
                           const updated = [...aiAgentPrompts];
@@ -1353,6 +1520,12 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                           updated[idx] = (updated[idx] || []).filter((n) => n !== appKey);
                           setAiAgentApps(updated);
                           setHasChanges(true);
+
+                          // Synchronize removal with Permissions if not built-in
+                          if (!isBuiltInSkillApp(effectiveSkill, appKey)) {
+                            removeAgentTool(appKey, effectiveSkill);
+                            saveAgentTools(getAgentTools(effectiveSkill), effectiveSkill);
+                          }
                         }}
                         onAddAppRequested={(idx) => setAppPickerForIdx(idx)}
                         renderPromptInput={({ index, value, onChange, placeholder }) => (
@@ -1668,11 +1841,18 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
             </Box>
           </Box>
         )}
+          </motion.div>
+        )}
+        </AnimatePresence>
       </DialogContent>
 
       <Divider sx={{ borderColor: 'hsl(var(--border))' }} />
 
-      <DialogActions sx={{ px: 4, py: 2.5, justifyContent: 'space-between' }}>
+      <DialogActions sx={{ px: 4, py: 2.5, justifyContent: currentView === 'routing' ? 'flex-end' : 'space-between' }}>
+        {currentView === 'routing' ? (
+          <Button onClick={onClose}>Close</Button>
+        ) : (
+        <>
         <Button
           size="small"
           startIcon={<RestoreIcon />}
@@ -1720,13 +1900,15 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
             {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </Box>
+        </>
+        )}
       </DialogActions>
 
       <AppSearchDrawer
         open={appPickerForIdx !== null}
         onClose={() => setAppPickerForIdx(null)}
-        title="Allow App"
-        subtitle="Restrict this AI Agent prompt to specific apps"
+        title={`Assign tools to ${activeSkillLabel}`}
+        subtitle={`Pick the apps ${activeSkillLabel} is allowed to use across automations and agent runs`}
         multiSelect
         selectedApps={
           appPickerForIdx === null
@@ -1738,14 +1920,18 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
         }
         onSelectionChange={(apps) => {
           if (appPickerForIdx === null) return;
-          const ids = apps.map((a) => a.id).filter((id): id is string => !!id);
-          if (ids.length !== apps.length) {
-            toast.error('Cannot allow app: missing canonical app ID');
-          }
+          const ids = apps.map((a) => a.id || a.name).filter((id): id is string => !!id);
           const updated = [...aiAgentApps];
           updated[appPickerForIdx] = Array.from(new Set(ids));
           setAiAgentApps(updated);
           setHasChanges(true);
+
+          // Synchronize with Permissions for effectiveSkill
+          const nextTools: ToolRef[] = apps
+            .filter((a) => !isBuiltInSkillApp(effectiveSkill, a.name, a.id))
+            .map((a) => ({ name: a.name, id: a.id || a.name }));
+          setAgentTools(nextTools, effectiveSkill);
+          saveAgentTools(nextTools, effectiveSkill);
         }}
       />
 

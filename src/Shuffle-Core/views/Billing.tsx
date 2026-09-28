@@ -1218,7 +1218,7 @@ const Billing = memo((props) => {
 					<Tooltip
 						title="Close window"
 						placement="top"
-						style={{ zIndex: 10011 }}
+						PopperProps={{ style: { zIndex: 10050 } }}
 					>
 						<IconButton
 							style={{ zIndex: 5000, position: "absolute", top: 34, right: 34 }}
@@ -1324,7 +1324,7 @@ const Billing = memo((props) => {
 						<Tooltip
 							title="Sign EULA"
 							placement="top"
-							style={{ zIndex: 10011 }}
+							PopperProps={{ style: { zIndex: 10050 } }}
 						>
 							<IconButton
 								disabled={subscription.eula_signed}
@@ -1396,24 +1396,20 @@ const Billing = memo((props) => {
 															<IconButton
 																aria-label="Copy webhook"
 																onClick={() => {
-																	var copyText = document.getElementById(fieldId);
+																	var copyText = document.getElementById(fieldId) as HTMLInputElement | null;
 																	if (copyText !== undefined && copyText !== null) {
-																		console.log("NAVIGATOR: ", navigator);
-																		const clipboard = navigator.clipboard;
-																		if (clipboard === undefined) {
-																			toast("Can only copy over HTTPS (port 3443)");
-																			return;
-																		}
-
-																		navigator.clipboard.writeText(copyText.value);
-																		copyText.select();
-																		copyText.setSelectionRange(
-																			0,
-																			99999
-																		); /* For mobile devices */
-
-																		/* Copy the text inside the text field */
-																		document.execCommand("copy");
+																		try {
+																			if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+																				navigator.clipboard.writeText(copyText.value).catch(() => {});
+																			}
+																		} catch {}
+																		try {
+																			copyText.select();
+																			if (typeof copyText.setSelectionRange === "function") {
+																				copyText.setSelectionRange(0, 99999);
+																			}
+																			document.execCommand("copy");
+																		} catch {}
 																		toast("Copied Webhook URL");
 																	} else {
 																		console.log("Couldn't find webhook URI field: ", copyText);

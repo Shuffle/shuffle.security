@@ -64,12 +64,12 @@ const indexByHostname = (
 };
 
 /** Fetch shuffle-security_sensors + shuffle-security_assets and index by hostname. */
-export const fetchHostSupplements = async (): Promise<SupplementResult> => {
+export const fetchHostSupplements = async (overrideOrgId?: string): Promise<SupplementResult> => {
   const errors: SupplementResult['errors'] = [];
 
   const [sensorsRes, assetsRes] = await Promise.allSettled([
-    getDatastoreByCategory(SENSORS_CATEGORY),
-    getDatastoreByCategory(ASSETS_CATEGORY),
+    getDatastoreByCategory(SENSORS_CATEGORY, undefined, undefined, overrideOrgId),
+    getDatastoreByCategory(ASSETS_CATEGORY, undefined, undefined, overrideOrgId),
   ]);
 
   let sensorsByHost = new Map<string, Record<string, unknown>>();

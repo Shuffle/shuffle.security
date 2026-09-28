@@ -18,6 +18,7 @@ import { Clock as ScheduleIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Chip, CircularProgress, Tooltip } from '@mui/material';
 import { lookupIncidentCached } from './incidentPreviewCache';
+import { toCanonicalIncidentId } from '@/lib/incidentUrl';
 
 interface CorrelationContextStripProps {
   /** The other incident keys referenced by this correlation (current incident already filtered out). */
@@ -110,7 +111,7 @@ export const CorrelationContextStrip = ({ incidentKeys, category = 'shuffle-secu
   // "no longer exists" row to flicker / re-poll constantly).
   const keysSignature = incidentKeys.join('|');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const stableKeys = useMemo(() => incidentKeys.slice(), [keysSignature]);
+  const stableKeys = useMemo(() => incidentKeys.map(toCanonicalIncidentId), [keysSignature]);
   const [previews, setPreviews] = useState<RefPreview[]>(() => stableKeys.map(k => ({ key: k, loading: true })));
 
   useEffect(() => {

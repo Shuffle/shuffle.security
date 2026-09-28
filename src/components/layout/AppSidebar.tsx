@@ -65,6 +65,7 @@ import { getRegionFlag } from "@/lib/regionFlag";
 import { useSubOrgs } from "@/hooks/useSubOrgs";
 import { resolveUserAvatar } from "@/components/incidents/UserHoverCard";
 import { useUsers } from "@/hooks/useUsers";
+import { toast } from "sonner";
 
 const drawerWidth = 260;
 const collapsedWidth = 64;
@@ -168,7 +169,7 @@ const TenantAutocompletePaper = forwardRef<
         display: "flex",
         flexDirection: "column",
         boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
-        ...((other as any).sx || {}),
+        ...((other as { sx?: object }).sx || {}),
       }}
     >
       <Box
@@ -292,8 +293,54 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
     null,
   );
   const [hoverExpanded, setHoverExpanded] = useState(false);
+  const hoverExpandedRef = useRef(hoverExpanded);
+  useEffect(() => {
+    hoverExpandedRef.current = hoverExpanded;
+  }, [hoverExpanded]);
+
   const [searchOpen, setSearchOpen] = useState(false);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isHoverInsideRef = useRef(false);
+  const sidebarRef = useRef<HTMLDivElement | null>(null);
+  const lastPointerPositionRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Track pointer coordinates so we know whether the cursor is still over the
+  // sidebar when an overlay/menu unmounts or closes.
+  useEffect(() => {
+    const handlePointerMove = (e: MouseEvent) => {
+      lastPointerPositionRef.current = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener("mousemove", handlePointerMove, { passive: true });
+    return () => window.removeEventListener("mousemove", handlePointerMove);
+  }, []);
+
+  const isPointerInsideSidebar = () => {
+    if (isHoverInsideRef.current) return true;
+    if (sidebarRef.current) {
+      try {
+        if (sidebarRef.current.matches(":hover")) {
+          isHoverInsideRef.current = true;
+          return true;
+        }
+      } catch {
+        // Fall through
+      }
+      if (lastPointerPositionRef.current) {
+        const { x, y } = lastPointerPositionRef.current;
+        const rect = sidebarRef.current.getBoundingClientRect();
+        if (
+          x >= rect.left &&
+          x <= rect.right &&
+          y >= rect.top &&
+          y <= rect.bottom
+        ) {
+          isHoverInsideRef.current = true;
+          return true;
+        }
+      }
+    }
+    return false;
+  };
 
   // Ctrl+K keyboard shortcut
   useEffect(() => {
@@ -350,6 +397,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
 
   useEffect(
     () => () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
       if (pendingExpandRef.current) clearTimeout(pendingExpandRef.current);
     },
     [],
@@ -359,13 +407,23 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
   const visuallyCollapsed = collapsed && !hoverExpanded;
 
   const handleMouseEnter = () => {
+    isHoverInsideRef.current = true;
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
     if (!collapsed) return;
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     setHoverExpanded(true);
   };
 
   const handleMouseLeave = () => {
+    isHoverInsideRef.current = false;
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    // While the tenant list (or a floating menu) is open the pointer often sits
+    // in a portaled surface outside the sidebar. Never auto-close on leave in
+    // that case — the user closes it by picking a tenant or clicking away.
+    if (orgSelectOpen || toolMenuAnchor || userMenuAnchor) return;
+    if (!collapsed) return;
     hoverTimeoutRef.current = setTimeout(() => {
       setHoverExpanded(false);
     }, hoverCollapseDelay);
@@ -406,12 +464,81 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
   const selectedOrg = userInfo?.active_org || organizations[0];
   const [orgSelectOpen, setOrgSelectOpen] = useState(false);
 
+  // Portaled menus sit outside the sidebar, so closing one does not cause a
+  // second mouseleave event. Re-arm the collapse timer whenever all floating
+  // menus have closed.
+  useEffect(() => {
+    if (!collapsed || orgSelectOpen || toolMenuAnchor || userMenuAnchor) return;
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoverExpanded(false);
+    }, hoverCollapseDelay);
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+    };
+  }, [collapsed, orgSelectOpen, toolMenuAnchor, userMenuAnchor]);
+
   useEffect(() => {
     const handleClose = () => setOrgSelectOpen(false);
     window.addEventListener("close-tenant-autocomplete", handleClose);
     return () =>
       window.removeEventListener("close-tenant-autocomplete", handleClose);
   }, []);
+
+  // Ensure tenant popover and floating menus close when sidebar collapses or re-opens
+  useEffect(() => {
+    setOrgSelectOpen(false);
+    setToolMenuAnchor(null);
+    setUserMenuAnchor(null);
+    setHoverExpanded(false);
+  }, [collapsed]);
+
+  // When visually collapsed (e.g. hover ends), guarantee tenant popover is closed
+  useEffect(() => {
+    if (visuallyCollapsed) {
+      setOrgSelectOpen(false);
+      setToolMenuAnchor(null);
+      setUserMenuAnchor(null);
+    }
+  }, [visuallyCollapsed]);
+
+  // Close tenant popover and floating menus on route change
+  useEffect(() => {
+    setOrgSelectOpen(false);
+    setToolMenuAnchor(null);
+    setUserMenuAnchor(null);
+  }, [location.pathname]);
+
+  // When floating menus close, verify whether the pointer is still inside the
+  // sidebar before collapsing. If the cursor is still over the sidebar, keep it
+  // expanded so stationary pointers don't get strand-collapsed.
+  useEffect(() => {
+    if (orgSelectOpen || toolMenuAnchor || userMenuAnchor) {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    if (!collapsed || !hoverExpandedRef.current) return;
+
+    if (isPointerInsideSidebar()) {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoverExpanded(false);
+    }, hoverCollapseDelay);
+  }, [collapsed, orgSelectOpen, toolMenuAnchor, userMenuAnchor]);
 
   const handleExpand = (label: string) => {
     // Only allow one expanded item at a time - toggle off if already open, otherwise switch to new one
@@ -440,9 +567,24 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
   ).src;
 
   const handleOrgChange = async (org: { id: string; name: string } | null) => {
-    if (org) {
-      setChangingOrg(true);
+    if (!org) return;
+    setOrgSelectOpen(false);
+    // Re-picking the tenant you are already in should not trigger a full
+    // tenant change and page reload.
+    if (org.id === selectedOrg?.id) return;
+    setChangingOrg(true);
+    try {
       await setActiveOrg(org.id);
+    } catch (err) {
+      console.error("[AppSidebar] tenant change failed", err);
+      setChangingOrg(false);
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : "Could not switch tenant. You are still in " +
+              (selectedOrg?.name || "the current tenant") +
+              ".",
+      );
     }
   };
 
@@ -476,7 +618,12 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
 
       {/* Toggle button - fixed position outside sidebar to avoid clipping */}
       <IconButton
-        onClick={onToggle}
+        onClick={() => {
+          setOrgSelectOpen(false);
+          setToolMenuAnchor(null);
+          setUserMenuAnchor(null);
+          onToggle();
+        }}
         size="small"
         sx={{
           position: "fixed",
@@ -504,6 +651,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
       </IconButton>
 
       <Box
+        ref={sidebarRef}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         sx={{
@@ -758,9 +906,15 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
         <Box
           sx={{
             flexGrow: 1,
-            overflowY: "auto",
+            overflowY: visuallyCollapsed ? "hidden" : "auto",
             overflowX: "hidden",
             minHeight: 0,
+            ...(visuallyCollapsed
+              ? {
+                  scrollbarWidth: "none",
+                  "&::-webkit-scrollbar": { display: "none" },
+                }
+              : {}),
           }}
         >
           <List sx={{ px: 1, py: 2 }}>
@@ -1149,8 +1303,9 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
           {!visuallyCollapsed ? (
             <Box sx={{ p: 2 }}>
               <Autocomplete
-                open={orgSelectOpen}
+                open={orgSelectOpen && !visuallyCollapsed}
                 onOpen={() => {
+                  if (visuallyCollapsed) return;
                   setOrgSelectOpen(true);
                   // Scroll the currently-selected tenant into the middle of the
                   // listbox so users in deeply-nested child tenants don't have
@@ -1170,7 +1325,9 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                     }
                   });
                 }}
-                onClose={() => setOrgSelectOpen(false)}
+                onClose={() => {
+                  setOrgSelectOpen(false);
+                }}
                 value={selectedOrg}
                 onChange={(_, newValue) => handleOrgChange(newValue)}
                 options={sortedOrgs.map((item) => item.org)}
@@ -1179,6 +1336,12 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                 size="small"
                 disableClearable
                 PaperComponent={TenantAutocompletePaper}
+                slotProps={{
+                  paper: {
+                    onMouseEnter: handleMouseEnter,
+                    onMouseLeave: handleMouseLeave,
+                  },
+                }}
                 renderInput={(params) => {
                   // Find the full org data from the list to get region_url
                   const fullOrgData = organizations.find(

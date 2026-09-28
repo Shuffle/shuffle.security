@@ -20,11 +20,19 @@ import {
 } from '@/Shuffle-MCPs/agentContextRegistry';
 
 export const AGENT_DRAWER_OPEN_EVENT = 'agent-drawer-open';
+export const AGENT_DRAWER_CLOSE_EVENT = 'agent-drawer-close';
+export const AGENT_DRAWER_STATE_EVENT = 'agent-drawer-state';
 
 export interface AgentDrawerOpenDetail {
   tab?: 'run' | 'permissions' | 'localLLM';
   source?: string;
   defaultInput?: string;
+  autoSubmit?: boolean;
+  taskId?: string;
+  incidentId?: string;
+  incidentContext?: Record<string, any>;
+  executionId?: string | null;
+  resetExecution?: boolean;
 }
 
 export interface AskAiWidgetProps extends Omit<AskAiSidePanelProps, 'open' | 'onClose'> {
@@ -149,6 +157,27 @@ export const AskAiWidget: React.FC<AskAiWidgetProps> = ({
     return () => window.removeEventListener(AGENT_DRAWER_OPEN_EVENT, handleDrawerOpenEvent);
   }, [isAgentDisabled, setDrawerOpen]);
 
+  // Listen to global closeAgentDrawer events
+  useEffect(() => {
+    const handleDrawerCloseEvent = () => {
+      setDrawerOpen(false);
+    };
+
+    window.addEventListener(AGENT_DRAWER_CLOSE_EVENT, handleDrawerCloseEvent);
+    return () => window.removeEventListener(AGENT_DRAWER_CLOSE_EVENT, handleDrawerCloseEvent);
+  }, [setDrawerOpen]);
+
+  // Broadcast open status
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (window as any).__shuffleAskAiOpen = isDrawerOpen;
+    try {
+      window.dispatchEvent(
+        new CustomEvent(AGENT_DRAWER_STATE_EVENT, { detail: { open: isDrawerOpen } }),
+      );
+    } catch { /* ignore */ }
+  }, [isDrawerOpen]);
+
   // Sync activeTab whenever propInitialTab changes
   useEffect(() => {
     if (propInitialTab) {
@@ -160,9 +189,17 @@ export const AskAiWidget: React.FC<AskAiWidgetProps> = ({
   const effectiveButtonLabel =
     buttonProps?.label ||
     (activeContext.buttonLabelFn ? activeContext.buttonLabelFn() : activeContext.buttonLabel) ||
-    'Ask AI';
+    'Ask Shuffle';
 
-  const isBeta = activeContext.isBeta === true;
+  const isIncidentOrDocsRoute =
+    currentPath.startsWith('/incidents') ||
+    currentPath.startsWith('/incidents-simple') ||
+    currentPath.startsWith('/cases') ||
+    currentPath.startsWith('/alerts') ||
+    currentPath.startsWith('/tickets') ||
+    currentPath.startsWith('/docs');
+
+  const isBeta = activeContext.isBeta === true || isIncidentOrDocsRoute;
   const effectiveRequireSupport = isBeta ? false : requireSupport;
   const defaultTag = isBeta ? 'Beta' : 'Support';
   const effectiveTagLabel = buttonProps?.tagLabel !== undefined ? buttonProps.tagLabel : defaultTag;

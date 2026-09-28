@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { TextField, TextFieldProps } from '@mui/material';
-import { MentionInput } from '@/components/incidents/MentionInput';
+import { MentionInput, MentionInputHandle } from '@/components/incidents/MentionInput';
 
 /**
  * Text inputs that keep their own draft state while the user types and only
@@ -40,7 +40,7 @@ export const DeferredTextField = ({ value, onCommit, onFocus, onBlur, ...props }
   );
 };
 
-type DeferredMentionInputProps = Omit<TextFieldProps, 'value' | 'onChange' | 'onSubmit'> & {
+type DeferredMentionInputProps = Omit<TextFieldProps, 'value' | 'onChange' | 'onSubmit' | 'ref'> & {
   value: string;
   onCommit: (value: string) => void;
 };
@@ -71,7 +71,14 @@ export const DeferredMentionInput = ({ value, onCommit, onBlur, ...props }: Defe
   );
 };
 
-type DebouncedMentionInputProps = Omit<TextFieldProps, 'value' | 'onChange' | 'onSubmit'> & {
+export interface DebouncedMentionInputHandle {
+  submit: () => void;
+  clear: () => void;
+  getValue: () => string;
+  focus: () => void;
+}
+
+export type DebouncedMentionInputProps = Omit<TextFieldProps, 'value' | 'onChange' | 'onSubmit'> & {
   value: string;
   onChangeDebounced: (value: string) => void;
   onSubmitValue?: (value: string) => void;
@@ -83,20 +90,32 @@ type DebouncedMentionInputProps = Omit<TextFieldProps, 'value' | 'onChange' | 'o
  * short debounce, so draft saving / send buttons still work without
  * re-rendering the whole page on every keystroke.
  */
-export const DebouncedMentionInput = ({
+export const DebouncedMentionInput = forwardRef<DebouncedMentionInputHandle, DebouncedMentionInputProps>(({
   value,
   onChangeDebounced,
   onSubmitValue,
   delay = 250,
   onBlur,
   ...props
-}: DebouncedMentionInputProps) => {
+}, ref) => {
   const [draft, setDraft] = useState(value);
   const draftRef = useRef(value);
   const dirty = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mentionInputRef = useRef<MentionInputHandle>(null);
 
+  // If value is explicitly cleared by parent (e.g. comment sent or reset), immediately reset draft
   useEffect(() => {
+    if (value === '') {
+      if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+      dirty.current = false;
+      draftRef.current = '';
+      setDraft('');
+      return;
+    }
     if (!dirty.current && value !== draftRef.current) {
       draftRef.current = value;
       setDraft(value);
@@ -107,6 +126,30 @@ export const DebouncedMentionInput = ({
     if (timer.current) clearTimeout(timer.current);
   }, []);
 
+  const doClear = () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    dirty.current = false;
+    draftRef.current = '';
+    setDraft('');
+    onChangeDebounced('');
+  };
+
+  const doSubmit = () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    dirty.current = false;
+    const submittedText = draftRef.current;
+    draftRef.current = '';
+    setDraft('');
+    onChangeDebounced('');
+    onSubmitValue?.(submittedText);
+  };
+
   const flush = () => {
     if (timer.current) {
       clearTimeout(timer.current);
@@ -116,8 +159,18 @@ export const DebouncedMentionInput = ({
     if (draftRef.current !== value) onChangeDebounced(draftRef.current);
   };
 
+  useImperativeHandle(ref, () => ({
+    submit: doSubmit,
+    clear: doClear,
+    getValue: () => draftRef.current,
+    focus: () => {
+      mentionInputRef.current?.focus();
+    },
+  }));
+
   return (
     <MentionInput
+      ref={mentionInputRef}
       {...props}
       value={draft}
       onChange={(next) => {
@@ -131,14 +184,12 @@ export const DebouncedMentionInput = ({
           onChangeDebounced(draftRef.current);
         }, delay);
       }}
-      onSubmit={() => {
-        flush();
-        onSubmitValue?.(draftRef.current);
-      }}
+      onSubmit={doSubmit}
       onBlur={(event) => {
         flush();
         onBlur?.(event);
       }}
     />
   );
-};
+});
+DebouncedMentionInput.displayName = 'DebouncedMentionInput';

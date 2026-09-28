@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { Badge, Box, IconButton, Popover, Tooltip, Typography } from '@mui/material';
 import { Image as ImageIcon } from 'lucide-react';
 import type { LlmImageAttachment } from '@/Shuffle-MCPs/agentAttachments';
+import { getTopSurfaceZIndex } from '@/Shuffle-MCPs/drawerLayer';
 
 const toSrc = (url: string): string => {
   const s = (url || '').trim();
@@ -145,7 +146,7 @@ const AgentAttachmentsButton = ({ attachments }: AgentAttachmentsButtonProps) =>
           sx={{
             position: 'fixed',
             inset: 0,
-            zIndex: 10000,
+            zIndex: Math.max(getTopSurfaceZIndex() + 20, 10060),
             bgcolor: 'rgba(0,0,0,0.8)',
             display: 'flex',
             alignItems: 'center',

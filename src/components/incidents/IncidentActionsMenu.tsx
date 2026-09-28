@@ -502,7 +502,11 @@ export const IncidentActionsMenu = ({
                 size="small"
                 variant="outlined"
                 onClick={() => {
-                  navigator.clipboard.writeText(publicLink);
+                  try {
+                    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                      navigator.clipboard.writeText(publicLink).catch(() => {});
+                    }
+                  } catch {}
                   toast.success('Link copied to clipboard');
                 }}
                 sx={{

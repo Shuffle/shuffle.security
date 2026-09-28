@@ -53,7 +53,9 @@ const readAncestorDark = (anchor: Element | null): boolean | null => {
 };
 
 const useAutoDarkClass = (enabled: boolean, anchorRef: React.RefObject<HTMLElement | null>): boolean => {
-  const [isDark, setIsDark] = React.useState<boolean>(() => (enabled ? readHtmlDarkClass() : false));
+  // Keep the first server and browser render identical. The layout effect
+  // resolves the host theme immediately after hydration.
+  const [isDark, setIsDark] = React.useState<boolean>(false);
   React.useLayoutEffect(() => {
     if (!enabled || typeof document === "undefined") return;
     const recompute = () => {
@@ -160,7 +162,18 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
   MuiButton: { defaultProps: { size: "small" as const } },
   MuiAutocomplete: {
     defaultProps: {
-      slotProps: { popper: { sx: { zIndex: 10020 } } },
+      slotProps: {
+        popper: { className: scopeClassName, sx: { zIndex: 10040 } },
+        paper: { className: scopeClassName, style: scopeStyle },
+      },
+    },
+  },
+  MuiPopper: {
+    defaultProps: {
+      className: scopeClassName,
+    },
+    styleOverrides: {
+      root: { zIndex: 10040 },
     },
   },
   MuiInputBase: {
@@ -257,7 +270,7 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
   MuiMenu: {
     defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
-      root: { zIndex: 10020 },
+      root: { zIndex: 10040 },
       paper: {
         backgroundColor: "hsl(var(--popover))",
         color: "hsl(var(--popover-foreground))",
@@ -269,7 +282,7 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
   MuiPopover: {
     defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
-      root: { zIndex: 10020 },
+      root: { zIndex: 10040 },
       paper: {
         backgroundColor: "hsl(var(--popover))",
         color: "hsl(var(--popover-foreground))",
@@ -281,12 +294,11 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
   MuiTooltip: {
     defaultProps: {
       // Match the host MUI theme: tooltips need to render above Drawers /
-      // Popovers / Dialogs that use z-index 9999 in this app (e.g. the
-      // usecase config drawer + sidebar popovers). MUI's default popper
+      // Popovers / Dialogs (surface layer starts at 10030). MUI's default popper
       // z-index (1500) puts them UNDER those panels.
       slotProps: {
         tooltip: { className: scopeClassName, style: scopeStyle },
-        popper: { sx: { zIndex: 10030 } },
+        popper: { sx: { zIndex: 10050 } },
       },
     },
     styleOverrides: {
@@ -323,13 +335,9 @@ export const ShuffleCoreThemeProvider: React.FC<ShuffleCoreThemeProviderProps> =
   mode = "auto",
 }) => {
   const parent = useMuiTheme();
-  const parentCtx = useShuffleCoreTheme();
   const anchorRef = React.useRef<HTMLSpanElement>(null);
   const autoIsDark = useAutoDarkClass(mode === "auto", anchorRef);
   const effectiveDark = mode === "auto" ? autoIsDark : mode === "dark";
-
-  const sameAsParent =
-    parentCtx !== null && parentCtx.isDark === effectiveDark;
 
   const scopeClassName = effectiveDark ? "shuffle-core-scope dark" : "shuffle-core-scope light";
   const resolvedModeAttr = effectiveDark ? "dark" : "light";
@@ -378,15 +386,6 @@ export const ShuffleCoreThemeProvider: React.FC<ShuffleCoreThemeProviderProps> =
     () => ({ mode, isDark: effectiveDark, scopeClassName }),
     [mode, effectiveDark, scopeClassName],
   );
-
-  if (sameAsParent) {
-    return (
-      <ShuffleCoreThemeContext.Provider value={ctxValue}>
-        <span ref={anchorRef} style={{ display: "none" }} aria-hidden />
-        {children}
-      </ShuffleCoreThemeContext.Provider>
-    );
-  }
 
   return (
     <ShuffleCoreThemeContext.Provider value={ctxValue}>

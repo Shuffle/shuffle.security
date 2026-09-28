@@ -26,6 +26,7 @@ import {
 } from '@mui/material';
 import { Plus, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { useOverlayLayer } from '@/Shuffle-MCPs/drawerLayer';
 import { toast } from '@/Shuffle-Core/toast';
 import type { ShuffleCoreHostProps } from '@/Shuffle-Core/types/host-props';
 
@@ -190,6 +191,7 @@ export const AddAppDialog = ({
   maxLength = 1024,
   initialInput = '',
 }: AddAppDialogProps) => {
+  const dialogZIndex = useOverlayLayer(open);
   const [input, setInput] = useState(initialInput);
   const [stage, setStage] = useState<Stage>('idle');
   const [spec, setSpec] = useState<OpenApiSpec | null>(null);
@@ -379,6 +381,12 @@ export const AddAppDialog = ({
       onClose={() => onOpenChange(false)}
       fullWidth
       maxWidth="sm"
+      sx={{
+        zIndex: dialogZIndex,
+        '& .MuiBackdrop-root': {
+          zIndex: dialogZIndex,
+        },
+      }}
       PaperProps={{
         sx: {
           maxWidth: 640,
@@ -388,6 +396,7 @@ export const AddAppDialog = ({
           border: '1px solid hsl(var(--border))',
           borderRadius: 2,
           boxSizing: 'border-box',
+          zIndex: dialogZIndex,
         },
       }}
     >

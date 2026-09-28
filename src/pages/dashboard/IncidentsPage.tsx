@@ -1,6 +1,6 @@
 import { readTenantStamp, isTenantGhost, type TenantStamp } from '@/utils/tenantAuthority';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Search as SearchIcon, X as CloseIcon, Plus as AddIcon, RefreshCw as RefreshIcon, Play as PlayArrowIcon, Rocket as RocketLaunchIcon, EyeOff as VisibilityOffIcon, AlertTriangle as WarningAmberIcon, Download as DownloadIcon, Calendar as CalendarTodayIcon, MoreVertical as MoreVerticalIcon, Users as UsersIcon } from 'lucide-react';
-import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore, useDeferredValue } from 'react';
 import { useSearchParams, useNavigate } from '@/lib/router-compat';
 import { useEntityLabel, useShowAutomation, useEntityText } from '@/hooks/useEntityLabel';
 import { AppSearchDrawer } from '@/Shuffle-MCPs';
@@ -43,11 +43,12 @@ import { extractThreadId } from '@/hooks/useThreadCorrelatedIncidents';
 
 import { CreateIncidentDialog, ActivityItem } from '@/components/incidents/CreateIncidentDialog';
 import { OCSFIncidentFinding, Observable, TLP_LABELS, convertLegacyTlp, mapOCSFSeverity, mapOCSFStatus } from '@/config/ocsfIncidentSchema';
-import { deduplicateTasks, decodeHtmlEntities } from '@/lib/utils';
+import { deduplicateTasks, decodeHtmlEntities, isAIAssignee } from '@/lib/utils';
 import { autoCorrectTranslatedString } from '@/lib/translationFallback';
 import { ResolveIncidentDialog, ResolutionData, RESOLUTION_REASONS } from '@/components/incidents/ResolveIncidentDialog';
 import { CategoryAutomationsDialog } from '@shuffleio/shuffle-core';
 import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, findForwardTicketsWorkflow, extractWorkflowAppNames, normalizeAppName, isWorkflowScheduleStopped } from '@/Shuffle-MCPs/ingestionDetection';
+import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
 import { API_CONFIG, getApiUrl, getAuthHeader, isDevEnvironment, mapCloudRegionUrl } from '@/Shuffle-MCPs/api';
 import { IncidentCardView } from '@/components/incidents/IncidentCardView';
 import { useBackgroundThreadContinuation } from '@/hooks/useBackgroundThreadContinuation';
@@ -71,6 +72,12 @@ import { toast } from '@/lib/toast';
 import { resyncState } from '@/lib/resyncState';
 import { trackPredefinedEvent, GA_EVENTS } from '@/lib/analytics';
 import { ensureDefaultsInitialized } from '@/lib/initDefaults';
+import {
+  matchIncidentSearchText,
+  queryIncidentCorrelations,
+  fetchMissingCorrelatedIncidents,
+  toRawIncidentKey,
+} from '@/lib/incidentSearch';
 
 // Legacy categories for migration
 const LEGACY_ALERTS_CATEGORY = 'shuffle-alerts';
@@ -85,12 +92,6 @@ const INCIDENT_FILTERS_TTL_MS = 24 * 60 * 60 * 1000;
  */
 const incidentFiltersKey = (orgId: string | null | undefined) =>
   `${INCIDENT_FILTERS_STORAGE_KEY_BASE}::${orgId || 'anon'}`;
-
-const toRawIncidentKey = (key: string): string => {
-  if (!key?.includes('::')) return key;
-  const parts = key.split('::').filter(Boolean);
-  return parts.length > 0 ? parts[parts.length - 1] : key;
-};
 
 const migrateToIncidents = async (): Promise<number> => {
   if (localStorage.getItem(MIGRATION_KEY)) return 0;
@@ -152,6 +153,7 @@ interface DisplayIncident {
   taskCount?: number;
   tasks?: TaskItem[];
   labels?: string[];
+  correlationCount?: number;
   orgId?: string;
   orgName?: string;
   orgImage?: string;
@@ -204,12 +206,6 @@ const parseTimestamp = (timestamp: number | string | undefined): number => {
   return normalizeToMs(timestamp);
 };
 
-// Helper to check if an assignee is the AI Agent
-const isAIAssignee = (assignee: string | null | undefined): boolean => {
-  if (!assignee) return false;
-  const lower = assignee.toLowerCase();
-  return lower.includes('agent') || lower === 'ai' || lower === 'ai agent';
-};
 
 // Strict check: only return string if it has meaningful non-whitespace content
 const meaningfulString = (val: unknown): string | undefined => {
@@ -280,8 +276,16 @@ const resolveCreatedTs = (data: any, itemCreated?: number): number => {
 
 const MAX_INCIDENT_VALUE_LENGTH = 5_000_000; // 5MB safety limit per item
 
-const parseIncidentFromDatastore = (item: { key: string; value: string; created?: number; edited?: number }): DisplayIncident | null => {
+const parseIncidentFromDatastore = (item: { key: string; value: string; category?: string; created?: number; edited?: number }): DisplayIncident | null => {
   try {
+    if (!item || typeof item !== 'object' || typeof item.value !== 'string') {
+      return null;
+    }
+    // Filter out leaked cross-category items
+    if (item.category && item.category !== DATASTORE_CATEGORIES.INCIDENTS && item.category !== 'shuffle-security_incidents') {
+      return null;
+    }
+
     // Skip items with excessively large values to prevent JSON parse hangs/crashes
     if (item.value && item.value.length > MAX_INCIDENT_VALUE_LENGTH) {
       console.warn(`[Incidents] Skipping oversized incident ${item.key} (${(item.value.length / 1024 / 1024).toFixed(1)}MB)`);
@@ -827,6 +831,12 @@ const IncidentsPage = () => {
    }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const [correlationsLoading, setCorrelationsLoading] = useState(false);
+  const [correlatedIncidentIds, setCorrelatedIncidentIds] = useState<Set<string>>(new Set());
+  const [extraCorrelatedIncidents, setExtraCorrelatedIncidents] = useState<DisplayIncident[]>([]);
+  const correlationAbortControllerRef = useRef<AbortController | null>(null);
+  const incidentsRef = useRef<DisplayIncident[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkResolveDialogOpen, setBulkResolveDialogOpen] = useState(false);
   const [isBulkResolving, setIsBulkResolving] = useState(false);
@@ -839,6 +849,7 @@ const IncidentsPage = () => {
 
   const { items: datastoreItems, isLoading, isRefreshing, hasFetched, error, lastDiagnostics, fetchItems, addItem, hasMore, fetchNextPage, categoryConfig, totalAmount } = useDatastore({
     category: DATASTORE_CATEGORIES.INCIDENTS,
+    orgId: currentOrgId,
   });
 
   const supportIncidentDebugRows = useMemo<Array<[string, string]>>(() => {
@@ -919,7 +930,8 @@ const IncidentsPage = () => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const data = await response.json();
-        const items = Array.isArray(data) ? data : (data.keys || data.data || []);
+        const rawItems = Array.isArray(data) ? data : (data.keys || data.data || []);
+        const items = rawItems.filter((i: any) => !i?.category || i.category === DATASTORE_CATEGORIES.INCIDENTS || i.category === 'shuffle-security_incidents');
         setSubOrgItems(prev => {
           const next = new Map(prev);
           next.set(org.id, { orgName: org.name, orgImage: org.image, items });
@@ -946,8 +958,22 @@ const IncidentsPage = () => {
   useEffect(() => {
     if (isParentOrg) {
       fetchSubOrgIncidents();
+    } else {
+      setSubOrgItems(new Map());
     }
-  }, [isParentOrg, fetchSubOrgIncidents]);
+  }, [isParentOrg, currentOrgId, fetchSubOrgIncidents]);
+
+  // Refetch when an incident is moved between tenants
+  useEffect(() => {
+    const handleIncidentMoved = () => {
+      fetchItems();
+      if (isParentOrg) {
+        fetchSubOrgIncidents();
+      }
+    };
+    window.addEventListener('shuffle:incident-moved', handleIncidentMoved);
+    return () => window.removeEventListener('shuffle:incident-moved', handleIncidentMoved);
+  }, [fetchItems, isParentOrg, fetchSubOrgIncidents]);
 
   // Auto-select all orgs when filter is empty and multi-tenant view is available
   useEffect(() => {
@@ -999,20 +1025,15 @@ const IncidentsPage = () => {
       setIngestionLoading(true);
     }
     try {
-      const [authResponse, workflowsResponse] = await Promise.all([
-        fetch(getApiUrl('/api/v1/apps/authentication'), {
-          credentials: 'include',
-          headers: { ...getAuthHeader() },
-        }),
+      const [authApps, workflowsResponse] = await Promise.all([
+        fetchAuthenticatedApps(currentOrgId).catch(() => []),
         fetch(getApiUrl('/api/v1/workflows'), {
           credentials: 'include',
           headers: { ...getAuthHeader() },
         }),
       ]);
 
-      if (authResponse.ok) {
-        const result = await authResponse.json();
-        const authApps = Array.isArray(result) ? result : (result.data || []);
+      if (Array.isArray(authApps)) {
 
         // Derive enabled apps from the Ingest Tickets workflow actions
         let workflowAppNames: Set<string> | undefined;
@@ -1024,10 +1045,7 @@ const IncidentsPage = () => {
           if (ingestWorkflow) {
             const scheduleStopped = isWorkflowScheduleStopped(ingestWorkflow);
             setIngestScheduleStopped(scheduleStopped);
-            // If schedule is stopped, treat as no enabled sources
-            if (!scheduleStopped) {
-              workflowAppNames = extractWorkflowAppNames(ingestWorkflow);
-            }
+            workflowAppNames = extractWorkflowAppNames(ingestWorkflow);
             // Only expose the workflow ID for execution when it is owned by
             // the active org. Workflows distributed from a parent tenant show
             // up in /api/v1/workflows but cannot be executed in the child
@@ -1089,7 +1107,7 @@ const IncidentsPage = () => {
         const ingestionResults = extractValidatedIngestionApps(authApps, workflowAppNames);
         // Backfill missing images: 1) module cache + Algolia, 2) /api/v1/apps as last resort
         const { backfillAppImages, deduplicateAuthApps, seedImageCache } = await import('@/lib/utils');
-        const deduped = deduplicateAuthApps(authApps.filter((a: any) => a.active || a.validation?.valid));
+        const deduped = deduplicateAuthApps(authApps.filter((a: any) => a.active || a.validation?.valid) as any);
         await backfillAppImages(deduped);
         const imgMap = new Map<string, string>();
         deduped.forEach(d => { if (d.bestImage) imgMap.set(normalizeAppName(d.app.name), d.bestImage); });
@@ -1144,6 +1162,13 @@ const IncidentsPage = () => {
   useEffect(() => {
     fetchIngestionApps();
     // Re-runs when fetchIngestionApps identity changes (e.g. when currentOrgId resolves)
+    const handleIntegrationsChanged = () => {
+      fetchIngestionApps();
+    };
+    window.addEventListener('integrations-changed', handleIntegrationsChanged);
+    return () => {
+      window.removeEventListener('integrations-changed', handleIntegrationsChanged);
+    };
   }, [fetchIngestionApps]);
 
   // Debounced handler: collects app toggles for 3s then fires one generate call
@@ -1413,6 +1438,80 @@ const IncidentsPage = () => {
     // auth resolves stay tagged with orgId='' and the org filter drops them all.
   }, [datastoreItems, validUsernames, subOrgItems, currentOrgId, currentOrgName, userInfo?.active_org?.image]);
 
+  // Keep incidentsRef synced with latest incidents for async correlation queries
+  useEffect(() => {
+    incidentsRef.current = incidents;
+  }, [incidents]);
+
+  // Debounced correlations lookup when the user is done typing (400ms pause)
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+
+    // Cancel in-flight correlation request
+    if (correlationAbortControllerRef.current) {
+      correlationAbortControllerRef.current.abort();
+      correlationAbortControllerRef.current = null;
+    }
+
+    if (!trimmed || trimmed.length < 2) {
+      setCorrelatedIncidentIds(new Set());
+      setExtraCorrelatedIncidents([]);
+      setCorrelationsLoading(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      const controller = new AbortController();
+      correlationAbortControllerRef.current = controller;
+      setCorrelationsLoading(true);
+
+      try {
+        const ids = await queryIncidentCorrelations(trimmed, currentOrgId, controller.signal);
+        if (controller.signal.aborted) return;
+
+        const idSet = new Set(ids);
+        setCorrelatedIncidentIds(idSet);
+
+        // If correlations returned IDs, check for missing records in the local dataset
+        if (ids.length > 0) {
+          const loadedIds = new Set(incidentsRef.current.map(i => toRawIncidentKey(i.id)));
+          const missingIds = ids.filter(id => !loadedIds.has(toRawIncidentKey(id)));
+
+          if (missingIds.length > 0) {
+            const extra = await fetchMissingCorrelatedIncidents(missingIds, (item) => {
+              const parsed = parseIncidentFromDatastore(item);
+              if (!parsed) return null;
+              return {
+                ...parsed,
+                orgId: currentOrgId || '',
+                orgName: currentOrgName,
+              };
+            });
+
+            if (!controller.signal.aborted && extra.length > 0) {
+              setExtraCorrelatedIncidents(extra);
+            }
+          }
+        }
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          console.warn('[Incidents] Correlation search failed:', err);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setCorrelationsLoading(false);
+        }
+      }
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+      if (correlationAbortControllerRef.current) {
+        correlationAbortControllerRef.current.abort();
+      }
+    };
+  }, [searchQuery, currentOrgId, currentOrgName]);
+
   // Count incidents per source for current org only (used by ingestion source buttons)
   const incidentCountsBySource = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1463,8 +1562,17 @@ const IncidentsPage = () => {
     }
     
     const SESSION_KEY = 'shuffle_auto_resync_done';
+    let storedSession: string[] = [];
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+        storedSession = raw ? JSON.parse(raw) : [];
+      }
+    } catch {
+      storedSession = [];
+    }
     const alreadyResynced: Set<string> = new Set(
-      JSON.parse(sessionStorage.getItem(SESSION_KEY) || '[]')
+      Array.isArray(storedSession) ? storedSession : []
     );
 
     // Find incidents without a title that have a source and haven't been resynced this session
@@ -1528,7 +1636,7 @@ const IncidentsPage = () => {
               if (title && title !== 'Untitled Incident' && title !== 'Requires sync' && title !== target.id) {
                 console.log(`[AutoResync] Got content for ${target.id} after ${pollCount} polls`);
                 alreadyResynced.add(target.id);
-                sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced]));
+                try { sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced])); } catch {}
                 await fetchItems();
                 setResyncingId(null);
                 resyncState.remove(target.id);
@@ -1544,7 +1652,7 @@ const IncidentsPage = () => {
             // Give up after max polls
             console.warn(`[AutoResync] Timed out for ${target.id}`);
             alreadyResynced.add(target.id);
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced]));
+            try { sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced])); } catch {}
             await fetchItems();
             setResyncingId(null);
             resyncState.remove(target.id);
@@ -1557,7 +1665,7 @@ const IncidentsPage = () => {
       } catch (err) {
         console.warn('[AutoResync] Error:', err);
         alreadyResynced.add(target.id);
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced]));
+        try { sessionStorage.setItem(SESSION_KEY, JSON.stringify([...alreadyResynced])); } catch {}
         setResyncingId(null);
         resyncState.remove(target.id);
         setResyncingSource('');
@@ -1664,18 +1772,42 @@ const IncidentsPage = () => {
     }
     const orgFilter = Array.isArray(filters.org) ? filters.org : filters.org ? [filters.org] : [];
     if (orgFilter.length > 0) {
-      result = result.filter(i => orgFilter.includes(i.orgId || ''));
+      result = result.filter(i => {
+        if (orgFilter.includes(i.orgId || '')) return true;
+        if (Array.isArray(i.sharedOrgs)) {
+          return i.sharedOrgs.some((so: any) => orgFilter.includes(so.id || so.orgId || ''));
+        }
+        return false;
+      });
     }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(i => 
-        (i.title || '').toLowerCase().includes(q) ||
-        i.id.toLowerCase().includes(q) ||
-        (i.source || '').toLowerCase().includes(q) ||
-        (i.assignee && i.assignee.toLowerCase().includes(q)) ||
-        (i.labels && i.labels.some(l => l.toLowerCase().includes(q)))
-      );
+    // Merge any extra incidents loaded via remote correlations
+    if (extraCorrelatedIncidents.length > 0) {
+      const existingIds = new Set(result.map(i => toRawIncidentKey(i.id)));
+      for (const extra of extraCorrelatedIncidents) {
+        if (!existingIds.has(toRawIncidentKey(extra.id))) {
+          result = [...result, extra];
+          existingIds.add(toRawIncidentKey(extra.id));
+        }
+      }
+    }
+
+    if (deferredSearchQuery.trim()) {
+      const tokens = deferredSearchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      result = result.filter(i => {
+        // Fast path: multi-token check across the memoized search blob
+        if (matchIncidentSearchText(i, tokens)) return true;
+
+        // Correlation match: check if the platform correlation API identified this incident
+        if (correlatedIncidentIds.size > 0) {
+          const rawId = toRawIncidentKey(i.id);
+          if (correlatedIncidentIds.has(i.id) || correlatedIncidentIds.has(rawId)) {
+            return true;
+          }
+        }
+
+        return false;
+      });
     }
 
     // Date range filter
@@ -1690,12 +1822,12 @@ const IncidentsPage = () => {
     }
 
     return result;
-  }, [filteredByAssignee, filters, negatedFilters, searchQuery, dateFrom, dateTo]);
+  }, [filteredByAssignee, filters, negatedFilters, deferredSearchQuery, correlatedIncidentIds, extraCorrelatedIncidents, dateFrom, dateTo]);
 
   // Reset to page 1 when filters or search change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters, negatedFilters, searchQuery, showIrrelevant, dateFrom, dateTo]);
+  }, [filters, negatedFilters, deferredSearchQuery, showIrrelevant, dateFrom, dateTo]);
 
   // Sort incidents
   const sortedIncidents = useMemo(() => {
@@ -1712,7 +1844,7 @@ const IncidentsPage = () => {
           comparison = (severityOrder[a.severity] || 0) - (severityOrder[b.severity] || 0);
           break;
         case 'status':
-          comparison = a.status.localeCompare(b.status);
+          comparison = (a.status || '').localeCompare(b.status || '');
           break;
         case 'assignee':
           comparison = (a.assignee || '').localeCompare(b.assignee || '');
@@ -1754,8 +1886,20 @@ const IncidentsPage = () => {
       return deduped;
     }
 
+    if (correlatedIncidentIds.size > 0) {
+      return sorted.map(i => {
+        if (correlatedIncidentIds.has(i.id) || correlatedIncidentIds.has(toRawIncidentKey(i.id))) {
+          return {
+            ...i,
+            correlationCount: Math.max(i.correlationCount || 0, 1),
+          };
+        }
+        return i;
+      });
+    }
+
     return sorted;
-  }, [filteredIncidents, sortBy, sortDirection, demoActive]);
+  }, [filteredIncidents, sortBy, sortDirection, demoActive, correlatedIncidentIds]);
 
   // Determine if all selected incidents are already resolved
   const selectedIncidentsList = useMemo(() => incidents.filter(i => selectedIds.has(i.id)), [incidents, selectedIds]);
@@ -1872,6 +2016,8 @@ const IncidentsPage = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
     setSearchQuery('');
+    setCorrelatedIncidentIds(new Set());
+    setExtraCorrelatedIncidents([]);
     setSelectedIds(new Set());
   };
 
@@ -2421,7 +2567,7 @@ const IncidentsPage = () => {
             )}
             <Tooltip title="Refresh">
               <IconButton 
-                onClick={() => { sessionStorage.removeItem('shuffle_auto_resync_done'); autoResyncQueueRef.current.clear(); fetchItems(); fetchSubOrgIncidents(); }} 
+                onClick={() => { try { sessionStorage.removeItem('shuffle_auto_resync_done'); } catch {} autoResyncQueueRef.current.clear(); fetchItems(); fetchSubOrgIncidents(); }} 
                 disabled={isLoading}
                 sx={{ 
                   width: 36, height: 36, color: 'text.secondary',
@@ -2816,7 +2962,7 @@ const IncidentsPage = () => {
   
             <Tooltip title="Refresh">
               <IconButton 
-                onClick={() => { sessionStorage.removeItem('shuffle_auto_resync_done'); autoResyncQueueRef.current.clear(); fetchItems(); fetchSubOrgIncidents(); }} 
+                onClick={() => { try { sessionStorage.removeItem('shuffle_auto_resync_done'); } catch {} autoResyncQueueRef.current.clear(); fetchItems(); fetchSubOrgIncidents(); }} 
                 disabled={isLoading}
                 sx={{ 
                   width: 36,
@@ -2885,7 +3031,7 @@ const IncidentsPage = () => {
             <MenuItem
               onClick={() => {
                 setMobileMenuAnchor(null);
-                sessionStorage.removeItem('shuffle_auto_resync_done');
+                try { sessionStorage.removeItem('shuffle_auto_resync_done'); } catch {}
                 autoResyncQueueRef.current.clear();
                 fetchItems();
                 fetchSubOrgIncidents();
@@ -2935,33 +3081,6 @@ const IncidentsPage = () => {
           </Dialog>
         </Box>
       </Box>
-
-      {/* Warning banner when Ingest Tickets schedule is stopped */}
-      {ingestScheduleStopped && ingestWorkflowId && (
-        <Box sx={{
-          mb: 2,
-          px: 2,
-          py: 1.5,
-          borderRadius: 1.5,
-          bgcolor: 'hsla(var(--severity-medium) / 0.08)',
-          border: '1px solid hsla(var(--severity-medium) / 0.25)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1.5,
-        }}>
-          <Box sx={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            bgcolor: 'hsl(var(--severity-medium))',
-            flexShrink: 0,
-          }} />
-          <Typography sx={{ fontSize: '0.82rem', color: 'hsl(var(--foreground))', flex: 1 }}>
-            <strong>Automatic ingestion is paused</strong> — the "Ingest Tickets" workflow schedule has been stopped. Sources are shown as disabled until the schedule is re-enabled.
-          </Typography>
-        </Box>
-      )}
-
 
       {/* Floating Filter Bar - sticky */}
       <Card elevation={0} sx={{ mb: 3, position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'hsl(var(--card))', backgroundImage: 'none', border: '1px solid hsl(var(--border))', boxShadow: 'none', backdropFilter: 'none' }}>
@@ -3017,18 +3136,70 @@ const IncidentsPage = () => {
 
             <TextField
               size="small"
-              placeholder="Filter"
+              placeholder="Filter incidents..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon style={{ color: 'text.secondary', fontSize: '1rem' }} />
+                    <SearchIcon size={16} style={{ color: 'hsl(var(--muted-foreground))' }} />
                   </InputAdornment>
                 ),
-                sx: { height: 36 },
+                endAdornment: (
+                  <InputAdornment position="end" sx={{ gap: 0.5 }}>
+                    {correlationsLoading && (
+                      <Tooltip title="Searching platform correlations...">
+                        <CircularProgress size={14} sx={{ color: 'text.secondary' }} />
+                      </Tooltip>
+                    )}
+                    {!correlationsLoading && correlatedIncidentIds.size > 0 && (
+                      <Tooltip title={`${correlatedIncidentIds.size} correlated incident${correlatedIncidentIds.size === 1 ? '' : 's'} found by platform`}>
+                        <Box
+                          component="span"
+                          sx={{
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            px: 0.6,
+                            py: 0.15,
+                            borderRadius: '4px',
+                            bgcolor: 'action.selected',
+                            color: 'text.secondary',
+                            cursor: 'default',
+                            userSelect: 'none',
+                          }}
+                        >
+                          {correlatedIncidentIds.size} corr
+                        </Box>
+                      </Tooltip>
+                    )}
+                    {searchQuery && (
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setCorrelatedIncidentIds(new Set());
+                          setExtraCorrelatedIncidents([]);
+                        }}
+                        aria-label="Clear filter"
+                        sx={{ p: 0.25, color: 'text.secondary', '&:hover': { color: 'text.primary' } }}
+                      >
+                        <CloseIcon style={{ width: 14, height: 14 }} />
+                      </IconButton>
+                    )}
+                  </InputAdornment>
+                ),
+                sx: { height: 36, fontSize: '0.8125rem' },
               }}
-              sx={{ width: { xs: 'auto', sm: 140 }, flex: { xs: '1 1 auto', sm: '0 0 auto' }, minWidth: 0, flexShrink: 1 }}
+              sx={{
+                width: { xs: 'auto', sm: 180, md: 240 },
+                flex: { xs: '1 1 auto', sm: '0 0 auto' },
+                minWidth: 0,
+                flexShrink: 1,
+                transition: 'width 0.2s ease',
+                '&:focus-within': {
+                  width: { xs: 'auto', sm: 220, md: 300 },
+                },
+              }}
             />
 
             <Tooltip title="Menu">
@@ -3235,7 +3406,9 @@ const IncidentsPage = () => {
                   const localCount = sortedIncidents.length;
                   const activeTotal = activeIncidents.length;
                   const apiTotal = totalAmount ?? 0;
-                  const totalIncidents = Math.max(activeTotal, apiTotal, incidents.length);
+                  const totalIncidents = hasMore
+                    ? Math.max(activeTotal, apiTotal, incidents.length)
+                    : activeTotal;
                   const totalDisplay = hasMore ? `${totalIncidents}+` : `${totalIncidents}`;
                   const totalPages = Math.max(1, Math.ceil(localCount / ITEMS_PER_PAGE));
                   const isNarrowed = !isDefaultFilter && totalIncidents > localCount;
@@ -3325,6 +3498,8 @@ const IncidentsPage = () => {
               setDateFrom(undefined);
               setDateTo(undefined);
               setSearchQuery('');
+              setCorrelatedIncidentIds(new Set());
+              setExtraCorrelatedIncidents([]);
               setShowIrrelevant(true);
             }}
 

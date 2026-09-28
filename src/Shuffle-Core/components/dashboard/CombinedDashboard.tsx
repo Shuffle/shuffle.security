@@ -512,7 +512,7 @@ const CombinedDashboard = ({
             position: 'fixed',
             bottom: 24,
             right: 24,
-            zIndex: 9999,
+            zIndex: 10050,
             display: 'flex',
             alignItems: 'center',
             gap: 1.25,

@@ -54,7 +54,11 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
 
   const handleCopy = () => {
     const cmd = getQuickCommand(platform);
-    navigator.clipboard.writeText(cmd);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(cmd).catch(() => {});
+      }
+    } catch {}
     setCopied(true);
     toast.success('Command copied to clipboard', {
       description: 'Run this command on the target host or use the full Deploy wizard for custom groups.',

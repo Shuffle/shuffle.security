@@ -86,8 +86,7 @@ const AgentRunDiagnosisBanner = ({ run, sx, onJumpToEvidence, onFocusContinue, e
 
   if (!failureInfo && !diagnosis) return null;
 
-  // When the run is finished, any AI auth warning is handled by the bottom suggestion
-  // card in the timeline. Suppress it from the top banner to avoid redundant stacked warnings.
+  // A finished run cannot fail AI model provider authentication. Suppress any residual ai_auth diagnosis.
   if (status === 'FINISHED' && (diagnosis?.kind === 'ai_auth' || diagnosis?.isAiAuth)) {
     return null;
   }

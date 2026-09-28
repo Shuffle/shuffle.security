@@ -458,11 +458,15 @@ export const TenantOAuthTokens: React.FC<TenantOAuthTokensProps> = ({
                               >
                                 <IconButton
                                   size="small"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(token.client_id || '');
-                                    setCopiedTokenId(tokenId);
-                                    setTimeout(() => setCopiedTokenId(null), 2000);
-                                  }}
+                                   onClick={() => {
+                                     try {
+                                       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                                         navigator.clipboard.writeText(token.client_id || '').catch(() => {});
+                                       }
+                                     } catch {}
+                                     setCopiedTokenId(tokenId);
+                                     setTimeout(() => setCopiedTokenId(null), 2000);
+                                   }}
                                   sx={{ p: 0.25, color: 'hsl(var(--muted-foreground))' }}
                                 >
                                   {copiedTokenId === tokenId ? (

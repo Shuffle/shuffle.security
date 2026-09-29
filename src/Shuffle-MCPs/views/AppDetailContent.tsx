@@ -8,7 +8,7 @@
  */
 
 import ShuffleMarkdown from '@/Shuffle-MCPs/components/Markdown';
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { toast } from '@/Shuffle-MCPs/toast';
 import {
   Download,
@@ -48,7 +48,17 @@ import AppAuthSection from '@/Shuffle-MCPs/components/AppAuthSection';
 import TryMcpSection from '@/Shuffle-MCPs/views/TryMcpSection';
 import SingulActionsPreview from '@/Shuffle-MCPs/components/SingulActionsPreview';
 import ApiCallViewer from '@/Shuffle-MCPs/components/ApiCallViewer';
-import AppRelatedUsecases from '@/Shuffle-MCPs/components/AppRelatedUsecases';
+import AppRelatedUsecasesRaw from '@/Shuffle-MCPs/components/AppRelatedUsecases';
+
+class UsecasesBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() { return this.state.hasError ? null : this.props.children; }
+}
+
+const AppRelatedUsecases: typeof AppRelatedUsecasesRaw = (props) => (
+  <UsecasesBoundary><AppRelatedUsecasesRaw {...props} /></UsecasesBoundary>
+);
 import { useQueryClient } from '@tanstack/react-query';
 import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/Shuffle-MCPs/useWorkflows';
 import { isVulnScannerApp, normalizeAppName, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';

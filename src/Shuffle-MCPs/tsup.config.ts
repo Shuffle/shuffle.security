@@ -44,6 +44,7 @@ export default defineConfig({
     '@mui/system/createTheme',
     '@mui/system/styled',
     '@mui/icons-material',
+    '@mui/x-data-grid',
     '@emotion/react',
     '@emotion/styled',
     '@emotion/cache',
@@ -57,6 +58,18 @@ export default defineConfig({
     'react-router-dom',
     'react-router',
     'react-toastify',
+    'react-ga4',
+    'react-device-detect',
+    'mui-chips-input',
+    'dayjs',
+    /^dayjs\//,
+    'tailwind-merge',
+    'clsx',
+    'recharts',
+    'date-fns',
+    /^date-fns\//,
+    'html2canvas-pro',
+    'jspdf',
     /^@tanstack\//,
     /^@shuffleio\//,
   ],
@@ -74,6 +87,57 @@ export default defineConfig({
         }));
       },
     },
+    {
+      name: 'resolve-optional-shims',
+      setup(build) {
+        build.onResolve({ filter: /^@capacitor\// }, () => ({
+          path: path.resolve(__dirname, 'shims/capacitor-shim.ts'),
+        }));
+        build.onResolve({ filter: /^firebase\// }, () => ({
+          path: path.resolve(__dirname, 'shims/firebase-shim.ts'),
+        }));
+      },
+    },
+    {
+      name: 'resolve-at-alias',
+      setup(build) {
+        build.onResolve({ filter: /^@\// }, (args) => {
+          if (args.path === '@/lib/router-compat') {
+            return undefined;
+          }
+          const subpath = args.path.replace(/^@\//, '');
+          const srcDir = path.resolve(__dirname, '..');
+          const target = path.resolve(srcDir, subpath);
+          return build.resolve(target, {
+            resolveDir: args.resolveDir,
+            kind: args.kind,
+          });
+        });
+      },
+    },
+    {
+      name: 'externalize-missing-sibling-deps',
+      setup(build) {
+        build.onResolve({ filter: /^[^.\/]/ }, async (args) => {
+          if (args.path.startsWith('@/')) return undefined;
+          if (!args.resolveDir || args.resolveDir.startsWith(__dirname)) {
+            return undefined;
+          }
+          try {
+            const result = await build.resolve(args.path, {
+              resolveDir: __dirname,
+              kind: args.kind,
+            });
+            if (result.errors.length > 0) {
+              return { path: args.path, external: true };
+            }
+            return result;
+          } catch {
+            return { path: args.path, external: true };
+          }
+        });
+      },
+    },
   ],
   loader: {
     '.css': 'copy',
@@ -83,6 +147,7 @@ export default defineConfig({
   },
   injectStyle: false,
   esbuildOptions(options) {
+    options.platform = 'browser';
     options.alias = {
       ...(options.alias || {}),
       '@/Shuffle-MCPs': path.resolve(__dirname, '.'),

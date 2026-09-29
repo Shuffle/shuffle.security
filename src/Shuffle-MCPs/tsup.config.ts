@@ -105,16 +105,20 @@ export default defineConfig({
       },
     },
     {
-      name: 'resolve-sibling-imports-from-mcps',
+      name: 'externalize-missing-sibling-deps',
       setup(build) {
-        build.onResolve({ filter: /^[^./@]/ }, (args) => {
-          if (args.resolveDir && !args.resolveDir.startsWith(__dirname)) {
-            return build.resolve(args.path, {
-              resolveDir: __dirname,
-              kind: args.kind,
-            });
+        build.onResolve({ filter: /^[^./@]/ }, async (args) => {
+          if (!args.resolveDir || args.resolveDir.startsWith(__dirname)) {
+            return undefined;
           }
-          return undefined;
+          const result = await build.resolve(args.path, {
+            resolveDir: __dirname,
+            kind: args.kind,
+          });
+          if (result.errors.length > 0) {
+            return { path: args.path, external: true };
+          }
+          return result;
         });
       },
     },

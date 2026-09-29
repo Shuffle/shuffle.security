@@ -469,7 +469,8 @@ const AdminPage = () => {
                     sx={{
                       width: 100,
                       height: 100,
-                      bgcolor: 'hsl(var(--primary))',
+                      // Orange is only the letter fallback; uploaded logos keep their own transparency.
+                      bgcolor: orgImage && orgImage.startsWith('data:') ? 'transparent' : 'hsl(var(--primary))',
                       color: 'hsl(var(--primary-foreground))',
                       fontSize: '2rem',
                       fontWeight: 600,

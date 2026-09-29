@@ -25,7 +25,39 @@ import { SlaEditor } from '@/components/settings/SlaEditor';
 import { DefaultEnvironmentSelector } from '@/components/settings/DefaultEnvironmentSelector';
 
 import { useAuth } from '@/context/AuthContext';
+import { PROPAGATABLE_AUTOMATIONS, useAutomationPropagation, setAutomationPropagation } from '@/lib/automationPropagation';
 import { usePageMeta } from '@/hooks/usePageMeta';
+
+
+const AutomationPropagationSelector = () => {
+  const prefs = useAutomationPropagation();
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      {PROPAGATABLE_AUTOMATIONS.map((a) => {
+        const on = prefs[a.name] === true;
+        return (
+          <Box key={a.name} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>{a.name}</Typography>
+              <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))' }}>{a.description}</Typography>
+            </Box>
+            <Chip
+              label={on ? 'Enabled' : 'Disabled'}
+              onClick={() => setAutomationPropagation(a.name, !on)}
+              variant="filled"
+              sx={{
+                fontWeight: 600,
+                bgcolor: on ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
+                color: on ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))',
+                '&:hover': { bgcolor: on ? 'hsl(var(--primary) / 0.9)' : 'hsl(var(--muted) / 0.8)' },
+              }}
+            />
+          </Box>
+        );
+      })}
+    </Box>
+  );
+};
 
 const TerminologySelector = () => {
   const { value } = useEntityPreference();
@@ -321,6 +353,29 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
               },
             }}
           />
+        </Paper>
+
+        {/* Automation auto-propagation to child tenants */}
+        <Paper
+          sx={{
+            p: 2.5,
+            bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+              Automation Auto-propagation
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
+              When an automation type is saved in "Automation for X" on this tenant, copy it to all child tenants in the background.
+            </Typography>
+          </Box>
+          <AutomationPropagationSelector />
         </Paper>
 
         {/* Task Statuses (kanban lanes) */}

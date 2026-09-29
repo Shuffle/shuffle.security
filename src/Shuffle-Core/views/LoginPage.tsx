@@ -227,6 +227,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
   }, []);
 
+  // Error message extracted from ?error= or ?error_description= query param
+  const urlErrorMessage = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      return searchParams.get('error_description') || searchParams.get('error') || '';
+    } catch {
+      return '';
+    }
+  }, []);
+
   // Detect explicit adminsetup route or query parameter
   const isExplicitAdminSetup = useMemo(() => {
     if (mode === 'adminsetup') return true;
@@ -382,7 +393,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [resetEmailSuccessMsg, setResetEmailSuccessMsg] = useState('');
 
   // Credentials
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get('username') || sp.get('email') || '';
+    } catch {
+      return '';
+    }
+  });
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -396,8 +415,41 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
   // General feedback
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(urlErrorMessage);
   const [notice, setNotice] = useState(urlMessageNotice);
+
+  useEffect(() => {
+    if (urlErrorMessage) {
+      setError(urlErrorMessage);
+    }
+  }, [urlErrorMessage]);
+
+  // Handle direct OpenID / SSO callback parameters on /login (?code=... or ?SAMLResponse=...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const code = sp.get('code');
+      const saml = sp.get('SAMLResponse');
+      const state = sp.get('state');
+
+      // If an IdP error was returned, it is displayed in the error banner
+      if (sp.get('error') || sp.get('error_description')) {
+        return;
+      }
+
+      if (state && (state.includes('app_name=') || state.includes('workflow_id='))) {
+        window.location.replace(`/login_sso${window.location.search}`);
+        return;
+      }
+
+      if (code || saml) {
+        const endpoint = saml ? '/api/v1/login_sso' : '/api/v1/login_openid';
+        const targetUrl = `${getApiUrl(endpoint)}${window.location.search}`;
+        window.location.replace(targetUrl);
+      }
+    } catch {}
+  }, []);
 
   // Sync host base URL when serverMode or customHostUrl changes
   useEffect(() => {
@@ -898,21 +950,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const cloudEmailInvalid =
     serverMode === 'cloud' && username.trim().length > 0 && !isValidEmail(username);
 
-  // Auto-login for onprem instance SSO if ?autologin=true (matches classic Shuffle)
+  // Auto-login if ?autologin=true (matches classic Shuffle)
   useEffect(() => {
-    if (serverMode !== 'self-hosted' || !instanceSsoUrl) return;
+    if (typeof window === 'undefined') return;
     try {
-      const sp = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+      const sp = new URLSearchParams(window.location.search);
       if (sp.get('autologin') === 'true') {
-        if (typeof window !== 'undefined') {
+        if (serverMode === 'self-hosted' && instanceSsoUrl) {
           if (from) {
             sessionStorage.setItem('shuffle_redirect_after_login', from);
           }
           window.location.href = instanceSsoUrl;
+        } else if (serverMode === 'cloud' && username.trim() && isValidEmail(username)) {
+          handleSsoDiscoverySubmit({ preventDefault: () => {} } as any);
         }
       }
     } catch {}
-  }, [serverMode, instanceSsoUrl, from]);
+  }, [serverMode, instanceSsoUrl, from, username]);
 
   // Auto-focus MFA input on prompt
   useEffect(() => {

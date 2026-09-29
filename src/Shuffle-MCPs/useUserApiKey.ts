@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { getApiUrl, getAuthHeader, API_CONFIG, getSessionToken } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, API_CONFIG, getSessionToken, hasShuffleAuth } from '@/Shuffle-MCPs/api';
 
 const API_KEY_CACHE_KEY = 'shuffle_user_apikey';
 
@@ -22,8 +21,20 @@ export function maskApiKey(key: string | null | undefined): string {
   return `${start}••••••••••••${end}`;
 }
 
+const readCachedOrgId = (): string | null => {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const info = localStorage.getItem('shuffle_user_info');
+    if (!info) return null;
+    const parsed = JSON.parse(info);
+    return parsed?.active_org?.id || parsed?.active_org_id || null;
+  } catch {
+    return null;
+  }
+};
+
 export function useUserApiKey(): UserApiKeyInfo {
-  const { isAuthenticated, userInfo, sessionToken } = useAuth();
+  const isAuthenticated = hasShuffleAuth();
   const [apiKey, setApiKey] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     try {
@@ -72,7 +83,7 @@ export function useUserApiKey(): UserApiKeyInfo {
       }
 
       // Fallback if getsettings didn't return an apikey
-      const fallbackToken = sessionToken || getSessionToken();
+      const fallbackToken = getSessionToken();
       if (fallbackToken && isMounted && !apiKey) {
         setApiKey(fallbackToken);
       }
@@ -83,11 +94,11 @@ export function useUserApiKey(): UserApiKeyInfo {
     return () => {
       isMounted = false;
     };
-  }, [isAuthenticated, sessionToken]);
+  }, [isAuthenticated]);
 
   const rawBaseUrl = API_CONFIG.baseUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://shuffler.io');
   const baseUrl = rawBaseUrl.replace(/\/+$/, '');
-  const orgId = userInfo?.active_org?.id || null;
+  const orgId = readCachedOrgId();
 
   return {
     apiKey,

@@ -1926,11 +1926,14 @@ const FormInput = (defaultprops: any) => {
 											{message}
 										</Typography>
 									: 
-										<Fade in={true} timeout={2500}>
-											<Typography variant="body1" style={{textAlign: "center", marginTop: 30, marginBottom: 20, }}>
-												{buttonClicked.length > 0 ? "Question answered. You may close this window." : ""}
-											</Typography>
-										</Fade>
+									<Fade in={true} timeout={2500}>
+										<Typography variant="body1" style={{textAlign: "center", marginTop: 30, marginBottom: 20, }}>
+											{/* Show the confirmation both right after an in-page click and
+												whenever the execution is already handled (refreshed link,
+												already answered) so the state is never a silent grey-out. */}
+											{buttonClicked.length > 0 || disabledButtons ? "Question answered. You may close this window." : ""}
+										</Typography>
+									</Fade>
 									}
 
 									{disabledButtons ? null :

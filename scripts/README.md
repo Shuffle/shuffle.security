@@ -1,12 +1,29 @@
 # Shuffle Security Usecase API Test System
 
-This document explains what the test runner (`test_usecases_api.py`) does from start to finish, and breaks down the test for each of the 16 active usecases in simple, direct language.
+This test suite focuses exclusively on the **active usecases** supported in Shuffle Security. All 30+ unmanaged or draft usecases (marked as "Coming soon" on `/usecases`) are excluded from testing.
+
+This document explains what the test runner (`test_usecases_api.py`) does from start to finish, and breaks down each active usecase in simple, direct language.
+
+---
+
+## Strict Focus on Active Usecases
+
+While Shuffle's UI contains definitions for over 45 theoretical usecases, only **16 usecases** are active and operational (`ACTIVE_USECASE_IDS`). The test runner focuses strictly on these 16.
+
+The runner operates in two main modes:
+1. **Targeted Active Inspection (`--active-only`, Default)**:
+   * Inspects your live environment (`GET /api/v1/workflows`, datastore automations, and organization defaults).
+   * Automatically discovers which of the 16 usecases are **currently switched on** in your organization.
+   * Only tests those active usecases and asserts that incoming telemetry is correctly parsed and stored.
+   * Leaves existing workflows and automations untouched (`teardown=False`).
+2. **Catalog Validation (`--all`)**:
+   * Systematically turns on each of the 16 active usecases from scratch, tests payload ingestion, verifies the datastore response, and cleanly tears them down.
 
 ---
 
 ## What the Test Runner Does From Start to Finish
 
-When you run `python3 scripts/test_usecases_api.py --all`, the script performs a 5-step lifecycle for every active usecase:
+When you run the test runner, it performs a 5-step lifecycle:
 
 ```
 [1. Connect & Auth] ---> [2. Turn On Feature] ---> [3. Send Mock Data] ---> [4. Verify Result] ---> [5. Clean Up]
@@ -162,21 +179,21 @@ Here is what happens under the hood for each of the 16 usecases:
 ## Quick Reference Commands
 
 ```bash
-# 1. View all 16 test cases
+# 1. Test ONLY usecases currently active/enabled in your organization (Default mode, preserves setup)
+python3 scripts/test_usecases_api.py
+
+# 2. View all 16 supported active usecase tests
 python3 scripts/test_usecases_api.py --list
 
-# 2. Run all tests against your local Shuffle instance
-python3 scripts/test_usecases_api.py --all
-
-# 3. Test a specific usecase
+# 3. Test a specific active usecase
 python3 scripts/test_usecases_api.py --usecase siem_case_management_1
 
-# 4. Test only ingestion usecases
+# 4. Test only active usecases in a specific phase (e.g. Ingestion)
 python3 scripts/test_usecases_api.py --phase ingestion
 
-# 5. Keep workflows and data intact for inspection in the UI
-python3 scripts/test_usecases_api.py --usecase vulnerability_ingestion_1 --no-teardown
+# 5. Full end-to-end regeneration & validation of all 16 usecases
+python3 scripts/test_usecases_api.py --all
 
 # 6. Save results to JSON for CI/CD pipelines
-python3 scripts/test_usecases_api.py --all --json-report report.json
+python3 scripts/test_usecases_api.py --json-report report.json
 ```

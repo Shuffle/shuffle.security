@@ -16,14 +16,25 @@
     "baseUrl": "..",
     "paths": {
       "@/*": ["*"],
+<<<<<<< HEAD
       "@/Shuffle-Core": ["Shuffle-Core/index.tsx"],
       "@/Shuffle-Core/*": ["Shuffle-Core/*"],
       "@/Shuffle-MCPs": ["Shuffle-MCPs/index.ts"],
       "@/Shuffle-MCPs/*": ["Shuffle-MCPs/*"],
+=======
+      "@/Shuffle-MCPs": ["Shuffle-MCPs/index.ts"],
+      "@/Shuffle-MCPs/*": ["Shuffle-MCPs/*"],
+      "@/Shuffle-Core": ["Shuffle-Core/index.tsx", "Shuffle-Core/index.ts"],
+      "@/Shuffle-Core/*": ["Shuffle-Core/*"],
+>>>>>>> f1dc7fa48637166d253368992fee7b587155490c
       "@/assets/*": ["assets/*"],
       "@/lib/*": ["lib/*"]
     }
   },
+<<<<<<< HEAD
   "include": ["index.ts", "assets.d.ts", "**/*.tsx", "**/*.ts"],
+=======
+  "include": ["index.ts", "ShuffleMCP.tsx", "AppDetailDrawer.tsx", "shuffle-mcp.helpers.ts", "assets.d.ts", "../Shuffle-Core/lib-app-shims.d.ts", "**/*.tsx", "**/*.ts"],
+>>>>>>> f1dc7fa48637166d253368992fee7b587155490c
   "exclude": ["dist", "node_modules", "tsup.config.ts"]
 }

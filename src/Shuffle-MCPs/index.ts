@@ -13,7 +13,22 @@ import '@/Shuffle-Core/uuid';
 import '@/Shuffle-MCPs/clipboard';
 import '@/lib/browser-shims';
 import React from 'react';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ShuffleMcpThemeProvider, type ShuffleMcpColorMode } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
+import { AuthFallbackProvider } from '@/context/AuthContext';
+
+let _fallbackQueryClient: QueryClient | null = null;
+function getFallbackQueryClient() {
+  if (!_fallbackQueryClient) _fallbackQueryClient = new QueryClient();
+  return _fallbackQueryClient;
+}
+
+const EnsureQueryClient: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  let hasClient = false;
+  try { useQueryClient(); hasClient = true; } catch { /* no provider above */ }
+  if (hasClient) return React.createElement(React.Fragment, null, children);
+  return React.createElement(QueryClientProvider, { client: getFallbackQueryClient() }, children);
+};
 
 /**
  * Every exported component accepts an optional `theme` prop:
@@ -38,9 +53,17 @@ const resolveMode = (theme?: ShuffleTheme, colorMode?: ShuffleMcpColorMode): Shu
 const withMcpTheme = <P extends object>(Inner: React.ComponentType<P>, displayName: string) => {
   const Wrapped: React.FC<WithTheme<P>> = ({ theme, colorMode, ...rest }) =>
     React.createElement(
-      ShuffleMcpThemeProvider,
-      { mode: resolveMode(theme, colorMode) },
-      React.createElement(Inner as React.ComponentType<any>, { ...(rest as P), theme, colorMode }),
+      EnsureQueryClient,
+      null,
+      React.createElement(
+        AuthFallbackProvider,
+        null,
+        React.createElement(
+          ShuffleMcpThemeProvider,
+          { mode: resolveMode(theme, colorMode) },
+          React.createElement(Inner as React.ComponentType<any>, { ...(rest as P), theme, colorMode }),
+        ),
+      ),
     );
   Wrapped.displayName = `ShuffleMCPs(${displayName})`;
   return Wrapped as React.ComponentType<WithTheme<P>>;
@@ -49,9 +72,17 @@ const withMcpTheme = <P extends object>(Inner: React.ComponentType<P>, displayNa
 const withMcpThemeRef = <P extends object, R>(Inner: React.ForwardRefExoticComponent<P & React.RefAttributes<R>>, displayName: string) => {
   const Wrapped = React.forwardRef<R, WithTheme<P>>(({ theme, colorMode, ...rest }, ref) =>
     React.createElement(
-      ShuffleMcpThemeProvider,
-      { mode: resolveMode(theme, colorMode) },
-      React.createElement(Inner as React.ComponentType<any>, { ...(rest as P), theme, colorMode, ref }),
+      EnsureQueryClient,
+      null,
+      React.createElement(
+        AuthFallbackProvider,
+        null,
+        React.createElement(
+          ShuffleMcpThemeProvider,
+          { mode: resolveMode(theme, colorMode) },
+          React.createElement(Inner as React.ComponentType<any>, { ...(rest as P), theme, colorMode, ref }),
+        ),
+      ),
     ),
   );
   Wrapped.displayName = `ShuffleMCPs(${displayName})`;

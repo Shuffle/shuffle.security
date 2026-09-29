@@ -106,7 +106,6 @@ const FormInput = (defaultprops: any) => {
   const [workflowQuestion, setWorkflowQuestion] = useState("");
   const [selectedOrganization, setSelectedOrganization] = React.useState(undefined);
   const [apps, setApps] = React.useState([]);
-  const [buttonClicked, setButtonClicked] = React.useState("");
   const [foundSourcenode, setFoundSourcenode] = React.useState(undefined);
   const [editWorkflowModalOpen, setEditWorkflowModalOpen] = React.useState(false)
   const [sharingOpen, setSharingOpen] = React.useState(false)
@@ -485,12 +484,18 @@ const FormInput = (defaultprops: any) => {
 		if (event !== null && event !== undefined) {
 			event.preventDefault()
 		}
+		const isUserInputAnswer = answer !== undefined && execution_id !== undefined && authorization !== undefined
 
 		const currentExecutionId = overrideExecutionId || execution_id
 		const currentAuthorization = overrideAuthorization || authorization
 
 		stop()
+<<<<<<< HEAD
 		setMessage("")
+=======
+		setMessage(isUserInputAnswer ? "Question answered. You may close this window." : "")
+		setDisableButtons(isUserInputAnswer)
+>>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 		setExecutionData({})
 		setExecutionRequest({})
 		setDisableButtons(true)
@@ -498,6 +503,15 @@ const FormInput = (defaultprops: any) => {
 		setExecutionRunning(false)
 		setExecutionInfo("")
 
+<<<<<<< HEAD
+=======
+		if (!isUserInputAnswer) {
+			setTimeout(() => {
+				setExecutionLoading(true)
+			}, 250)
+		}
+
+>>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 		var data = {
 			"execution_argument": executionArgument,
 			"execution_source": "form",
@@ -589,6 +603,8 @@ const FormInput = (defaultprops: any) => {
 					if (responseJson?.reason?.toLowerCase().includes("already clicked")) {
 						setMessage("This form has been answered. You may close this window.")
 					} else {
+						setDisableButtons(false)
+						setMessage("")
 						toast.warn(responseJson?.reason)
 					}
 				}
@@ -602,12 +618,24 @@ const FormInput = (defaultprops: any) => {
 			} else {
 				console.log("Started execution", responseJson)
 
+<<<<<<< HEAD
 				const targetExecId = responseJson?.execution_id || currentExecutionId
 				const targetAuth = responseJson?.authorization || currentAuthorization
 				const nextReq = {
 					execution_id: targetExecId,
 					authorization: targetAuth,
 				}
+=======
+				if (isUserInputAnswer) {
+					fetchUpdates(execution_id, authorization)
+					return
+				}
+
+				start()
+				setExecutionRunning(true);
+				setExecutionRequest(responseJson)
+				start()
+>>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 
 				setExecutionRunning(true)
 				setDisableButtons(true)
@@ -631,6 +659,7 @@ const FormInput = (defaultprops: any) => {
 
 			stop()
 			setMessage("")
+			setDisableButtons(false)
 			setExecutionData({})
 			setExecutionInfo("")
 			setExecutionLoading(false)
@@ -1015,12 +1044,13 @@ const FormInput = (defaultprops: any) => {
 				if (validate.valid && typeof validate.result === "string") {
 					validate.result = JSON.parse(validate.result)
 				}
+				const userInputResult = Array.isArray(validate.result) ? validate.result[0] : validate.result
 
 				console.log("Found waiting!: ", validate.result)
 
-				if (validate?.result?.information !== undefined && validate?.result?.information !== null) {
+				if (userInputResult?.information !== undefined && userInputResult?.information !== null) {
 					console.log("Success! Not checking again.")
-					setWorkflowQuestion(typeof validate?.result?.information === "string" ? validate.result.information : "")
+					setWorkflowQuestion(typeof userInputResult.information === "string" ? userInputResult.information : "")
 				} else {
 					console.log("No information found for questions?: ", validate.result)
 					if (typeof validate.result === "string" || Object.keys(validate.result).length === 2) {
@@ -1156,6 +1186,7 @@ const FormInput = (defaultprops: any) => {
 				return
 			}
 
+<<<<<<< HEAD
 			const waitingForInput = responseJson?.status === "WAITING" || responseJson?.results?.some((result: any) => result?.status === "WAITING")
 			if (waitingForInput) {
 				setDisableButtons(false)
@@ -1169,6 +1200,11 @@ const FormInput = (defaultprops: any) => {
 					setExecutionRunning(false)
 					setDisableButtons(true)
 				}
+=======
+			if (execution_id !== undefined && execution_id !== null && authorization !== undefined && authorization !== null && execution_id.length > 0 && authorization.length > 0 && disableButtons === false && responseJson?.status !== "" && responseJson?.status !== "WAITING") {
+				console.log("IN here 1")
+				setDisableButtons(true)
+>>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 			}
 
 			if (execution_id !== undefined && execution_id !== null && authorization !== undefined && authorization !== null && execution_id.length > 0 && authorization.length > 0 && responseJson.workflow !== undefined && responseJson.workflow !== null) {
@@ -1342,6 +1378,7 @@ const FormInput = (defaultprops: any) => {
 			} catch (e) {
 				console.log("Error parsing result: ", e)
 			}
+			parsedresult = Array.isArray(parsedresult) ? parsedresult[0] : parsedresult
 
 			if (result.status !== "WAITING") {
 				if (parsedresult.information !== undefined && parsedresult.information !== null && parsedresult.information.length > 0) {
@@ -1382,6 +1419,7 @@ const FormInput = (defaultprops: any) => {
 
 	//console.log("IMG: ", image, "ORG: ", selectedOrganization)
 
+<<<<<<< HEAD
 	useEffect(() => {
 		if (disabledButtons || answer === undefined || answer === null || organization === "Unknown" || buttonClicked.length > 0) {
 			return
@@ -1409,6 +1447,8 @@ const FormInput = (defaultprops: any) => {
 		}
 	}, [disabledButtons, answer, organization, buttonClicked, execution_id, authorization])
 
+=======
+>>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 	const FormList = () => {
 		return (
 			<div>
@@ -2013,14 +2053,11 @@ const FormInput = (defaultprops: any) => {
 											{message}
 										</Typography>
 									: 
-									<Fade in={true} timeout={2500}>
-										<Typography variant="body1" style={{textAlign: "center", marginTop: 30, marginBottom: 20, }}>
-											{/* Show the confirmation both right after an in-page click and
-												whenever the execution is already handled (refreshed link,
-												already answered) so the state is never a silent grey-out. */}
-											{buttonClicked.length > 0 || disabledButtons ? "Question answered. You may close this window." : ""}
-										</Typography>
-									</Fade>
+										<Fade in={true} timeout={2500}>
+											<Typography variant="body1" style={{textAlign: "center", marginTop: 30, marginBottom: 20, }}>
+												{disabledButtons ? "Question answered. You may close this window." : ""}
+											</Typography>
+										</Fade>
 									}
 
 									{disabledButtons ? null :
@@ -2103,9 +2140,18 @@ const FormInput = (defaultprops: any) => {
 													},
 												}}
 												onClick={() => {
+<<<<<<< HEAD
 													setDisableButtons(true)
 													setButtonClicked("ABORTED")
 													setExecutionData({ status: "ABORTED" })
+=======
+													setTimeout(() => {
+														setExecutionData({
+															status: "ABORTED",
+														})
+													}, 2500)
+
+>>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 													onSubmit(null, execution_id, authorization, false)
 												}}>
 												Confirm Decline
@@ -2136,9 +2182,19 @@ const FormInput = (defaultprops: any) => {
 													},
 												}}
 												onClick={() => {
+<<<<<<< HEAD
 													setDisableButtons(true)
 													setButtonClicked("FINISHED")
 													setExecutionData({ status: "FINISHED" })
+=======
+													// Timeout 2500 just in case
+													setTimeout(() => {
+														setExecutionData({
+															status: "FINISHED",
+														})
+													}, 2500)
+
+>>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 													onSubmit(null, execution_id, authorization, true)
 												}}>
 												Continue
@@ -2155,6 +2211,7 @@ const FormInput = (defaultprops: any) => {
 													fontWeight: 600,
 													fontSize: 15,
 													textTransform: "none",
+<<<<<<< HEAD
 													borderColor: "hsl(var(--border))",
 													color: "hsl(var(--foreground))",
 													"&:hover": {
@@ -2171,6 +2228,15 @@ const FormInput = (defaultprops: any) => {
 													setDisableButtons(true)
 													setButtonClicked("ABORTED")
 													setExecutionData({ status: "ABORTED" })
+=======
+												}} onClick={() => {
+													setTimeout(() => {
+														setExecutionData({
+															status: "ABORTED",
+														})
+													}, 2500)
+
+>>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 													onSubmit(null, execution_id, authorization, false)
 												}}>
 												Stop

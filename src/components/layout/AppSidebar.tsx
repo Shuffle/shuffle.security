@@ -961,7 +961,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
             </MenuItem>
             <MenuItem
               component="a"
-              href={getShuffleCoreUrl("/new-dashboard")}
+              href={getShuffleCoreUrl("/dashboard")}
               sx={{
                 py: 1.5,
                 px: 2,
@@ -975,7 +975,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                 e.preventDefault();
                 setToolMenuAnchor(null);
                 const isNewTab = e.ctrlKey || e.metaKey || e.button === 1;
-                await navigateToShuffleCore("/new-dashboard", {
+                await navigateToShuffleCore("/dashboard", {
                   newTab: isNewTab,
                 });
               }}

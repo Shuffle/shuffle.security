@@ -813,6 +813,71 @@ def print_summary_table(results: List[TestResult]) -> None:
     print(f"Total: {len(results)} | Passed: {passed} | Failed: {failed} | Skipped: {skipped}\n")
 
 
+def detect_active_usecases(client: ShuffleClient) -> List[str]:
+    """Detects which of the 16 active catalog usecases are currently active/enabled on the target instance."""
+    active_ids: List[str] = []
+    workflows = client.get_workflows()
+    wf_names = [str(w.get("name", "")).lower() for w in workflows]
+    wf_tags = [
+        str(t).lower()
+        for w in workflows
+        for t in (w.get("tags") or [])
+    ]
+
+    # 1, 2, 3: Ingestion flows (Ingest Tickets)
+    if any("ingest tickets" in n for n in wf_names) or any("ingest tickets" in t for t in wf_tags):
+        active_ids.extend(["siem_case_management_1", "edr_case_management_1", "email_case_management_1"])
+
+    # 4, 12, 13: Threat Intel feeds
+    if any("threat feeds" in n or "threat intel" in n for n in wf_names):
+        active_ids.extend(["threat_intel_ingest_1", "threat_intel_network_1", "threat_intel_edr_1"])
+
+    # 5: Threat Intel Enrichment
+    if any("threat feeds_webhook" in n or "ioc extraction" in n for n in wf_names):
+        active_ids.append("threat_intel_case_management_1")
+
+    # 6: Forward Tickets
+    if any("forward tickets" in n for n in wf_names):
+        active_ids.append("case_management_cases_forward_1")
+
+    # 7: Notifications
+    org = client.get(f"/api/v1/orgs/{client.active_org_id}") if client.active_org_id else {}
+    if org and org.get("defaults", {}).get("notification_workflow"):
+        active_ids.append("case_management_communication_1")
+
+    # 8: Host Monitoring
+    sensors = client.get_list_cache("shuffle-security_sensors", top=5)
+    if sensors and len(sensors) > 0:
+        active_ids.append("case_management_asset_management_monitors_1")
+
+    # 9: Assign & Escalate
+    if any("assign & escalate" in n for n in wf_names):
+        active_ids.append("case_management_assign_escalate_1")
+
+    # 10: Vulnerability Correlation
+    if any("vulnerability correlation" in n or "vulnerability comparison" in n for n in wf_names):
+        active_ids.append("asset_management_case_management_vuln_1")
+
+    # 11: Vulnerability Ingestion
+    if any("ingest vulnerabilities" in n or "vulnerabilities_webhook" in n or "vulnerabilities webhook" in n for n in wf_names):
+        active_ids.append("vulnerability_ingestion_1")
+
+    # 14: Incident Routing Rules
+    if any("incident routing" in n for n in wf_names):
+        active_ids.append("case_management_incident_routing_1")
+
+    # 15: Schedules & Phone Notifications
+    if any("schedules & phone" in n or "schedules_notifications" in n for n in wf_names):
+        active_ids.append("case_management_schedules_notifications_1")
+
+    # 16: AI Incident Handling
+    automations = client.get_category_automations("shuffle-security_incidents")
+    if any(a.get("name") == "Run AI Agent" and a.get("enabled", False) for a in automations):
+        active_ids.append("case_management_agent_ai_incident_handling_1")
+
+    return list(dict.fromkeys(active_ids))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Shuffle Security Usecase E2E API Test Runner",
@@ -841,6 +906,11 @@ def main() -> int:
         "--all",
         action="store_true",
         help="Run all 16 active usecase tests end-to-end",
+    )
+    parser.add_argument(
+        "--active-only",
+        action="store_true",
+        help="Only test usecases that are currently active/enabled on the target system (skips inactive)",
     )
     parser.add_argument(
         "--usecase",
@@ -900,6 +970,8 @@ def main() -> int:
 
     # Filter tests
     tests_to_run = ALL_TESTS
+    run_teardown = not args.no_teardown
+
     if args.usecase:
         tests_to_run = [t for t in tests_to_run if t[0] == args.usecase]
         if not tests_to_run:
@@ -907,6 +979,16 @@ def main() -> int:
             return 1
     elif args.phase:
         tests_to_run = [t for t in tests_to_run if t[2] == args.phase]
+    elif args.active_only or not args.all:
+        active_discovered = detect_active_usecases(client)
+        print(f"[INFO] Discovered {len(active_discovered)} active usecase(s) in target environment:")
+        for aid in active_discovered:
+            print(f"       - {aid}")
+        if not active_discovered:
+            print("[INFO] No active usecases currently enabled on target environment. Pass --all to generate and test all 16 usecases end-to-end.")
+            return 0
+        tests_to_run = [t for t in ALL_TESTS if t[0] in active_discovered]
+        run_teardown = False  # preserve existing active setup by default
 
     print(f"  Executing:  {len(tests_to_run)} test(s)\n")
 
@@ -914,7 +996,7 @@ def main() -> int:
     for uid, name, phase, test_fn in tests_to_run:
         print(f"[RUN ] {uid} ({name})...", end=" ", flush=True)
         try:
-            res = test_fn(client, teardown=not args.no_teardown)
+            res = test_fn(client, teardown=run_teardown)
             print(f"[{res.status}] in {res.duration}s")
             results.append(res)
         except Exception as exc:

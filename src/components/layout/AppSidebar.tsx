@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, forwardRef } from "react";
+import React, { useState, useRef, useEffect, useMemo, forwardRef, useLayoutEffect } from "react";
 import shuffleInfraLogo from "@/assets/shuffle-infrastructure-logo.png";
 import { ShuffleLogo } from "@/components/common/ShuffleLogo";
 import { useLocation, Link, useNavigate } from "@/lib/router-compat";
@@ -106,7 +106,23 @@ interface AppSidebarProps {
   onToggle: () => void;
 }
 
-// Sort orgs with parent-child hierarchy
+export interface TenantOption {
+  id: string;
+  name: string;
+  creator_org?: string;
+  region_url?: string;
+  level: number;
+  region: {
+    flag: string;
+    code: string;
+    known?: boolean;
+  };
+}
+
+const TENANT_ITEM_HEIGHT = 36;
+const MAX_TENANT_LISTBOX_HEIGHT = 260;
+
+// Sort orgs with parent-child hierarchy and pre-enrich with region and nesting level
 const sortOrgsWithHierarchy = (
   orgs: Array<{
     id: string;
@@ -114,9 +130,9 @@ const sortOrgsWithHierarchy = (
     creator_org?: string;
     region_url?: string;
   }>,
-) => {
+): TenantOption[] => {
   const orgMap = new Map(orgs.map((org) => [org.id, org]));
-  const result: Array<{ org: (typeof orgs)[0]; level: number }> = [];
+  const result: TenantOption[] = [];
   const processed = new Set<string>();
 
   // Find root orgs (no creator_org or creator_org not in list)
@@ -127,7 +143,14 @@ const sortOrgsWithHierarchy = (
   const addOrgWithChildren = (org: (typeof orgs)[0], level: number) => {
     if (processed.has(org.id)) return;
     processed.add(org.id);
-    result.push({ org, level });
+    result.push({
+      id: org.id,
+      name: org.name,
+      creator_org: org.creator_org,
+      region_url: org.region_url,
+      level,
+      region: getRegionFlag(org.region_url),
+    });
 
     // Find children
     const children = orgs.filter((o) => o.creator_org === org.id);
@@ -142,12 +165,130 @@ const sortOrgsWithHierarchy = (
   // Add any remaining orgs that weren't processed (orphans with missing parents)
   orgs.forEach((org) => {
     if (!processed.has(org.id)) {
-      result.push({ org, level: 1 }); // Treat as sub-org level
+      result.push({
+        id: org.id,
+        name: org.name,
+        creator_org: org.creator_org,
+        region_url: org.region_url,
+        level: 1, // Treat as sub-org level
+        region: getRegionFlag(org.region_url),
+      });
     }
   });
 
   return result;
 };
+
+interface TenantListboxProps extends React.HTMLAttributes<HTMLElement> {
+  selectedIndex?: number;
+  onContainerMount?: (node: HTMLDivElement | null) => void;
+}
+
+const TenantListbox = forwardRef<HTMLDivElement, TenantListboxProps>((props, ref) => {
+  const { children, selectedIndex, onContainerMount, ...other } = props;
+  const items = React.Children.toArray(children);
+  const itemCount = items.length;
+  const [scrollTop, setScrollTop] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // If item count is small (<= 20), render directly without virtualization
+  const shouldVirtualize = itemCount > 20;
+
+  // On mount, position scroll to center the active tenant without forced layout reflows
+  useLayoutEffect(() => {
+    if (scrollContainerRef.current && typeof selectedIndex === "number" && selectedIndex > 0) {
+      const centerOffset = Math.floor(MAX_TENANT_LISTBOX_HEIGHT / 2 - TENANT_ITEM_HEIGHT / 2);
+      const targetScroll = Math.max(0, selectedIndex * TENANT_ITEM_HEIGHT - centerOffset);
+      scrollContainerRef.current.scrollTop = targetScroll;
+      setScrollTop(targetScroll);
+    }
+  }, [selectedIndex]);
+
+  if (!shouldVirtualize) {
+    return (
+      <ul
+        ref={ref as unknown as React.Ref<HTMLUListElement>}
+        {...other}
+        role="listbox"
+        style={{
+          maxHeight: MAX_TENANT_LISTBOX_HEIGHT,
+          overflowY: "auto",
+          margin: 0,
+          padding: 0,
+          listStyle: "none",
+          WebkitOverflowScrolling: "touch",
+          ...(other.style || {}),
+        }}
+      >
+        {children}
+      </ul>
+    );
+  }
+
+  const containerHeight = Math.min(itemCount * TENANT_ITEM_HEIGHT, MAX_TENANT_LISTBOX_HEIGHT);
+  const maxScroll = Math.max(0, itemCount * TENANT_ITEM_HEIGHT - containerHeight);
+  const effectiveScrollTop = Math.min(scrollTop, maxScroll);
+
+  // 6 items buffer above and below to prevent blank items while fast scrolling
+  const startIndex = Math.max(0, Math.floor(effectiveScrollTop / TENANT_ITEM_HEIGHT) - 6);
+  const endIndex = Math.min(itemCount, Math.ceil((effectiveScrollTop + containerHeight) / TENANT_ITEM_HEIGHT) + 6);
+  const visibleItems = items.slice(startIndex, endIndex);
+
+  return (
+    <div
+      ref={(node) => {
+        scrollContainerRef.current = node;
+        if (typeof ref === "function") {
+          ref(node);
+        } else if (ref) {
+          (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+        }
+        if (onContainerMount) {
+          onContainerMount(node);
+        }
+      }}
+      {...other}
+      role="listbox"
+      tabIndex={-1}
+      onScroll={(e) => {
+        setScrollTop(e.currentTarget.scrollTop);
+        other.onScroll?.(e);
+      }}
+      style={{
+        maxHeight: MAX_TENANT_LISTBOX_HEIGHT,
+        overflowY: "auto",
+        position: "relative",
+        WebkitOverflowScrolling: "touch",
+        ...(other.style || {}),
+      }}
+    >
+      <div
+        role="presentation"
+        style={{
+          height: itemCount * TENANT_ITEM_HEIGHT,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        <ul
+          role="presentation"
+          style={{
+            position: "absolute",
+            top: startIndex * TENANT_ITEM_HEIGHT,
+            left: 0,
+            right: 0,
+            margin: 0,
+            padding: 0,
+            listStyle: "none",
+          }}
+        >
+          {visibleItems}
+        </ul>
+      </div>
+    </div>
+  );
+});
+TenantListbox.displayName = "TenantListbox";
 
 const TenantAutocompletePaper = forwardRef<
   HTMLDivElement,
@@ -169,21 +310,28 @@ const TenantAutocompletePaper = forwardRef<
         display: "flex",
         flexDirection: "column",
         boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
+        "& .MuiAutocomplete-listbox": {
+          padding: 0,
+        },
+        "& .tenant-option-row": {
+          transition: "background-color 0.1s ease",
+          "&:hover": {
+            backgroundColor: "hsl(var(--muted)) !important",
+          },
+          "&.is-current:hover": {
+            backgroundColor: "rgba(255, 102, 0, 0.18) !important",
+          },
+          "&.Mui-focused": {
+            backgroundColor: "hsl(var(--muted)) !important",
+          },
+          "&.is-current.Mui-focused": {
+            backgroundColor: "rgba(255, 102, 0, 0.18) !important",
+          },
+        },
         ...((other as { sx?: object }).sx || {}),
       }}
     >
-      <Box
-        sx={{
-          maxHeight: 260,
-          overflowY: "auto",
-          "& .MuiAutocomplete-listbox": {
-            padding: 0,
-            maxHeight: "none",
-          },
-        }}
-      >
-        {children}
-      </Box>
+      {children}
       <Divider sx={{ borderColor: "hsl(var(--border))" }} />
       <Box sx={{ p: 0.75 }}>
         <Button
@@ -460,8 +608,20 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
       })),
     [userInfo?.orgs, regionUrlByOrgId],
   );
-  const sortedOrgs = sortOrgsWithHierarchy(organizations);
+  const sortedOrgs = useMemo(
+    () => sortOrgsWithHierarchy(organizations),
+    [organizations],
+  );
   const selectedOrg = userInfo?.active_org || organizations[0];
+  const selectedOrgOption = useMemo(
+    () => sortedOrgs.find((item) => item.id === selectedOrg?.id) || sortedOrgs[0] || null,
+    [sortedOrgs, selectedOrg?.id],
+  );
+  const selectedOrgIndex = useMemo(
+    () => sortedOrgs.findIndex((item) => item.id === selectedOrg?.id),
+    [sortedOrgs, selectedOrg?.id],
+  );
+  const listboxScrollRef = useRef<HTMLDivElement | null>(null);
   const [orgSelectOpen, setOrgSelectOpen] = useState(false);
 
   // Portaled menus sit outside the sidebar, so closing one does not cause a
@@ -680,38 +840,26 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
             minHeight: 64,
           }}
         >
-          <Box
-            onClick={(e) =>
-              !visuallyCollapsed && setToolMenuAnchor(e.currentTarget)
-            }
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1.5,
-              flexShrink: 0,
-              cursor: visuallyCollapsed ? "default" : "pointer",
-              borderRadius: 1,
-              "&:hover": {
-                opacity: 0.8,
-              },
-            }}
-          >
-            <ShuffleLogo size={32} color={primaryColor} />
-            {!visuallyCollapsed && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
-                  {brandName ? (
-                    <Typography
-                      sx={{
-                        color: primaryColor,
-                        fontWeight: 600,
-                        fontSize: "1rem",
-                      }}
-                    >
-                      {brandName}
-                    </Typography>
-                  ) : (
-                    <>
+          <Tooltip title="Switch Product" placement="bottom-start">
+            <Box
+              onClick={(e) => setToolMenuAnchor(e.currentTarget)}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                flexShrink: 0,
+                cursor: "pointer",
+                borderRadius: 1,
+                "&:hover": {
+                  opacity: 0.8,
+                },
+              }}
+            >
+              <ShuffleLogo size={32} color={primaryColor} />
+              {!visuallyCollapsed && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
+                    {brandName ? (
                       <Typography
                         sx={{
                           color: primaryColor,
@@ -719,30 +867,42 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                           fontSize: "1rem",
                         }}
                       >
-                        Shuffle
+                        {brandName}
                       </Typography>
-                      <Typography
-                        sx={{
-                          color: "hsl(var(--foreground))",
-                          fontWeight: 600,
-                          fontSize: "1rem",
-                        }}
-                      >
-                        Security
-                      </Typography>
-                    </>
-                  )}
+                    ) : (
+                      <>
+                        <Typography
+                          sx={{
+                            color: primaryColor,
+                            fontWeight: 600,
+                            fontSize: "1rem",
+                          }}
+                        >
+                          Shuffle
+                        </Typography>
+                        <Typography
+                          sx={{
+                            color: "hsl(var(--foreground))",
+                            fontWeight: 600,
+                            fontSize: "1rem",
+                          }}
+                        >
+                          Security
+                        </Typography>
+                      </>
+                    )}
+                  </Box>
+                  <ExpandMore
+                    size={16}
+                    style={{
+                      color: "hsl(var(--muted-foreground))",
+                      marginLeft: "4px",
+                    }}
+                  />
                 </Box>
-                <ExpandMore
-                  size={16}
-                  style={{
-                    color: "hsl(var(--muted-foreground))",
-                    marginLeft: "4px",
-                  }}
-                />
-              </Box>
-            )}
-          </Box>
+              )}
+            </Box>
+          </Tooltip>
           <Menu
             anchorEl={toolMenuAnchor}
             open={Boolean(toolMenuAnchor)}
@@ -1304,64 +1464,70 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
             <Box sx={{ p: 2 }}>
               <Autocomplete
                 open={orgSelectOpen && !visuallyCollapsed}
+                openOnFocus
                 onOpen={() => {
                   if (visuallyCollapsed) return;
                   setOrgSelectOpen(true);
-                  // Scroll the currently-selected tenant into the middle of the
-                  // listbox so users in deeply-nested child tenants don't have
-                  // to hunt from the top of an alphabetised list.
-                  requestAnimationFrame(() => {
-                    // The listbox is portaled into a popper outside the sidebar.
-                    const listboxes = document.querySelectorAll<HTMLElement>(
-                      ".MuiAutocomplete-listbox",
-                    );
-                    const listbox = listboxes[listboxes.length - 1];
-                    if (!listbox) return;
-                    const selected = listbox.querySelector<HTMLElement>(
-                      'li[aria-selected="true"]',
-                    );
-                    if (selected) {
-                      selected.scrollIntoView({ block: "center" });
-                    }
-                  });
                 }}
                 onClose={() => {
                   setOrgSelectOpen(false);
                 }}
-                value={selectedOrg}
+                value={selectedOrgOption}
                 onChange={(_, newValue) => handleOrgChange(newValue)}
-                options={sortedOrgs.map((item) => item.org)}
-                getOptionLabel={(option) => option.name}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
+                options={sortedOrgs}
+                getOptionLabel={(option) => option.name || ""}
+                isOptionEqualToValue={(option, value) => option.id === value?.id}
                 size="small"
                 disableClearable
+                disableListWrap
                 PaperComponent={TenantAutocompletePaper}
+                ListboxComponent={TenantListbox}
+                onHighlightChange={(_, option, reason) => {
+                  if (reason === "keyboard" && option && listboxScrollRef.current) {
+                    const idx = sortedOrgs.findIndex((o) => o.id === option.id);
+                    if (idx >= 0) {
+                      const targetTop = idx * TENANT_ITEM_HEIGHT;
+                      const targetBottom = targetTop + TENANT_ITEM_HEIGHT;
+                      const container = listboxScrollRef.current;
+                      if (targetBottom > container.scrollTop + MAX_TENANT_LISTBOX_HEIGHT) {
+                        container.scrollTop = targetBottom - MAX_TENANT_LISTBOX_HEIGHT;
+                      } else if (targetTop < container.scrollTop) {
+                        container.scrollTop = targetTop;
+                      }
+                    }
+                  }
+                }}
                 slotProps={{
                   paper: {
                     onMouseEnter: handleMouseEnter,
                     onMouseLeave: handleMouseLeave,
                   },
+                  listbox: {
+                    selectedIndex: selectedOrgIndex,
+                    onContainerMount: (node: HTMLDivElement | null) => {
+                      listboxScrollRef.current = node;
+                    },
+                  } as any,
                 }}
                 renderInput={(params) => {
-                  // Find the full org data from the list to get region_url
-                  const fullOrgData = organizations.find(
-                    (org) => org.id === selectedOrg?.id,
-                  );
-                  const region = getRegionFlag(
-                    fullOrgData?.region_url || selectedOrg?.region_url,
-                  );
+                  const region = selectedOrgOption?.region || getRegionFlag(selectedOrg?.region_url);
                   return (
                     <TextField
                       {...params}
                       placeholder="Select tenant"
+                      onClick={() => {
+                        if (!visuallyCollapsed && !orgSelectOpen) {
+                          setOrgSelectOpen(true);
+                        }
+                      }}
                       slotProps={{
                         input: {
                           ...params.InputProps,
-                          startAdornment: selectedOrg ? (
+                          startAdornment: selectedOrgOption ? (
                             <Tooltip
                               title={
                                 !region.code
-                                  ? `Region URL: ${fullOrgData?.region_url || selectedOrg?.region_url || "none"}`
+                                  ? `Region URL: ${selectedOrgOption.region_url || "none"}`
                                   : region.code
                               }
                               placement="bottom"
@@ -1396,6 +1562,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                           backgroundColor: "hsl(var(--muted))",
                           borderRadius: 1,
                           fontSize: "0.875rem",
+                          cursor: "pointer",
                           "& fieldset": {
                             borderColor: "transparent",
                           },
@@ -1408,96 +1575,81 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                         },
                         "& .MuiInputBase-input": {
                           color: "hsl(var(--foreground))",
+                          cursor: "pointer",
                         },
                       }}
                     />
                   );
                 }}
                 renderOption={(props, option) => {
-                  const sortedItem = sortedOrgs.find(
-                    (item) => item.org.id === option.id,
-                  );
-                  const level = sortedItem?.level || 0;
-                  const region = getRegionFlag(option.region_url);
                   const { key, ...restProps } = props;
                   const isCurrentOrg = option.id === selectedOrg?.id;
+                  const { level, region } = option;
 
                   return (
-                    <Box
-                      component="li"
-                      key={option.id}
+                    <li
+                      key={key || option.id}
                       {...restProps}
-                      sx={{
+                      style={{
+                        paddingLeft: `${16 + level * 16}px`,
+                        paddingTop: "6px",
+                        paddingBottom: "6px",
+                        paddingRight: "12px",
                         fontSize: "0.875rem",
-                        color: isCurrentOrg
-                          ? "hsl(var(--primary))"
-                          : "hsl(var(--foreground))",
-                        backgroundColor: isCurrentOrg
-                          ? "rgba(255, 102, 0, 0.1)"
-                          : "hsl(var(--card))",
-                        pl: `${16 + level * 16}px !important`,
-                        py: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        cursor: "pointer",
                         borderLeft: isCurrentOrg
                           ? "2px solid hsl(var(--primary))"
                           : "2px solid transparent",
-                        "&:hover": {
-                          backgroundColor: isCurrentOrg
-                            ? "rgba(255, 102, 0, 0.15) !important"
-                            : "hsl(var(--muted)) !important",
-                        },
-                        "&.Mui-focused": {
-                          backgroundColor: isCurrentOrg
-                            ? "rgba(255, 102, 0, 0.15) !important"
-                            : "hsl(var(--muted)) !important",
-                        },
+                        backgroundColor: isCurrentOrg
+                          ? "rgba(255, 102, 0, 0.1)"
+                          : "transparent",
+                        color: isCurrentOrg
+                          ? "hsl(var(--primary))"
+                          : "hsl(var(--foreground))",
+                        fontWeight: isCurrentOrg ? 600 : 400,
+                        boxSizing: "border-box",
+                        minHeight: `${TENANT_ITEM_HEIGHT}px`,
                       }}
+                      className={`tenant-option-row ${isCurrentOrg ? "is-current" : ""}`}
+                      title={!region.code ? `Region URL: ${option.region_url || "none"}` : undefined}
                     >
-                      <Box
-                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          flexShrink: 0,
+                          cursor: !region.code ? "help" : "inherit",
+                        }}
                       >
-                        <Tooltip
-                          title={
-                            !region.code
-                              ? `Region URL: ${option.region_url || "none"}`
-                              : ""
-                          }
-                          placement="left"
-                        >
-                          <Box
-                            sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 0.5,
-                              cursor: !region.code ? "help" : "default",
-                            }}
-                          >
-                            <span style={{ fontSize: "14px" }}>
-                              {region.flag}
-                            </span>
-                            <Typography
-                              sx={{
-                                fontSize: "0.75rem",
-                                color: "hsl(var(--muted-foreground))",
-                                minWidth: 28,
-                              }}
-                            >
-                              {region.code || "?"}
-                            </Typography>
-                          </Box>
-                        </Tooltip>
-                        <Typography
-                          sx={{
-                            fontSize: "0.875rem",
-                            fontWeight: isCurrentOrg ? 600 : 400,
-                            color: isCurrentOrg
-                              ? "hsl(var(--primary))"
-                              : "inherit",
+                        <span style={{ fontSize: "14px", lineHeight: 1 }}>
+                          {region.flag}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "hsl(var(--muted-foreground))",
+                            minWidth: "24px",
+                            fontFamily: "monospace",
                           }}
                         >
-                          {option.name}
-                        </Typography>
-                      </Box>
-                    </Box>
+                          {region.code || "?"}
+                        </span>
+                      </span>
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          flexGrow: 1,
+                        }}
+                      >
+                        {option.name}
+                      </span>
+                    </li>
                   );
                 }}
               />

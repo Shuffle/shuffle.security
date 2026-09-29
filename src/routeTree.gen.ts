@@ -16,6 +16,8 @@ import { Route as OnboardingRouteImport } from './routes/_onboarding'
 import { Route as AdminsetupRouteImport } from './routes/adminsetup'
 import { Route as AppsRouteImport } from './routes/apps'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as Login_openidRouteImport } from './routes/login_openid'
+import { Route as Login_ssoRouteImport } from './routes/login_sso'
 import { Route as MobileLoginRouteImport } from './routes/mobile-login'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterRouteImport } from './routes/register'
@@ -40,6 +42,8 @@ import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
 import { Route as LegalIndexRouteImport } from './routes/legal.index'
 import { Route as LegalSlugRouteImport } from './routes/legal.$slug'
+import { Route as LoginOpenidRouteImport } from './routes/login.openid'
+import { Route as LoginSsoRouteImport } from './routes/login.sso'
 import { Route as Oauth2AuthorizeRouteImport } from './routes/oauth2.authorize'
 import { Route as PasswordresetKeyRouteImport } from './routes/passwordreset.$key'
 import { Route as CondAppsAppnameRouteImport } from './routes/_cond.apps.$appname'
@@ -134,6 +138,16 @@ const AppsRoute = AppsRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Login_openidRoute = Login_openidRouteImport.update({
+  id: '/login_openid',
+  path: '/login_openid',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Login_ssoRoute = Login_ssoRouteImport.update({
+  id: '/login_sso',
+  path: '/login_sso',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MobileLoginRoute = MobileLoginRouteImport.update({
@@ -255,6 +269,16 @@ const LegalSlugRoute = LegalSlugRouteImport.update({
   id: '/legal/$slug',
   path: '/legal/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const LoginOpenidRoute = LoginOpenidRouteImport.update({
+  id: '/openid',
+  path: '/openid',
+  getParentRoute: () => LoginRoute,
+} as any)
+const LoginSsoRoute = LoginSsoRouteImport.update({
+  id: '/sso',
+  path: '/sso',
+  getParentRoute: () => LoginRoute,
 } as any)
 const Oauth2AuthorizeRoute = Oauth2AuthorizeRouteImport.update({
   id: '/oauth2/authorize',
@@ -594,6 +618,8 @@ export interface FileRoutesByFullPath {
   '/adminsetup': typeof AdminsetupRoute
   '/apps': typeof AppsRoute
   '/login': typeof LoginRouteWithChildren
+  '/login_openid': typeof Login_openidRoute
+  '/login_sso': typeof Login_ssoRoute
   '/mobile-login': typeof MobileLoginRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -614,6 +640,8 @@ export interface FileRoutesByFullPath {
   '/blog/$name': typeof BlogNameRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
+  '/login/openid': typeof LoginOpenidRoute
+  '/login/sso': typeof LoginSsoRoute
   '/oauth2/authorize': typeof Oauth2AuthorizeRoute
   '/passwordreset/$key': typeof PasswordresetKeyRoute
   '/articles/': typeof ArticlesIndexRoute
@@ -687,6 +715,8 @@ export interface FileRoutesByTo {
   '/adminsetup': typeof AdminsetupRoute
   '/apps': typeof AppsRoute
   '/login': typeof LoginRouteWithChildren
+  '/login_openid': typeof Login_openidRoute
+  '/login_sso': typeof Login_ssoRoute
   '/mobile-login': typeof MobileLoginRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -707,6 +737,8 @@ export interface FileRoutesByTo {
   '/blog/$name': typeof BlogNameRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
+  '/login/openid': typeof LoginOpenidRoute
+  '/login/sso': typeof LoginSsoRoute
   '/oauth2/authorize': typeof Oauth2AuthorizeRoute
   '/passwordreset/$key': typeof PasswordresetKeyRoute
   '/articles': typeof ArticlesIndexRoute
@@ -784,6 +816,8 @@ export interface FileRoutesById {
   '/adminsetup': typeof AdminsetupRoute
   '/apps': typeof AppsRoute
   '/login': typeof LoginRouteWithChildren
+  '/login_openid': typeof Login_openidRoute
+  '/login_sso': typeof Login_ssoRoute
   '/mobile-login': typeof MobileLoginRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -804,6 +838,8 @@ export interface FileRoutesById {
   '/blog/$name': typeof BlogNameRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
+  '/login/openid': typeof LoginOpenidRoute
+  '/login/sso': typeof LoginSsoRoute
   '/oauth2/authorize': typeof Oauth2AuthorizeRoute
   '/passwordreset/$key': typeof PasswordresetKeyRoute
   '/articles/': typeof ArticlesIndexRoute
@@ -879,6 +915,8 @@ export interface FileRouteTypes {
     | '/adminsetup'
     | '/apps'
     | '/login'
+    | '/login_openid'
+    | '/login_sso'
     | '/mobile-login'
     | '/pricing'
     | '/register'
@@ -899,6 +937,8 @@ export interface FileRouteTypes {
     | '/blog/$name'
     | '/docs/$slug'
     | '/legal/$slug'
+    | '/login/openid'
+    | '/login/sso'
     | '/oauth2/authorize'
     | '/passwordreset/$key'
     | '/articles/'
@@ -972,6 +1012,8 @@ export interface FileRouteTypes {
     | '/adminsetup'
     | '/apps'
     | '/login'
+    | '/login_openid'
+    | '/login_sso'
     | '/mobile-login'
     | '/pricing'
     | '/register'
@@ -992,6 +1034,8 @@ export interface FileRouteTypes {
     | '/blog/$name'
     | '/docs/$slug'
     | '/legal/$slug'
+    | '/login/openid'
+    | '/login/sso'
     | '/oauth2/authorize'
     | '/passwordreset/$key'
     | '/articles'
@@ -1068,6 +1112,8 @@ export interface FileRouteTypes {
     | '/adminsetup'
     | '/apps'
     | '/login'
+    | '/login_openid'
+    | '/login_sso'
     | '/mobile-login'
     | '/pricing'
     | '/register'
@@ -1088,6 +1134,8 @@ export interface FileRouteTypes {
     | '/blog/$name'
     | '/docs/$slug'
     | '/legal/$slug'
+    | '/login/openid'
+    | '/login/sso'
     | '/oauth2/authorize'
     | '/passwordreset/$key'
     | '/articles/'
@@ -1165,6 +1213,8 @@ export interface RootRouteChildren {
   AdminsetupRoute: typeof AdminsetupRoute
   AppsRoute: typeof AppsRoute
   LoginRoute: typeof LoginRouteWithChildren
+  Login_openidRoute: typeof Login_openidRoute
+  Login_ssoRoute: typeof Login_ssoRoute
   MobileLoginRoute: typeof MobileLoginRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
@@ -1233,6 +1283,20 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login_openid': {
+      id: '/login_openid'
+      path: '/login_openid'
+      fullPath: '/login_openid'
+      preLoaderRoute: typeof Login_openidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login_sso': {
+      id: '/login_sso'
+      path: '/login_sso'
+      fullPath: '/login_sso'
+      preLoaderRoute: typeof Login_ssoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mobile-login': {
@@ -1402,6 +1466,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/legal/$slug'
       preLoaderRoute: typeof LegalSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/login/openid': {
+      id: '/login/openid'
+      path: '/openid'
+      fullPath: '/login/openid'
+      preLoaderRoute: typeof LoginOpenidRouteImport
+      parentRoute: typeof LoginRoute
+    }
+    '/login/sso': {
+      id: '/login/sso'
+      path: '/sso'
+      fullPath: '/login/sso'
+      preLoaderRoute: typeof LoginSsoRouteImport
+      parentRoute: typeof LoginRoute
     }
     '/oauth2/authorize': {
       id: '/oauth2/authorize'
@@ -2012,10 +2090,14 @@ const OnboardingRouteWithChildren = OnboardingRoute._addFileChildren(
 )
 
 interface LoginRouteChildren {
+  LoginOpenidRoute: typeof LoginOpenidRoute
+  LoginSsoRoute: typeof LoginSsoRoute
   LoginUrlMfaSetupRoute: typeof LoginUrlMfaSetupRoute
 }
 
 const LoginRouteChildren: LoginRouteChildren = {
+  LoginOpenidRoute: LoginOpenidRoute,
+  LoginSsoRoute: LoginSsoRoute,
   LoginUrlMfaSetupRoute: LoginUrlMfaSetupRoute,
 }
 
@@ -2029,6 +2111,8 @@ const rootRouteChildren: RootRouteChildren = {
   AdminsetupRoute: AdminsetupRoute,
   AppsRoute: AppsRoute,
   LoginRoute: LoginRouteWithChildren,
+  Login_openidRoute: Login_openidRoute,
+  Login_ssoRoute: Login_ssoRoute,
   MobileLoginRoute: MobileLoginRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,

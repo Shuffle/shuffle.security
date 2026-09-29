@@ -9,8 +9,8 @@
 // CSS custom properties. Host overrides still win (defaults use :where(:root),
 // specificity 0).
 import './shuffle-mcp.css';
-import '@/Shuffle-Core/uuid';
-import '@/Shuffle-MCPs/clipboard';
+export { safeRandomUUID, uuid, installCryptoRandomUuidPolyfill } from '@/Shuffle-Core/uuid';
+export { copyToClipboard, fallbackCopyToClipboard, installClipboardPolyfill } from '@/Shuffle-MCPs/clipboard';
 import '@/lib/browser-shims';
 import React from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';

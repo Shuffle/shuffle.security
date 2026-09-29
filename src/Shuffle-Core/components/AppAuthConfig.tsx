@@ -1245,7 +1245,7 @@ export const AppAuthCard = ({
     
     // Validate all current credentials
     for (const [key, value] of Object.entries(localCredentials)) {
-      const error = validateField(key, value);
+      const error = validateField(key, typeof value === 'string' ? value : String(value ?? ''));
       if (error) return false;
     }
 

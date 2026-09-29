@@ -21,7 +21,8 @@
       "@/Shuffle-MCPs": ["Shuffle-MCPs/index.ts"],
       "@/Shuffle-MCPs/*": ["Shuffle-MCPs/*"],
       "@/assets/*": ["assets/*"],
-      "@/lib/*": ["lib/*"]
+      "@/lib/*": ["lib/*"],
+      "*": ["Shuffle-MCPs/node_modules/*", "Shuffle-Core/node_modules/*", "*"]
     }
   },
   "include": ["index.ts", "assets.d.ts", "../Shuffle-Core/lib-app-shims.d.ts", "**/*.tsx", "**/*.ts"],

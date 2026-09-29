@@ -3245,8 +3245,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
     for (const a of chosenApps) add(a);
     for (const a of executionApps) add(a);
     for (const [k, v] of Object.entries(resolvedToolApps)) {
-      if (!m[k] || (!m[k].icon && v.icon)) m[k] = v;
-      add(v);
+      const app = v as AgentUIApp;
+      if (!m[k] || (!m[k].icon && app.icon)) m[k] = app;
+      add(app);
     }
     return m;
   }, [chosenApps, executionApps, resolvedToolApps]);
@@ -6570,7 +6571,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
                   const items = e.clipboardData?.items;
                   if (!items) return;
                   const files: File[] = [];
-                  for (const item of Array.from(items)) {
+                  for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
                     if (item.kind === 'file' && item.type.startsWith('image/')) {
                       const file = item.getAsFile();
                       if (file) files.push(file);

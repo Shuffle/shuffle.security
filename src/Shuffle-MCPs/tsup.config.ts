@@ -148,6 +148,11 @@ export default defineConfig({
   injectStyle: false,
   esbuildOptions(options) {
     options.platform = 'browser';
+    options.nodePaths = [
+      path.resolve(__dirname, 'node_modules'),
+      path.resolve(__dirname, '../Shuffle-Core/node_modules'),
+      ...(options.nodePaths || []),
+    ];
     options.alias = {
       ...(options.alias || {}),
       '@/Shuffle-MCPs': path.resolve(__dirname, '.'),

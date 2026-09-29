@@ -897,7 +897,7 @@ const LocalLLMConfig = ({ compact, globalUrl, userdata, isLoaded, isLoggedIn, se
                 {...params}
                 placeholder="Search a provider…"
                 InputProps={{
-                  ...params.InputProps,
+                  ...(params as any).InputProps,
                   startAdornment: effectivePreset ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', pl: 0.5, mr: 0.5 }}>
                       <ProviderLogo label={effectivePreset} url={preset?.url} />

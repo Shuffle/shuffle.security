@@ -75,8 +75,16 @@ jobs:
         working-directory: src/Shuffle-MCPs
         run: npm install --no-package-lock
 
+      - name: Link node_modules to workspace root and sibling packages
+        run: |
+          ln -sfn "${{ github.workspace }}/src/Shuffle-MCPs/node_modules" "${{ github.workspace }}/node_modules"
+          mkdir -p "${{ github.workspace }}/src/Shuffle-Core"
+          ln -sfn "${{ github.workspace }}/src/Shuffle-MCPs/node_modules" "${{ github.workspace }}/src/Shuffle-Core/node_modules"
+
       - name: Build library
         working-directory: src/Shuffle-MCPs
+        env:
+          NODE_PATH: ${{ github.workspace }}/src/Shuffle-MCPs/node_modules
         run: npm run build
 
       - name: Pack

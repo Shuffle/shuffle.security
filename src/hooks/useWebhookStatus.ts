@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWorkflows } from './useWorkflows';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { findIngestTicketsWorkflow, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
 
 export interface WebhookStatus {
   /** Whether the webhook workflow exists */
@@ -9,6 +10,8 @@ export interface WebhookStatus {
   enabled: boolean;
   /** The webhook URL (null if not found) */
   url: string | null;
+  /** Whether the Ingest Tickets workflow has at least one source app */
+  hasSources: boolean;
   /** Whether the workflows query is still loading */
   isLoading: boolean;
   /** Enable the webhook (creates/starts it) */
@@ -28,7 +31,14 @@ export const useWebhookStatus = (): WebhookStatus => {
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
   const optimisticTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const webhookWorkflow = workflows?.find((w) => w.name === 'Ingestion Webhook');
+  // Same matching as the Ingest row so both views agree on what is enabled.
+  const webhookWorkflow = workflows?.find((w: any) => {
+    const name = (w?.name || '').toLowerCase().trim();
+    if (name === 'ingestion webhook') return true;
+    return name.includes('ingest') && name.includes('webhook') && !name.includes('vulnerab');
+  });
+  const ingestWorkflow = workflows ? findIngestTicketsWorkflow(workflows as any[]) : null;
+  const hasSources = ingestWorkflow ? extractWorkflowAppNames(ingestWorkflow).size > 0 : false;
 
   let url: string | null = null;
   let trueEnabled = false;
@@ -129,6 +139,7 @@ export const useWebhookStatus = (): WebhookStatus => {
 
   return {
     exists: !!webhookWorkflow,
+    hasSources,
     enabled,
     url,
     isLoading,

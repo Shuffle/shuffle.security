@@ -88,6 +88,17 @@ export default defineConfig({
       },
     },
     {
+      name: 'resolve-optional-shims',
+      setup(build) {
+        build.onResolve({ filter: /^@capacitor\// }, () => ({
+          path: path.resolve(__dirname, 'shims/capacitor-shim.ts'),
+        }));
+        build.onResolve({ filter: /^firebase\// }, () => ({
+          path: path.resolve(__dirname, 'shims/firebase-shim.ts'),
+        }));
+      },
+    },
+    {
       name: 'resolve-at-alias',
       setup(build) {
         build.onResolve({ filter: /^@\// }, (args) => {
@@ -136,6 +147,7 @@ export default defineConfig({
   },
   injectStyle: false,
   esbuildOptions(options) {
+    options.platform = 'browser';
     options.alias = {
       ...(options.alias || {}),
       '@/Shuffle-MCPs': path.resolve(__dirname, '.'),

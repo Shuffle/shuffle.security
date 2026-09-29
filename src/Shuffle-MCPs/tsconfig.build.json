@@ -15,13 +15,15 @@
     "lib": ["DOM", "DOM.Iterable", "ES2020"],
     "baseUrl": "..",
     "paths": {
+      "@/*": ["*"],
       "@/Shuffle-MCPs": ["Shuffle-MCPs/index.ts"],
       "@/Shuffle-MCPs/*": ["Shuffle-MCPs/*"],
+      "@/Shuffle-Core": ["Shuffle-Core/index.tsx", "Shuffle-Core/index.ts"],
       "@/Shuffle-Core/*": ["Shuffle-Core/*"],
       "@/assets/*": ["assets/*"],
       "@/lib/*": ["lib/*"]
     }
   },
-  "include": ["index.ts", "ShuffleMCP.tsx", "AppDetailDrawer.tsx", "shuffle-mcp.helpers.ts", "assets.d.ts", "**/*.tsx", "**/*.ts"],
+  "include": ["index.ts", "ShuffleMCP.tsx", "AppDetailDrawer.tsx", "shuffle-mcp.helpers.ts", "assets.d.ts", "../Shuffle-Core/lib-app-shims.d.ts", "**/*.tsx", "**/*.ts"],
   "exclude": ["dist", "node_modules", "tsup.config.ts"]
 }

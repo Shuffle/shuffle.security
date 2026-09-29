@@ -3435,8 +3435,17 @@ const AgentUI: React.FC<AgentUIProps> = ({
         // its answer purely from this list, so an entry with validation.valid
         // === false must NOT be counted as authenticated, otherwise the
         // "Missing Auth: <tool>" warning never renders for expired keys.
-        const valid = entry?.active || entry?.validation?.valid || entry?.hasValidAuth || app?.is_valid || app?.tested;
-        if (valid === false) continue;
+        //
+        // Every signal is checked per-field with === so a missing or positive
+        // value on one field can never override an explicit negative on
+        // another: an untested entry (tested === false) stays connected,
+        // while an expired validation (valid === false) is still excluded.
+        const explicitlyInvalid =
+          entry?.active === false ||
+          entry?.validation?.valid === false ||
+          entry?.hasValidAuth === false ||
+          app?.is_valid === false;
+        if (explicitlyInvalid) continue;
         const key = normalizeAgentAppName(name);
         if (seen.has(key)) continue;
         seen.add(key);

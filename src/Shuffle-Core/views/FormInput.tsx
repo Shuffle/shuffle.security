@@ -106,7 +106,6 @@ const FormInput = (defaultprops: any) => {
   const [workflowQuestion, setWorkflowQuestion] = useState("");
   const [selectedOrganization, setSelectedOrganization] = React.useState(undefined);
   const [apps, setApps] = React.useState([]);
-  const [buttonClicked, setButtonClicked] = React.useState("");
   const [foundSourcenode, setFoundSourcenode] = React.useState(undefined);
   const [editWorkflowModalOpen, setEditWorkflowModalOpen] = React.useState(false)
   const [sharingOpen, setSharingOpen] = React.useState(false)
@@ -1354,29 +1353,6 @@ const FormInput = (defaultprops: any) => {
 
 	//console.log("IMG: ", image, "ORG: ", selectedOrganization)
 
-	useEffect(() => {
-		if (disabledButtons || answer === undefined || answer === null || organization === "Unknown" || buttonClicked.length > 0) {
-			return
-		}
-
-		// Show rejection form for answer=false instead of auto-clicking
-		if (answer === "false") {
-			return
-		}
-
-		var buttonid = ""
-		if (answer === "true") {
-			buttonid = "continue_execution"
-		}
-
-		if (buttonid !== "") {
-			const foundButton = document.getElementById(buttonid)
-			if (foundButton !== undefined && foundButton !== null) {
-				foundButton.click()
-			}
-		}
-	}, [disabledButtons, answer, organization, buttonClicked])
-
 	const FormList = () => {
 		return (
 			<div>
@@ -1971,7 +1947,6 @@ const FormInput = (defaultprops: any) => {
 												style={{textTransform: "none", }}
 												onClick={() => {
 													setTimeout(() => {
-														setButtonClicked("ABORTED")
 														setExecutionData({
 															status: "ABORTED",
 														})
@@ -1997,7 +1972,6 @@ const FormInput = (defaultprops: any) => {
 												onClick={() => {
 													// Timeout 2500 just in case
 													setTimeout(() => {
-														setButtonClicked("FINISHED")
 														setExecutionData({
 															status: "FINISHED",
 														})
@@ -2020,7 +1994,6 @@ const FormInput = (defaultprops: any) => {
 													textTransform: "none",
 												}} onClick={() => {
 													setTimeout(() => {
-														setButtonClicked("ABORTED")
 														setExecutionData({
 															status: "ABORTED",
 														})

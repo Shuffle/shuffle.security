@@ -999,12 +999,13 @@ const FormInput = (defaultprops: any) => {
 				if (validate.valid && typeof validate.result === "string") {
 					validate.result = JSON.parse(validate.result)
 				}
+				const userInputResult = Array.isArray(validate.result) ? validate.result[0] : validate.result
 
 				console.log("Found waiting!: ", validate.result)
 
-				if (validate?.result?.information !== undefined && validate?.result?.information !== null) {
+				if (userInputResult?.information !== undefined && userInputResult?.information !== null) {
 					console.log("Success! Not checking again.")
-					setWorkflowQuestion(typeof validate?.result?.information === "string" ? validate.result.information : "")
+					setWorkflowQuestion(typeof userInputResult.information === "string" ? userInputResult.information : "")
 				} else {
 					console.log("No information found for questions?: ", validate.result)
 					if (typeof validate.result === "string" || Object.keys(validate.result).length === 2) {
@@ -1312,6 +1313,7 @@ const FormInput = (defaultprops: any) => {
 			} catch (e) {
 				console.log("Error parsing result: ", e)
 			}
+			parsedresult = Array.isArray(parsedresult) ? parsedresult[0] : parsedresult
 
 			if (result.status !== "WAITING") {
 				if (parsedresult.information !== undefined && parsedresult.information !== null && parsedresult.information.length > 0) {

@@ -11,7 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
-import { AgentsView } from '@/Shuffle-Core';
+import { AgentsView } from '@/Shuffle-MCPs';
 import PermissionsPanel from '@/components/agent/PermissionsPanel';
 import UsecasesPageRaw from '@/pages/dashboard/UsecasesPage';
 import MonitorsView from '@/Shuffle-Core/views/monitors/MonitorsView';

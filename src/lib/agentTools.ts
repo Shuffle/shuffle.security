@@ -37,7 +37,7 @@ import {
   setDatastoreItem,
   getDatastoreByCategory,
   DATASTORE_CATEGORIES,
-} from '../Shuffle-MCPs/datastore';
+} from '@/Shuffle-Core/datastore';
 
 const STORAGE_KEY = 'agent_tools_config';
 const DATASTORE_CATEGORY = DATASTORE_CATEGORIES.CONFIGURATION;

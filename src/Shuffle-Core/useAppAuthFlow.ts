@@ -8,7 +8,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { AlgoliaSearchApp } from './index';
+import type { AlgoliaSearchApp } from './shuffle-mcp.helpers';
 import type { AppAuthState, ApiAuthEntry } from './components/AppAuthConfig';
 import { getApiUrl, getAuthHeader } from './api';
 import { refreshAllIntegrationStatus } from './components/IntegrationStatus';

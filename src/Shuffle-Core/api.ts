@@ -10,7 +10,7 @@
  * If the user switches orgs, it resets to the default until getinfo is called again.
  */
 
-import { installFetchBreaker, registerProtectedOrigin } from '@/Shuffle-MCPs/fetchBreaker';
+import { installFetchBreaker, registerProtectedOrigin } from './fetchBreaker';
 
 // Install the global fetch breaker as soon as api.ts is imported. Idempotent —
 // safe to call multiple times.

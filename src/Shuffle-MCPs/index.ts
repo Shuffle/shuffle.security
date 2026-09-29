@@ -200,7 +200,7 @@ export { useAppAuth } from '@/Shuffle-Core/useAppAuth';
 export { AppDetailProvider, useAppDetail, useAppDetailOptional } from '@/Shuffle-Core/AppDetailContext';
 export { API_CONFIG, getApiUrl, getAuthHeader, isCloud, isOnprem, isCloudDomain, isShuffleCloudDomain, isShuffleSecurityBackend, mapCloudRegionUrl, shuffleFetch, setHostBaseUrl, getHostBaseUrl, setRegionUrl, resetRegionUrl, applyRegionFromPayload } from '@/Shuffle-Core/api';
 export { useSyncHostBaseUrl } from '@/Shuffle-Core/useSyncHostBaseUrl';
-export { installFetchBreaker, registerProtectedOrigin } from '@/Shuffle-MCPs/fetchBreaker';
+export { installFetchBreaker, registerProtectedOrigin } from '@/Shuffle-Core/fetchBreaker';
 export { setToastImpl, toast } from '@/Shuffle-Core/toast';
 export type {
   AlgoliaSearchApp,

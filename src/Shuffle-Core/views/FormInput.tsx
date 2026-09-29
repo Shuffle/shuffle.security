@@ -454,17 +454,21 @@ const FormInput = (defaultprops: any) => {
 		if (event !== null) {
 			event.preventDefault()
 		}
+		const isUserInputAnswer = answer !== undefined && execution_id !== undefined && authorization !== undefined
 
 		stop()
-  	    setMessage("")
+		setMessage(isUserInputAnswer ? "Question answered. You may close this window." : "")
+		setDisableButtons(isUserInputAnswer)
 		setExecutionData({})
 		setExecutionRequest({})
 		setExecutionRunning(false)
 		setExecutionInfo("")
 
-		setTimeout(() => {
-  	    	setExecutionLoading(true)
-		}, 250)
+		if (!isUserInputAnswer) {
+			setTimeout(() => {
+				setExecutionLoading(true)
+			}, 250)
+		}
 
 		var data = {
 			"execution_argument": executionArgument,
@@ -573,6 +577,8 @@ const FormInput = (defaultprops: any) => {
 					if (responseJson?.reason?.toLowerCase().includes("already clicked")) {
 						setMessage("This form has been answered. You may close this window.")
 					} else {
+						setDisableButtons(false)
+						setMessage("")
 						toast.warn(responseJson?.reason)
 					}
 				}
@@ -586,15 +592,15 @@ const FormInput = (defaultprops: any) => {
 			} else {
 				console.log("Started execution")
 
+				if (isUserInputAnswer) {
+					fetchUpdates(execution_id, authorization)
+					return
+				}
+
 				start()
 				setExecutionRunning(true);
-				if (answer !== undefined && answer !== null) {
-					console.log("Skipping start")
-				} else {
-					setExecutionRunning(true);
-					setExecutionRequest(responseJson)
-					start()
-				}
+				setExecutionRequest(responseJson)
+				start()
 
 				// If execution_id or authorization, add them to the URL.
 				// Use { replace: true } so the in-progress run does not push
@@ -613,6 +619,7 @@ const FormInput = (defaultprops: any) => {
 
 			stop()
 			setMessage("")
+			setDisableButtons(false)
 			setExecutionData({})
 			setExecutionInfo("")
 

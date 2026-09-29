@@ -427,6 +427,7 @@ import {
   type ActiveIncidentPromptContext,
 } from "@/lib/incidentPromptContext";
 import { useScheduleAgentRun } from "@/hooks/useScheduleAgentRun";
+import { tenantApiUrl, registerTenantRegions } from "@/lib/tenantApiUrl";
 
 // Transport failures (circuit-breaker 503s, flaky tunnels) are not the same as
 // a missing incident. Keep retrying quietly for ~30s before showing anything

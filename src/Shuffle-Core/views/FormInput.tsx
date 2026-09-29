@@ -463,9 +463,7 @@ const FormInput = (defaultprops: any) => {
 		setExecutionRunning(false)
 		setExecutionInfo("")
 
-		setTimeout(() => {
-  	    	setExecutionLoading(true)
-		}, 250)
+		setExecutionLoading(true)
 
 		var data = {
 			"execution_argument": executionArgument,
@@ -587,10 +585,13 @@ const FormInput = (defaultprops: any) => {
 			} else {
 				console.log("Started execution")
 
-				start()
-				setExecutionRunning(true);
 				if (answer !== undefined && answer !== null) {
-					console.log("Skipping start")
+					stop()
+					setExecutionRunning(false)
+					setButtonClicked(answer ? "FINISHED" : "ABORTED")
+					setExecutionData({
+						status: answer ? "FINISHED" : "ABORTED",
+					})
 				} else {
 					setExecutionRunning(true);
 					setExecutionRequest(responseJson)
@@ -1974,13 +1975,6 @@ const FormInput = (defaultprops: any) => {
 												color="primary"
 												style={{textTransform: "none", }}
 												onClick={() => {
-													setTimeout(() => {
-														setButtonClicked("ABORTED")
-														setExecutionData({
-															status: "ABORTED",
-														})
-													}, 2500)
-
 													onSubmit(null, execution_id, authorization, false)
 												}}>
 												Confirm Decline
@@ -1999,14 +1993,6 @@ const FormInput = (defaultprops: any) => {
 													textTransform: "none",
 												}}
 												onClick={() => {
-													// Timeout 2500 just in case
-													setTimeout(() => {
-														setButtonClicked("FINISHED")
-														setExecutionData({
-															status: "FINISHED",
-														})
-													}, 2500)
-
 													onSubmit(null, execution_id, authorization, true)
 												}}>
 												Continue</Button>
@@ -2023,13 +2009,6 @@ const FormInput = (defaultprops: any) => {
 													flex: 1,
 													textTransform: "none",
 												}} onClick={() => {
-													setTimeout(() => {
-														setButtonClicked("ABORTED")
-														setExecutionData({
-															status: "ABORTED",
-														})
-													}, 2500)
-
 													onSubmit(null, execution_id, authorization, false)
 											}}>
 												Stop

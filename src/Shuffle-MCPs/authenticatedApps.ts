@@ -20,7 +20,6 @@
  */
 
 import { getApiUrl, getAuthHeader, hasShuffleAuth } from '@/Shuffle-MCPs/api';
-import { invalidateAuthCache } from '@/Shuffle-Core/views/appsFetchCache';
 
 export interface AuthenticatedAppRaw {
   id?: string;
@@ -151,5 +150,7 @@ export const invalidateAuthenticatedAppsCache = (crossOrgId?: string | null) => 
   } else {
     cache.delete(cacheKey(crossOrgId));
   }
-  invalidateAuthCache();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('shuffle-auth-invalidated'));
+  }
 };

@@ -5,7 +5,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { Box, Button } from '@mui/material';
 import { useAuth } from '@/context/AuthContext';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
-import AppDetailContent, { type AppInfo } from '@/Shuffle-MCPs/views/AppDetailContent';
+import { AppDetailContent, type AppInfo } from '@/Shuffle-Core';
 
 const AppDetailPage = () => {
   const { appname } = useParams<{ appname: string }>();

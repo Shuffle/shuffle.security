@@ -14,7 +14,7 @@ import { usePageMeta } from '@/hooks/usePageMeta';
 import { useUsecases } from '@/hooks/useUsecases';
 import { API_CONFIG, getApiUrl, getAuthHeader, getShuffleCoreWorkflowUrl } from '@/Shuffle-MCPs/api';
 import { navigateToShuffleCore } from '@/lib/authHandoff';
-import AppSearchDrawer from '@/Shuffle-MCPs/views/AppSearchDrawer';
+import { AppSearchDrawer } from '@/Shuffle-Core';
 import { deduplicateAuthApps, type AuthAppEntry } from '@/lib/utils';
 import {
   TOOL_CATEGORIES,

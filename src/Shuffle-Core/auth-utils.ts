@@ -88,17 +88,45 @@ export async function backfillAppImages(dedupedApps: DeduplicatedApp[]): Promise
     if (existingImg) {
       _imageCache.set(norm, existingImg);
     } else if (_imageCache.has(norm)) {
-      const cached = _imageCache.get(norm)!;
-      if (cached) {
-        d.bestImage = cached;
-        d.app = { ...d.app, large_image: cached };
-      }
+      d.bestImage = _imageCache.get(norm)!;
+      d.app = { ...d.app, large_image: d.bestImage };
     }
   }
 
-  const missing = dedupedApps.filter(d => !d.bestImage && !d.app.large_image && !_imageCache.has(_normalize(d.app.name)));
+  let missing = dedupedApps.filter(d => !d.bestImage && !d.app.large_image);
   if (missing.length === 0) return dedupedApps;
 
+  // 1) Fallback to the user's /api/v1/apps list (already cached, no rate
+  //    limits). This must run BEFORE Algolia so we keep working when the
+  //    public Algolia index is rate-limited (429).
+  try {
+    const { fetchAppsViaApiConfig } = await import('@/Shuffle-MCPs/appsCache');
+    const apps = await fetchAppsViaApiConfig().catch(() => []);
+    if (Array.isArray(apps) && apps.length > 0) {
+      const byName = new Map<string, string>();
+      for (const a of apps) {
+        const url = a?.large_image || a?.image_url;
+        if (!url) continue;
+        const n = _normalize(a?.name || '');
+        if (n && !byName.has(n)) byName.set(n, url);
+      }
+      for (const entry of missing) {
+        const url = byName.get(_normalize(entry.app.name));
+        if (url) {
+          entry.bestImage = url;
+          entry.app = { ...entry.app, large_image: url };
+          _imageCache.set(_normalize(entry.app.name), url);
+        }
+      }
+      missing = dedupedApps.filter(d => !d.bestImage && !d.app.large_image);
+    }
+  } catch {
+    // ignore
+  }
+
+  if (missing.length === 0) return dedupedApps;
+
+  // 2) Last resort: public Algolia catalog. May 429 — handled silently.
   try {
     const { algoliasearch } = await import('algoliasearch');
     const client = algoliasearch('JNSS5CFDZZ', '33e4e3564f4f060e96e0531957bed552');
@@ -115,11 +143,10 @@ export async function backfillAppImages(dedupedApps: DeduplicatedApp[]): Promise
             const match = (result.hits as any[]).find(
               h => _normalize(h.name || '') === norm
             );
-            const url = match?.image_url || '';
-            _imageCache.set(norm, url);
+            const url = match?.image_url || null;
+            if (url) _imageCache.set(norm, url);
             return url;
           } catch {
-            _imageCache.set(norm, '');
             return null;
           } finally {
             _pendingLookups.delete(norm);

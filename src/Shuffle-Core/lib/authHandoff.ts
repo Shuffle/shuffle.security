@@ -527,3 +527,7 @@ export async function navigateToShuffleSecurity(
     return directNavigate(targetUrl, popupWindow);
   }
 }
+
+if (typeof window !== "undefined") {
+  (window as any).__shuffleNavigateToCore = navigateToShuffleCore;
+}

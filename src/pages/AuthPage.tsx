@@ -433,6 +433,9 @@ const AuthPage = ({ mode }: AuthPageProps) => {
       trackPredefinedEvent(isLogin ? GA_EVENTS.LOGIN_FAILURE : GA_EVENTS.LOGIN_FAILURE, 
         err instanceof Error ? err.message : 'unknown_error');
       setError(err instanceof Error ? err.message : `An error occurred during ${isLogin ? 'login' : 'registration'}`);
+      if (mfaRequired) {
+        setMfaCode('');
+      }
     } finally {
       setLoading(false);
     }

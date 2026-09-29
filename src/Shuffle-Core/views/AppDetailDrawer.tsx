@@ -8,8 +8,8 @@
 import { Drawer } from '@mui/material';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
-import AppDetailContent, { checkAppNameMatch } from '@/Shuffle-MCPs/views/AppDetailContent';
-import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
+import AppDetailContent, { checkAppNameMatch } from './AppDetailContent';
+import { useDrawerLayer } from '../drawerLayer';
 
 export { checkAppNameMatch };
 
@@ -99,10 +99,7 @@ export default function AppDetailDrawer({
       anchor={anchor}
       open={open}
       onClose={handleClose}
-      slotProps={{
-        paper: drawerPaperProps,
-      }}
-      {...({ PaperProps: drawerPaperProps } as any)}
+      PaperProps={drawerPaperProps}
       sx={{
         zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {

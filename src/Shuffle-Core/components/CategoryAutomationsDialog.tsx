@@ -30,7 +30,7 @@ import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
 import { toast } from 'react-toastify';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import PopupTextEditor from './PopupTextEditor';
-import AppSearchDrawer from '@/Shuffle-MCPs/views/AppSearchDrawer';
+import AppSearchDrawer from '../views/AppSearchDrawer';
 import AiAgentPromptsEditor from '@/Shuffle-MCPs/components/AiAgentPromptsEditor';
 import { AgentPresets, AGENT_PRESETS, AgentPreset } from '@/Shuffle-MCPs/components/AgentPresets';
 import { useAuthenticatedApps } from '../useAuthenticatedApps';
@@ -1488,7 +1488,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                           '& .MuiAutocomplete-popupIndicator': { color: 'text.secondary' },
                           '& .MuiAutocomplete-clearIndicator': { color: 'text.secondary' },
                         }}
-                        slotProps={{
+                        componentsProps={{
                           paper: {
                             sx: {
                               bgcolor: 'background.paper',
@@ -1929,9 +1929,9 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                 return { name: meta.name, id, icon: meta.image };
               })
         }
-        onSelectionChange={(apps) => {
+        onSelectionChange={(apps: any[]) => {
           if (appPickerForIdx === null) return;
-          const ids = apps.map((a) => a.id || a.name).filter((id): id is string => !!id);
+          const ids = apps.map((a: any) => a.id || a.name).filter((id: any): id is string => !!id);
           const updated = [...aiAgentApps];
           updated[appPickerForIdx] = Array.from(new Set(ids));
           setAiAgentApps(updated);
@@ -1939,8 +1939,8 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
 
           // Synchronize with Permissions for effectiveSkill
           const nextTools: ToolRef[] = apps
-            .filter((a) => !isBuiltInSkillApp(effectiveSkill, a.name, a.id))
-            .map((a) => ({ name: a.name, id: a.id || a.name }));
+            .filter((a: any) => !isBuiltInSkillApp(effectiveSkill, a.name, a.id))
+            .map((a: any) => ({ name: a.name, id: a.id || a.name }));
           setAgentTools(nextTools, effectiveSkill);
           saveAgentTools(nextTools, effectiveSkill);
         }}

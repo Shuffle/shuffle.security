@@ -121,6 +121,23 @@ const withTheme = <P extends object>(
   return Wrapped;
 };
 
+const withThemeRef = <P extends object, R>(
+  Inner: React.ForwardRefExoticComponent<P & React.RefAttributes<R>>,
+  displayName: string,
+) => {
+  const Wrapped = React.forwardRef<R, WithTheme<P>>(({ theme, colorMode, ...rest }, ref) => (
+    <EnsureQueryClient>
+      <AuthFallbackProvider>
+        <ShuffleCoreThemeProvider mode={resolveMode(theme, colorMode)}>
+          <Inner {...(rest as P)} theme={theme} colorMode={colorMode} ref={ref as any} />
+        </ShuffleCoreThemeProvider>
+      </AuthFallbackProvider>
+    </EnsureQueryClient>
+  ));
+  Wrapped.displayName = `ShuffleCore(${displayName})`;
+  return Wrapped as React.ForwardRefExoticComponent<WithTheme<P> & React.RefAttributes<R>>;
+};
+
 export const Usecases = withTheme<UsecasesPageProps>(UsecasesRaw, "Usecases");
 export const UsecaseDrawer = withTheme(UsecaseDrawerRaw, "UsecaseDrawer");
 export type { UsecaseDrawerProps };
@@ -450,5 +467,51 @@ export {
   categoryLabel,
   slugify,
 } from "./config/usecases";
+
+// Tools, Apps, and Search Drawers — canonical location in Shuffle-Core
+import { ShuffleMCP as ShuffleMCPRaw, type ShuffleMCPHandle } from "./views/ShuffleMCP";
+export const ShuffleMCP = withThemeRef(ShuffleMCPRaw as React.ForwardRefExoticComponent<any>, "ShuffleMCP");
+export type { ShuffleMCPHandle };
+
+import AppSearchDrawerRaw, { type AppSearchDrawerProps } from "./views/AppSearchDrawer";
+export const AppSearchDrawer = withTheme<AppSearchDrawerProps>(AppSearchDrawerRaw as any, "AppSearchDrawer");
+export type { AppSearchDrawerProps };
+
+import AppDetailDrawerRaw, { type AppDetailDrawerProps, checkAppNameMatch } from "./views/AppDetailDrawer";
+export const AppDetailDrawer = withTheme<AppDetailDrawerProps>(AppDetailDrawerRaw as any, "AppDetailDrawer");
+export { checkAppNameMatch };
+export type { AppDetailDrawerProps };
+
+import AppDetailContentRaw, { type AppDetailContentProps, type AppInfo } from "./views/AppDetailContent";
+export const AppDetailContent = withTheme<AppDetailContentProps>(AppDetailContentRaw as any, "AppDetailContent");
+export type { AppDetailContentProps, AppInfo };
+
+import { AppAuthCard as AppAuthCardRaw, type AppAuthCardProps } from "./components/AppAuthConfig";
+export const AppAuthCard = withTheme<AppAuthCardProps>(AppAuthCardRaw as any, "AppAuthCard");
+export * from "./components/AppAuthConfig";
+
+import AppRelatedUsecasesRaw, { type AppRelatedUsecasesProps } from "./components/AppRelatedUsecases";
+export const AppRelatedUsecases = withTheme<AppRelatedUsecasesProps>(AppRelatedUsecasesRaw as any, "AppRelatedUsecases");
+export type { AppRelatedUsecasesProps };
+
+import AddAppModalRaw, { type AddAppModalProps } from "./components/AddAppModal";
+export const AddAppModal = withTheme<AddAppModalProps>(AddAppModalRaw as any, "AddAppModal");
+export type { AddAppModalProps };
+
+import AppTitleHeaderRaw, { type AppTitleHeaderProps } from "./components/AppTitleHeader";
+export const AppTitleHeader = withTheme<AppTitleHeaderProps>(AppTitleHeaderRaw as any, "AppTitleHeader");
+export type { AppTitleHeaderProps };
+
+import AppAuthSectionRaw, { type AppAuthSectionProps } from "./components/AppAuthSection";
+export const AppAuthSection = withTheme<AppAuthSectionProps>(AppAuthSectionRaw as any, "AppAuthSection");
+export type { AppAuthSectionProps };
+
+export {
+  AgentsView,
+  AgentUI,
+  defaultToolDrawerRenderer,
+  defaultAppDetailDrawerRenderer,
+} from "./views/ConnectedAgents";
+
 
 

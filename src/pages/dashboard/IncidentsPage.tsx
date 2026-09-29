@@ -3,7 +3,7 @@ import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Searc
 import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore, useDeferredValue } from 'react';
 import { useSearchParams, useNavigate } from '@/lib/router-compat';
 import { useEntityLabel, useShowAutomation, useEntityText } from '@/hooks/useEntityLabel';
-import { AppSearchDrawer } from '@/Shuffle-MCPs';
+import { AppSearchDrawer } from '@/Shuffle-Core';
 import { useTheme } from '@/context/ThemeContext';
 import {
   Box,

@@ -25,7 +25,7 @@ import {
   Power,
   PowerOff,
 } from 'lucide-react';
-import { AppSearchDrawer } from '@shuffleio/shuffle-mcps';
+import AppSearchDrawer from './AppSearchDrawer';
 import { useAppDetailOptional } from '@shuffleio/shuffle-mcps';
 import { getApiUrl, getAuthHeader } from '@shuffleio/shuffle-mcps';
 import type { ShuffleCoreHostProps } from '../types/host-props';
@@ -2604,7 +2604,7 @@ export default function UsecaseAlluvialDiagram({
             .filter(a => a.id !== 'webhook-ingestion' && a.name !== 'Webhook')
             .map(a => ({ name: a.name, icon: a.icon, hasValidAuth: a.hasValidAuth, isActiveOnly: a.isActiveOnly }));
         })()}
-        onAddToCanvas={isLoggedIn ? ({ name: addedAppName, icon: addedIcon, algoliaId }: { name: string; icon?: string; algoliaId?: string }) => {
+        onAddToCanvas={isLoggedIn ? ({ name: addedAppName, icon: addedIcon, algoliaId }: { name: string; icon: string; algoliaId?: string | null }) => {
           const side = searchOpen || 'right';
 
           // Ensure app exists in allApps so it renders on the canvas
@@ -2754,7 +2754,7 @@ export default function UsecaseAlluvialDiagram({
       {!hasApps && (
         <Typography sx={{ textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: '0.8rem', mt: 2 }}>
           No {sourceMeta?.label} or {targetMeta?.label} tools connected yet.{' '}
-          <Box component={Link} to="/onboarding/sources" sx={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>
+          <Box component={Link as any} to="/onboarding/sources" sx={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>
             Connect tools
           </Box>
         </Typography>

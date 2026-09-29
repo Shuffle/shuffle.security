@@ -32,6 +32,7 @@ import ReactGA from "react-ga4";
 import dayjs from "dayjs";
 
 import {
+	Box,
 	Badge,
 	Avatar,
 	Grid,
@@ -123,6 +124,31 @@ const EditWorkflow = (props) => {
 	const [selectedCleanupActions, setSelectedCleanupActions] = React.useState(normalizeActionIds(workflow?.form_control?.cleanup_actions))
 
 	const [formWidth, setFormWidth] = React.useState(getWorkflowFormWidthValue(workflow, boxWidth))
+	const fileUploadInputRef = React.useRef(null)
+	const handleManualImport = (e) => {
+		const file = e.target.files?.[0]
+		if (!file) return
+		const reader = new FileReader()
+		reader.onload = (event) => {
+			try {
+				const parsed = JSON.parse(event.target.result)
+				if (parsed && typeof parsed === "object") {
+					setInnerWorkflow(parsed)
+					if (parsed.name) setName(parsed.name)
+					if (parsed.description) setDescription(parsed.description)
+					if (Array.isArray(parsed.tags)) setNewWorkflowTags(cloneArray(parsed.tags))
+					if (Array.isArray(parsed.usecase_ids)) setSelectedUsecases(cloneArray(parsed.usecase_ids))
+					if (Array.isArray(parsed.input_questions)) setInputQuestions(cloneArray(parsed.input_questions))
+					if (parsed.form_control?.input_markdown) setInputMarkdown(parsed.form_control.input_markdown)
+					toast.success("Workflow file loaded")
+				}
+			} catch (err) {
+				toast.error("Invalid workflow JSON file")
+			}
+		}
+		reader.readAsText(file)
+	}
+
 	const updateInnerWorkflow = (updater) => {
 		setInnerWorkflow((current) => {
 			const next = { ...(current || {}) }
@@ -248,19 +274,21 @@ const EditWorkflow = (props) => {
 		return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 	}
 
-	if (scrollTo !== undefined && scrollTo !== null && scrollTo.length > 0 && scrollDone === false) {
-		setTimeout(() => {
-			const foundScroll = document.getElementById(scrollTo)
-			if (foundScroll !== null) {
-				// Smooth scroll
-				foundScroll.scrollIntoView({ 
-					behavior: "smooth",
-				})
-			}
-		}, 200)
-		setScrollDone(true)
-
-	}
+	React.useEffect(() => {
+		if (scrollTo !== undefined && scrollTo !== null && scrollTo.length > 0 && scrollDone === false) {
+			const timer = setTimeout(() => {
+				const foundScroll = document.getElementById(scrollTo)
+				if (foundScroll !== null) {
+					// Smooth scroll
+					foundScroll.scrollIntoView({ 
+						behavior: "smooth",
+					})
+				}
+			}, 200)
+			setScrollDone(true)
+			return () => clearTimeout(timer)
+		}
+	}, [scrollTo, scrollDone])
 
 	// Gets the generated workflow 
 	const getGeneratedWorkflow = (workflow_id) => {
@@ -325,12 +353,12 @@ const EditWorkflow = (props) => {
 			})
 	}
 
-	if (foundWorkflowId.length > 0) {
-		getGeneratedWorkflow(foundWorkflowId)
-
-		setFoundWorkflowId("")
-	} else {
-	}
+	React.useEffect(() => {
+		if (foundWorkflowId.length > 0) {
+			getGeneratedWorkflow(foundWorkflowId)
+			setFoundWorkflowId("")
+		}
+	}, [foundWorkflowId])
 
 	if (modalOpen !== true) {
 		return null
@@ -338,7 +366,6 @@ const EditWorkflow = (props) => {
 
 	const newWorkflow = isEditing === true ? false : true
 	const priority = userdata === undefined || userdata === null || userdata.priorities === null || userdata.priorities === undefined ? null : userdata?.priorities?.find(prio => prio.type === "usecase" && prio.active === true)
-	var upload = "";
 	var total_count = 0
 
     const isCloud =
@@ -435,31 +462,52 @@ const EditWorkflow = (props) => {
 			<DialogTitle style={{ padding: 30, paddingBottom: 0, zIndex: 1000, paddingTop: "25px", paddingLeft: "50px"}}>
 				<div style={{ display: "flex" }}>
 					<div style={{ flex: 1, color: "hsl(var(--foreground))" }}>
-						<div style={{ display: "flex" }}>
+						<div style={{ display: "flex", alignItems: "center" }}>
 							<Typography variant="h4" style={{ flex: 9, marginTop: newWorkflow ? 50 : 25, }}>
 								{newWorkflow ? "New" : "Editing"} Workflow
 							</Typography>
 
 							{newWorkflow === true ? null :
-								<div style={{ marginLeft: 5, flex: 1 }}>
+								<div style={{ marginLeft: 5 }}>
 									<Tooltip title="Go to Public Form page">
-										<IconButton>
+										<IconButton size="small" sx={{ p: 0.75, borderRadius: 1.5, border: "1px solid hsl(var(--border))", color: "hsl(var(--foreground))" }}>
 											<a
 												rel="noopener noreferrer"
-												href={`/forms/${workflow.id}`}
+												href={`/forms/${workflow?.id || ""}`}
 												target="_blank"
 												style={{
+													display: "inline-flex",
 													textDecoration: "none",
-													color: "hsl(var(--primary))",
-													marginLeft: 5,
+													color: "inherit",
 												}}
 											>
-												<EditNoteIcon />
+												<EditNoteIcon size={18} />
 											</a>
 										</IconButton>
 									</Tooltip>
 								</div>
 							}
+
+							<div style={{ marginLeft: 8 }}>
+								<Tooltip title="Close">
+									<IconButton
+										size="small"
+										onClick={() => setModalOpen(false)}
+										sx={{
+											p: 0.75,
+											borderRadius: 1.5,
+											border: "1px solid hsl(var(--border))",
+											color: "hsl(var(--muted-foreground))",
+											"&:hover": {
+												color: "hsl(var(--foreground))",
+												bgcolor: "hsl(var(--muted))",
+											},
+										}}
+									>
+										<CloseIcon size={18} />
+									</IconButton>
+								</Tooltip>
+							</div>
 
 						</div>
 						<Typography variant="body2" color="textSecondary" style={{ marginTop: 20, maxWidth: 440, }}>
@@ -476,15 +524,30 @@ const EditWorkflow = (props) => {
 
 						{showUpload === true ?
 							<div style={{ float: "right" }}>
+								<input
+									type="file"
+									ref={fileUploadInputRef}
+									accept=".json,application/json"
+									style={{ display: "none" }}
+									onChange={handleManualImport}
+								/>
 								<Tooltip color="primary" title={"Import manually"} placement="top">
-									<Button
-										color="primary"
-										style={{}}
-										variant="text"
-										onClick={() => upload.click()}
+									<IconButton
+										size="small"
+										sx={{
+											p: 0.75,
+											borderRadius: 1.5,
+											border: "1px solid hsl(var(--border))",
+											color: "hsl(var(--foreground))",
+										}}
+										onClick={() => {
+											if (fileUploadInputRef.current) {
+												fileUploadInputRef.current.click()
+											}
+										}}
 									>
-										<PublishIcon />
-									</Button>
+										<PublishIcon size={18} />
+									</IconButton>
 								</Tooltip>
 							</div>
 							: null}
@@ -503,14 +566,14 @@ const EditWorkflow = (props) => {
 			</DialogTitle>
 			<FormControl>
 				<div style={{ 
-					width: 600, 
-					position: "fixed", 
-					right: 20, 
+					width: "100%",
+					maxWidth: "100%",
+					boxSizing: "border-box",
+					position: "sticky", 
 					bottom: 0, 
 					zIndex: 1002, 
-					height: 75, 
-					paddingTop: 20, 
-					paddingLeft: 30, 
+					minHeight: 70, 
+					padding: "16px 30px", 
 					backgroundColor: "hsl(var(--background))",
 					borderTop: "1px solid hsl(var(--border))",
 				}}>
@@ -527,36 +590,35 @@ const EditWorkflow = (props) => {
 									setSubmitLoading(true)
 									const nextWorkflow = buildWorkflowForSave()
 									setInnerWorkflow(nextWorkflow)
-									if (saveWorkflow !== undefined) {
-										saveWorkflow(nextWorkflow)
+									const savePromise = saveWorkflow !== undefined
+										? Promise.resolve(saveWorkflow(nextWorkflow))
+										: setNewWorkflow !== undefined
+											? Promise.resolve(setNewWorkflow(
+												nextWorkflow.name,
+												nextWorkflow.description,
+												nextWorkflow.tags,
+												nextWorkflow.default_return_value,
+												nextWorkflow,
+												newWorkflow,
+												nextWorkflow.usecase_ids,
+												nextWorkflow.blogpost,
+												nextWorkflow.status,
+												workflowAsCode
+											))
+											: Promise.resolve(setWorkflow(nextWorkflow))
 
-										if (setWorkflow !== undefined) {
-											setWorkflow(nextWorkflow)
-										}
-									} else if (setNewWorkflow !== undefined) {
-										setNewWorkflow(
-											nextWorkflow.name,
-											nextWorkflow.description,
-											nextWorkflow.tags,
-											nextWorkflow.default_return_value,
-											nextWorkflow,
-											newWorkflow,
-											nextWorkflow.usecase_ids,
-											nextWorkflow.blogpost,
-											nextWorkflow.status,
-											workflowAsCode
-										)
-										setWorkflow({})
-									} else {
-										setWorkflow(nextWorkflow)
-									}
-
-									setSubmitLoading(true)
-
-									// If new workflow, don't close it
-									if (isEditing) {
-										setModalOpen(false)
-									}
+									savePromise
+										.then(() => {
+											if (isEditing) {
+												setModalOpen(false)
+											}
+										})
+										.catch((err) => {
+											console.error("Save workflow error:", err)
+										})
+										.finally(() => {
+											setSubmitLoading(false)
+										})
 								}}
 								color="primary"
 							>
@@ -759,40 +821,39 @@ const EditWorkflow = (props) => {
 								setSubmitLoading(true)
 								const nextWorkflow2 = buildWorkflowForSave()
 								setInnerWorkflow(nextWorkflow2)
-								if (saveWorkflow !== undefined) {
-									saveWorkflow(nextWorkflow2)
+								const savePromise = saveWorkflow !== undefined
+									? Promise.resolve(saveWorkflow(nextWorkflow2))
+									: setNewWorkflow !== undefined
+										? Promise.resolve(setNewWorkflow(
+											nextWorkflow2.name,
+											nextWorkflow2.description,
+											nextWorkflow2.tags,
+											nextWorkflow2.default_return_value,
+											nextWorkflow2,
+											newWorkflow,
+											nextWorkflow2.usecase_ids,
+											nextWorkflow2.blogpost,
+											nextWorkflow2.status,
+											workflowAsCode
+										))
+										: Promise.resolve(setWorkflow(nextWorkflow2))
 
-									if (setWorkflow !== undefined) {
-										setWorkflow(nextWorkflow2)
-									}
-								} else if (setNewWorkflow !== undefined) {
-									setNewWorkflow(
-										nextWorkflow2.name,
-										nextWorkflow2.description,
-										nextWorkflow2.tags,
-										nextWorkflow2.default_return_value,
-										nextWorkflow2,
-										newWorkflow,
-										nextWorkflow2.usecase_ids,
-										nextWorkflow2.blogpost,
-										nextWorkflow2.status,
-										workflowAsCode
-									)
-									setWorkflow({})
-								} else {
-									setWorkflow(nextWorkflow2)
-								}
-
-								setSubmitLoading(true)
-
-								// If new workflow, don't close it
-								if (isEditing) {
-									setModalOpen(false)
-								}
+								savePromise
+									.then(() => {
+										if (isEditing) {
+											setModalOpen(false)
+										}
+									})
+									.catch((err) => {
+										console.error("Save workflow error:", err)
+									})
+									.finally(() => {
+										setSubmitLoading(false)
+									})
 							}}
 							color="primary"
 						>
-							{submitLoading ? <CircularProgress color="secondary" /> : "Save Changes"}
+							{submitLoading ? <CircularProgress color="secondary" size={20} /> : "Save Changes"}
 						</Button>
 					)}
 				</div>
@@ -812,7 +873,7 @@ const EditWorkflow = (props) => {
 							placeholder="Name"
 							required
 							margin="dense"
-							defaultValue={innerWorkflow.name}
+							value={name || ""}
 							label="Name"
 							autoFocus
 							fullWidth
@@ -822,9 +883,17 @@ const EditWorkflow = (props) => {
 						{newWorkflow === true ?
 							<TextField
 								id="Workflow-Description"
-								onBlur={(event) => {
+								value={innerWorkflow?.default_return_value || ""}
+								onChange={(event) => {
+									const val = event.target.value
 									updateInnerWorkflow((next) => {
-										next.default_return_value = event.target.value
+										next.default_return_value = val
+									})
+								}}
+								onBlur={(event) => {
+									const val = event.target.value
+									updateInnerWorkflow((next) => {
+										next.default_return_value = val
 									})
 								}}
 								InputProps={{
@@ -833,7 +902,6 @@ const EditWorkflow = (props) => {
 									},
 								}}
 								color="primary"
-								defaultValue={innerWorkflow.default_return_value}
 								placeholder="Please describe your workflow below so the AI can generate it."
 								rows="3"
 								multiline
@@ -929,17 +997,17 @@ const EditWorkflow = (props) => {
 						{newWorkflow === true ? (
 							<div style={{ marginTop: 100, }}>
 								{!uploadedImage ? (
-									<div
-										style={{
-											border: `1px solid ${"hsl(var(--primary))"}`,
-											borderRadius: 8,
-											padding: 20,
+									<Box
+										sx={{
+											border: "1px dashed hsl(var(--primary))",
+											borderRadius: 2,
+											p: 2.5,
 											textAlign: 'center',
 											cursor: 'pointer',
 											transition: 'all 0.2s ease',
 											backgroundColor: "hsl(var(--card))",
 											'&:hover': {
-												backgroundColor: "hsl(var(--primary) / 0.1)"
+												backgroundColor: "hsl(var(--primary) / 0.08)",
 											}
 										}}
 										onClick={() => {
@@ -977,7 +1045,7 @@ const EditWorkflow = (props) => {
 												</Typography>
 											</div>
 										)}
-									</div>
+									</Box>
 								) : (
 									<div
 										style={{
@@ -1016,6 +1084,10 @@ const EditWorkflow = (props) => {
 						{showMoreClicked === true ?
 							<div style={{ marginTop: 50, }}>
 								<TextField
+									value={description || ""}
+									onChange={(event) => {
+										setDescription(event.target.value)
+									}}
 									onBlur={(event) => {
 										setDescription(event.target.value)
 									}}
@@ -1027,7 +1099,6 @@ const EditWorkflow = (props) => {
 									multiline
 									rows={3}
 									color="primary"
-									defaultValue={innerWorkflow.description}
 									placeholder="Description"
 									label="Description"
 									margin="dense"
@@ -1466,10 +1537,10 @@ const EditWorkflow = (props) => {
 												}}
 												fullWidth={true}
 												placeholder="Question"
-												id="standard-required"
+												id={`workflow-question-name-${index}`}
 												margin="normal"
 												variant="outlined"
-												defaultValue={data.name}
+												value={data.name || ""}
 												onChange={(e) => {
 												const nextQuestions = inputQuestions.map((question, questionIndex) => questionIndex === index ? { ...question, name: e.target.value } : question)
 												setInputQuestions(nextQuestions)
@@ -1492,15 +1563,14 @@ const EditWorkflow = (props) => {
 												}}
 												fullWidth={true}
 												placeholder="$exec JSON key"
-												id="standard-required"
+												id={`workflow-question-value-${index}`}
 												margin="normal"
 												variant="outlined"
 												helperText={showListinfo === true ? "Dropdown list" : null}
-												defaultValue={data.value}
+												value={data.value || ""}
 												onChange={(e) => {
 													// Replace multiple semicolon with one
 												const nextValue = e.target.value.replace(";;", ";")
-												e.target.value = nextValue
 												const nextQuestions = inputQuestions.map((question, questionIndex) => questionIndex === index ? { ...question, value: nextValue } : question)
 												setInputQuestions(nextQuestions)
 												pushRealtimeInputQuestions(nextQuestions)
@@ -1512,30 +1582,52 @@ const EditWorkflow = (props) => {
 													},
 												}}
 											/>
-											<Button
-												color="primary"
-												style={{ maxWidth: 50, marginLeft: 15 }}
+											<IconButton
+												size="small"
 												disabled={data.deleted === true}
-												variant="outlined"
+												sx={{
+													ml: 1.5,
+													p: 0.75,
+													borderRadius: 1.5,
+													border: "1px solid hsl(var(--border))",
+													color: "hsl(var(--foreground))",
+													"&:hover": {
+														borderColor: "hsl(var(--destructive))",
+														color: "hsl(var(--destructive))",
+													},
+													"&.Mui-disabled": {
+														opacity: 0.4,
+													},
+												}}
 												onClick={() => {
-										const nextQuestions = inputQuestions.map((question, questionIndex) => questionIndex === index ? { ...question, deleted: true } : question)
-										setInputQuestions(nextQuestions)
-										pushRealtimeInputQuestions(nextQuestions)
+													const nextQuestions = inputQuestions.filter((_, questionIndex) => questionIndex !== index)
+													setInputQuestions(nextQuestions)
+													pushRealtimeInputQuestions(nextQuestions)
 													setUpdate(Math.random());
 												}}
 											>
-												<RemoveIcon style={{}} />
-											</Button>
+												<RemoveIcon size={18} />
+											</IconButton>
 										</div>
 									)
 								})}
 
 								<Button
-									color="primary"
-									style={{ maxWidth: 50, marginLeft: 15, marginTop: 20, }}
+									size="small"
 									variant="outlined"
-
-									disabled={inputQuestions !== undefined && inputQuestions !== null && inputQuestions.length > 5}
+									startIcon={<AddIcon size={16} />}
+									disabled={inputQuestions !== undefined && inputQuestions !== null && inputQuestions.length >= 50}
+									sx={{
+										mt: 2,
+										borderRadius: 1.5,
+										borderColor: "hsl(var(--border))",
+										color: "hsl(var(--foreground))",
+										textTransform: "none",
+										"&:hover": {
+											borderColor: "hsl(var(--primary))",
+											backgroundColor: "hsl(var(--primary) / 0.08)",
+										},
+									}}
 									onClick={() => {
 										const nextQuestions = [...inputQuestions, {
 											"name": "",
@@ -1548,7 +1640,7 @@ const EditWorkflow = (props) => {
 										setUpdate(Math.random());
 									}}
 								>
-									<AddIcon style={{}} />
+									Add Question
 								</Button>
 
 								<div id="input_markdown">
@@ -1593,7 +1685,7 @@ const EditWorkflow = (props) => {
 										Control the width of the form. It will grow vertically as needed.
 									</Typography>
 									<Slider
-										defaultValue={formWidth}
+										value={typeof formWidth === "number" ? formWidth : 500}
 										aria-labelledby="discrete-slider"
 										valueLabelDisplay="auto"
 										step={10}

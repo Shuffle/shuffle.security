@@ -10,15 +10,15 @@ import {
 } from 'lucide-react';
 import { Box, Typography, IconButton, Drawer, Avatar, Tooltip, Button } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShuffleMCP } from '@/Shuffle-MCPs/views/ShuffleMCP';
-import AppDetailDrawer from '@/Shuffle-MCPs/views/AppDetailDrawer';
-import { AddAppDialog } from '@/Shuffle-Core/components/AddAppDialog';
-import type { AppSelectedEvent } from '@/Shuffle-MCPs/shuffle-mcp.helpers';
-import { API_CONFIG } from '@/Shuffle-MCPs/api';
-import { ShufflePipelinesBanner } from '@/Shuffle-MCPs/components/ShufflePipelinesBanner';
+import { ShuffleMCP } from './ShuffleMCP';
+import AppDetailDrawer from './AppDetailDrawer';
+import { AddAppDialog } from '../components/AddAppDialog';
+import type { AppSelectedEvent } from '../shuffle-mcp.helpers';
+import { API_CONFIG } from '../api';
+import { ShufflePipelinesBanner } from '../components/ShufflePipelinesBanner';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
-import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
+import { useDrawerLayer } from '../drawerLayer';
 
 
 // Singul styles — compact dark theme
@@ -106,7 +106,7 @@ interface ConnectionPathApp {
   isActiveOnly?: boolean;
 }
 
-interface AppSearchDrawerProps extends ShuffleHostProps {
+export interface AppSearchDrawerProps extends ShuffleHostProps {
   open: boolean;
   onClose: () => void;
   initialQuery?: string;
@@ -348,10 +348,7 @@ export default function AppSearchDrawer({
         anchor={anchor}
         open={open && detailAppName === null}
         onClose={handleClose}
-        slotProps={{
-          paper: drawerPaperProps,
-        }}
-        {...({ PaperProps: drawerPaperProps } as any)}
+        PaperProps={drawerPaperProps}
 
         sx={{
           zIndex: drawerZIndex,

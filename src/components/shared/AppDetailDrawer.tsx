@@ -1,4 +1,4 @@
-import AppDetailDrawer from '@/Shuffle-MCPs/views/AppDetailDrawer';
+import { AppDetailDrawer } from '@/Shuffle-Core';
 import { useAppDetail } from '@/Shuffle-MCPs/AppDetailContext';
 
 export const GlobalAppDetailDrawer = () => {

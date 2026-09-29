@@ -69,6 +69,10 @@ export interface AgentsViewProps extends ShuffleHostProps {
   usecaseFilters?: AgentUsecaseFilter[];
   /** Per-skill readiness CTAs forwarded to the embedded AgentUI. */
   presetCtas?: AgentUIProps['presetCtas'];
+  /** Custom renderer for the tool search drawer (forwarded to AgentUI) */
+  renderToolDrawer?: AgentUIProps['renderToolDrawer'];
+  /** Custom renderer for the app detail drawer (forwarded to AgentUI and AgentActivityList) */
+  renderAppDetailDrawer?: AgentUIProps['renderAppDetailDrawer'];
 }
 
 const APPS_TTL_MS = 24 * 60 * 60 * 1000; // 24h
@@ -126,6 +130,8 @@ const AgentsView = ({
   colorMode,
   apiKey,
   orgId,
+  renderToolDrawer,
+  renderAppDetailDrawer,
 }: AgentsViewProps) => {
   useSyncHostBaseUrl(globalUrl);
 
@@ -328,6 +334,8 @@ const AgentsView = ({
             colorMode={colorMode}
             onAppsChange={handleAppsChange}
             presetCtas={presetCtas}
+            renderToolDrawer={renderToolDrawer}
+            renderAppDetailDrawer={renderAppDetailDrawer}
           />
         </Box>
         {agentView === 'start' && (
@@ -339,6 +347,7 @@ const AgentsView = ({
               onRunClick={setSelectedRun}
               onEditWorkflow={handleEditWorkflow}
               usecaseFilters={usecaseFilters}
+              renderAppDetailDrawer={renderAppDetailDrawer}
               top={25}
               limit={25}
             />

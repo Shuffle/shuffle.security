@@ -334,7 +334,7 @@ import { IncidentSection } from "@/components/incidents/IncidentSection";
 import { useEnrichmentStatus } from "@/hooks/useEnrichmentStatus";
 import { useIsSupport } from "@/hooks/useIsSupport";
 import { useAssignEscalateStatus } from "@/hooks/useAssignEscalateStatus";
-import AppSearchDrawer from "@/Shuffle-MCPs/views/AppSearchDrawer";
+import { AppSearchDrawer } from "@/Shuffle-Core";
 
 // Per-open guarantee: at least ONE of Email Thread or Timeline must be
 // expanded, otherwise the page looks empty. We respect whichever the user

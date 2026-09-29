@@ -119,12 +119,12 @@ const FormInput = (defaultprops: any) => {
 
   const searchParams = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search)
   const answer = searchParams.get("answer")
-  const execution_id = searchParams.get("reference_execution")
+  const execution_id = searchParams.get("reference_execution") || searchParams.get("execution_id")
   const authorization = searchParams.get("authorization")
-  const sourceNode = searchParams.get("source_node") || searchParams.get("start")
+  const sourceNode = searchParams.get("source_node") || searchParams.get("start") || searchParams.get("node_id")
   const decisionId = searchParams.get("decision_id") // ONLY for agentic workflows
   const backendUrl = searchParams.get("backend_url") || globalUrl
-  const hasExecutionAuth = execution_id && authorization
+  const hasExecutionAuth = Boolean(execution_id && authorization)
 
   const initializedQuestionsForWorkflowId = React.useRef(null)
   useEffect(() => {
@@ -220,29 +220,57 @@ const FormInput = (defaultprops: any) => {
 	// Error messages etc
 	const [executionInfo, setExecutionInfo] = useState("");
 	const handleValidateForm = (executionArgument) => {
-		// Check if every field exists
+		const questions = (inputQuestions && inputQuestions.length > 0) 
+			? inputQuestions 
+			: (workflow?.input_questions && workflow?.input_questions.length > 0) 
+				? workflow.input_questions 
+				: []
+
+		if (questions.length > 0) {
+			const argObj = typeof executionArgument === "object" && executionArgument !== null
+				? executionArgument
+				: (() => {
+					try {
+						return JSON.parse(executionArgument)
+					} catch (e) {
+						return {}
+					}
+				})()
+
+			for (const q of questions) {
+				if (q?.deleted === true) {
+					continue
+				}
+				const key = (q?.value || "").includes(";") ? q.value.split(";")[0] : q?.value
+				if (!key) {
+					continue
+				}
+				const val = argObj[key]
+				if (val === undefined || val === null || val === "") {
+					return false
+				}
+			}
+			return true
+		}
+
+		// Fallback for custom executionArgument without inputQuestions
 		if (executionArgument === undefined || executionArgument === null) {
 			return true 
 		}
 
-		// Check if it's an object or not
 		if (typeof executionArgument === "string") {
-			// Make it an object
 			try {
 				executionArgument = JSON.parse(executionArgument)
 			} catch (e) {
-				//console.log("Error parsing execution argument: ", e)
 				executionArgument = {}
 			}
 		}
 
-		// FIXME: Error with User Input + Required arg (?)
-		// Somehow validation is not happening as it should, and it just checks all 
-		// questions if none are selected
-		for (var key in executionArgument) {
-			if (executionArgument[key] === undefined || executionArgument[key] === null || executionArgument[key] === "") {
-				//console.log("Unanswered, required question: ", key)
-				return false
+		if (typeof executionArgument === "object" && executionArgument !== null) {
+			for (var key in executionArgument) {
+				if (executionArgument[key] === undefined || executionArgument[key] === null || executionArgument[key] === "") {
+					return false
+				}
 			}
 		}
 
@@ -316,7 +344,7 @@ const FormInput = (defaultprops: any) => {
 	const saveWorkflow = (workflow) => {
 		const url = `${backendUrl}/api/v1/workflows/${workflow.id}`
 		console.log("[saveWorkflow] PUT form_control:", workflow?.form_control)
-		shuffleFetch(url, {
+		return shuffleFetch(url, {
 			method: "PUT",
 			headers: {
 				"Content-Type": "application/json",
@@ -336,15 +364,17 @@ const FormInput = (defaultprops: any) => {
 		.then((responseJson) => {
 			if (responseJson?.success === false) {
 				toast.error("Failed saving workflow: " + (responseJson?.reason || "unknown"))
-				return
+				return responseJson
 			}
 			console.log("[saveWorkflow] response:", responseJson)
 			// Re-fetch from the server so we can confirm what was actually persisted
 			// (the PUT response typically only returns {success:true}, not the saved object).
 			getWorkflow(workflow.id, selectedNode)
+			return responseJson
 		})
 		.catch((error) => {
 			toast.error("Save workflow error: " + error)
+			throw error
 		});
 
 	}
@@ -451,21 +481,22 @@ const FormInput = (defaultprops: any) => {
 		)
 	}
 
-	const onSubmit = (event, execution_id, authorization, answer) => {
-		if (event !== null) {
+	const onSubmit = (event, overrideExecutionId, overrideAuthorization, answer) => {
+		if (event !== null && event !== undefined) {
 			event.preventDefault()
 		}
 
+		const currentExecutionId = overrideExecutionId || execution_id
+		const currentAuthorization = overrideAuthorization || authorization
+
 		stop()
-  	    setMessage("")
+		setMessage("")
 		setExecutionData({})
 		setExecutionRequest({})
+		setDisableButtons(true)
+		setExecutionLoading(true)
 		setExecutionRunning(false)
 		setExecutionInfo("")
-
-		setTimeout(() => {
-  	    	setExecutionLoading(true)
-		}, 250)
 
 		var data = {
 			"execution_argument": executionArgument,
@@ -480,22 +511,15 @@ const FormInput = (defaultprops: any) => {
 			}
 		}
 
-		if (workflow.start !== undefined && workflow.start !== null && workflow.start.length > 0) {
-			//data.start = workflow.start
-	 	} else {
-			/*
-			if (workflow.actions !== undefined && workflow.actions !== null && workflow.actions.length > 0) {
-				for (let actionkey in workflow.actions) {
-        			if (workflow.actions[actionkey].isStartNode) {
-						data.start = workflow.actions[actionkey].id
-						break
-					}
-				}
-			}
-			*/
+		const targetWorkflowId = workflow?.id || props.match.params.key
+		if (!targetWorkflowId) {
+			toast.error("Workflow not loaded yet. Please wait.")
+			setExecutionLoading(false)
+			setDisableButtons(false)
+			return
 		}
 
-		var url = `${backendUrl}/api/v1/workflows/${props.match.params.key}/run`
+		var url = `${backendUrl}/api/v1/workflows/${targetWorkflowId}/run`
 		var fetchBody = {
 			headers: {
 				'Content-Type': 'application/json; charset=utf-8',
@@ -506,23 +530,23 @@ const FormInput = (defaultprops: any) => {
 			withCredentials: true,
 		}
 
-		if (answer !== undefined && execution_id !== undefined && authorization !== undefined) {
-			url += `?reference_execution=${execution_id}&authorization=${authorization}&answer=${answer}`
+		if (answer !== undefined && currentExecutionId !== undefined && currentAuthorization !== undefined) {
+			url += `?reference_execution=${currentExecutionId}&authorization=${currentAuthorization}&answer=${answer}`
 			data = {}
 			fetchBody.method = "GET"
 
 			if (executionArgument !== undefined && executionArgument !== null) {
 				try {
-					if (typeof executionArgument === "string") {
-						url += "&note=" + executionArgument
-					} else {
-						url += "&note=" + JSON.stringify(executionArgument)
-					}
+					const noteStr = typeof executionArgument === "string" ? executionArgument : JSON.stringify(executionArgument)
+					url += "&note=" + encodeURIComponent(noteStr)
 				} catch (e) {
-					url += "&note=" + executionArgument
+					url += "&note=" + encodeURIComponent(String(executionArgument))
 				}
 			}
 
+			if (sourceNode !== undefined && sourceNode !== null && sourceNode.length > 0 && !url.includes("node_id=")) {
+				url += `&node_id=${encodeURIComponent(sourceNode)}`
+			}
 		} else {
 			fetchBody.method = "POST"
 			fetchBody.body = JSON.stringify(data)
@@ -536,39 +560,30 @@ const FormInput = (defaultprops: any) => {
 			}
 		}
 
-		// IF there is an execution argument, we should use it
 		shuffleFetch(url, fetchBody)
 		.then((response) => {
 			if (response.status !== 200 && response.status !== 201) {
-
-				if (answer !== undefined && execution_id !== undefined && authorization !== undefined) {
+				if (answer !== undefined && currentExecutionId !== undefined && currentAuthorization !== undefined) {
 					setExecutionLoading(false)
-					setExecutionRunning(true);
+					setExecutionRunning(true)
+					setDisableButtons(true)
 					setExecutionRequest({
-						"execution_id": execution_id,
-						"authorization": authorization,
+						"execution_id": currentExecutionId,
+						"authorization": currentAuthorization,
 					})
 
-					start();
+					start()
 					return response.json()
 				}
 			}
 
-			//if ((response.status === 401 || response.status === 403) && authorization === undefined || authorization === null || authorization?.length === 0) {
-			//	toast(`This form is not available for you to run. If you this is an error, contact ${supportEmail} with a link to this form (2)`)
-			//}
-
 			return response.json()
 		})
 		.then(responseJson => {
-			//if (responseJson.success === true) {
-			//	setDisableButtons(true)
-			//}
-
+			setDisableButtons(true)
 			setExecutionLoading(false)
 
 			if (responseJson.success === false) {
-
 				console.log("Failed sending execution request")
 				if (responseJson?.reason !== undefined && responseJson?.reason !== null) {
 					if (responseJson?.reason?.toLowerCase().includes("already clicked")) {
@@ -579,36 +594,38 @@ const FormInput = (defaultprops: any) => {
 				}
 
 				stop()
-				//setMessage("")
 				setExecutionData({})
 				setExecutionInfo("")
 				setExecutionRunning(false)
 				setExecutionRequest({})
+				setDisableButtons(false)
 			} else {
-				console.log("Started execution")
+				console.log("Started execution", responseJson)
 
-				start()
-				setExecutionRunning(true);
-				if (answer !== undefined && answer !== null) {
-					console.log("Skipping start")
-				} else {
-					setExecutionRunning(true);
-					setExecutionRequest(responseJson)
-					start()
+				const targetExecId = responseJson?.execution_id || currentExecutionId
+				const targetAuth = responseJson?.authorization || currentAuthorization
+				const nextReq = {
+					execution_id: targetExecId,
+					authorization: targetAuth,
 				}
 
-				// If execution_id or authorization, add them to the URL.
-				// Use { replace: true } so the in-progress run does not push
-				// a new history entry (which feels like a page reload).
-				if (responseJson?.execution_id !== undefined && responseJson?.execution_id !== null && responseJson?.execution_id?.length > 0 && responseJson?.authorization !== undefined && responseJson?.authorization !== null && responseJson?.authorization?.length > 0) {
-					navigate(`?execution_id=${responseJson.execution_id}&authorization=${responseJson.authorization}`, { replace: true })
-				} else if (responseJson?.execution_id !== undefined && responseJson?.execution_id !== null && responseJson?.execution_id?.length > 0) {
-					navigate(`?execution_id=${responseJson.execution_id}`, { replace: true })
+				setExecutionRunning(true)
+				setDisableButtons(true)
+				setExecutionRequest(nextReq)
+				start()
+
+				if (targetExecId && targetAuth) {
+					navigate(`?execution_id=${targetExecId}&authorization=${targetAuth}`, { replace: true })
+				} else if (targetExecId) {
+					navigate(`?execution_id=${targetExecId}`, { replace: true })
+				}
+
+				if (targetExecId) {
+					fetchUpdates(targetExecId, targetAuth)
 				}
 			}
 		})
 		.catch(error => {
-			//setExecutionInfo("Error in workflow startup: " + error)
 			console.log("Error starting workflow: ", error)
 			toast.warn(`Error submitting form. Please try again: ${error}`)
 
@@ -616,8 +633,9 @@ const FormInput = (defaultprops: any) => {
 			setMessage("")
 			setExecutionData({})
 			setExecutionInfo("")
-
 			setExecutionLoading(false)
+			setExecutionRunning(false)
+			setDisableButtons(false)
 		})
 	}
 
@@ -630,24 +648,18 @@ const FormInput = (defaultprops: any) => {
     })
 
 	const handleExecutionLoader = () => {
-	  if (window === undefined || window === null) {
-		  console.log("No window")
+	  if (typeof window === "undefined") {
 		  return
 	  }
 
 	  const urlParams = new URLSearchParams(window.location.search)
-	  if (urlParams === undefined || urlParams === null) {
-		  console.log("No search params")
+	  const execution = urlParams.get("execution_id") || urlParams.get("reference_execution") || execution_id
+	  const auth = urlParams.get("authorization") || authorization || ""
+	  if (!execution) {
 		  return
 	  }
 
-	  const execution = urlParams.get("execution_id")
-	  if (execution === undefined || execution === null || execution.length === 0) {
-		  console.log("No execution")
-	  }
-
-	  // Only works if you're logged in
-      fetchUpdates(execution, "")
+      fetchUpdates(execution, auth)
 	}
 
 	const loadInputWorkflowData = (workflow_id, inputWorkflow) => {
@@ -713,7 +725,7 @@ const FormInput = (defaultprops: any) => {
 
 				var multiChoiceOptions = question.value !== undefined && question.value !== null && question.value.length > 0 && question.value.includes(";") ? question.value.split(";") : []
 				if (multiChoiceOptions.length > 1) {
-					newexec[multiChoiceOptions[0]] = ""
+					newexec[multiChoiceOptions[0]] = multiChoiceOptions[1] || ""
 				} else {
 					newexec[question.value] = ""
 				}
@@ -872,8 +884,11 @@ const FormInput = (defaultprops: any) => {
 			}
 		}
 
-		if (workflow.status === "EXECUTING" || workflow.status === "SUCCESS" || workflow.status === "ABORTED" || workflow.status === "STOPPED" || workflow.status === "FAILURE" || workflow.status === "FINISHED") {
+		if (workflow.status === "SUCCESS" || workflow.status === "ABORTED" || workflow.status === "STOPPED" || workflow.status === "FAILURE" || workflow.status === "FINISHED") {
 			setMessage("Already handled. You may close this window.")
+		} else if (workflow.status === "EXECUTING" || workflow.status === "RUNNING") {
+			setExecutionRunning(true)
+			setDisableButtons(true)
 		}
 	}
 
@@ -971,12 +986,13 @@ const FormInput = (defaultprops: any) => {
 			}
 
 			// Accept the response if we have no previous data, or if it
-			// belongs to the currently-polled execution (either prev's id
-			// or the incoming request's id).
+			// belongs to the currently-polled execution (either prev's id,
+			// the incoming request's id, or the URL execution_id).
 			const matchesPrev = prev && prev.execution_id && responseJson.execution_id === prev.execution_id
 			const matchesRequest = executionRequest && executionRequest.execution_id && responseJson.execution_id === executionRequest.execution_id
+			const matchesUrl = execution_id && responseJson.execution_id === execution_id
 			const prevEmpty = !prev || prev.execution_id === undefined
-			if (!prevEmpty && !matchesPrev && !matchesRequest) {
+			if (!prevEmpty && !matchesPrev && !matchesRequest && !matchesUrl) {
 				return prev
 			}
 
@@ -1022,18 +1038,22 @@ const FormInput = (defaultprops: any) => {
 			return responseJson
 		  })
 
-      if (responseJson.status === "ABORTED" || responseJson.status === "STOPPED" || responseJson.status === "FAILURE" || responseJson.status === "WAITING") {
+      const normalizedStatus = (responseJson.status || "").toUpperCase();
+      if (normalizedStatus === "ABORTED" || normalizedStatus === "STOPPED" || normalizedStatus === "FAILURE") {
         stop();
-
-        if (executionRunning) {
-          setExecutionRunning(false);
-        }
-
-        //getWorkflowExecution(props.match.params.key, "");
-      } else if (responseJson.status === "FINISHED") {
-        setExecutionRunning(false)
+        setExecutionRunning(false);
+        setDisableButtons(true);
+      } else if (normalizedStatus === "WAITING") {
         stop();
-        //getWorkflowExecution(props.match.params.key, "");
+        setExecutionRunning(false);
+        setDisableButtons(false);
+      } else if (normalizedStatus === "FINISHED" || normalizedStatus === "SUCCESS") {
+        stop();
+        setExecutionRunning(false);
+        setDisableButtons(true);
+      } else if (normalizedStatus === "EXECUTING" || normalizedStatus === "RUNNING") {
+        setExecutionRunning(true);
+        setDisableButtons(true);
       }
 		})
 	}
@@ -1140,11 +1160,15 @@ const FormInput = (defaultprops: any) => {
 			if (waitingForInput) {
 				setDisableButtons(false)
 				setExecutionRunning(false)
-			}
-
-			if (!waitingForInput && execution_id !== undefined && execution_id !== null && authorization !== undefined && authorization !== null && execution_id.length > 0 && authorization.length > 0 && disableButtons === false && responseJson?.status !== "" && responseJson?.status !== "WAITING") {
-				console.log("IN here 1")
-				setDisableButtons(true)
+			} else {
+				const currentStatus = (responseJson?.status || "").toUpperCase()
+				if (currentStatus === "EXECUTING" || currentStatus === "RUNNING") {
+					setExecutionRunning(true)
+					setDisableButtons(true)
+				} else if (currentStatus === "FINISHED" || currentStatus === "SUCCESS" || currentStatus === "ABORTED" || currentStatus === "STOPPED" || currentStatus === "FAILURE") {
+					setExecutionRunning(false)
+					setDisableButtons(true)
+				}
 			}
 
 			if (execution_id !== undefined && execution_id !== null && authorization !== undefined && authorization !== null && execution_id.length > 0 && authorization.length > 0 && responseJson.workflow !== undefined && responseJson.workflow !== null) {
@@ -1344,7 +1368,7 @@ const FormInput = (defaultprops: any) => {
 	const buttonStyle = {borderRadius: 25, height: 50, fontSize: 18, backgroundImage: handleValidateForm(executionArgument) || executionLoading ? buttonBackground : "grey", color: "white"}
 	
 	// Check if all fields are filled in?
-	var disabledButtons = executionLoading || executionRunning || message.length > 0  || disableButtons
+	var disabledButtons = executionLoading || executionRunning || message.length > 0 || disableButtons || buttonClicked.length > 0
 	if (disabledButtons === false && workflow.input_questions !== undefined && workflow.input_questions !== null && workflow.input_questions.length > 0) {
 		// Check field values
 		//disabledButtons = handleValidateForm(executionArgument)
@@ -1369,17 +1393,21 @@ const FormInput = (defaultprops: any) => {
 		}
 
 		var buttonid = ""
-		if (answer === "true") {
+		if (answer === "true" || answer === true) {
 			buttonid = "continue_execution"
 		}
 
 		if (buttonid !== "") {
+			setDisableButtons(true)
+			setButtonClicked("FINISHED")
 			const foundButton = document.getElementById(buttonid)
 			if (foundButton !== undefined && foundButton !== null) {
 				foundButton.click()
+			} else {
+				onSubmit(null, execution_id, authorization, true)
 			}
 		}
-	}, [disabledButtons, answer, organization, buttonClicked])
+	}, [disabledButtons, answer, organization, buttonClicked, execution_id, authorization])
 
 	const FormList = () => {
 		return (
@@ -1468,16 +1496,32 @@ const FormInput = (defaultprops: any) => {
 						value={null}
 						ListboxProps={{
 						  style: {
-							backgroundColor: theme.palette.inputColor,
-							color: "white",
+							backgroundColor: "hsl(var(--popover))",
+							color: "hsl(var(--popover-foreground))",
+							border: "1px solid hsl(var(--border))",
+							borderRadius: 8,
 						  },
 						}}
 						sx={{
+						  backgroundColor: "hsl(var(--background) / 0.6)",
+						  borderRadius: "10px",
 						  '& .MuiOutlinedInput-root': {
 							height: 40,
+							color: "hsl(var(--foreground))",
+							borderRadius: "10px",
+						  },
+						  '& .MuiOutlinedInput-notchedOutline': {
+							borderColor: "hsl(var(--border))",
+						  },
+						  '&:hover .MuiOutlinedInput-notchedOutline': {
+							borderColor: "hsl(var(--border))",
+						  },
+						  '& .Mui-focused .MuiOutlinedInput-notchedOutline': {
+							borderColor: "hsl(var(--primary))",
 						  },
 						  '& .MuiAutocomplete-input': {
 							padding: '8px',
+							color: "hsl(var(--foreground))",
 						  },
 						}}
 						getOptionSelected={(option, value) => option.id === value.id}
@@ -1498,11 +1542,6 @@ const FormInput = (defaultprops: any) => {
 						}}
 						options={forms}
 						fullWidth
-						style={{
-						  backgroundColor: theme.palette.inputColor,
-						  borderRadius: theme.palette?.borderRadius,
-						  marginTop: 0,
-						}}
 						renderOption={(props, data, state) => {
 						  if (data.id === workflow.id) {
 							data = workflow;
@@ -1515,12 +1554,15 @@ const FormInput = (defaultprops: any) => {
 							<MenuItem
 								{...props}
 								key={data.id}
-								style={{
-								  backgroundColor: theme.palette.inputColor,
+								sx={{
 								  display: 'flex',
 								  alignItems: 'flex-start',
-								  gap: 10,
+								  gap: 1.25,
 								  padding: '10px 12px',
+								  color: 'hsl(var(--popover-foreground))',
+								  '&:hover': {
+									backgroundColor: 'hsl(var(--muted))',
+								  },
 								}}
 								onClick={() => {
 									navigate(`/forms/${data.id}`)
@@ -1554,13 +1596,13 @@ const FormInput = (defaultprops: any) => {
 						}}
 						renderInput={(params) => {
 						  return (
-							<div style={{ display: "flex", }}>
+							<div style={{ display: "flex", width: "100%" }}>
 							  <TextField
-								style={theme.palette.textFieldStyle}
 								{...params}
 								label="Available forms"
 								placeholder="Search forms"
 								variant="outlined"
+								fullWidth
 							  />
 							</div>
 						  )
@@ -1583,7 +1625,7 @@ const FormInput = (defaultprops: any) => {
 						</Tooltip>
 					: executionData?.status === "EXECUTING" ? 
 						<Tooltip title="The Workflow is current running" placement="top">
-							<DirectionsRunIcon style={{color: theme.palette.secondary, marginRight: 10, }} />
+							<DirectionsRunIcon style={{color: "hsl(var(--primary))", marginRight: 10, }} />
 						</Tooltip>
 					: executionData?.status === "ABORTED" || executionData?.status === "FAILURE" ? 
 						<Tooltip title={`The workflow run failed with status ${executionData?.status}`} placement="top">
@@ -1722,13 +1764,14 @@ const FormInput = (defaultprops: any) => {
 
 							{workflowQuestion.length > 0 ?
 								<div style={{
-									backgroundColor: theme.palette.inputColor,
+									backgroundColor: "hsl(var(--card))",
+									border: "1px solid hsl(var(--border))",
 									padding: 20,
-									borderRadius: theme.palette?.borderRadius,
+									borderRadius: 12,
 									marginBottom: 35, 
 									marginTop: 30, 
 								}}>
-									<Typography variant="body1"  style={{ marginRight: 15, textAlign: "center", whiteSpace: "pre-line", }}>
+									<Typography variant="body1" style={{ textAlign: "center", whiteSpace: "pre-line", color: "hsl(var(--foreground))" }}>
 										{workflowQuestion}
 									</Typography>
 								</div>
@@ -1740,15 +1783,16 @@ const FormInput = (defaultprops: any) => {
 						{workflow?.input_questions !== undefined && workflow?.input_questions !== null && workflow?.input_questions?.length > 0 ?
 							<div style={{marginBottom: 5, }}>
 								{inputQuestions?.map((question, index) => {
+									if (question?.deleted === true) {
+										return null
+									}
 
 									// Multiple choice checks for semicolon-splits
 									var multiChoiceOptions = question.value !== undefined && question.value !== null && question.value.length > 0 && question.value.includes(";") ? question.value.split(";") : []
 									// Remove empty keys from array
 									multiChoiceOptions = multiChoiceOptions.filter(function(e) { return e !== "" })
-									if (multiChoiceOptions.length > 1 && (executionArgument[multiChoiceOptions[0]] === undefined || executionArgument[multiChoiceOptions[0]] === null || executionArgument[multiChoiceOptions[0]] === "")) {
-										// Set the first item to be default
-										executionArgument[multiChoiceOptions[0]] = multiChoiceOptions[1]
-									}
+
+									const questionKey = multiChoiceOptions.length > 0 ? multiChoiceOptions[0] : (question.value || `question_${index}`)
 
 									const parsedLabel = question?.value?.startsWith("question_") ? 
 										"" 
@@ -1756,7 +1800,7 @@ const FormInput = (defaultprops: any) => {
 										question?.value?.charAt(0)?.toUpperCase() + question?.value?.slice(1)
 
 									return (
-										<div style={{marginBottom: 10}} key={index}>
+										<div style={{marginBottom: 10}} key={question.id || index}>
 
 											<Typography variant="body2" color="textSecondary">
 												{question.name}
@@ -1769,11 +1813,28 @@ const FormInput = (defaultprops: any) => {
 														fullWidth
 														required
 														label={multiChoiceOptions[0]}
-														value={executionArgument[multiChoiceOptions[0]]}
+														value={executionArgument[questionKey] || multiChoiceOptions[1] || ""}
 														onChange={(e) => {
-															const curQuestion = multiChoiceOptions[0]
-															executionArgument[curQuestion] = e.target.value
-															setUpdate(Math.random())
+															const nextVal = e.target.value
+															setExecutionArgument((prev) => ({
+																...(typeof prev === "object" && prev !== null ? prev : {}),
+																[questionKey]: nextVal,
+															}))
+														}}
+														sx={{
+															mt: 0.5,
+															backgroundColor: "hsl(var(--background) / 0.6)",
+															borderRadius: "10px",
+															color: "hsl(var(--foreground))",
+															"& .MuiOutlinedInput-notchedOutline": {
+																borderColor: "hsl(var(--border))",
+															},
+															"&:hover .MuiOutlinedInput-notchedOutline": {
+																borderColor: "hsl(var(--border))",
+															},
+															"&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+																borderColor: "hsl(var(--primary))",
+															},
 														}}
 													>
 
@@ -1786,6 +1847,12 @@ const FormInput = (defaultprops: any) => {
 																<MenuItem 
 																	key={menuIndex}
 																	value={option}
+																	sx={{
+																		color: "hsl(var(--popover-foreground))",
+																		"&:hover": {
+																			backgroundColor: "hsl(var(--muted))",
+																		},
+																	}}
 																>
 																	{option}
 																</MenuItem>
@@ -1796,22 +1863,46 @@ const FormInput = (defaultprops: any) => {
 												:
 												<TextField
 													color="primary"
-													style={{
-														backgroundColor: theme.palette.inputColor, 
-														marginTop: 5, 
-													}}
 													label={parsedLabel}
 													required
-
+													disabled={disabledButtons}
 													fullWidth={true}
 													placeholder=""
-													id="emailfield"
+													id={`form-question-${index}`}
 													margin="normal"
 													variant="outlined"
+													value={executionArgument[questionKey] ?? ""}
 													onChange={(e) => {
-														executionArgument[question.value] = e.target.value
-														setExecutionArgument(executionArgument)
-														setUpdate(Math.random())
+														const nextVal = e.target.value
+														setExecutionArgument((prev) => ({
+															...(typeof prev === "object" && prev !== null ? prev : {}),
+															[questionKey]: nextVal,
+														}))
+													}}
+													sx={{
+														marginTop: 1,
+														"& .MuiOutlinedInput-root": {
+															backgroundColor: "hsl(var(--background) / 0.6)",
+															borderRadius: "10px",
+															fontSize: 14,
+															color: "hsl(var(--foreground))",
+															transition: "border-color .15s ease, box-shadow .15s ease",
+														},
+														"& .MuiOutlinedInput-input::placeholder": {
+															color: "hsl(var(--muted-foreground))",
+															opacity: 1,
+														},
+														"& .MuiOutlinedInput-notchedOutline": {
+															borderColor: "hsl(var(--border))",
+														},
+														"&:hover .MuiOutlinedInput-notchedOutline": {
+															borderColor: "hsl(var(--border))",
+														},
+														"& .Mui-focused .MuiOutlinedInput-notchedOutline, & .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+															borderColor: "hsl(var(--primary))",
+															borderWidth: "1px",
+															boxShadow: "0 0 0 3px hsl(var(--primary) / 0.15)",
+														},
 													}}
 												/>
 											}
@@ -1840,7 +1931,7 @@ const FormInput = (defaultprops: any) => {
 									</Typography>
 
 									<TextField
-										disabled={executionRunning}
+										disabled={disabledButtons}
 										color="primary"
 										multiline
 										minRows={4}
@@ -1885,7 +1976,7 @@ const FormInput = (defaultprops: any) => {
 											// inside the multiline Runtime Argument field.
 											if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
 												e.preventDefault()
-												if (handleValidateForm(executionArgument) && !executionLoading) {
+												if (handleValidateForm(executionArgument) && !disabledButtons) {
 													onSubmit(null)
 												}
 											}
@@ -1907,15 +1998,12 @@ const FormInput = (defaultprops: any) => {
 						
 
 						{executionRunning ?
-							<span style={{width: 50, height: 50, margin: "auto", alignItems: "center", justifyContent: "center", textAlign: "center", }}>
-								<CircularProgress style={{marginTop: 20, marginBottom: 20, marginLeft: 185, }}/>
-
-								{/*executionData.status !== undefined && executionData.status !== null && executionData.status !== "" ?
-									<Typography variant="body2" style={{margin: "auto", marginTop: 20, marginBottom: 20, textAlign: "center", alignItem: "center", }} color="textSecondary">
-										Status: {executionData.status}
-									</Typography>
-								: null*/}
-							</span>
+							<Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", my: 3, gap: 1 }}>
+								<CircularProgress size={32} />
+								<Typography variant="body2" color="textSecondary" sx={{ textAlign: "center" }}>
+									{executionData?.status ? `Status: ${executionData.status}` : "Executing workflow..."}
+								</Typography>
+							</Box>
 							:
 							(foundSourcenode !== undefined && foundSourcenode !== null) ? 
 								<span style={{marginTop: 20, }}>
@@ -1963,85 +2051,135 @@ const FormInput = (defaultprops: any) => {
 													if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
 														e.preventDefault()
 														if (!disabledButtons) {
+															setDisableButtons(true)
+															setButtonClicked("ABORTED")
+															setExecutionData({ status: "ABORTED" })
 															onSubmit(null, execution_id, authorization, false)
 														}
 													}
 												}}
-												style={{marginBottom: 10, }}
+												sx={{
+													mb: 1.5,
+													"& .MuiOutlinedInput-root": {
+														backgroundColor: "hsl(var(--background) / 0.6)",
+														borderRadius: "10px",
+														fontSize: 14,
+														color: "hsl(var(--foreground))",
+													},
+													"& .MuiOutlinedInput-input::placeholder": {
+														color: "hsl(var(--muted-foreground))",
+														opacity: 1,
+													},
+													"& .MuiOutlinedInput-notchedOutline": {
+														borderColor: "hsl(var(--border))",
+													},
+													"&:hover .MuiOutlinedInput-notchedOutline": {
+														borderColor: "hsl(var(--border))",
+													},
+													"& .Mui-focused .MuiOutlinedInput-notchedOutline": {
+														borderColor: "hsl(var(--primary))",
+													},
+												}}
 											/>
 											<Button
 												fullWidth
 												id="abort_execution"
 												variant="contained"
 												disabled={disabledButtons}
-												color="primary"
-												style={{textTransform: "none", }}
+												sx={{
+													height: 44,
+													borderRadius: "10px",
+													fontWeight: 600,
+													fontSize: 15,
+													textTransform: "none",
+													backgroundColor: "hsl(var(--destructive))",
+													color: "hsl(var(--destructive-foreground))",
+													"&:hover": {
+														backgroundColor: "hsl(var(--destructive) / 0.9)",
+													},
+													"&.Mui-disabled": {
+														backgroundColor: "hsl(var(--muted))",
+														color: "hsl(var(--muted-foreground))",
+													},
+												}}
 												onClick={() => {
-													setTimeout(() => {
-														setButtonClicked("ABORTED")
-														setExecutionData({
-															status: "ABORTED",
-														})
-													}, 2500)
-
+													setDisableButtons(true)
+													setButtonClicked("ABORTED")
+													setExecutionData({ status: "ABORTED" })
 													onSubmit(null, execution_id, authorization, false)
 												}}>
 												Confirm Decline
 											</Button>
 										</div>
 									:
-										<div fullWidth style={{width: "100%", marginTop: 10, marginBottom: 10, display: "flex", }}>
+										<div style={{width: "100%", marginTop: 10, marginBottom: 10, display: "flex", gap: 10 }}>
 											<Button
 												fullWidth
 												id="continue_execution"
 												variant="contained"
 												disabled={!handleValidateForm(executionArgument) || disabledButtons}
-												color="primary"
-												style={{
+												sx={{
 													flex: 1,
+													height: 44,
+													borderRadius: "10px",
+													fontWeight: 600,
+													fontSize: 15,
 													textTransform: "none",
+													backgroundColor: "hsl(var(--primary))",
+													color: "hsl(var(--primary-foreground))",
+													"&:hover": {
+														backgroundColor: "hsl(var(--primary) / 0.92)",
+													},
+													"&.Mui-disabled": {
+														backgroundColor: "hsl(var(--muted))",
+														color: "hsl(var(--muted-foreground))",
+													},
 												}}
 												onClick={() => {
-													// Timeout 2500 just in case
-													setTimeout(() => {
-														setButtonClicked("FINISHED")
-														setExecutionData({
-															status: "FINISHED",
-														})
-													}, 2500)
-
+													setDisableButtons(true)
+													setButtonClicked("FINISHED")
+													setExecutionData({ status: "FINISHED" })
 													onSubmit(null, execution_id, authorization, true)
 												}}>
-												Continue</Button>
-											<Typography variant="body1" style={{marginLeft: 3, marginRight: 3, marginTop: 3, }}>
-												&nbsp;or&nbsp;
-											</Typography>
+												Continue
+											</Button>
 											<Button
 												fullWidth
 												id="abort_execution"
 												variant="outlined"
 												disabled={!handleValidateForm(executionArgument) || disabledButtons}
-												color="primary"
-												style={{
+												sx={{
 													flex: 1,
+													height: 44,
+													borderRadius: "10px",
+													fontWeight: 600,
+													fontSize: 15,
 													textTransform: "none",
-												}} onClick={() => {
-													setTimeout(() => {
-														setButtonClicked("ABORTED")
-														setExecutionData({
-															status: "ABORTED",
-														})
-													}, 2500)
-
+													borderColor: "hsl(var(--border))",
+													color: "hsl(var(--foreground))",
+													"&:hover": {
+														borderColor: "hsl(var(--destructive))",
+														backgroundColor: "hsl(var(--destructive) / 0.08)",
+														color: "hsl(var(--destructive))",
+													},
+													"&.Mui-disabled": {
+														borderColor: "hsl(var(--border))",
+														color: "hsl(var(--muted-foreground))",
+													},
+												}}
+												onClick={() => {
+													setDisableButtons(true)
+													setButtonClicked("ABORTED")
+													setExecutionData({ status: "ABORTED" })
 													onSubmit(null, execution_id, authorization, false)
-											}}>
+												}}>
 												Stop
 											</Button>
 										</div>
 									}
 
 									{answer !== "false" && handleValidateForm(executionArgument) === false && disabledButtons === false ?
-										<Typography variant="body2" color="textSecondary" style={{textAlign: "center", marginTop: 10, underline: "1px solid grey", }}>
+										<Typography variant="body2" sx={{ textAlign: "center", marginTop: 1.5, color: "hsl(var(--muted-foreground))", textDecoration: "underline" }}>
 											All required questions have not been answered yet.
 										</Typography>
 									: null}
@@ -2054,7 +2192,7 @@ const FormInput = (defaultprops: any) => {
 									color="primary" 
 									fullWidth 
 									disableElevation
-									disabled={!handleValidateForm(executionArgument) || executionLoading}
+									disabled={!handleValidateForm(executionArgument) || disabledButtons}
 									sx={{
 										textTransform: "none",
 										height: 44,
@@ -2090,7 +2228,7 @@ const FormInput = (defaultprops: any) => {
 						}
 
 
-						{workflow.form_control.output_yields !== undefined && workflow.form_control.output_yields !== null && workflow.form_control.output_yields.length > 0 ?
+						{workflow?.form_control?.output_yields !== undefined && workflow?.form_control?.output_yields !== null && workflow.form_control.output_yields.length > 0 ?
 							<div style={{marginTop: 20, }}>
 								{workflow.form_control.output_yields.map((yieldItem, index) => {
 									if (executionData.results === undefined || executionData.results === null || executionData.results.length === 0) {

@@ -7,14 +7,14 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle } from 'react';
 import { algoliasearch, SearchClient } from 'algoliasearch';
 import { Tooltip } from '@mui/material';
-import type { AlgoliaSearchApp, AppSelectedEvent, ShuffleMCPProps, AppAuthentication } from '@/Shuffle-MCPs/shuffle-mcp.helpers';
-import AppDetailDrawer from '@/Shuffle-MCPs/views/AppDetailDrawer';
-import '../shuffle-mcp.css';
-import { fetchApps } from '@/Shuffle-MCPs/appsCache';
-import { AppFallbackIcon } from '@/Shuffle-MCPs/components/AppFallbackIcon';
-import { SegmentedControl } from '@/Shuffle-MCPs/components/SegmentedControl';
-import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
-import { isValidationFresh } from '@/Shuffle-MCPs/auth-utils';
+import type { AlgoliaSearchApp, AppSelectedEvent, ShuffleMCPProps, AppAuthentication } from '../shuffle-mcp.helpers';
+import AppDetailDrawer from './AppDetailDrawer';
+import '../shuffle-core.css';
+import { fetchApps } from '../appsCache';
+import { AppFallbackIcon } from '../components/AppFallbackIcon';
+import { SegmentedControl } from '../components/SegmentedControl';
+import { useSyncHostBaseUrl } from '../useSyncHostBaseUrl';
+import { isValidationFresh } from '../auth-utils';
 
 const DEFAULT_ALGOLIA_APP_ID = 'JNSS5CFDZZ';
 const DEFAULT_ALGOLIA_API_KEY = '33e4e3564f4f060e96e0531957bed552';

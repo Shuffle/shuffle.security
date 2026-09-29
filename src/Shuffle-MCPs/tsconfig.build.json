@@ -17,11 +17,10 @@
     "paths": {
       "@/Shuffle-MCPs": ["Shuffle-MCPs/index.ts"],
       "@/Shuffle-MCPs/*": ["Shuffle-MCPs/*"],
-      "@/Shuffle-Core/*": ["Shuffle-Core/*"],
       "@/assets/*": ["assets/*"],
       "@/lib/*": ["lib/*"]
     }
   },
-  "include": ["index.ts", "ShuffleMCP.tsx", "AppDetailDrawer.tsx", "shuffle-mcp.helpers.ts", "assets.d.ts", "**/*.tsx", "**/*.ts"],
+  "include": ["index.ts", "shuffle-mcp.helpers.ts", "assets.d.ts", "**/*.tsx", "**/*.ts"],
   "exclude": ["dist", "node_modules", "tsup.config.ts"]
 }

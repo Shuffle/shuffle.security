@@ -977,6 +977,40 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     return () => clearTimeout(timer);
   }, [mfaRequired]);
 
+  // Prevent Backspace from navigating away when in MFA mode,
+  // and keep focus anchored to the MFA input field.
+  useEffect(() => {
+    if (!mfaRequired) return undefined;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Backspace') {
+        const target = e.target as HTMLElement | null;
+        const tagName = target?.tagName?.toLowerCase();
+        const isEditable =
+          (tagName === 'input' && target !== mfaInputRef.current) ||
+          tagName === 'textarea' ||
+          Boolean(target?.isContentEditable);
+
+        if (!isEditable) {
+          if (target === mfaInputRef.current) {
+            if (mfaCode.length === 0 || loading) {
+              e.preventDefault();
+            }
+          } else {
+            e.preventDefault();
+            mfaInputRef.current?.focus();
+            if (!loading && mfaCode.length > 0) {
+              setMfaCode((prev) => prev.slice(0, -1));
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mfaRequired, mfaCode, loading]);
+
   // ---------------------------------------------------------------------------
   // Primary Login / Registration Submit Handler
   // ---------------------------------------------------------------------------
@@ -1126,7 +1160,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
       if (isMfaRedirect) {
         setMfaRequired(true);
-        setNotice('Two-factor authentication code required. Please enter the code from your authenticator app.');
+        setNotice('');
         return;
       }
 
@@ -1137,8 +1171,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             data.message ||
             (isRegister
               ? 'Registration failed. The username or email may already be in use.'
+              : mfaRequired
+              ? 'Invalid two-factor authentication code. Please check your authenticator app and try again.'
               : 'Invalid credentials. Please check your username and password.')
         );
+        if (mfaRequired) {
+          setMfaCode('');
+          setTimeout(() => {
+            mfaInputRef.current?.focus();
+          }, 50);
+        }
         return;
       }
 
@@ -1234,6 +1276,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       goToRedirectTarget(from || defaultDestination);
     } catch (err: any) {
       setError(err?.message || 'A network error occurred during sign in. Please try again.');
+      if (mfaRequired) {
+        setMfaCode('');
+        setTimeout(() => {
+          mfaInputRef.current?.focus();
+        }, 50);
+      }
     } finally {
       setLoading(false);
     }
@@ -1719,7 +1767,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               </AnimatePresence>
 
               {/* Notice / Error alerts */}
-              {notice && (
+              {notice && !mfaRequired && (
                 <Alert
                   severity="info"
                   onClose={() => setNotice('')}
@@ -2011,7 +2059,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                             maxLength={6}
                             value={mfaCode}
                             onChange={(e) => handleMfaChange(e.target.value)}
-                            disabled={loading}
+                            onKeyDown={(e) => {
+                              if (loading || (e.key === 'Backspace' && mfaCode.length === 0)) {
+                                e.preventDefault();
+                              }
+                            }}
+                            readOnly={loading}
                             style={{
                               position: 'absolute',
                               top: 0,

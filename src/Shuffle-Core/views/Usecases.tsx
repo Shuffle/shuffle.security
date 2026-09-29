@@ -36,8 +36,8 @@ import shuffleSecurityIcon from '../assets/shuffle-icon.png';
 import UsecaseAlluvialDiagram, { extractNotificationWorkflowAppNames, matchesCategory } from './UsecaseAlluvialDiagram';
 import { findForwardTicketsWorkflow } from '../ingestionDetection';
 import { useEntityPreference } from '@/hooks/useEntityLabel';
+import AppSearchDrawer from './AppSearchDrawer';
 import {
-  AppSearchDrawer,
   useAppDetailOptional,
   extractActionAppNames,
   extractWorkflowAppNames,
@@ -2659,16 +2659,14 @@ const IntegrationStatusLite = React.memo(function IntegrationStatusLite({
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         transformOrigin={{ vertical: 'top', horizontal: 'center' }}
         sx={{ zIndex: 10040 }}
-        slotProps={{
-          paper: {
-            sx: {
-              mt: 0.5,
-              bgcolor: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: 1.5,
-              p: 1.5,
-              minWidth: 220,
-            },
+        PaperProps={{
+          sx: {
+            mt: 0.5,
+            bgcolor: 'hsl(var(--card))',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: 1.5,
+            p: 1.5,
+            minWidth: 220,
           },
         }}
       >

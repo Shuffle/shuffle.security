@@ -483,4 +483,15 @@ declare module '@capacitor/haptics' {
   export const Haptics: any;
 }
 
+declare module '@/lib/router-compat' {
+  export const useNavigate: any;
+  export const useLocation: any;
+  export function useParams<T = any>(...args: any[]): T;
+  export const useSearchParams: any;
+  export const Link: any;
+  export const Navigate: any;
+  export const Outlet: any;
+  export const json: any;
+}
+
 

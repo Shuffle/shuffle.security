@@ -41,7 +41,7 @@ import {
   Clock as ScheduleIcon,
   Settings as SettingsIcon,
   Send as SendIcon,
-  CircleStop as StopCircleIcon,
+  StopCircle as StopCircleIcon,
   ThumbsDown as ThumbDownIcon,
   ThumbsUp as ThumbUpIcon,
   AlertTriangle as WarningIcon,
@@ -50,7 +50,30 @@ import {
   Plus as PlusIcon,
   Loader2 as Loader2Icon,
 } from 'lucide-react';
-import { fetchExecution as fetchExecutionSnapshot } from '@/Shuffle-Core/components/WorkflowRunExplorer';
+
+const fetchExecutionSnapshot = async (
+  executionId: string,
+  authorization?: string,
+): Promise<any | null> => {
+  try {
+    const resp = await fetch(getApiUrl('/api/v1/streams/results'), {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ execution_id: executionId, authorization: authorization || executionId }),
+    });
+    if (!resp.ok) return null;
+    const text = await resp.text();
+    if (!text || text === '{}' || text === 'null') return null;
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
 import { useNavigate, useSearchParams } from '@/lib/router-compat';
 import {
   Avatar,
@@ -125,7 +148,7 @@ import 'react18-json-view/src/style.css';
 import 'react18-json-view/src/dark.css';
 import { defaultCollapsed } from '@/lib/jsonView';
 import { extractCleanDisplayPrompt } from '@/lib/docsPromptContext';
-import { ActionOutputView } from '@/Shuffle-Core/views/monitors/ActionOutputView';
+import { ActionOutputView } from '@/Shuffle-MCPs/components/ActionOutputView';
 
 
 const LAST_PRESET_STORAGE_KEY = 'agent_last_preset_id';
@@ -668,8 +691,6 @@ const RunFinishedSummary: React.FC<RunFinishedSummaryProps> = ({
 
 import { SegmentedControl } from '@/Shuffle-MCPs/components/SegmentedControl';
 import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
-import AppSearchDrawer from '@/Shuffle-MCPs/views/AppSearchDrawer';
-import AppDetailDrawer from '@/Shuffle-MCPs/views/AppDetailDrawer';
 import { getApiUrl, getAuthHeader, API_CONFIG, getShuffleCoreFormUrl } from '@/Shuffle-MCPs/api';
 import { fetchApps } from '@/Shuffle-MCPs/appsCache';
 import { resolveApps } from '@/Shuffle-MCPs/resolveApp';
@@ -911,6 +932,37 @@ export interface AgentUIProps {
   vulnerabilityId?: string;
   /** Optional target workflow ID for edit-workflow skill */
   workflowId?: string;
+  /** Optional custom renderer for the tool search drawer (e.g. AppSearchDrawer from Shuffle-Core) */
+  renderToolDrawer?: (props: ToolDrawerRenderProps) => React.ReactNode;
+  /** Optional custom renderer for the app detail drawer (e.g. AppDetailDrawer from Shuffle-Core) */
+  renderAppDetailDrawer?: (props: AppDetailDrawerRenderProps) => React.ReactNode;
+}
+
+export interface ToolDrawerRenderProps {
+  open: boolean;
+  initialQuery?: string;
+  onClose: () => void;
+  title?: string;
+  subtitle?: string;
+  multiSelect?: boolean;
+  selectedApps: Array<{ name: string; id?: string | null; icon?: string }>;
+  globalUrl?: string;
+  theme?: string;
+  colorMode?: 'light' | 'dark' | 'auto';
+  onSelectionChange: (next: Array<{ name: string; id?: string | null; icon?: string }>) => void;
+}
+
+export interface AppDetailDrawerRenderProps {
+  open: boolean;
+  onClose: () => void;
+  appName?: string | null;
+  appId?: string | null;
+  appImage?: string | null;
+  activeOrgId?: string | null;
+  globalUrl?: string;
+  theme?: string;
+  colorMode?: 'light' | 'dark' | 'auto';
+  onRefresh?: () => void;
 }
 
 /** Set of confirmed live built-in Shuffle services that are always available in the platform */
@@ -2296,6 +2348,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
   incidentContext: propIncidentContext,
   vulnerabilityId: propVulnerabilityId,
   workflowId: propWorkflowId,
+  renderToolDrawer,
+  renderAppDetailDrawer,
 }) => {
   const isEffectiveSupport = isSupport !== undefined ? isSupport : isSupportUser();
 
@@ -8273,66 +8327,69 @@ const AgentUI: React.FC<AgentUIProps> = ({
           )}
         </Dialog>
 
-        <AppSearchDrawer
+        {renderToolDrawer ? (
+          renderToolDrawer({
+            open: appSearchOpen,
+            initialQuery: appSearchQuery || undefined,
+            onClose: () => { setAppSearchOpen(false); setAppSearchQuery(''); setCategoryTarget(null); },
+            title: appPickerTitle,
+            subtitle: appPickerSubtitle,
+            multiSelect: true,
+            selectedApps: chosenApps.map((a) => ({ name: a.name, id: a.id || null, icon: a.icon })),
+            globalUrl: apiBaseUrl,
+            theme,
+            colorMode,
+            onSelectionChange: (next) => {
+              const added = next.length > chosenApps.length;
+              // Dedupe by normalized name so an app seeded from a previous run
+              // (name-only, no Algolia id) cannot linger as a second, invisible
+              // entry that keeps the picker row highlighted after deselecting.
+              const slug = (s?: string) => (s || '').toLowerCase().replace(/[\s_-]+/g, '');
+              const seen = new Set<string>();
+              const mapped = next
+                .map((app) => {
+                  const known = availableApps.find(
+                    (a) => slug(a.name) === slug(app.name),
+                  );
+                  return {
+                    name: app.name,
+                    icon: app.icon || known?.icon,
+                    id: app.id || known?.id || undefined,
+                  };
+                })
+                .filter((app) => {
+                  const key = slug(app.name);
+                  if (!key || seen.has(key)) return false;
+                  seen.add(key);
+                  return true;
+                });
+              setChosenApps(mapped);
+              // Picking an app for a category requirement resolves that chip
+              // and closes the picker.
+              if (categoryTarget && added) {
+                setPendingCategories((prev) => prev.filter((p) => p.value !== categoryTarget));
+                setCategoryTarget(null);
+                setAppSearchQuery('');
+                setAppSearchOpen(false);
+              }
+            },
+          })
+        ) : null}
 
-          open={appSearchOpen}
-          initialQuery={appSearchQuery || undefined}
-          onClose={() => { setAppSearchOpen(false); setAppSearchQuery(''); setCategoryTarget(null); }}
-          title={appPickerTitle}
-          subtitle={appPickerSubtitle}
-          multiSelect
-          selectedApps={chosenApps.map((a) => ({ name: a.name, id: a.id || null, icon: a.icon }))}
-          globalUrl={apiBaseUrl}
-          theme={theme}
-          colorMode={colorMode}
-          onSelectionChange={(next) => {
-            const added = next.length > chosenApps.length;
-            // Dedupe by normalized name so an app seeded from a previous run
-            // (name-only, no Algolia id) cannot linger as a second, invisible
-            // entry that keeps the picker row highlighted after deselecting.
-            const slug = (s?: string) => (s || '').toLowerCase().replace(/[\s_-]+/g, '');
-            const seen = new Set<string>();
-            const mapped = next
-              .map((app) => {
-                const known = availableApps.find(
-                  (a) => slug(a.name) === slug(app.name),
-                );
-                return {
-                  name: app.name,
-                  icon: app.icon || known?.icon,
-                  id: app.id || known?.id || undefined,
-                };
-              })
-              .filter((app) => {
-                const key = slug(app.name);
-                if (!key || seen.has(key)) return false;
-                seen.add(key);
-                return true;
-              });
-            setChosenApps(mapped);
-            // Picking an app for a category requirement resolves that chip
-            // and closes the picker.
-            if (categoryTarget && added) {
-              setPendingCategories((prev) => prev.filter((p) => p.value !== categoryTarget));
-              setCategoryTarget(null);
-              setAppSearchQuery('');
-              setAppSearchOpen(false);
-            }
-          }}
-        />
-
-        <AppDetailDrawer
-          open={!!authDrawerApp}
-          onClose={() => setAuthDrawerApp(null)}
-          onRefresh={() => { loadAuthenticatedApps(); }}
-          appName={authDrawerApp?.name || null}
-          appId={authDrawerApp?.id || null}
-          appImage={authDrawerApp?.icon || null}
-          activeOrgId={orgId || null}
-          globalUrl={apiBaseUrl}
-          theme={theme}
-          colorMode={colorMode}
-        />
+        {renderAppDetailDrawer ? (
+          renderAppDetailDrawer({
+            open: !!authDrawerApp,
+            onClose: () => setAuthDrawerApp(null),
+            onRefresh: () => { loadAuthenticatedApps(); },
+            appName: authDrawerApp?.name || null,
+            appId: authDrawerApp?.id || null,
+            appImage: authDrawerApp?.icon || null,
+            activeOrgId: orgId || null,
+            globalUrl: apiBaseUrl,
+            theme,
+            colorMode,
+          })
+        ) : null}
       </Box>
 
       {/* Pinned Bottom Footer in Sidebar Layout */}

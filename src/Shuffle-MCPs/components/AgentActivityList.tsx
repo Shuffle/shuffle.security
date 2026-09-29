@@ -67,7 +67,7 @@ import {
   subscribeLastOpenedAgentRun,
 } from '@/Shuffle-MCPs/agentRunSync';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { navigateToShuffleCore } from '@/lib/authHandoff';
+import { navigateToShuffleCore } from '@/Shuffle-MCPs/navigation';
 
 import { diagnoseOutputWarning } from '@/Shuffle-MCPs/agentDiagnosis';
 import { fetchAppsViaApiConfig } from '@/Shuffle-MCPs/appsCache';
@@ -77,7 +77,6 @@ import { Pencil, StopCircle, AlertTriangle } from 'lucide-react';
 
 import { SegmentedControl } from '@/Shuffle-MCPs/components/SegmentedControl';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
-import AppDetailDrawer from '@/Shuffle-MCPs/views/AppDetailDrawer';
 
 // ── Status / icon helpers ────────────────────────────────────────────────────
 
@@ -914,6 +913,17 @@ export interface AgentActivityListProps extends ShuffleHostProps {
   initialRuns?: AgentRun[];
   /** When true, skips remote activity fetching entirely (e.g. for demo runs). */
   disableFetch?: boolean;
+  /** Optional custom renderer for the app detail drawer (e.g. from Shuffle-Core) */
+  renderAppDetailDrawer?: (props: {
+    open: boolean;
+    onClose: () => void;
+    appName?: string | null;
+    appId?: string | null;
+    activeOrgId?: string | null;
+    globalUrl?: string;
+    theme?: string;
+    colorMode?: 'light' | 'dark' | 'auto';
+  }) => React.ReactNode;
 }
 
 const AgentActivityList = ({
@@ -921,7 +931,7 @@ const AgentActivityList = ({
   apiBaseUrl,
   orgId,
   onRunClick,
-
+  renderAppDetailDrawer,
   onEditWorkflow,
   showSearchBar = true,
   showStatusChips = true,
@@ -1692,16 +1702,18 @@ const AgentActivityList = ({
         </DialogActions>
       </Dialog>
 
-      <AppDetailDrawer
-        open={!!appDrawer}
-        onClose={() => setAppDrawer(null)}
-        appName={appDrawer?.name || null}
-        appId={appDrawer?.id || null}
-        activeOrgId={orgId || null}
-        globalUrl={globalUrl || apiBaseUrl}
-        theme={theme}
-        colorMode={colorMode}
-      />
+      {renderAppDetailDrawer ? (
+        renderAppDetailDrawer({
+          open: !!appDrawer,
+          onClose: () => setAppDrawer(null),
+          appName: appDrawer?.name || null,
+          appId: appDrawer?.id || null,
+          activeOrgId: orgId || null,
+          globalUrl: globalUrl || apiBaseUrl,
+          theme,
+          colorMode,
+        })
+      ) : null}
     </Box>
   );
 };

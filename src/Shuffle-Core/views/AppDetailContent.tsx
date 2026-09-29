@@ -43,12 +43,12 @@ import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import { fetchAppsViaApiConfig } from '@/Shuffle-MCPs/appsCache';
 import { fetchAppConfig } from '@/Shuffle-MCPs/appConfigFetch';
-import AppTitleHeader from '@/Shuffle-MCPs/components/AppTitleHeader';
-import AppAuthSection from '@/Shuffle-MCPs/components/AppAuthSection';
+import AppTitleHeader from '@/Shuffle-Core/components/AppTitleHeader';
+import AppAuthSection from '@/Shuffle-Core/components/AppAuthSection';
 import TryMcpSection from '@/Shuffle-MCPs/views/TryMcpSection';
 import SingulActionsPreview from '@/Shuffle-MCPs/components/SingulActionsPreview';
 import ApiCallViewer from '@/Shuffle-MCPs/components/ApiCallViewer';
-import AppRelatedUsecases from '@/Shuffle-MCPs/components/AppRelatedUsecases';
+import AppRelatedUsecases from '@/Shuffle-Core/components/AppRelatedUsecases';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/Shuffle-MCPs/useWorkflows';
 import { isVulnScannerApp, normalizeAppName, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
@@ -679,7 +679,7 @@ export default function AppDetailContent({
   const targetCategory = isVuln ? 'vulnerabilities' : 'cases';
 
   const ingestWorkflow = useMemo(() => {
-    return workflows?.find(w => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
+    return workflows?.find((w: any) => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
   }, [workflows, targetWorkflowName]);
 
   const isIngestEnabled = useMemo(() => {

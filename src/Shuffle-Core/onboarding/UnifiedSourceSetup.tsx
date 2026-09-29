@@ -18,7 +18,6 @@ import {
   Plus as PlusIcon,
 } from 'lucide-react';
 import {
-  ShuffleMCP,
   API_CONFIG,
   getApiUrl,
   getAuthHeader,
@@ -28,10 +27,12 @@ import {
 } from '@shuffleio/shuffle-mcps';
 import type {
   AlgoliaSearchApp,
-  ShuffleMCPHandle,
-  IngestionCategory,
   ShuffleHostProps,
+} from '../shuffle-mcp.helpers';
+import type {
+  IngestionCategory,
 } from '@shuffleio/shuffle-mcps';
+import { ShuffleMCP, type ShuffleMCPHandle } from '../views/ShuffleMCP';
 import { AddAppButton, AddAppDialog } from '@/Shuffle-Core/components/AddAppDialog';
 
 /** Fire-and-forget activate call for a newly selected app. Refreshes the

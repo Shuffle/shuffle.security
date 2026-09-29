@@ -14,7 +14,7 @@ import {
   IconButton,
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import type { AlgoliaSearchApp } from '@shuffleio/shuffle-mcps';
+import type { AlgoliaSearchApp } from '../shuffle-mcp.helpers';
 
 export type AuthStatus = 'pending' | 'testing' | 'connected' | 'error';
 

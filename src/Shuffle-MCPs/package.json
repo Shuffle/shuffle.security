@@ -1,0 +1,73 @@
+{
+  "name": "@shuffleio/shuffle-mcps",
+  "version": "0.0.1-test",
+  "description": "Turn 3,000+ SaaS tools into MCP servers your agents can use. Headless React component for search, selection, and OAuth handoff.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Shuffle/shuffle.security.git"
+  },
+  "homepage": "https://github.com/Shuffle/shuffle.security#readme",
+  "bugs": {
+    "url": "https://github.com/Shuffle/shuffle.security/issues"
+  },
+  "keywords": [
+    "react",
+    "integrations",
+    "oauth",
+    "mcp",
+    "algolia",
+    "search",
+    "shuffle",
+    "singul"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./shuffle-mcp.css": "./dist/shuffle-mcp.css"
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "@mui/material": ">=5",
+    "@emotion/react": ">=11",
+    "@emotion/styled": ">=11",
+    "lucide-react": ">=0.300.0",
+    "react-router-dom": ">=6"
+  },
+  "dependencies": {
+    "algoliasearch": "^5.0.0",
+    "framer-motion": "^11.0.0",
+    "sonner": "^1.5.0",
+    "react-markdown": "^10.1.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.0",
+    "remark-breaks": "^4.0.0",
+    "react18-json-view": "^0.2.9"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

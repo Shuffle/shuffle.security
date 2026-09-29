@@ -213,6 +213,27 @@ const PREDEFINED_SCOPES: Record<string, OAuthScopeDetail> = {
     description: 'Execute and pass runtime arguments to Shuffle security workflows and playbooks.',
     badge: 'Workflows Run',
   },
+  'workflow:run': {
+    id: 'workflow:run',
+    category: 'workflow',
+    title: 'Run Workflows',
+    description: 'Trigger autonomous execution and pass runtime arguments to workflows.',
+    badge: 'Workflows Run',
+  },
+  'workflow:edit': {
+    id: 'workflow:edit',
+    category: 'workflow',
+    title: 'Edit Workflows & Automations',
+    description: 'Create, update, and modify workflows, triggers, and configurations in your organization.',
+    badge: 'Workflows Edit',
+  },
+  'workflows:edit': {
+    id: 'workflows:edit',
+    category: 'workflow',
+    title: 'Edit Workflows & Automations',
+    description: 'Create, update, and modify workflows, triggers, and configurations in your organization.',
+    badge: 'Workflows Edit',
+  },
   'workflows:execute': {
     id: 'workflows:execute',
     category: 'workflow',
@@ -324,6 +345,19 @@ const parseDynamicScope = (rawScope: string): OAuthScopeDetail => {
     };
   }
 
+  if (normalized.startsWith('workflow:') || normalized.startsWith('workflows:')) {
+    const parts = normalized.split(':');
+    const action = parts[1] || 'access';
+    const actionCap = action.charAt(0).toUpperCase() + action.slice(1);
+    return {
+      id: rawScope,
+      category: 'workflow',
+      title: `${actionCap} Workflows`,
+      description: `Allows the application to ${action} workflows and automations in your tenant.`,
+      badge: `Workflow: ${actionCap}`,
+    };
+  }
+
   const cleanTitle = rawScope
     .replace(/[:_\-]/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
@@ -412,9 +446,19 @@ const getAppFromRedirectUri = (
     return {
       name: 'VS Code Extension',
       vendor: 'Microsoft',
-      iconBg: '#007ACC',
+      iconBg: '#07ACC',
       iconColor: '#FFFFFF',
       description: 'Visual Studio Code extension integration',
+    };
+  }
+
+  if (lower.includes('127.0.0.1') || lower.includes('localhost')) {
+    return {
+      name: 'Shuffle Agent',
+      vendor: 'Shuffle',
+      iconBg: '#f85f38',
+      iconColor: '#FFFFFF',
+      description: 'Shuffle Agent runner requesting access to execute tools and actions on your behalf.',
     };
   }
 
@@ -426,16 +470,41 @@ const getClientProfile = (
   clientName?: string,
   redirectUri?: string,
 ): ClientProfile => {
-  // 1. Identify source application via redirect_uri (e.g. ChatGPT, Claude, Cursor)
+  // 1. Identify source application via redirect_uri (e.g. ChatGPT, Claude, Cursor, Shuffle Agent)
   const fromRedirect = getAppFromRedirectUri(redirectUri);
   if (fromRedirect) {
+    if (clientName && !isUuidLike(clientName)) {
+      return {
+        ...fromRedirect,
+        name: clientName,
+      };
+    }
     return fromRedirect;
   }
 
   const id = (clientId || '').toLowerCase();
   const name = (clientName || '').toLowerCase();
 
-  // 2. Identify known applications via client_id or client_name
+  // 2. Identify Shuffle Agent or dynamic runner
+  if (
+    id.startsWith('shuffle_client_') ||
+    id.includes('shuffle-agent') ||
+    id.includes('shuffle_agent') ||
+    id.includes('shuffle') ||
+    name.includes('shuffle') ||
+    name.includes('agent')
+  ) {
+    const resolvedName = clientName && !isUuidLike(clientName) ? clientName : 'Shuffle Agent';
+    return {
+      name: resolvedName,
+      vendor: 'Shuffle',
+      iconBg: '#f85f38',
+      iconColor: '#FFFFFF',
+      description: 'Shuffle Agent runner requesting access to execute tools and actions on your behalf.',
+    };
+  }
+
+  // 3. Identify known applications via client_id or client_name
   if (id.includes('chatgpt') || name.includes('chatgpt') || id.includes('openai') || name.includes('openai')) {
     return {
       name: clientName && !isUuidLike(clientName) ? clientName : 'ChatGPT',
@@ -486,7 +555,7 @@ const getClientProfile = (
     };
   }
 
-  // 3. User-friendly client name if provided (and not a raw UUID)
+  // 4. User-friendly client name if provided (and not a raw UUID)
   if (clientName && !isUuidLike(clientName)) {
     return {
       name: clientName,
@@ -497,7 +566,7 @@ const getClientProfile = (
     };
   }
 
-  // 4. Default clean fallback ("Authorize Application", no messy UUID)
+  // 5. Default clean fallback ("Authorize Application", no messy UUID)
   return {
     name: 'Application',
     vendor: 'Third-Party Developer',
@@ -507,18 +576,18 @@ const getClientProfile = (
   };
 };
 
-/** Region flag/code from a region URL (mirrors the sidebar tenant selector). */
+/** Region code from a region URL (mirrors the sidebar tenant selector). Clean text, no emojis. */
 const getRegionFlag = (regionUrl?: string): { flag: string; code: string } => {
-  if (!regionUrl) return { flag: '🇬🇧', code: 'UK' };
+  if (!regionUrl) return { flag: 'UK', code: 'UK' };
   const url = regionUrl.toLowerCase();
-  if (url.includes('california') || url.includes('us.') || url.includes('us-')) return { flag: '🇺🇸', code: 'US' };
-  if (url.includes('frankfurt') || url.includes('de.') || url.includes('de-')) return { flag: '🇪🇺', code: 'EU' };
-  if (url.includes('eu-2') || url.includes('eu2')) return { flag: '🇪🇺', code: 'EU-2' };
-  if (url.includes('eu.') || url.includes('eu-')) return { flag: '🇪🇺', code: 'EU' };
-  if (url.includes('ca.') || url.includes('canada')) return { flag: '🇨🇦', code: 'CA' };
-  if (url.includes('au.') || url.includes('aus') || url.includes('australia')) return { flag: '🇦🇺', code: 'AUS' };
-  if (url.includes('uk.') || url.includes('uk-') || url.includes('london')) return { flag: '🇬🇧', code: 'UK' };
-  return { flag: '🇬🇧', code: 'UK' };
+  if (url.includes('california') || url.includes('us.') || url.includes('us-')) return { flag: 'US', code: 'US' };
+  if (url.includes('frankfurt') || url.includes('de.') || url.includes('de-')) return { flag: 'EU', code: 'EU' };
+  if (url.includes('eu-2') || url.includes('eu2')) return { flag: 'EU-2', code: 'EU-2' };
+  if (url.includes('eu.') || url.includes('eu-')) return { flag: 'EU', code: 'EU' };
+  if (url.includes('ca.') || url.includes('canada')) return { flag: 'CA', code: 'CA' };
+  if (url.includes('au.') || url.includes('aus') || url.includes('australia')) return { flag: 'AUS', code: 'AUS' };
+  if (url.includes('uk.') || url.includes('uk-') || url.includes('london')) return { flag: 'UK', code: 'UK' };
+  return { flag: 'UK', code: 'UK' };
 };
 
 /** Sort organizations into a parent → child hierarchy (mirrors the sidebar). */
@@ -582,7 +651,11 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
   }, []);
 
   const clientId = queryParams.get('client_id') || 'external-app';
-  const clientNameParam = queryParams.get('client_name') || queryParams.get('app_name') || '';
+  const clientNameParam =
+    queryParams.get('client_name') ||
+    queryParams.get('app_name') ||
+    queryParams.get('name') ||
+    '';
   const redirectUri = queryParams.get('redirect_uri') || '';
   const scopeParam = queryParams.get('scope') || queryParams.get('scopes') || '';
   const state = queryParams.get('state') || '';
@@ -788,6 +861,7 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
           },
           body: JSON.stringify({
             client_id: clientId,
+            client_name: clientProfile.name,
             redirect_uri: redirectUri,
             scope: approvedScopeString,
             state,
@@ -809,7 +883,12 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
         let errMessage = '';
         try {
           const errData = await response.json();
-          errMessage = errData?.message || errData?.error || errData?.reason || '';
+          errMessage =
+            errData?.error_description ||
+            errData?.message ||
+            errData?.error ||
+            errData?.reason ||
+            '';
         } catch {}
 
         if (!errMessage) {
@@ -828,15 +907,25 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
       }
 
       let backendCode = generatedCode;
+      let redirectUrlFromBackend = '';
       try {
         const resData = await response.json();
         if (resData?.code || resData?.auth_code) {
           backendCode = resData.code || resData.auth_code;
         }
+        if (resData?.redirect_url) {
+          redirectUrlFromBackend = resData.redirect_url;
+        }
       } catch {}
 
       if (onAuthSuccess) {
         onAuthSuccess(backendCode, redirectUri);
+      }
+
+      if (redirectUrlFromBackend) {
+        setAuthorizingStep('redirecting');
+        window.location.href = redirectUrlFromBackend;
+        return;
       }
 
       if (redirectUri) {
@@ -1314,7 +1403,11 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
               }}
             >
-              {clientProfile.name.charAt(0).toUpperCase()}
+              {clientProfile.vendor === 'Shuffle' ? (
+                <ShuffleCompanyLogo size={32} alt={clientProfile.name} />
+              ) : (
+                clientProfile.name.charAt(0).toUpperCase()
+              )}
             </Avatar>
 
             <Box
@@ -1621,10 +1714,21 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
                           startAdornment: currentSelectedOrg ? (
                             <Tooltip title={currentSelectedOrg.region_url ? `Region URL: ${currentSelectedOrg.region_url}` : region.code} placement="bottom">
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 0.5, mr: 0.5, flexShrink: 0 }}>
-                                <span style={{ fontSize: '14px' }}>{region.flag}</span>
-                                <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
-                                  {region.code || '?'}
-                                </Typography>
+                                <Box
+                                  component="span"
+                                  sx={{
+                                    fontSize: '0.6875rem',
+                                    fontWeight: 700,
+                                    color: 'hsl(var(--muted-foreground))',
+                                    bgcolor: 'hsl(var(--muted))',
+                                    px: 0.6,
+                                    py: 0.2,
+                                    borderRadius: 0.75,
+                                    border: '1px solid hsl(var(--border))',
+                                  }}
+                                >
+                                  {region.code || 'UK'}
+                                </Box>
                               </Box>
                             </Tooltip>
                           ) : null,
@@ -1648,7 +1752,7 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
                       />
                     );
                   }}
-                  slotProps={{
+                  componentsProps={{
                     paper: {
                       sx: {
                         backgroundColor: 'hsl(var(--card))',
@@ -1687,10 +1791,21 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Tooltip title={option.region_url ? `Region URL: ${option.region_url}` : ''} placement="left">
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <span style={{ fontSize: '13px' }}>{region.flag}</span>
-                              <Typography sx={{ fontSize: '0.7rem', color: 'hsl(var(--muted-foreground))', minWidth: 24 }}>
-                                {region.code || '?'}
-                              </Typography>
+                              <Box
+                                component="span"
+                                sx={{
+                                  fontSize: '0.6875rem',
+                                  fontWeight: 700,
+                                  color: 'hsl(var(--muted-foreground))',
+                                  bgcolor: 'hsl(var(--muted))',
+                                  px: 0.6,
+                                  py: 0.2,
+                                  borderRadius: 0.75,
+                                  border: '1px solid hsl(var(--border))',
+                                }}
+                              >
+                                {region.code || 'UK'}
+                              </Box>
                             </Box>
                           </Tooltip>
                           <Typography sx={{ fontSize: '0.8125rem', fontWeight: isCurrentTenant ? 600 : 400, color: isCurrentTenant ? 'hsl(var(--primary))' : 'inherit' }}>

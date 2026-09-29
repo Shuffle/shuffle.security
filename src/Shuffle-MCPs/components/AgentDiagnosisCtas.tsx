@@ -16,7 +16,7 @@ import { Box, Button, Tooltip } from '@mui/material';
 import { ExternalLink, Settings2 } from 'lucide-react';
 import type { OutputDiagnosis } from '@/Shuffle-MCPs/agentDiagnosis';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
-import { navigateToShuffleCore } from '@/lib/authHandoff';
+import { navigateToShuffleCore } from '@/Shuffle-MCPs/navigation';
 
 interface Props extends ShuffleHostProps {
   diagnosis: OutputDiagnosis | null | undefined;

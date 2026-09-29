@@ -166,13 +166,11 @@ const CreateSubTenantDialog: React.FC<CreateSubTenantDialogProps> = ({
       onClose={() => !creating && onClose()}
       maxWidth="sm"
       fullWidth
-      slotProps={{
-        paper: {
-          sx: {
-            bgcolor: 'hsl(var(--card))',
-            border: '1px solid hsl(var(--border))',
-            borderRadius: 2,
-          },
+      PaperProps={{
+        sx: {
+          bgcolor: 'hsl(var(--card))',
+          border: '1px solid hsl(var(--border))',
+          borderRadius: 2,
         },
       }}
     >

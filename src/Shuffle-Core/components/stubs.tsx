@@ -68,16 +68,31 @@ export const Context = React.createContext<any>({
   supportEmail: "support@shuffler.io",
 });
 
-export const useInterval = ({ duration, callback }: { duration: number; callback: () => void }) => {
+export const useInterval = ({ duration, callback, startImmediate }: { duration: number; callback: () => void; startImmediate?: boolean }) => {
   const ref = React.useRef<any>(null);
+  const savedCallback = React.useRef(callback);
+  React.useEffect(() => {
+    savedCallback.current = callback;
+  }, [callback]);
+
   const start = React.useCallback(() => {
     if (ref.current) return;
-    ref.current = setInterval(callback, duration);
-  }, [callback, duration]);
+    ref.current = setInterval(() => {
+      savedCallback.current?.();
+    }, duration);
+  }, [duration]);
+
   const stop = React.useCallback(() => {
     if (ref.current) { clearInterval(ref.current); ref.current = null; }
   }, []);
-  React.useEffect(() => () => stop(), [stop]);
+
+  React.useEffect(() => {
+    if (startImmediate) {
+      start();
+    }
+    return () => stop();
+  }, [startImmediate, start, stop]);
+
   return { start, stop };
 };
 

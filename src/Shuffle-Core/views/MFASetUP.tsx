@@ -179,6 +179,7 @@ export const MFASetUP: React.FC<MFASetupProps> = ({
 
       if (res.status === 500 || res.status === 400 || res.status === 401) {
         setError('Invalid verification code. Please check your authenticator app and try again.');
+        setCode('');
         return;
       }
 
@@ -222,10 +223,12 @@ export const MFASetUP: React.FC<MFASetupProps> = ({
         }, 1500);
       } else {
         setError(responseJson.reason || responseJson.message || 'Failed to verify code. Please try again.');
+        setCode('');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error verifying 2FA code.';
       setError(msg);
+      setCode('');
     } finally {
       setVerifying(false);
     }

@@ -23,10 +23,8 @@ import {
   refreshAllIntegrationStatus,
   useSyncHostBaseUrl,
 } from '@shuffleio/shuffle-mcps';
-import type {
-  AlgoliaSearchApp,
-  AppAuthState,
-} from '@shuffleio/shuffle-mcps';
+import type { AlgoliaSearchApp } from '../shuffle-mcp.helpers';
+import type { AppAuthState } from '../components/AppAuthConfig';
 import type { ShuffleCoreHostProps } from '@/Shuffle-Core/types/host-props';
 // AuthStatus is locally defined — the published @shuffleio/shuffle-mcps may
 // lag behind and not re-export it yet, so import from the colocated source.

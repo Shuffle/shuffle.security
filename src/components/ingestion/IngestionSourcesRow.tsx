@@ -12,7 +12,7 @@ import {
 } from '@/Shuffle-MCPs/ingestionDetection';
 import { IngestionSourceButton } from '@/components/incidents/IngestionSourceButton';
 import { WebhookIngestionButton, WebhookIngestionInfo } from '@/components/incidents/WebhookIngestionButton';
-import { AppSearchDrawer } from '@/Shuffle-MCPs';
+import { AppSearchDrawer } from '@/Shuffle-Core';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useWorkflowHealth } from '@/hooks/useWorkflowHealth';

@@ -155,17 +155,15 @@ export const AddAppModal = ({ open, onClose, initialQuery, categoryLabel }: AddA
       onClose={onClose}
       maxWidth="md"
       fullWidth
-      slotProps={{
-        paper: {
-          sx: {
-            bgcolor: 'hsl(var(--card))',
-            border: '1px solid hsl(var(--border))',
-            borderRadius: '16px',
-            color: 'hsl(var(--foreground))',
-            maxHeight: '85vh',
-            display: 'flex',
-            flexDirection: 'column',
-          },
+      PaperProps={{
+        sx: {
+          bgcolor: 'hsl(var(--card))',
+          border: '1px solid hsl(var(--border))',
+          borderRadius: '16px',
+          color: 'hsl(var(--foreground))',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
         },
       }}
     >
@@ -254,7 +252,7 @@ export const AddAppModal = ({ open, onClose, initialQuery, categoryLabel }: AddA
                 </Box>
               ) : selectedApp ? (
                 <AppAuthCard
-                  app={selectedApp}
+                  app={selectedApp as any}
                   authState={authState}
                   isExpanded={true}
                   onToggle={() => {}}

@@ -309,3 +309,7 @@ export function invalidateAppsCache() {
   }
 }
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('shuffle-auth-invalidated', () => invalidateAuthCache());
+}
+

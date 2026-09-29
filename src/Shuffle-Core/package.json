@@ -1,6 +1,6 @@
 {
   "name": "@shuffleio/shuffle-core",
-  "version": "0.0.48",
+  "version": "0.0.1-test",
   "description": "Standalone React surfaces from the Shuffle Security app — Usecases explorer, form control, and more.",
   "license": "MIT",
   "repository": {
@@ -18,14 +18,14 @@
     "security",
     "soar"
   ],
-  "main": "./index.tsx",
-  "module": "./index.tsx",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./index.tsx",
-      "require": "./index.tsx"
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
     },
     "./shuffle-core.css": "./dist/shuffle-core.css",
     "./dist/*": "./dist/*"

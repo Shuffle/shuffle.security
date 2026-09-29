@@ -7,7 +7,12 @@
 
 import { acquireDatastoreSlot } from './requestScheduler';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { isCircuitBreakerResponse } from '@/Shuffle-Core/fetchBreaker';
+
+export const isCircuitBreakerResponse = (res: Response | null | undefined): boolean => {
+  if (!res) return false;
+  if (res.headers?.get?.('X-Circuit-Breaker') === 'open') return true;
+  return res.status === 503 && /circuit breaker/i.test(res.statusText || '');
+};
 
 export interface DatastoreItem {
   key: string;

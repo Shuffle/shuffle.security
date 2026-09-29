@@ -58,10 +58,6 @@ const withMcpThemeRef = <P extends object, R>(Inner: React.ForwardRefExoticCompo
   return Wrapped as React.ForwardRefExoticComponent<WithTheme<P> & React.RefAttributes<R>>;
 };
 
-import { ShuffleMCP as ShuffleMCPRaw } from '@/Shuffle-MCPs/views/ShuffleMCP';
-import AppDetailDrawerRaw, { checkAppNameMatch } from '@/Shuffle-MCPs/views/AppDetailDrawer';
-import AppDetailContentRaw, { type AppDetailContentProps, type AppInfo } from '@/Shuffle-MCPs/views/AppDetailContent';
-import AppSearchDrawerRaw from '@/Shuffle-MCPs/views/AppSearchDrawer';
 import AiAgentPromptsEditorRaw from '@/Shuffle-MCPs/components/AiAgentPromptsEditor';
 import ShufflePipelinesBannerRaw from '@/Shuffle-MCPs/components/ShufflePipelinesBanner';
 import AppTitleHeaderRaw from '@/Shuffle-MCPs/components/AppTitleHeader';
@@ -75,7 +71,6 @@ import AgentExecutionDrawerRaw from '@/Shuffle-MCPs/components/AgentExecutionDra
 import AgentsViewRaw from '@/Shuffle-MCPs/views/AgentsView';
 import AgentRunDiagnosisBannerRaw from '@/Shuffle-MCPs/components/AgentRunDiagnosisBanner';
 import LocalLLMConfigRaw from '@/Shuffle-MCPs/components/LocalLLMConfig';
-import AddAppModalRaw from '@/Shuffle-MCPs/components/AddAppModal';
 import AskAiButtonRaw from '@/Shuffle-MCPs/components/AskAiButton';
 import AskAiDrawerRaw from '@/Shuffle-MCPs/components/AskAiDrawer';
 import AskAiSidePanelRaw, {
@@ -91,14 +86,6 @@ export type { ShuffleMcpColorMode, ShuffleMcpThemeProviderProps } from '@/Shuffl
 
 export type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 
-export const ShuffleMCP = withMcpThemeRef(ShuffleMCPRaw as React.ForwardRefExoticComponent<any>, 'ShuffleMCP');
-export default ShuffleMCP;
-export type { ShuffleMCPHandle } from '@/Shuffle-MCPs/views/ShuffleMCP';
-export const AppDetailDrawer = withMcpTheme(AppDetailDrawerRaw as React.ComponentType<any>, 'AppDetailDrawer');
-export const AppDetailContent = withMcpTheme(AppDetailContentRaw as React.ComponentType<any>, 'AppDetailContent');
-export type { AppDetailContentProps, AppInfo } from '@/Shuffle-MCPs/views/AppDetailContent';
-export { checkAppNameMatch } from '@/Shuffle-MCPs/views/AppDetailDrawer';
-export const AppSearchDrawer = withMcpTheme(AppSearchDrawerRaw as React.ComponentType<any>, 'AppSearchDrawer');
 export const AiAgentPromptsEditor = withMcpTheme(AiAgentPromptsEditorRaw as React.ComponentType<any>, 'AiAgentPromptsEditor');
 export type { AiAgentPromptsEditorProps } from '@/Shuffle-MCPs/components/AiAgentPromptsEditor';
 export const ShufflePipelinesBanner = withMcpTheme(ShufflePipelinesBannerRaw as React.ComponentType<any>, 'ShufflePipelinesBanner');
@@ -110,7 +97,12 @@ export const TryMcpSection = withMcpTheme(TryMcpSectionRaw as React.ComponentTyp
 export type { TryMcpSectionProps } from '@/Shuffle-MCPs/views/TryMcpSection';
 export const SingulActionsPreview = withMcpTheme(SingulActionsPreviewRaw as React.ComponentType<any>, 'SingulActionsPreview');
 export const AgentUI = withMcpTheme(AgentUIRaw as React.ComponentType<any>, 'AgentUI');
-export type { AgentUIProps, AgentUIApp } from '@/Shuffle-MCPs/components/AgentUI';
+export type {
+  AgentUIProps,
+  AgentUIApp,
+  ToolDrawerRenderProps,
+  AppDetailDrawerRenderProps,
+} from '@/Shuffle-MCPs/components/AgentUI';
 export { VERIFIED_BUILTIN_APPS } from '@/Shuffle-MCPs/components/AgentUI';
 export { AgentPresets, AGENT_PRESETS } from '@/Shuffle-MCPs/components/AgentPresets';
 export type { AgentPreset, AgentPresetsProps } from '@/Shuffle-MCPs/components/AgentPresets';
@@ -168,12 +160,11 @@ export type { AgentActivityListProps } from '@/Shuffle-MCPs/components/AgentActi
 export const AgentExecutionDrawer = withMcpTheme(AgentExecutionDrawerRaw as React.ComponentType<any>, 'AgentExecutionDrawer');
 export type { AgentExecutionDrawerProps } from '@/Shuffle-MCPs/components/AgentExecutionDrawer';
 export const AgentsView = withMcpTheme(AgentsViewRaw as React.ComponentType<any>, 'AgentsView');
+export default AgentsView;
 export type { AgentsViewProps } from '@/Shuffle-MCPs/views/AgentsView';
 export const AgentRunDiagnosisBanner = withMcpTheme(AgentRunDiagnosisBannerRaw as React.ComponentType<any>, 'AgentRunDiagnosisBanner');
 export const LocalLLMConfig = withMcpTheme(LocalLLMConfigRaw as React.ComponentType<any>, 'LocalLLMConfig');
 export type { LocalLLMConfigProps, AgentLocalModel, LocalLLMTestResult } from '@/Shuffle-MCPs/components/LocalLLMConfig';
-export const AddAppModal = withMcpTheme(AddAppModalRaw as React.ComponentType<any>, 'AddAppModal');
-export type { AddAppModalProps } from '@/Shuffle-MCPs/components/AddAppModal';
 export { useAppAuthFlow } from '@/Shuffle-MCPs/useAppAuthFlow';
 export {
   parseRunResult,

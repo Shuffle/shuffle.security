@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
-import { navigateToShuffleCore, isShuffleCoreUrl } from '@/lib/authHandoff';
+import { navigateToShuffleCore, isShuffleCoreUrl } from '@/Shuffle-MCPs/navigation';
 
 /**
  * Compact, reusable usage bar showing `usage / limit`. Designed to stack

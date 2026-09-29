@@ -18,6 +18,9 @@ import {
   AppSearchDrawer,
   AppDetailDrawer,
   AppAuthSection,
+  AppTitleHeader,
+} from '@/Shuffle-Core';
+import {
   TryMcpSection,
   SingulActionsPreview,
   AgentUI,
@@ -25,7 +28,6 @@ import {
   AgentActivityList,
   AgentExecutionDrawer,
   AgentsView,
-  AppTitleHeader,
   ShufflePipelinesBanner,
   UsageBar,
   useAppLookup,

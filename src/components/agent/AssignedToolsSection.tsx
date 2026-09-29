@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, IconButton, Tooltip, Button, Select, MenuItem } from '@mui/material';
 import { Plus, X, Wrench, AppWindow } from 'lucide-react';
-import { AppSearchDrawer } from '@/Shuffle-MCPs';
+import { AppSearchDrawer } from '@/Shuffle-Core';
 import { AGENT_TOOL_PICKER_OPEN_EVENT } from '@/lib/agentDrawer';
 
 import { useAppDetailOptional } from '@/Shuffle-MCPs/AppDetailContext';

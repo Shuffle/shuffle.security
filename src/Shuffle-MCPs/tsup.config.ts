@@ -107,18 +107,23 @@ export default defineConfig({
     {
       name: 'externalize-missing-sibling-deps',
       setup(build) {
-        build.onResolve({ filter: /^[^./@]/ }, async (args) => {
+        build.onResolve({ filter: /^[^.\/]/ }, async (args) => {
+          if (args.path.startsWith('@/')) return undefined;
           if (!args.resolveDir || args.resolveDir.startsWith(__dirname)) {
             return undefined;
           }
-          const result = await build.resolve(args.path, {
-            resolveDir: __dirname,
-            kind: args.kind,
-          });
-          if (result.errors.length > 0) {
+          try {
+            const result = await build.resolve(args.path, {
+              resolveDir: __dirname,
+              kind: args.kind,
+            });
+            if (result.errors.length > 0) {
+              return { path: args.path, external: true };
+            }
+            return result;
+          } catch {
             return { path: args.path, external: true };
           }
-          return result;
         });
       },
     },

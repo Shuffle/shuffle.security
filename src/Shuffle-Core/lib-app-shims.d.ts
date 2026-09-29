@@ -372,6 +372,8 @@ declare module '@shuffleio/shuffle-mcps' {
   export const isIngestionApp: any;
   export const extractValidatedIngestionApps: any;
   export const invalidateAppsCache: any;
+  export const setRelatedUsecasesRenderer: any;
+  export const getRelatedUsecasesRenderer: any;
 }
 
 declare module '@shuffleio/shuffle-mcps/*';

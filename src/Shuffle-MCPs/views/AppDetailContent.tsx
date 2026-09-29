@@ -48,7 +48,7 @@ import AppAuthSection from '@/Shuffle-MCPs/components/AppAuthSection';
 import TryMcpSection from '@/Shuffle-MCPs/views/TryMcpSection';
 import SingulActionsPreview from '@/Shuffle-MCPs/components/SingulActionsPreview';
 import ApiCallViewer from '@/Shuffle-MCPs/components/ApiCallViewer';
-import AppRelatedUsecases from '@/Shuffle-MCPs/components/AppRelatedUsecases';
+import { getRelatedUsecasesRenderer } from '@/Shuffle-MCPs/relatedUsecasesSlot';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/Shuffle-MCPs/useWorkflows';
 import { isVulnScannerApp, normalizeAppName, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
@@ -1094,20 +1094,19 @@ export default function AppDetailContent({
               ) : null
             )}
 
-            {/* Related Usecases */}
-            {appName && (
-              <AppRelatedUsecases
-                appName={appName}
-                displayName={displayName}
-                categories={appInfo?.categories}
-                hasValidAuth={hasValidAuth}
-                onNavigateToAuth={() => {
-                  setAuthExpanded(true);
-                  document.getElementById('app-auth-section')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                mode={mode}
-              />
-            )}
+            {/* Related Usecases — rendered by the Shuffle-Core-provided slot
+                (see relatedUsecasesSlot). Absent when Shuffle-Core is not loaded. */}
+            {appName && getRelatedUsecasesRenderer()?.({
+              appName,
+              displayName,
+              categories: appInfo?.categories,
+              hasValidAuth,
+              onNavigateToAuth: () => {
+                setAuthExpanded(true);
+                document.getElementById('app-auth-section')?.scrollIntoView({ behavior: 'smooth' });
+              },
+              mode,
+            })}
 
             {/* MCP Chat + Individual Actions Testing */}
             {isAuthenticated ? (

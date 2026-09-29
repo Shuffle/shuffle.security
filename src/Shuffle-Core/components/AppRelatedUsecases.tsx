@@ -20,7 +20,7 @@ import {
   findRelatedUsecasesForApp,
   isUsecaseVisible,
   matchAppToCategoryList,
-} from '@/Shuffle-Core/config/usecases';
+} from '../config/usecases';
 import {
   UsecaseCard,
   UsecaseDrawer,
@@ -28,14 +28,14 @@ import {
   isUsecaseFlowEnabled,
   setPendingAutoEnableFlow,
   useUsecasesLite,
-} from '@/Shuffle-Core/views/Usecases';
+} from '../views/Usecases';
 import {
   getCachedValidatedCategories,
   setCachedValidatedCategories,
   getCachedValidatedAppNames,
   setCachedValidatedAppNames,
   fetchAppsCached,
-} from '@/Shuffle-Core/views/appsFetchCache';
+} from '../views/appsFetchCache';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import { normalizeAppName } from '@/Shuffle-MCPs/ingestionDetection';
 

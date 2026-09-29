@@ -211,6 +211,8 @@ export { API_CONFIG, getApiUrl, getAuthHeader, isCloud, isOnprem, isCloudDomain,
 export { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
 export { installFetchBreaker, registerProtectedOrigin } from '@/Shuffle-MCPs/fetchBreaker';
 export { setToastImpl, toast } from '@/Shuffle-MCPs/toast';
+export { setRelatedUsecasesRenderer, getRelatedUsecasesRenderer } from '@/Shuffle-MCPs/relatedUsecasesSlot';
+export type { AppRelatedUsecasesRenderProps, RelatedUsecasesRenderer } from '@/Shuffle-MCPs/relatedUsecasesSlot';
 export type {
   AlgoliaSearchApp,
   AppSelectedEvent,

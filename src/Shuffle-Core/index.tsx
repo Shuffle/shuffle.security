@@ -12,6 +12,10 @@
  */
 
 import "./shuffle-core.css";
+// Side-effect: register AppRelatedUsecases into the Shuffle-MCPs render slot so
+// AppDetailContent can show the related-usecases section without depending on
+// Shuffle-Core. Must run when this package is loaded.
+import "./registerRelatedUsecases";
 import React from "react";
 import {
   ShuffleCoreThemeProvider,

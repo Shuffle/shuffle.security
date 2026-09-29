@@ -39,6 +39,7 @@ import { CategoryAutomation, DATASTORE_CATEGORIES, getDatastoreByCategory, RBACC
 import { ShareAccessModal } from '@/components/common/ShareAccessModal';
 import { IncidentRoutingEditor } from '@/components/settings/IncidentRoutingEditor';
 import { useIsSupport } from '@/hooks/useIsSupport';
+import { propagateAutomationsToChildren } from '@/lib/automationPropagation';
 import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
 import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
 import { fetchAppsCached, fetchWorkflowsCached } from '../views/appsFetchCache';
@@ -944,6 +945,16 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
       );
       onSaved?.();
       onClose();
+      // Background: push propagation-enabled automations (default: Security
+      // Rules) down to child tenants. Never blocks or fails the parent save.
+      if (currentView === 'automations') {
+        void propagateAutomationsToChildren(orgId, activeCategory, apiAutomations as any)
+          .then(({ updated, failed }) => {
+            if (failed > 0) toast.error(`Could not update ${failed} child tenant${failed === 1 ? '' : 's'}`);
+            else if (updated > 0) toast.success(`Updated ${updated} child tenant${updated === 1 ? '' : 's'}`);
+          })
+          .catch((err) => console.error('[automation-propagation]', err));
+      }
     } catch (error) {
       toast.error(currentView === 'automations' ? 'Failed to save automations' : 'Failed to save settings');
     } finally {

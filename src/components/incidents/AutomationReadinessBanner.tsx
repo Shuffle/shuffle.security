@@ -166,6 +166,27 @@ export const AutomationReadinessBanner = ({
       .finally(() => setBusy(null));
   }, [isAdmin, isLoading, defaultsReady, webhook.enabled, enrichment.active, assign.active, enableDefaults]);
 
+  // Ingest is on (webhook or any source) -> fully enable readiness with the
+  // same functions as "Enable all". Runs once per tenant so later manual
+  // disables are respected.
+  const ingestAutoRanRef = useRef(false);
+  const ingestOn = webhook.enabled || webhook.hasSources;
+  useEffect(() => {
+    if (!isAdmin || isLoading || enablingAll || ingestAutoRanRef.current) return;
+    if (!ingestOn || allActive) return;
+    const orgId = getActiveOrgId();
+    if (!orgId) return;
+    const key = `shuffle-ingest-readiness-sync::${orgId}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, new Date().toISOString());
+    } catch {
+      return;
+    }
+    ingestAutoRanRef.current = true;
+    void handleEnableAll();
+  }, [isAdmin, isLoading, enablingAll, ingestOn, allActive, handleEnableAll]);
+
   if (!isAdmin) return null;
 
   const items: ReadinessItem[] = [

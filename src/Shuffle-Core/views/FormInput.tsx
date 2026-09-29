@@ -463,7 +463,9 @@ const FormInput = (defaultprops: any) => {
 		setExecutionRunning(false)
 		setExecutionInfo("")
 
-		setExecutionLoading(true)
+		setTimeout(() => {
+  	    	setExecutionLoading(true)
+		}, 250)
 
 		var data = {
 			"execution_argument": executionArgument,
@@ -585,13 +587,10 @@ const FormInput = (defaultprops: any) => {
 			} else {
 				console.log("Started execution")
 
+				start()
+				setExecutionRunning(true);
 				if (answer !== undefined && answer !== null) {
-					stop()
-					setExecutionRunning(false)
-					setButtonClicked(answer ? "FINISHED" : "ABORTED")
-					setExecutionData({
-						status: answer ? "FINISHED" : "ABORTED",
-					})
+					console.log("Skipping start")
 				} else {
 					setExecutionRunning(true);
 					setExecutionRequest(responseJson)
@@ -1137,13 +1136,7 @@ const FormInput = (defaultprops: any) => {
 				return
 			}
 
-			const waitingForInput = responseJson?.status === "WAITING" || responseJson?.results?.some((result: any) => result?.status === "WAITING")
-			if (waitingForInput) {
-				setDisableButtons(false)
-				setExecutionRunning(false)
-			}
-
-			if (!waitingForInput && execution_id !== undefined && execution_id !== null && authorization !== undefined && authorization !== null && execution_id.length > 0 && authorization.length > 0 && disableButtons === false && responseJson?.status !== "" && responseJson?.status !== "WAITING") {
+			if (execution_id !== undefined && execution_id !== null && authorization !== undefined && authorization !== null && execution_id.length > 0 && authorization.length > 0 && disableButtons === false && responseJson?.status !== "" && responseJson?.status !== "WAITING") {
 				console.log("IN here 1")
 				setDisableButtons(true)
 			}
@@ -1926,14 +1919,11 @@ const FormInput = (defaultprops: any) => {
 											{message}
 										</Typography>
 									: 
-									<Fade in={true} timeout={2500}>
-										<Typography variant="body1" style={{textAlign: "center", marginTop: 30, marginBottom: 20, }}>
-											{/* Show the confirmation both right after an in-page click and
-												whenever the execution is already handled (refreshed link,
-												already answered) so the state is never a silent grey-out. */}
-											{buttonClicked.length > 0 || disabledButtons ? "Question answered. You may close this window." : ""}
-										</Typography>
-									</Fade>
+										<Fade in={true} timeout={2500}>
+											<Typography variant="body1" style={{textAlign: "center", marginTop: 30, marginBottom: 20, }}>
+												{disabledButtons ? "Question answered. You may close this window." : ""}
+											</Typography>
+										</Fade>
 									}
 
 									{disabledButtons ? null :
@@ -1978,6 +1968,13 @@ const FormInput = (defaultprops: any) => {
 												color="primary"
 												style={{textTransform: "none", }}
 												onClick={() => {
+													setTimeout(() => {
+														setButtonClicked("ABORTED")
+														setExecutionData({
+															status: "ABORTED",
+														})
+													}, 2500)
+
 													onSubmit(null, execution_id, authorization, false)
 												}}>
 												Confirm Decline
@@ -1996,6 +1993,14 @@ const FormInput = (defaultprops: any) => {
 													textTransform: "none",
 												}}
 												onClick={() => {
+													// Timeout 2500 just in case
+													setTimeout(() => {
+														setButtonClicked("FINISHED")
+														setExecutionData({
+															status: "FINISHED",
+														})
+													}, 2500)
+
 													onSubmit(null, execution_id, authorization, true)
 												}}>
 												Continue</Button>
@@ -2012,6 +2017,13 @@ const FormInput = (defaultprops: any) => {
 													flex: 1,
 													textTransform: "none",
 												}} onClick={() => {
+													setTimeout(() => {
+														setButtonClicked("ABORTED")
+														setExecutionData({
+															status: "ABORTED",
+														})
+													}, 2500)
+
 													onSubmit(null, execution_id, authorization, false)
 											}}>
 												Stop

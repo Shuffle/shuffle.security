@@ -3213,7 +3213,7 @@ const IncidentDetailPage = () => {
     try {
       const categoryKey = DATASTORE_CATEGORIES.INCIDENTS;
       const response = await fetch(
-        getApiUrl(
+        (crossOrgId ? (p: string) => tenantApiUrl(p, crossOrgId) : getApiUrl)(
           `/api/v2/datastore/category/${encodeURIComponent(categoryKey)}/${encodeURIComponent(id)}/revisions`,
         ),
         {
@@ -3719,7 +3719,7 @@ const IncidentDetailPage = () => {
       try {
         const categoryKey = DATASTORE_CATEGORIES.INCIDENTS;
         const response = await fetch(
-          getApiUrl(
+          (crossOrgId ? (p: string) => tenantApiUrl(p, crossOrgId) : getApiUrl)(
             `/api/v2/datastore/category/${encodeURIComponent(categoryKey)}/${encodeURIComponent(id)}/revisions`,
           ),
           {

@@ -38,6 +38,8 @@ import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { findIngestTicketsWorkflow } from '@/Shuffle-MCPs/ingestionDetection';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { tenantApiUrl } from '@/lib/tenantApiUrl';
+
 import { toast } from '@/lib/toast';
 import { DemoModeCard, useIncidentCount } from '@/components/demo/DemoModeCard';
 import { useDatastore } from '@/hooks/useDatastore';
@@ -668,7 +670,7 @@ const DashboardPage = () => {
     (async () => {
       const results = await Promise.all(orgsToFetch.map(async (org) => {
         try {
-          const url = getApiUrl(`/api/v1/orgs/${org.id}/list_cache?category=${encodeURIComponent(DATASTORE_CATEGORIES.INCIDENTS)}&top=50`);
+          const url = tenantApiUrl(`/api/v1/orgs/${org.id}/list_cache?category=${encodeURIComponent(DATASTORE_CATEGORIES.INCIDENTS)}&top=50`, org.id, org.region_url);
           const response = await fetch(url, {
             method: 'GET',
             credentials: 'include',
@@ -701,8 +703,8 @@ const DashboardPage = () => {
         try {
           const isVulns = category === DATASTORE_CATEGORIES.VULNERABILITIES || category === 'shuffle-security_vulns' || category === 'shuffle-security_vulnerabilities' || category === 'vulns';
           const url = isVulns
-            ? getApiUrl('/api/v2/vulns?skip_fields=false&top=50')
-            : getApiUrl(`/api/v1/orgs/${viewOrgId}/list_cache?category=${encodeURIComponent(category)}&top=50`);
+            ? tenantApiUrl('/api/v2/vulns?skip_fields=false&top=50', viewOrgId)
+            : tenantApiUrl(`/api/v1/orgs/${viewOrgId}/list_cache?category=${encodeURIComponent(category)}&top=50`, viewOrgId);
           const response = await fetch(url, {
             method: 'GET',
             credentials: 'include',
@@ -799,7 +801,7 @@ const DashboardPage = () => {
   useEffect(() => {
     const checkSensors = async () => {
       try {
-        const res = await fetch(getApiUrl('/api/v1/getenvironments'), {
+        const res = await fetch(isViewingChild && viewOrgId ? tenantApiUrl('/api/v1/getenvironments', viewOrgId) : getApiUrl('/api/v1/getenvironments'), {
           credentials: 'include',
           headers: { ...getAuthHeader(), ...(isViewingChild && viewOrgId ? { 'Org-Id': viewOrgId } : {}) },
         });

@@ -7,6 +7,8 @@
  */
 import { useEffect, useSyncExternalStore } from 'react';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { tenantApiUrl, registerTenantRegions } from '@/lib/tenantApiUrl';
+
 import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
 
 export const PROPAGATABLE_AUTOMATIONS: { name: string; description: string }[] = [
@@ -94,6 +96,7 @@ const fetchChildOrgIds = async (parentOrgId: string): Promise<string[]> => {
   const data = await res.json();
   const orgs: any[] = Array.isArray(data) ? data : (data?.child_orgs || data?.orgs || data?.subOrgs || []);
   // Downwards only: never fan out to peers or the parent itself.
+  registerTenantRegions(orgs);
   return orgs
     .filter((o) => o?.id && o.id !== parentOrgId && (!o.creator_org || o.creator_org === parentOrgId))
     .map((o) => o.id as string);
@@ -120,7 +123,7 @@ export async function propagateAutomationsToChildren(
     try {
       const headers = { ...getAuthHeader(), 'Org-Id': childId };
       const cfgRes = await fetch(
-        getApiUrl(`/api/v1/orgs/${childId}/list_cache?category=${encodeURIComponent(category)}&top=1`),
+        tenantApiUrl(`/api/v1/orgs/${childId}/list_cache?category=${encodeURIComponent(category)}&top=1`, childId),
         { credentials: 'include', headers },
       );
       const cfg = cfgRes.ok ? (await cfgRes.json())?.category_config : null;
@@ -132,7 +135,7 @@ export async function propagateAutomationsToChildren(
       }
       const payload: Record<string, unknown> = { category, automations: existing };
       if (cfg?.settings) payload.settings = cfg.settings;
-      const res = await fetch(getApiUrl('/api/v2/datastore/automate'), {
+      const res = await fetch(tenantApiUrl('/api/v2/datastore/automate', childId), {
         method: 'POST',
         credentials: 'include',
         headers: { ...headers, 'Content-Type': 'application/json' },

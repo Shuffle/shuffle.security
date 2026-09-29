@@ -367,7 +367,12 @@ export const getTrackedOrgId = (): string | null => _trackedOrgId;
 const SHUFFLE_HOST_BASE_URL_EVENT = 'shuffle:set-host-base-url';
 
 export const setHostBaseUrl = (url: string | undefined | null) => {
-  const next = url ? url.replace(/\/+$/, '') : null;
+  let next = url ? url.replace(/\/+$/, '') : null;
+  // On Shuffle Cloud the tenant's region_url decides the backend. A cloud URL
+  // handed in as globalUrl (often API_CONFIG.baseUrl captured before the
+  // region was known, i.e. the UK default) must never pin requests to that
+  // region. Host overrides are only honored for self-hosted backends.
+  if (next && isShuffleCloudDomain(next) && !isDevEnvironment()) next = null;
   if (next === _hostBaseUrl) return;
   _hostBaseUrl = next;
   if (next) {

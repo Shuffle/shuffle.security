@@ -57,6 +57,7 @@ export default defineConfig({
     'date-fns',
     /^date-fns\//,
     'framer-motion',
+    'sonner',
     'html2canvas-pro',
     'jspdf',
   ],

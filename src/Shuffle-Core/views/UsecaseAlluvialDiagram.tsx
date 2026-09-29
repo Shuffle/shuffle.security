@@ -56,6 +56,7 @@ import shuffleIcon from '../assets/shuffle-icon.png';
 import singulAgentIcon from '../assets/singul-agent-icon.png';
 
 import { useWorkflowHealth } from '@/hooks/useWorkflowHealth';
+import { toast } from '../toast';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -694,9 +695,11 @@ function AppBubble({
                       await navigator.clipboard.writeText(webhookInfo.url!);
                     }
                     setCopied(true);
-                    import('sonner').then(({ toast }) => toast.success('Webhook URL copied'));
+                    toast.success('Webhook URL copied');
                     setTimeout(() => setCopied(false), 2000);
-                  } catch { import('sonner').then(({ toast }) => toast.error('Failed to copy')); }
+                  } catch {
+                    toast.error('Failed to copy');
+                  }
                 }} sx={{ p: 0.5, color: 'hsl(var(--muted-foreground))' }}>
                   {copied ? <CheckIcon size={14} color={'hsl(var(--severity-low))'} /> : <ContentCopyIcon size={14} />}
                 </IconButton>
@@ -721,7 +724,7 @@ function AppBubble({
                     }),
                   });
                   if (!res.ok) throw new Error();
-                  import('sonner').then(({ toast }) => toast.success(willBeEnabled ? `${webhookTitle} enabled` : `${webhookTitle} disabled`));
+                  toast.success(willBeEnabled ? `${webhookTitle} enabled` : `${webhookTitle} disabled`);
                   if (typeof window !== 'undefined') {
                     window.dispatchEvent(
                       new CustomEvent('shuffle-workflow-toggled', {
@@ -734,7 +737,7 @@ function AppBubble({
                   onWebhookToggled?.();
                 } catch {
                   setWebhookOptimistic(null);
-                  import('sonner').then(({ toast }) => toast.error('Failed to update webhook status'));
+                  toast.error('Failed to update webhook status');
                 }
               }}
               sx={{
@@ -1291,7 +1294,6 @@ export default function UsecaseAlluvialDiagram({
       });
 
       try {
-        const { toast } = await import('sonner');
         await fetch(getApiUrl('/api/v2/workflows/generate'), {
           method: 'POST',
           credentials: 'include',
@@ -1305,7 +1307,6 @@ export default function UsecaseAlluvialDiagram({
         toast.success('Ingestion sources updated');
       } catch (error) {
         console.error('Failed to update ingestion sources:', error);
-        const { toast } = await import('sonner');
         toast.error('Failed to update ingestion sources');
       }
     }, 3000);
@@ -1348,7 +1349,6 @@ export default function UsecaseAlluvialDiagram({
     desiredAppNames: string[],
     intent: { action: 'add' | 'remove' | 'sync'; appName?: string },
   ): Promise<boolean> => {
-    const { toast } = await import('sonner');
     try {
       const res = await fetch(getApiUrl('/api/v2/workflows/generate'), {
         method: 'POST',
@@ -1462,7 +1462,6 @@ export default function UsecaseAlluvialDiagram({
     desiredAppNames: string[],
     intent: { action: 'add' | 'remove'; appName: string },
   ): Promise<boolean> => {
-    const { toast } = await import('sonner');
     try {
       const body: Record<string, string> = { label: 'Notifications' };
       if (desiredAppNames.length > 0) {
@@ -2642,7 +2641,7 @@ export default function UsecaseAlluvialDiagram({
           if (side === 'left' && highlightCategory) {
             handleToggleSync(addedAppName, true);
             setHiddenApps(prev => { const next = new Set(prev); next.delete(addedAppName.toLowerCase()); return next; });
-            import('sonner').then(({ toast }) => toast.success(`${addedAppName.replace(/_/g, ' ')} added to ingestion sources`));
+            toast.success(`${addedAppName.replace(/_/g, ' ')} added to ingestion sources`);
           } else {
             // Optimistic UI: show immediately on the destination column,
             // then push the FULL desired destination app list to the backend
@@ -2678,7 +2677,7 @@ export default function UsecaseAlluvialDiagram({
               next.delete(matchedApp.name.toLowerCase());
               return next;
             });
-            import('sonner').then(({ toast }) => toast.success(`${matchedApp.name.replace(/_/g, ' ')} added to ingestion sources`));
+            toast.success(`${matchedApp.name.replace(/_/g, ' ')} added to ingestion sources`);
           } else if (searchOpen === 'right') {
             setHiddenApps(prev => {
               const next = new Set(prev);
@@ -2736,12 +2735,10 @@ export default function UsecaseAlluvialDiagram({
             if (side === 'left' && highlightCategory) {
               handleToggleSync(match.app.name, true);
               setHiddenApps(prev => { const n = new Set(prev); n.delete(match.app.name.toLowerCase()); return n; });
-              const { toast } = await import('sonner');
               toast.success(`${match.app.name.replace(/_/g, ' ')} authenticated & added to ingestion`);
             } else {
               handleToggleDestinationApp(match.app.name, true);
               setHiddenApps(prev => { const n = new Set(prev); n.delete(match.app.name.toLowerCase()); return n; });
-              const { toast } = await import('sonner');
               toast.success(`${match.app.name.replace(/_/g, ' ')} authenticated & added to destination`);
             }
           } catch (err) {

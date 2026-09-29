@@ -490,28 +490,18 @@ const FormInput = (defaultprops: any) => {
 		const currentAuthorization = overrideAuthorization || authorization
 
 		stop()
-<<<<<<< HEAD
-		setMessage("")
-=======
 		setMessage(isUserInputAnswer ? "Question answered. You may close this window." : "")
-		setDisableButtons(isUserInputAnswer)
->>>>>>> f1dc7fa48637166d253368992fee7b587155490c
+		setDisableButtons(true)
 		setExecutionData({})
 		setExecutionRequest({})
-		setDisableButtons(true)
-		setExecutionLoading(true)
 		setExecutionRunning(false)
 		setExecutionInfo("")
 
-<<<<<<< HEAD
-=======
 		if (!isUserInputAnswer) {
 			setTimeout(() => {
 				setExecutionLoading(true)
 			}, 250)
 		}
-
->>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 		var data = {
 			"execution_argument": executionArgument,
 			"execution_source": "form",
@@ -618,24 +608,17 @@ const FormInput = (defaultprops: any) => {
 			} else {
 				console.log("Started execution", responseJson)
 
-<<<<<<< HEAD
+				if (isUserInputAnswer) {
+					fetchUpdates(currentExecutionId || execution_id, currentAuthorization || authorization)
+					return
+				}
+
 				const targetExecId = responseJson?.execution_id || currentExecutionId
 				const targetAuth = responseJson?.authorization || currentAuthorization
 				const nextReq = {
 					execution_id: targetExecId,
 					authorization: targetAuth,
 				}
-=======
-				if (isUserInputAnswer) {
-					fetchUpdates(execution_id, authorization)
-					return
-				}
-
-				start()
-				setExecutionRunning(true);
-				setExecutionRequest(responseJson)
-				start()
->>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 
 				setExecutionRunning(true)
 				setDisableButtons(true)
@@ -1186,11 +1169,12 @@ const FormInput = (defaultprops: any) => {
 				return
 			}
 
-<<<<<<< HEAD
 			const waitingForInput = responseJson?.status === "WAITING" || responseJson?.results?.some((result: any) => result?.status === "WAITING")
 			if (waitingForInput) {
-				setDisableButtons(false)
-				setExecutionRunning(false)
+				if (!disableButtons) {
+					setDisableButtons(false)
+					setExecutionRunning(false)
+				}
 			} else {
 				const currentStatus = (responseJson?.status || "").toUpperCase()
 				if (currentStatus === "EXECUTING" || currentStatus === "RUNNING") {
@@ -1200,11 +1184,10 @@ const FormInput = (defaultprops: any) => {
 					setExecutionRunning(false)
 					setDisableButtons(true)
 				}
-=======
+			}
+
 			if (execution_id !== undefined && execution_id !== null && authorization !== undefined && authorization !== null && execution_id.length > 0 && authorization.length > 0 && disableButtons === false && responseJson?.status !== "" && responseJson?.status !== "WAITING") {
-				console.log("IN here 1")
 				setDisableButtons(true)
->>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 			}
 
 			if (execution_id !== undefined && execution_id !== null && authorization !== undefined && authorization !== null && execution_id.length > 0 && authorization.length > 0 && responseJson.workflow !== undefined && responseJson.workflow !== null) {
@@ -1419,36 +1402,6 @@ const FormInput = (defaultprops: any) => {
 
 	//console.log("IMG: ", image, "ORG: ", selectedOrganization)
 
-<<<<<<< HEAD
-	useEffect(() => {
-		if (disabledButtons || answer === undefined || answer === null || organization === "Unknown" || buttonClicked.length > 0) {
-			return
-		}
-
-		// Show rejection form for answer=false instead of auto-clicking
-		if (answer === "false") {
-			return
-		}
-
-		var buttonid = ""
-		if (answer === "true" || answer === true) {
-			buttonid = "continue_execution"
-		}
-
-		if (buttonid !== "") {
-			setDisableButtons(true)
-			setButtonClicked("FINISHED")
-			const foundButton = document.getElementById(buttonid)
-			if (foundButton !== undefined && foundButton !== null) {
-				foundButton.click()
-			} else {
-				onSubmit(null, execution_id, authorization, true)
-			}
-		}
-	}, [disabledButtons, answer, organization, buttonClicked, execution_id, authorization])
-
-=======
->>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 	const FormList = () => {
 		return (
 			<div>
@@ -2140,18 +2093,12 @@ const FormInput = (defaultprops: any) => {
 													},
 												}}
 												onClick={() => {
-<<<<<<< HEAD
 													setDisableButtons(true)
-													setButtonClicked("ABORTED")
-													setExecutionData({ status: "ABORTED" })
-=======
 													setTimeout(() => {
 														setExecutionData({
 															status: "ABORTED",
 														})
 													}, 2500)
-
->>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 													onSubmit(null, execution_id, authorization, false)
 												}}>
 												Confirm Decline
@@ -2182,19 +2129,13 @@ const FormInput = (defaultprops: any) => {
 													},
 												}}
 												onClick={() => {
-<<<<<<< HEAD
 													setDisableButtons(true)
-													setButtonClicked("FINISHED")
-													setExecutionData({ status: "FINISHED" })
-=======
 													// Timeout 2500 just in case
 													setTimeout(() => {
 														setExecutionData({
 															status: "FINISHED",
 														})
 													}, 2500)
-
->>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 													onSubmit(null, execution_id, authorization, true)
 												}}>
 												Continue
@@ -2211,7 +2152,6 @@ const FormInput = (defaultprops: any) => {
 													fontWeight: 600,
 													fontSize: 15,
 													textTransform: "none",
-<<<<<<< HEAD
 													borderColor: "hsl(var(--border))",
 													color: "hsl(var(--foreground))",
 													"&:hover": {
@@ -2226,17 +2166,11 @@ const FormInput = (defaultprops: any) => {
 												}}
 												onClick={() => {
 													setDisableButtons(true)
-													setButtonClicked("ABORTED")
-													setExecutionData({ status: "ABORTED" })
-=======
-												}} onClick={() => {
 													setTimeout(() => {
 														setExecutionData({
 															status: "ABORTED",
 														})
 													}, 2500)
-
->>>>>>> f1dc7fa48637166d253368992fee7b587155490c
 													onSubmit(null, execution_id, authorization, false)
 												}}>
 												Stop

@@ -7,15 +7,9 @@
  * 2. AppDetailPage — in page mode (full page with guest locking, quick info, and SEO reporting).
  */
 
-<<<<<<< HEAD:src/Shuffle-Core/views/AppDetailContent.tsx
 import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { toast } from '@/Shuffle-Core/toast';
-=======
-import ShuffleMarkdown from '@/Shuffle-MCPs/components/Markdown';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { toast } from '@/Shuffle-MCPs/toast';
->>>>>>> f1dc7fa48637166d253368992fee7b587155490c:src/Shuffle-MCPs/views/AppDetailContent.tsx
+import { toast } from '@/Shuffle-Core/toast';
 import {
   Download,
   Forward,
@@ -43,7 +37,6 @@ import {
   isNoAuthApp,
   getBuiltInAppMetadata,
   getBuiltInAppImage,
-<<<<<<< HEAD:src/Shuffle-Core/views/AppDetailContent.tsx
 } from '@/Shuffle-Core/noAuthApps';
 import type { AlgoliaSearchApp } from '@/Shuffle-Core/shuffle-mcp.helpers';
 import { useAppAuth } from '@/Shuffle-Core/useAppAuth';
@@ -55,20 +48,7 @@ import AppAuthSection from '@/Shuffle-Core/components/AppAuthSection';
 import TryMcpSection from '@/Shuffle-Core/views/TryMcpSection';
 import SingulActionsPreview from '@/Shuffle-Core/components/SingulActionsPreview';
 import ApiCallViewer from '@/Shuffle-Core/components/ApiCallViewer';
-import AppRelatedUsecases from '@/Shuffle-Core/components/AppRelatedUsecases';
-=======
-} from '@/Shuffle-MCPs/noAuthApps';
-import type { AlgoliaSearchApp } from '@/Shuffle-MCPs/shuffle-mcp.helpers';
-import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
-import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { fetchAppsViaApiConfig } from '@/Shuffle-MCPs/appsCache';
-import { fetchAppConfig } from '@/Shuffle-MCPs/appConfigFetch';
-import AppTitleHeader from '@/Shuffle-MCPs/components/AppTitleHeader';
-import AppAuthSection from '@/Shuffle-MCPs/components/AppAuthSection';
-import TryMcpSection from '@/Shuffle-MCPs/views/TryMcpSection';
-import SingulActionsPreview from '@/Shuffle-MCPs/components/SingulActionsPreview';
-import ApiCallViewer from '@/Shuffle-MCPs/components/ApiCallViewer';
-import AppRelatedUsecasesRaw from '@/Shuffle-MCPs/components/AppRelatedUsecases';
+import AppRelatedUsecasesRaw from '@/Shuffle-Core/components/AppRelatedUsecases';
 
 class UsecasesBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
@@ -79,7 +59,6 @@ class UsecasesBoundary extends React.Component<{ children: React.ReactNode }, { 
 const AppRelatedUsecases: typeof AppRelatedUsecasesRaw = (props) => (
   <UsecasesBoundary><AppRelatedUsecasesRaw {...props} /></UsecasesBoundary>
 );
->>>>>>> f1dc7fa48637166d253368992fee7b587155490c:src/Shuffle-MCPs/views/AppDetailContent.tsx
 import { useQueryClient } from '@tanstack/react-query';
 import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/Shuffle-Core/useWorkflows';
 import { isVulnScannerApp, normalizeAppName, extractWorkflowAppNames } from '@/Shuffle-Core/ingestionDetection';

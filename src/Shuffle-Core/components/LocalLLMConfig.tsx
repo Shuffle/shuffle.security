@@ -8,21 +8,21 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { AppAuthCard } from '@/Shuffle-MCPs/components/AppAuthConfig';
-import type { AlgoliaSearchApp } from '@/Shuffle-MCPs/shuffle-mcp.helpers';
-import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { refreshAllIntegrationStatus } from '@/Shuffle-MCPs/components/IntegrationStatus';
+import { AppAuthCard } from '@/Shuffle-Core/components/AppAuthConfig';
+import type { AlgoliaSearchApp } from '@/Shuffle-Core/shuffle-mcp.helpers';
+import { useAppAuth } from '@/Shuffle-Core/useAppAuth';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { refreshAllIntegrationStatus } from '@/Shuffle-Core/components/IntegrationStatus';
 import {
   fetchAuthenticatedApps as fetchSharedAuthenticatedApps,
   invalidateAuthenticatedAppsCache,
-} from '@/Shuffle-MCPs/authenticatedApps';
-import { UsageBar } from '@/Shuffle-MCPs/components/UsageBar';
-import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
-import { AuthStatusChip } from '@/Shuffle-MCPs/components/AuthStatusChip';
-import { getValidatedAuthIds, rememberValidatedAuth } from '@/Shuffle-MCPs/validatedAuthMemory';
-import { getPopupZIndex } from '@/Shuffle-MCPs/drawerLayer';
+} from '@/Shuffle-Core/authenticatedApps';
+import { UsageBar } from '@/Shuffle-Core/components/UsageBar';
+import { useSyncHostBaseUrl } from '@/Shuffle-Core/useSyncHostBaseUrl';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
+import { AuthStatusChip } from '@/Shuffle-Core/components/AuthStatusChip';
+import { getValidatedAuthIds, rememberValidatedAuth } from '@/Shuffle-Core/validatedAuthMemory';
+import { getPopupZIndex } from '@/Shuffle-Core/drawerLayer';
 
 import {
   ENDPOINT_PRESETS,
@@ -31,12 +31,12 @@ import {
   CUSTOM_PRESET,
   detectLLMProvider,
   providerLabelOfAuthEntry,
-} from '@/Shuffle-MCPs/llmProviderDetect';
+} from '@/Shuffle-Core/llmProviderDetect';
 import {
   switchActiveLLM,
   maskSecretFields,
-} from '@/Shuffle-MCPs/llmActiveProvider';
-import { toast } from '@/Shuffle-MCPs/toast';
+} from '@/Shuffle-Core/llmActiveProvider';
+import { toast } from '@/Shuffle-Core/toast';
 
 const OPENAI_APP_NAME = 'OpenAI';
 const OPENAI_APP_ID = '5d19dd82517870c68d40cacad9b5ca91';

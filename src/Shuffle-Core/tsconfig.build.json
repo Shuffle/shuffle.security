@@ -19,9 +19,7 @@
       "@/Shuffle-Core": ["Shuffle-Core/index.tsx", "Shuffle-Core/index.ts"],
       "@/Shuffle-Core/*": ["Shuffle-Core/*"],
       "@/assets/*": ["assets/*"],
-      "@/Shuffle-MCPs": ["Shuffle-MCPs/index.ts"],
-      "@/Shuffle-MCPs/*": ["Shuffle-MCPs/*"],
-      "@/lib/*": ["lib/*"]
+                  "@/lib/*": ["lib/*"]
     }
   },
   "include": ["index.tsx", "index.ts", "lib-app-shims.d.ts", "Usecases.tsx", "UsecaseAlluvialDiagram.tsx", "usePageMeta.ts", "toast.ts", "assets.d.ts", "**/*.tsx", "**/*.ts"],

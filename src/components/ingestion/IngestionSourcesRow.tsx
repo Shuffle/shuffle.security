@@ -2,14 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Typography, IconButton, Tooltip, CircularProgress } from '@mui/material';
 import { Plus as AddIcon, Play as PlayArrowIcon } from 'lucide-react';
 import { toast } from '@/lib/toast';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { fetchAuthenticatedApps } from '@/Shuffle-Core/authenticatedApps';
 import {
   extractValidatedIngestionApps,
   extractWorkflowAppNames,
   normalizeAppName,
   ValidatedIngestionApp,
-} from '@/Shuffle-MCPs/ingestionDetection';
+} from '@/Shuffle-Core/ingestionDetection';
 import { IngestionSourceButton } from '@/components/incidents/IngestionSourceButton';
 import { WebhookIngestionButton, WebhookIngestionInfo } from '@/components/incidents/WebhookIngestionButton';
 import { AppSearchDrawer } from '@/Shuffle-Core';

@@ -3,7 +3,7 @@
  * Used for multi-tenant views where parent orgs can see child tenant data.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { getApiUrl, getAuthHeader, mapCloudRegionUrl } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, mapCloudRegionUrl } from '@/Shuffle-Core/api';
 import { useAuth } from '@/context/AuthContext';
 import { registerTenantRegions } from '@/lib/tenantApiUrl';
 

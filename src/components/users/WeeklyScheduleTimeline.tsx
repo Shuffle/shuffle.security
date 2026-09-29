@@ -12,7 +12,7 @@ import {
   Avatar,
   Chip,
 } from '@mui/material';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 
 type EscalationLevel = 'tier1' | 'tier2' | 'tier3' | 'manager';
 

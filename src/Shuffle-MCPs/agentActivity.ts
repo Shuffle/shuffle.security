@@ -5,8 +5,8 @@
  * so it works in npm consumers without any project-side hooks or contexts.
  */
 
-import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { safeRandomUUID } from '@/Shuffle-MCPs/uuid';
+import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { safeRandomUUID } from '@/Shuffle-Core/uuid';
 
 export interface AgentRunResult {
   action?: {

@@ -23,7 +23,7 @@ import {
   getDatastoreItem,
   setDatastoreItem,
   DATASTORE_CATEGORIES,
-} from '@/Shuffle-MCPs/datastore';
+} from '@/Shuffle-Core/datastore';
 import { statusConfig } from '@/config/incidentConfig';
 import { deepMergeIncidents } from '@/lib/utils';
 import { toCanonicalIncidentId } from './incidentUrl';

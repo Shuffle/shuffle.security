@@ -8,7 +8,7 @@ import React from 'react';
 import ApiCallViewer, {
   type ApiCallViewerProps,
   type ParsedCurl,
-} from '@/Shuffle-MCPs/components/ApiCallViewer';
+} from '@/Shuffle-Core/components/ApiCallViewer';
 
 export interface DocCurlViewerProps extends Partial<ApiCallViewerProps> {
   rawCurl?: string;

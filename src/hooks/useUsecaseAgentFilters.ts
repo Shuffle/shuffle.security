@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { CategoryConfig, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { CategoryConfig, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { useAssignEscalateStatus } from '@/hooks/useAssignEscalateStatus';
 import type { AgentUsecaseFilter } from '@/Shuffle-MCPs/components/AgentActivityList';
 

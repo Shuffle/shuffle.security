@@ -13,12 +13,12 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { API_CONFIG } from '@/Shuffle-MCPs/api';
-import { fetchAppsViaApiConfig } from '@/Shuffle-MCPs/appsCache';
-import { fetchAppConfig } from '@/Shuffle-MCPs/appConfigFetch';
-import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
-import { isNoAuthApp, getBuiltInAppMetadata, getBuiltInAppImage } from '@/Shuffle-MCPs/noAuthApps';
-import type { AlgoliaSearchApp } from '@/Shuffle-MCPs/shuffle-mcp.helpers';
+import { API_CONFIG } from '@/Shuffle-Core/api';
+import { fetchAppsViaApiConfig } from '@/Shuffle-Core/appsCache';
+import { fetchAppConfig } from '@/Shuffle-Core/appConfigFetch';
+import { useAppAuth } from '@/Shuffle-Core/useAppAuth';
+import { isNoAuthApp, getBuiltInAppMetadata, getBuiltInAppImage } from '@/Shuffle-Core/noAuthApps';
+import type { AlgoliaSearchApp } from '@/Shuffle-Core/shuffle-mcp.helpers';
 
 export interface AppLookupResult {
   loading: boolean;

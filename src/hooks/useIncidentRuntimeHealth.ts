@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getApiUrl, getAuthHeader, hasShuffleAuth } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, hasShuffleAuth } from '@/Shuffle-Core/api';
 import { useAuth } from '@/context/AuthContext';
 import { WorkflowSummary, useWorkflows } from '@/hooks/useWorkflows';
 import { EnvironmentItem, isRunning } from '@/components/settings/DefaultEnvironmentSelector';

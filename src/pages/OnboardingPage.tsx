@@ -2,7 +2,7 @@ import { OnboardingFlow } from '@/Shuffle-Core/onboarding';
 import { useDemo } from '@/context/DemoContext';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { API_CONFIG } from '@/Shuffle-MCPs/api';
+import { API_CONFIG } from '@/Shuffle-Core/api';
 
 /**
  * Shuffle Security wrapper around the shared Shuffle-Core onboarding flow.

@@ -13,7 +13,7 @@
  *   4. Never throws — always returns `{ data, status, ok }`.
  */
 
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 
 export interface AppConfigFetchResult {
   ok: boolean;

@@ -8,7 +8,7 @@ import {
   Paper,
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 export interface CategoryAutomation {
   id?: string;
   name: string;

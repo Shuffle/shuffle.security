@@ -15,8 +15,8 @@ import {
   Button,
   Tooltip,
 } from "@mui/material";
-import { ValidatedIngestionApp } from "@/Shuffle-MCPs/ingestionDetection";
-import { useAppDetail } from "@/Shuffle-MCPs/AppDetailContext";
+import { ValidatedIngestionApp } from "@/Shuffle-Core/ingestionDetection";
+import { useAppDetail } from "@/Shuffle-Core/AppDetailContext";
 import { EntityHealth } from "@/services/workflowHealth";
 import { useIsSupport } from "@/hooks/useIsSupport";
 import { getAppIngestionConfig } from "@/services/vulnerabilityStreamStorage";

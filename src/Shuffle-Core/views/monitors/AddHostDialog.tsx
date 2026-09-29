@@ -19,7 +19,7 @@ import {
   ChevronRight, FolderOpen, Loader2, CheckCircle2, Send, FileCode,
 } from 'lucide-react';
 import { toast } from '@/lib/toast';
-import { getApiUrl, getAuthHeader, API_CONFIG } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, API_CONFIG } from '@/Shuffle-Core/api';
 import { trackPredefinedEvent, GA_EVENTS } from '@/Shuffle-Core/lib/analytics';
 
 export interface MonitoringGroupLike {

@@ -7,9 +7,9 @@
  * 2. AppDetailPage — in page mode (full page with guest locking, quick info, and SEO reporting).
  */
 
-import ShuffleMarkdown from '@/Shuffle-MCPs/components/Markdown';
+import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { toast } from '@/Shuffle-MCPs/toast';
+import { toast } from '@/Shuffle-Core/toast';
 import {
   Download,
   Forward,
@@ -19,7 +19,7 @@ import {
   ArrowRight as ArrowForwardIcon,
 } from 'lucide-react';
 import { Link } from '@/lib/router-compat';
-import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import {
   Box,
   Typography,
@@ -31,28 +31,28 @@ import {
   Alert,
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { isNoAuthRequired, type AppAuthentication } from '@/Shuffle-MCPs/components/AppAuthConfig';
+import { isNoAuthRequired, type AppAuthentication } from '@/Shuffle-Core/components/AppAuthConfig';
 import {
   appRequiresAuthentication,
   isNoAuthApp,
   getBuiltInAppMetadata,
   getBuiltInAppImage,
-} from '@/Shuffle-MCPs/noAuthApps';
-import type { AlgoliaSearchApp } from '@/Shuffle-MCPs/shuffle-mcp.helpers';
-import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
-import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { fetchAppsViaApiConfig } from '@/Shuffle-MCPs/appsCache';
-import { fetchAppConfig } from '@/Shuffle-MCPs/appConfigFetch';
+} from '@/Shuffle-Core/noAuthApps';
+import type { AlgoliaSearchApp } from '@/Shuffle-Core/shuffle-mcp.helpers';
+import { useAppAuth } from '@/Shuffle-Core/useAppAuth';
+import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { fetchAppsViaApiConfig } from '@/Shuffle-Core/appsCache';
+import { fetchAppConfig } from '@/Shuffle-Core/appConfigFetch';
 import AppTitleHeader from '@/Shuffle-Core/components/AppTitleHeader';
 import AppAuthSection from '@/Shuffle-Core/components/AppAuthSection';
-import TryMcpSection from '@/Shuffle-MCPs/views/TryMcpSection';
-import SingulActionsPreview from '@/Shuffle-MCPs/components/SingulActionsPreview';
-import ApiCallViewer from '@/Shuffle-MCPs/components/ApiCallViewer';
+import TryMcpSection from '@/Shuffle-Core/views/TryMcpSection';
+import SingulActionsPreview from '@/Shuffle-Core/components/SingulActionsPreview';
+import ApiCallViewer from '@/Shuffle-Core/components/ApiCallViewer';
 import AppRelatedUsecases from '@/Shuffle-Core/components/AppRelatedUsecases';
 import { useQueryClient } from '@tanstack/react-query';
-import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/Shuffle-MCPs/useWorkflows';
-import { isVulnScannerApp, normalizeAppName, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/Shuffle-Core/useWorkflows';
+import { isVulnScannerApp, normalizeAppName, extractWorkflowAppNames } from '@/Shuffle-Core/ingestionDetection';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 
 export interface AppInfo {
   name: string;

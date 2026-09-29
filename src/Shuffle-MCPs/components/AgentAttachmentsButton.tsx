@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { Badge, Box, IconButton, Popover, Tooltip, Typography } from '@mui/material';
 import { Image as ImageIcon } from 'lucide-react';
 import type { LlmImageAttachment } from '@/Shuffle-MCPs/agentAttachments';
-import { getTopSurfaceZIndex } from '@/Shuffle-MCPs/drawerLayer';
+import { getTopSurfaceZIndex } from '@/Shuffle-Core/drawerLayer';
 
 const toSrc = (url: string): string => {
   const s = (url || '').trim();

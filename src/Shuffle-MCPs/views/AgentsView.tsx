@@ -17,14 +17,14 @@ import AgentActivityList from '@/Shuffle-MCPs/components/AgentActivityList';
 import type { AgentUsecaseFilter } from '@/Shuffle-MCPs/components/AgentActivityList';
 import AgentExecutionDrawer from '@/Shuffle-MCPs/components/AgentExecutionDrawer';
 import AgentRunDrawer, { type AgentRunDrawerTab } from '@/Shuffle-MCPs/components/AgentRunDrawer';
-import LocalLLMConfig from '@/Shuffle-MCPs/components/LocalLLMConfig';
+import LocalLLMConfig from '@/Shuffle-Core/components/LocalLLMConfig';
 import type { AgentRun } from '@/Shuffle-MCPs/agentActivity';
 import type { AgentUIApp, AgentUIProps } from '@/Shuffle-MCPs/components/AgentUI';
 import { scheduleAgentRun, updateAgentScheduleConfig } from '@/Shuffle-MCPs/agentActivity';
-import { toast } from '@/Shuffle-MCPs/toast';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
-import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
-import { API_CONFIG } from '@/Shuffle-MCPs/api';
+import { toast } from '@/Shuffle-Core/toast';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
+import { useSyncHostBaseUrl } from '@/Shuffle-Core/useSyncHostBaseUrl';
+import { API_CONFIG } from '@/Shuffle-Core/api';
 
 export interface AgentsViewProps extends ShuffleHostProps {
   /**

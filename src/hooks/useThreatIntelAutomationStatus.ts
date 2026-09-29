@@ -15,10 +15,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEnrichmentStatus } from '@/hooks/useEnrichmentStatus';
 import { useWorkflows } from '@/hooks/useWorkflows';
-import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { seedDefaultIOCTypes } from '@/hooks/useIOCTypes';
 import { seedDefaultThreatFeeds } from '@/hooks/useThreatFeeds';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { toast } from '@/lib/toast';
 
 export type ThreatIntelCheckKey =

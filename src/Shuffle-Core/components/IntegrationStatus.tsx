@@ -11,18 +11,18 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { Link as RouterLink } from '@/lib/router-compat';
-import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
-import { fetchAppsViaApiConfig as fetchApps } from '@/Shuffle-MCPs/appsCache';
-import { getDatastoreItem } from '@/Shuffle-MCPs/datastore';
+import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { fetchAuthenticatedApps } from '@/Shuffle-Core/authenticatedApps';
+import { fetchAppsViaApiConfig as fetchApps } from '@/Shuffle-Core/appsCache';
+import { getDatastoreItem } from '@/Shuffle-Core/datastore';
 
 // Onboarding datastore (must stay in sync with OnboardingPage)
 const ONBOARDING_CONFIG_CATEGORY = 'shuffle-security_onboarding';
 const SELECTED_TOOLS_KEY = 'selected_tools';
-import { deduplicateAuthApps, backfillAppImages, type AuthAppEntry } from '@/Shuffle-MCPs/auth-utils';
-import { useAppDetailOptional } from '@/Shuffle-MCPs/AppDetailContext';
-import { SIEM_PATTERNS, CASES_PATTERNS, EDR_PATTERNS, EMAIL_APP_PATTERNS } from '@/Shuffle-MCPs/ingestionDetection';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+import { deduplicateAuthApps, backfillAppImages, type AuthAppEntry } from '@/Shuffle-Core/auth-utils';
+import { useAppDetailOptional } from '@/Shuffle-Core/AppDetailContext';
+import { SIEM_PATTERNS, CASES_PATTERNS, EDR_PATTERNS, EMAIL_APP_PATTERNS } from '@/Shuffle-Core/ingestionDetection';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 
 interface Integration {
   id: string;
@@ -34,7 +34,7 @@ interface Integration {
   isActiveOnly?: boolean;
 }
 
-interface IntegrationStatusProps extends ShuffleHostProps {
+export interface IntegrationStatusProps extends ShuffleHostProps {
   collapsed: boolean;
   /** When provided, only show integrations whose name is in this list */
   filterApps?: string[];

@@ -16,7 +16,7 @@
  * This module is intentionally framework-agnostic so both the list page
  * (VulnAssetsPage) and the detail page (MonitorDetailPage) can reuse it.
  */
-import { getDatastoreByCategory } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreByCategory } from '@/Shuffle-Core/datastore';
 
 const SENSORS_CATEGORY = 'shuffle-security_sensors';
 const ASSETS_CATEGORY = 'shuffle-security_assets';

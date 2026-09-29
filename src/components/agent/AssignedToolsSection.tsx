@@ -13,7 +13,7 @@ import { Plus, X, Wrench, AppWindow } from 'lucide-react';
 import { AppSearchDrawer } from '@/Shuffle-Core';
 import { AGENT_TOOL_PICKER_OPEN_EVENT } from '@/lib/agentDrawer';
 
-import { useAppDetailOptional } from '@/Shuffle-MCPs/AppDetailContext';
+import { useAppDetailOptional } from '@/Shuffle-Core/AppDetailContext';
 import {
   AGENT_TOOLS_CHANGED_EVENT,
   DEFAULT_ACTION_TYPE,

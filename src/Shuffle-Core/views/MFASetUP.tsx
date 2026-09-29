@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import { Copy, Check, ShieldCheck, ArrowLeft, KeyRound } from 'lucide-react';
 import { useNavigate, useLocation, Link } from '@/lib/router-compat';
-import { getHostBaseUrl } from '@/Shuffle-MCPs/api';
+import { getHostBaseUrl } from '@/Shuffle-Core/api';
 import { ShuffleCompanyLogo } from '@/components/common/ShuffleLogo';
 import { sanitizeInternalDestination } from '@/lib/safeRedirect';
 

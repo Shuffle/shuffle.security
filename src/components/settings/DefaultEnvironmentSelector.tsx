@@ -16,7 +16,7 @@ import {
   Typography,
 } from "@mui/material";
 import { Cloud, Server, MonitorSmartphone } from "lucide-react";
-import { getApiUrl, getAuthHeader, shuffleFetch } from "@/Shuffle-MCPs/api";
+import { getApiUrl, getAuthHeader, shuffleFetch } from "@/Shuffle-Core/api";
 import { toast } from "@/lib/toast";
 import { useWorkflows, WorkflowSummary } from "@/hooks/useWorkflows";
 import { useUsecases } from "@/Shuffle-Core/hooks/useUsecases";

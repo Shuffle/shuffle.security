@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, ButtonBase, Typography } from '@mui/material';
 import AgentRunDrawer, { AgentRunDrawerProps } from '@/Shuffle-MCPs/components/AgentRunDrawer';
 import type { AgentUIApp } from '@/Shuffle-MCPs/components/AgentUI';
-import type { AgentPreset } from '@/Shuffle-MCPs/components/AgentPresets';
+import type { AgentPreset } from '@/Shuffle-Core/components/AgentPresets';
 import {
   AgentContextRule,
   AgentResolvedContext,

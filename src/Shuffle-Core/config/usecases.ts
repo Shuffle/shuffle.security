@@ -29,7 +29,7 @@ import {
   isVulnScannerApp,
   COMMUNICATION_PATTERNS_NAMES,
   normalizeAppName,
-} from '@/Shuffle-MCPs/ingestionDetection';
+} from '@/Shuffle-Core/ingestionDetection';
 
 // ── Flow phases ────────────────────────────────────────────────────────────────
 

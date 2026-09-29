@@ -13,7 +13,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import { useNavigate } from '@/lib/router-compat';
-import { useWorkflows } from '@/Shuffle-MCPs/useWorkflows';
+import { useWorkflows } from '@/Shuffle-Core/useWorkflows';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   DEFAULT_USECASES,
@@ -36,8 +36,8 @@ import {
   setCachedValidatedAppNames,
   fetchAppsCached,
 } from '@/Shuffle-Core/views/appsFetchCache';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { normalizeAppName } from '@/Shuffle-MCPs/ingestionDetection';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { normalizeAppName } from '@/Shuffle-Core/ingestionDetection';
 
 export interface AppRelatedUsecasesProps {
   appName: string;

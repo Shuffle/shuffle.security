@@ -12,7 +12,7 @@ import {
   setDatastoreItems,
   deleteDatastoreItem,
   DATASTORE_CATEGORIES,
-} from '@/Shuffle-MCPs/datastore';
+} from '@/Shuffle-Core/datastore';
 import {
   IncidentEvent,
   createEventKey,

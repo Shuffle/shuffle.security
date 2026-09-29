@@ -1,5 +1,5 @@
-import { DATASTORE_CATEGORIES, getDatastoreItem } from '@/Shuffle-MCPs/datastore';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { DATASTORE_CATEGORIES, getDatastoreItem } from '@/Shuffle-Core/datastore';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import type { Observable, OCSFIncidentFinding } from '@/config/ocsfIncidentSchema';
 
 import { toCanonicalIncidentId } from '@/lib/incidentUrl';

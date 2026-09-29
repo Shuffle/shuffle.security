@@ -40,7 +40,7 @@ import {
   Typography,
   type TextFieldProps,
 } from '@mui/material';
-import { getTopSurfaceZIndex } from '@/Shuffle-MCPs/drawerLayer';
+import { getTopSurfaceZIndex } from '@/Shuffle-Core/drawerLayer';
 export type PopupTextEditorSyntax = 'plain' | 'yaml' | 'json' | 'markdown';
 
 export interface PopupTextEditorProps {

@@ -9,7 +9,7 @@
 // CSS custom properties. Host overrides still win (defaults use :where(:root),
 // specificity 0).
 import './shuffle-mcp.css';
-import '@/Shuffle-MCPs/uuid';
+import '@/Shuffle-Core/uuid';
 import '@/Shuffle-MCPs/clipboard';
 import '@/lib/browser-shims';
 import React from 'react';
@@ -58,19 +58,19 @@ const withMcpThemeRef = <P extends object, R>(Inner: React.ForwardRefExoticCompo
   return Wrapped as React.ForwardRefExoticComponent<WithTheme<P> & React.RefAttributes<R>>;
 };
 
-import AiAgentPromptsEditorRaw from '@/Shuffle-MCPs/components/AiAgentPromptsEditor';
-import ShufflePipelinesBannerRaw from '@/Shuffle-MCPs/components/ShufflePipelinesBanner';
-import AppTitleHeaderRaw from '@/Shuffle-MCPs/components/AppTitleHeader';
-import AppAuthSectionRaw from '@/Shuffle-MCPs/components/AppAuthSection';
-import TryMcpSectionRaw from '@/Shuffle-MCPs/views/TryMcpSection';
-import SingulActionsPreviewRaw from '@/Shuffle-MCPs/components/SingulActionsPreview';
+import AiAgentPromptsEditorRaw from '@/Shuffle-Core/components/AiAgentPromptsEditor';
+import ShufflePipelinesBannerRaw from '@/Shuffle-Core/components/ShufflePipelinesBanner';
+import AppTitleHeaderRaw from '@/Shuffle-Core/components/AppTitleHeader';
+import AppAuthSectionRaw from '@/Shuffle-Core/components/AppAuthSection';
+import TryMcpSectionRaw from '@/Shuffle-Core/views/TryMcpSection';
+import SingulActionsPreviewRaw from '@/Shuffle-Core/components/SingulActionsPreview';
 import AgentUIRaw, { VERIFIED_BUILTIN_APPS } from '@/Shuffle-MCPs/components/AgentUI';
 import AgentRunDrawerRaw from '@/Shuffle-MCPs/components/AgentRunDrawer';
 import AgentActivityListRaw from '@/Shuffle-MCPs/components/AgentActivityList';
 import AgentExecutionDrawerRaw from '@/Shuffle-MCPs/components/AgentExecutionDrawer';
 import AgentsViewRaw from '@/Shuffle-MCPs/views/AgentsView';
 import AgentRunDiagnosisBannerRaw from '@/Shuffle-MCPs/components/AgentRunDiagnosisBanner';
-import LocalLLMConfigRaw from '@/Shuffle-MCPs/components/LocalLLMConfig';
+import LocalLLMConfigRaw from '@/Shuffle-Core/components/LocalLLMConfig';
 import AskAiButtonRaw from '@/Shuffle-MCPs/components/AskAiButton';
 import AskAiDrawerRaw from '@/Shuffle-MCPs/components/AskAiDrawer';
 import AskAiSidePanelRaw, {
@@ -79,22 +79,22 @@ import AskAiSidePanelRaw, {
   MAX_ASK_AI_PANEL_WIDTH,
 } from '@/Shuffle-MCPs/components/AskAiSidePanel';
 import AskAiWidgetRaw from '@/Shuffle-MCPs/components/AskAiWidget';
-import ApiCallViewerRaw from '@/Shuffle-MCPs/components/ApiCallViewer';
+import ApiCallViewerRaw from '@/Shuffle-Core/components/ApiCallViewer';
 
 export { ShuffleMcpThemeProvider } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 export type { ShuffleMcpColorMode, ShuffleMcpThemeProviderProps } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 
-export type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+export type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 
 export const AiAgentPromptsEditor = withMcpTheme(AiAgentPromptsEditorRaw as React.ComponentType<any>, 'AiAgentPromptsEditor');
-export type { AiAgentPromptsEditorProps } from '@/Shuffle-MCPs/components/AiAgentPromptsEditor';
+export type { AiAgentPromptsEditorProps } from '@/Shuffle-Core/components/AiAgentPromptsEditor';
 export const ShufflePipelinesBanner = withMcpTheme(ShufflePipelinesBannerRaw as React.ComponentType<any>, 'ShufflePipelinesBanner');
 export const AppTitleHeader = withMcpTheme(AppTitleHeaderRaw as React.ComponentType<any>, 'AppTitleHeader');
-export type { AppTitleHeaderProps } from '@/Shuffle-MCPs/components/AppTitleHeader';
+export type { AppTitleHeaderProps } from '@/Shuffle-Core/components/AppTitleHeader';
 export const AppAuthSection = withMcpTheme(AppAuthSectionRaw as React.ComponentType<any>, 'AppAuthSection');
-export type { AppAuthSectionProps } from '@/Shuffle-MCPs/components/AppAuthSection';
+export type { AppAuthSectionProps } from '@/Shuffle-Core/components/AppAuthSection';
 export const TryMcpSection = withMcpTheme(TryMcpSectionRaw as React.ComponentType<any>, 'TryMcpSection');
-export type { TryMcpSectionProps } from '@/Shuffle-MCPs/views/TryMcpSection';
+export type { TryMcpSectionProps } from '@/Shuffle-Core/views/TryMcpSection';
 export const SingulActionsPreview = withMcpTheme(SingulActionsPreviewRaw as React.ComponentType<any>, 'SingulActionsPreview');
 export const AgentUI = withMcpTheme(AgentUIRaw as React.ComponentType<any>, 'AgentUI');
 export type {
@@ -104,8 +104,8 @@ export type {
   AppDetailDrawerRenderProps,
 } from '@/Shuffle-MCPs/components/AgentUI';
 export { VERIFIED_BUILTIN_APPS } from '@/Shuffle-MCPs/components/AgentUI';
-export { AgentPresets, AGENT_PRESETS } from '@/Shuffle-MCPs/components/AgentPresets';
-export type { AgentPreset, AgentPresetsProps } from '@/Shuffle-MCPs/components/AgentPresets';
+export { AgentPresets, AGENT_PRESETS } from '@/Shuffle-Core/components/AgentPresets';
+export type { AgentPreset, AgentPresetsProps } from '@/Shuffle-Core/components/AgentPresets';
 export { AgentPromptPrefixChip } from '@/Shuffle-MCPs/components/AgentPromptPrefixChip';
 export type { AgentPromptPrefixChipProps } from '@/Shuffle-MCPs/components/AgentPromptPrefixChip';
 export {
@@ -130,7 +130,7 @@ export {
 export const AskAiWidget = withMcpTheme(AskAiWidgetRaw as React.ComponentType<any>, 'AskAiWidget');
 export type { AskAiWidgetProps } from '@/Shuffle-MCPs/components/AskAiWidget';
 export const ApiCallViewer = withMcpTheme(ApiCallViewerRaw as React.ComponentType<any>, 'ApiCallViewer');
-export type { ApiCallViewerProps, ApiCallConfig } from '@/Shuffle-MCPs/components/ApiCallViewer';
+export type { ApiCallViewerProps, ApiCallConfig } from '@/Shuffle-Core/components/ApiCallViewer';
 export {
   useContextAwareAgent,
   AGENT_DRAWER_OPEN_EVENT,
@@ -164,8 +164,8 @@ export default AgentsView;
 export type { AgentsViewProps } from '@/Shuffle-MCPs/views/AgentsView';
 export const AgentRunDiagnosisBanner = withMcpTheme(AgentRunDiagnosisBannerRaw as React.ComponentType<any>, 'AgentRunDiagnosisBanner');
 export const LocalLLMConfig = withMcpTheme(LocalLLMConfigRaw as React.ComponentType<any>, 'LocalLLMConfig');
-export type { LocalLLMConfigProps, AgentLocalModel, LocalLLMTestResult } from '@/Shuffle-MCPs/components/LocalLLMConfig';
-export { useAppAuthFlow } from '@/Shuffle-MCPs/useAppAuthFlow';
+export type { LocalLLMConfigProps, AgentLocalModel, LocalLLMTestResult } from '@/Shuffle-Core/components/LocalLLMConfig';
+export { useAppAuthFlow } from '@/Shuffle-Core/useAppAuthFlow';
 export {
   parseRunResult,
   getFailureInfo,
@@ -186,8 +186,8 @@ export type {
   AgentActivityResponse,
   AgentActivityParams,
 } from '@/Shuffle-MCPs/agentActivity';
-export { useAppLookup } from '@/Shuffle-MCPs/useAppLookup';
-export type { AppLookupResult } from '@/Shuffle-MCPs/useAppLookup';
+export { useAppLookup } from '@/Shuffle-Core/useAppLookup';
+export type { AppLookupResult } from '@/Shuffle-Core/useAppLookup';
 export {
   resolveApp,
   resolveApps,
@@ -195,20 +195,20 @@ export {
   invalidateResolvedApps,
 } from '@/Shuffle-MCPs/resolveApp';
 export type { ResolvedApp } from '@/Shuffle-MCPs/resolveApp';
-export { IntegrationStatus, refreshAllIntegrationStatus } from '@/Shuffle-MCPs/components/IntegrationStatus';
-export { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
-export { AppDetailProvider, useAppDetail, useAppDetailOptional } from '@/Shuffle-MCPs/AppDetailContext';
-export { API_CONFIG, getApiUrl, getAuthHeader, isCloud, isOnprem, isCloudDomain, isShuffleCloudDomain, isShuffleSecurityBackend, mapCloudRegionUrl, shuffleFetch, setHostBaseUrl, getHostBaseUrl, setRegionUrl, resetRegionUrl, applyRegionFromPayload } from '@/Shuffle-MCPs/api';
-export { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
+export { IntegrationStatus, refreshAllIntegrationStatus } from '@/Shuffle-Core/components/IntegrationStatus';
+export { useAppAuth } from '@/Shuffle-Core/useAppAuth';
+export { AppDetailProvider, useAppDetail, useAppDetailOptional } from '@/Shuffle-Core/AppDetailContext';
+export { API_CONFIG, getApiUrl, getAuthHeader, isCloud, isOnprem, isCloudDomain, isShuffleCloudDomain, isShuffleSecurityBackend, mapCloudRegionUrl, shuffleFetch, setHostBaseUrl, getHostBaseUrl, setRegionUrl, resetRegionUrl, applyRegionFromPayload } from '@/Shuffle-Core/api';
+export { useSyncHostBaseUrl } from '@/Shuffle-Core/useSyncHostBaseUrl';
 export { installFetchBreaker, registerProtectedOrigin } from '@/Shuffle-MCPs/fetchBreaker';
-export { setToastImpl, toast } from '@/Shuffle-MCPs/toast';
+export { setToastImpl, toast } from '@/Shuffle-Core/toast';
 export type {
   AlgoliaSearchApp,
   AppSelectedEvent,
   AppAuthentication,
   CustomStyles,
   ShuffleMCPProps,
-} from '@/Shuffle-MCPs/shuffle-mcp.helpers';
+} from '@/Shuffle-Core/shuffle-mcp.helpers';
 
 // ---------------------------------------------------------------------------
 // Re-exports consumed by @shuffleio/shuffle-core (and other downstream apps).
@@ -216,16 +216,16 @@ export type {
 // ---------------------------------------------------------------------------
 
 // AgentIcon
-export { default as AgentIcon } from '@/Shuffle-MCPs/components/AgentIcon';
+export { default as AgentIcon } from '@/Shuffle-Core/components/AgentIcon';
 
 // Auth configuration UI + types
-export { AppAuthConfig, AppAuthCard } from '@/Shuffle-MCPs/components/AppAuthConfig';
+export { AppAuthConfig, AppAuthCard } from '@/Shuffle-Core/components/AppAuthConfig';
 export type {
   AuthStatus,
   AppAuthState,
   ApiAuthEntry,
   AppAuthCardProps,
-} from '@/Shuffle-MCPs/components/AppAuthConfig';
+} from '@/Shuffle-Core/components/AppAuthConfig';
 
 // Datastore helpers
 export {
@@ -240,14 +240,14 @@ export {
   deleteDatastoreItem,
   deleteDatastoreItems,
   DATASTORE_CATEGORIES,
-} from '@/Shuffle-MCPs/datastore';
+} from '@/Shuffle-Core/datastore';
 export type {
   DatastoreItem,
   CategoryAutomation,
   CategoryConfig,
   DatastoreResponse,
   DatastoreDiagnostics,
-} from '@/Shuffle-MCPs/datastore';
+} from '@/Shuffle-Core/datastore';
 
 // Ingestion detection
 export {
@@ -273,27 +273,27 @@ export {
   findIngestTicketsWorkflow,
   findForwardTicketsWorkflow,
   isWorkflowScheduleStopped,
-} from '@/Shuffle-MCPs/ingestionDetection';
+} from '@/Shuffle-Core/ingestionDetection';
 export type {
   IngestionCategory,
   ValidatedIngestionApp,
-} from '@/Shuffle-MCPs/ingestionDetection';
+} from '@/Shuffle-Core/ingestionDetection';
 
 // Apps cache
 export {
   fetchApps,
   fetchAppsViaApiConfig,
   invalidateAppsCache,
-} from '@/Shuffle-MCPs/appsCache';
-export type { FetchAppsOptions } from '@/Shuffle-MCPs/appsCache';
+} from '@/Shuffle-Core/appsCache';
+export type { FetchAppsOptions } from '@/Shuffle-Core/appsCache';
 
 // Usage bar — reusable quota indicator for app runs, agent tokens, etc.
-export { UsageBar } from '@/Shuffle-MCPs/components/UsageBar';
-export type { UsageBarProps } from '@/Shuffle-MCPs/components/UsageBar';
+export { UsageBar } from '@/Shuffle-Core/components/UsageBar';
+export type { UsageBarProps } from '@/Shuffle-Core/components/UsageBar';
 
-export { ShuffleMarkdown, default as Markdown } from './components/Markdown';
-export { VideoEmbed, resolveVideoUrl } from './components/VideoEmbed';
-export { MarkdownJsonBlock } from './components/Markdown';
+export { ShuffleMarkdown, default as Markdown } from '@/Shuffle-Core/components/Markdown';
+export { VideoEmbed, resolveVideoUrl } from '@/Shuffle-Core/components/VideoEmbed';
+export { MarkdownJsonBlock } from '@/Shuffle-Core/components/Markdown';
 
 // Connected sources service
 export {

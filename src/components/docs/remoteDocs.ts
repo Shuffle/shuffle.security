@@ -1,4 +1,4 @@
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 
 export interface RemoteDocEntry {
   name: string;

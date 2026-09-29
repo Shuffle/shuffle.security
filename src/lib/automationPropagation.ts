@@ -6,10 +6,10 @@
  * Default: enabled for "Security Rules", disabled for everything else.
  */
 import { useEffect, useSyncExternalStore } from 'react';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { tenantApiUrl, registerTenantRegions } from '@/lib/tenantApiUrl';
 
-import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 
 export const PROPAGATABLE_AUTOMATIONS: { name: string; description: string }[] = [
   { name: 'Security Rules', description: 'Rules validated before an update is written.' },

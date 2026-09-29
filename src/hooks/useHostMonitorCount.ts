@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { DEMO_HOST_HOSTNAME } from '@/services/demoLiveEnvironment';
 import { fetchEnvironmentsCached } from '@/Shuffle-Core/views/appsFetchCache';
 

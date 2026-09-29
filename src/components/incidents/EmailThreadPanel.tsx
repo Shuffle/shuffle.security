@@ -26,7 +26,7 @@ import EmailHtmlFrame from './EmailHtmlFrame';
 import { resolveEmailThread, assignLatest, type ResolvedEmailThread } from '@/lib/emailThreadAdapters';
 import { IncidentSection } from './IncidentSection';
 import { confirmExternalLinkClick } from '@/utils/safeExternalLinks';
-import { getPopupZIndex } from '@/Shuffle-MCPs/drawerLayer';
+import { getPopupZIndex } from '@/Shuffle-Core/drawerLayer';
 
 export interface EmailMessage {
   id: string;

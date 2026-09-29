@@ -30,20 +30,20 @@ import AgentQuickViewDrawer, { type QuickViewItem } from '@/components/agent/Age
 import InlineMarkdown from '@/components/shared/InlineMarkdown';
 import { useAgentNotifications } from '@/hooks/useNotifications';
 import { isApprovalNotification, approveAgentAction, continueAgentExecution, stripAgentTitlePrefix, type AgentNotification } from '@/services/notifications';
-import { getShuffleCoreFormUrl, isAgentApprovalFormUrl } from '@/Shuffle-MCPs/api';
+import { getShuffleCoreFormUrl, isAgentApprovalFormUrl } from '@/Shuffle-Core/api';
 import { navigateToShuffleCore } from '@/lib/authHandoff';
 import { getTimeAgo } from '@/components/agent/AgentRunHeader';
 import { useEntityPreference } from '@/hooks/useEntityLabel';
-import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
+import { useAppAuth } from '@/Shuffle-Core/useAppAuth';
 import { useWorkflows } from '@/hooks/useWorkflows';
-import { findIngestTicketsWorkflow } from '@/Shuffle-MCPs/ingestionDetection';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { findIngestTicketsWorkflow } from '@/Shuffle-Core/ingestionDetection';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { tenantApiUrl } from '@/lib/tenantApiUrl';
 
 import { toast } from '@/lib/toast';
 import { DemoModeCard, useIncidentCount } from '@/components/demo/DemoModeCard';
 import { useDatastore } from '@/hooks/useDatastore';
-import { DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { useVulnerabilities } from '@/hooks/useVulnerabilities';
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview';
 import { AutomationDashboard } from '@/components/dashboard/AutomationDashboard';

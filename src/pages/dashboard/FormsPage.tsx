@@ -12,7 +12,7 @@
  */
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { API_CONFIG } from '@/Shuffle-MCPs/api';
+import { API_CONFIG } from '@/Shuffle-Core/api';
 import { FormInput } from '@/Shuffle-Core';
 
 const FormsPage = () => {

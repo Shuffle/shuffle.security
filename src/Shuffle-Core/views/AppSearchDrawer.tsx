@@ -16,8 +16,8 @@ import { AddAppDialog } from '../components/AddAppDialog';
 import type { AppSelectedEvent } from '../shuffle-mcp.helpers';
 import { API_CONFIG } from '../api';
 import { ShufflePipelinesBanner } from '../components/ShufflePipelinesBanner';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
-import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
+import { useShuffleCoreTheme } from '@/Shuffle-Core/components/ShuffleCoreThemeProvider';
 import { useDrawerLayer } from '../drawerLayer';
 
 
@@ -198,7 +198,7 @@ export default function AppSearchDrawer({
   theme,
   colorMode,
 }: AppSearchDrawerProps) {
-  const themeScope = useShuffleMcpTheme();
+  const themeScope = useShuffleCoreTheme();
   const scopeClassName = themeScope?.scopeClassName ?? (theme === 'dark' ? 'shuffle-mcp-scope dark' : theme === 'light' ? 'shuffle-mcp-scope' : undefined);
   const [detailAppName, setDetailAppName] = useState<string | null>(null);
   const [detailAppId, setDetailAppId] = useState<string | null>(null);

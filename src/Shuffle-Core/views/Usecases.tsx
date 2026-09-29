@@ -49,7 +49,7 @@ import {
   DATASTORE_CATEGORIES,
   resolveApp,
 } from '@shuffleio/shuffle-mcps';
-import AiAgentPromptsEditor from '@/Shuffle-MCPs/components/AiAgentPromptsEditor';
+import AiAgentPromptsEditor from '@/Shuffle-Core/components/AiAgentPromptsEditor';
 import { getAuthHeader, getShuffleCoreWorkflowUrl } from '../api';
 import {
   type IntegrationItem,

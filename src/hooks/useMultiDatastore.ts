@@ -4,7 +4,7 @@
  * switching tabs back is instant.
  */
 import { useCallback, useRef, useState } from 'react';
-import { getDatastoreByCategory, DatastoreItem } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreByCategory, DatastoreItem } from '@/Shuffle-Core/datastore';
 
 export interface CategoryLoadState {
   key: string;

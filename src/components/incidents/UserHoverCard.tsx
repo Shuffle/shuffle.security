@@ -17,7 +17,7 @@ import { Box, Typography, Avatar, Chip, Link as MuiLink, Button } from '@mui/mat
 import { useNavigate } from '@/lib/router-compat';
 import { useState } from 'react';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import singulAgentIcon from '@/assets/singul-agent-icon.png';
 import { isAIAssignee, AI_AGENT_HANDLE } from '@/lib/utils';
 import { useUsers, type User } from '@/hooks/useUsers';

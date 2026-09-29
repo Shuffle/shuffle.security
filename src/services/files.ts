@@ -1,4 +1,4 @@
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { toast } from '@/lib/toast';
 
 export interface ShuffleFile {

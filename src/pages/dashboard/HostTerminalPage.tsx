@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ArrowLeft, ArrowRight, ChevronDown, Loader2, Search, Terminal } from 'lucide-react';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { fetchHostSupplements } from '@/lib/mergeMonitorHosts';
 import { getActiveUser, inferAgentPrivilege, type AgentPrivilege } from '@/components/monitors/hostActionDefinitions';

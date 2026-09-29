@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { getDatastoreByCategory, getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreByCategory, getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { mapOCSFSeverity, mapOCSFStatus, Observable } from '@/config/ocsfIncidentSchema';
 import { severityColors, statusConfig } from '@/config/incidentConfig';
 import { toast } from '@/lib/toast';

@@ -10,7 +10,7 @@ import {
   normalizeAppName,
   findIngestTicketsWorkflow,
   extractWorkflowAppNames,
-} from './ingestionDetection';
+} from '@/Shuffle-Core/ingestionDetection';
 
 export interface ConnectedToolApp {
   name: string;

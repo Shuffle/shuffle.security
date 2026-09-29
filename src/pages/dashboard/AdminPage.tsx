@@ -16,7 +16,7 @@ import {
   MenuItem,
 } from '@mui/material';
 import { toast } from '@/lib/toast';
-import { getApiUrl, getAuthHeader, mapCloudRegionUrl } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, mapCloudRegionUrl } from '@/Shuffle-Core/api';
 import { useAuth } from '@/context/AuthContext';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { getRegionFlag } from '@/lib/regionFlag';

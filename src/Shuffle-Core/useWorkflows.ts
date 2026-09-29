@@ -1,5 +1,5 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { getApiUrl, getAuthHeader, hasShuffleAuth } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, hasShuffleAuth } from '@/Shuffle-Core/api';
 import { fetchWorkflowsCached, invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
 
 export { invalidateWorkflowsCache };

@@ -15,7 +15,7 @@ import {
 } from '@/hooks/useThreatIntelAutomationStatus';
 import { AutomationReadinessCard, ReadinessItem } from '@/components/common/AutomationReadinessCard';
 import { UsecaseDrawer } from '@/Shuffle-Core';
-import { API_CONFIG } from '@/Shuffle-MCPs/api';
+import { API_CONFIG } from '@/Shuffle-Core/api';
 
 export interface ThreatIntelReadinessBannerProps {
   status?: ThreatIntelAutomationStatus;

@@ -15,12 +15,15 @@
     "lib": ["DOM", "DOM.Iterable", "ES2020"],
     "baseUrl": "..",
     "paths": {
+      "@/*": ["*"],
+      "@/Shuffle-Core": ["Shuffle-Core/index.tsx"],
+      "@/Shuffle-Core/*": ["Shuffle-Core/*"],
       "@/Shuffle-MCPs": ["Shuffle-MCPs/index.ts"],
       "@/Shuffle-MCPs/*": ["Shuffle-MCPs/*"],
       "@/assets/*": ["assets/*"],
       "@/lib/*": ["lib/*"]
     }
   },
-  "include": ["index.ts", "shuffle-mcp.helpers.ts", "assets.d.ts", "**/*.tsx", "**/*.ts"],
+  "include": ["index.ts", "assets.d.ts", "**/*.tsx", "**/*.ts"],
   "exclude": ["dist", "node_modules", "tsup.config.ts"]
 }

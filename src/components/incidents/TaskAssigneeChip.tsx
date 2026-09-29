@@ -8,7 +8,7 @@
  */
 import { Box, FormControl, MenuItem, Select } from '@mui/material';
 import { isAIAssignee } from '@/lib/utils';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import { useUsers } from '@/hooks/useUsers';
 
 export interface TaskAssigneeChipProps {

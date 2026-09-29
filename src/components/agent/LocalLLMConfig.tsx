@@ -1,4 +1,4 @@
-import ModernLocalLLMConfig from '@/Shuffle-MCPs/components/LocalLLMConfig';
+import ModernLocalLLMConfig from '@/Shuffle-Core/components/LocalLLMConfig';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
@@ -12,14 +12,14 @@ import {
   DialogActions,
   Button,
 } from '@mui/material';
-import { AppAuthCard } from '@/Shuffle-MCPs/components/AppAuthConfig';
+import { AppAuthCard } from '@/Shuffle-Core/components/AppAuthConfig';
 import type { AlgoliaSearchApp } from '@/Shuffle-MCPs';
-import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { refreshAllIntegrationStatus } from '@/Shuffle-MCPs/components/IntegrationStatus';
-import { UsageBar } from '@/Shuffle-MCPs/components/UsageBar';
-import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+import { useAppAuth } from '@/Shuffle-Core/useAppAuth';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { refreshAllIntegrationStatus } from '@/Shuffle-Core/components/IntegrationStatus';
+import { UsageBar } from '@/Shuffle-Core/components/UsageBar';
+import { useSyncHostBaseUrl } from '@/Shuffle-Core/useSyncHostBaseUrl';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import { useAuth } from '@/context/AuthContext';
 import singulAgentIcon from '@/assets/singul-agent-icon.png';
 

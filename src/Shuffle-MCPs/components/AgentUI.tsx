@@ -21,7 +21,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { broadcastAgentAborted, setLastOpenedAgentRun } from '@/Shuffle-MCPs/agentRunSync';
-import { safeRandomUUID } from '@/Shuffle-MCPs/uuid';
+import { safeRandomUUID } from '@/Shuffle-Core/uuid';
 
 import {
   Plus as AddIcon,
@@ -106,23 +106,23 @@ import {
   getRandomAgentPromptPlaceholder,
   getRandomAgentPromptPlaceholderForWidth,
   matchAgentPromptSuggestions,
-} from './agentPromptSuggestions';
+} from '@/Shuffle-Core/components/agentPromptSuggestions';
 import {
   getSuggestionAppRequirements,
   prettySuggestionAppName,
   type SuggestionAppRequirement,
-} from './agentSuggestionApps';
-import { AppFallbackIcon } from './AppFallbackIcon';
-import ShuffleMarkdown from '@/Shuffle-MCPs/components/Markdown';
+} from '@/Shuffle-Core/components/agentSuggestionApps';
+import { AppFallbackIcon } from '@/Shuffle-Core/components/AppFallbackIcon';
+import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
 
 import safeHandler from '@/Shuffle-MCPs/safeHandler';
-import AgentPresets, { AGENT_PRESETS, filterAgentPresets, isRequiredPresetApp, isSupportUser, type AgentPreset } from '@/Shuffle-MCPs/components/AgentPresets';
+import AgentPresets, { AGENT_PRESETS, filterAgentPresets, isRequiredPresetApp, isSupportUser, type AgentPreset } from '@/Shuffle-Core/components/AgentPresets';
 import { getToolsForSkill, AGENT_TOOLS_CHANGED_EVENT } from '@/lib/agentTools';
 
 import { useAgentPromptPrefix } from '@/Shuffle-MCPs/useAgentPromptPrefix';
 import { runAgent, resolveAgentNodeId } from '@/Shuffle-MCPs/agentRun';
-import { toast } from '@/Shuffle-MCPs/toast';
-import { getPopupZIndex } from '@/Shuffle-MCPs/drawerLayer';
+import { toast } from '@/Shuffle-Core/toast';
+import { getPopupZIndex } from '@/Shuffle-Core/drawerLayer';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 
 // Normalize agent answer text so react-markdown renders it correctly:
@@ -689,10 +689,10 @@ const RunFinishedSummary: React.FC<RunFinishedSummaryProps> = ({
 
 
 
-import { SegmentedControl } from '@/Shuffle-MCPs/components/SegmentedControl';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
-import { getApiUrl, getAuthHeader, API_CONFIG, getShuffleCoreFormUrl } from '@/Shuffle-MCPs/api';
-import { fetchApps } from '@/Shuffle-MCPs/appsCache';
+import { SegmentedControl } from '@/Shuffle-Core/components/SegmentedControl';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
+import { getApiUrl, getAuthHeader, API_CONFIG, getShuffleCoreFormUrl } from '@/Shuffle-Core/api';
+import { fetchApps } from '@/Shuffle-Core/appsCache';
 import { resolveApps } from '@/Shuffle-MCPs/resolveApp';
 import {
   detectLLMProvider,
@@ -701,9 +701,9 @@ import {
   resolveActiveLLMProvider,
   isOpenAICompatibleAuthEntry,
   providerLabelOfAuthEntry,
-} from '@/Shuffle-MCPs/llmProviderDetect';
-import { switchActiveLLM } from '@/Shuffle-MCPs/llmActiveProvider';
-import { appRequiresAuthentication, isNoAuthApp, normalizeAppName } from '@/Shuffle-MCPs/noAuthApps';
+} from '@/Shuffle-Core/llmProviderDetect';
+import { switchActiveLLM } from '@/Shuffle-Core/llmActiveProvider';
+import { appRequiresAuthentication, isNoAuthApp, normalizeAppName } from '@/Shuffle-Core/noAuthApps';
 import { parseScheduleHint } from '@/Shuffle-MCPs/scheduleHint';
 import AgentRunDiagnosisBanner from '@/Shuffle-MCPs/components/AgentRunDiagnosisBanner';
 import { isAiAuthFailure, isAiAuthText } from '@/Shuffle-MCPs/agentDiagnosis';

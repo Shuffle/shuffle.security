@@ -4,9 +4,9 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { deduplicateAuthApps, backfillAppImages, type AuthAppEntry } from '@/lib/utils';
-import { setDatastoreItem, getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { setDatastoreItem, getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import ReactFlow, {
   Background,
   Controls,
@@ -33,7 +33,7 @@ import { useNavigate } from '@/lib/router-compat';
 import { Box, Typography, Chip, Avatar, IconButton, Drawer, Tooltip, Button, Menu, MenuItem } from '@mui/material';
 import { ArrowRight, ChevronRight, Activity, Download, Zap, X, ExternalLink, X as CloseIcon } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
-import { IntegrationStatus } from '@/Shuffle-MCPs/components/IntegrationStatus';
+import { IntegrationStatus } from '@/Shuffle-Core/components/IntegrationStatus';
 import { AddAppModal } from '@/components/infrastructure/AddAppModal';
 import {
   TOOL_CATEGORIES,

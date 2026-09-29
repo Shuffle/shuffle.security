@@ -4,7 +4,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchAgentNotifications, type AgentNotification } from '@/services/notifications';
-import { hasShuffleAuth } from '@/Shuffle-MCPs/api';
+import { hasShuffleAuth } from '@/Shuffle-Core/api';
 
 export const useAgentNotifications = () => {
   const queryClient = useQueryClient();

@@ -16,7 +16,7 @@
  */
 
 import { useCallback } from 'react';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { askAI } from '@/services/ai';
 import { safeRandomUUID } from '@/utils/uuid';
 

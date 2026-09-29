@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback, useRef } from 'react';
 import { registerTenantRegions } from '@/lib/tenantApiUrl';
-import { getApiUrl, getAuthHeader, getSessionAuthHeader, setRegionUrl, resetRegionUrl, getTrackedOrgId, applyRegionFromPayload, setHostBaseUrl, getHostBaseUrl, setSessionToken as persistSessionToken, clearAuthTokens, getSessionToken, isDevEnvironment, isCloud, mapCloudRegionUrl, getDefaultBaseUrl, getRegionUrl, isCapacitorNative, isCrossDomainBackend } from '@/Shuffle-MCPs/api';
-import { setRuntimeOrgId } from '@/Shuffle-MCPs/datastore';
-import { invalidateAuthenticatedAppsCache } from '@/Shuffle-MCPs/authenticatedApps';
+import { getApiUrl, getAuthHeader, getSessionAuthHeader, setRegionUrl, resetRegionUrl, getTrackedOrgId, applyRegionFromPayload, setHostBaseUrl, getHostBaseUrl, setSessionToken as persistSessionToken, clearAuthTokens, getSessionToken, isDevEnvironment, isCloud, mapCloudRegionUrl, getDefaultBaseUrl, getRegionUrl, isCapacitorNative, isCrossDomainBackend } from '@/Shuffle-Core/api';
+import { setRuntimeOrgId } from '@/Shuffle-Core/datastore';
+import { invalidateAuthenticatedAppsCache } from '@/Shuffle-Core/authenticatedApps';
 
 const TAB_FOCUS_GETINFO_COOLDOWN_MS = 60 * 1000; // 60 seconds cooldown between tab-in getinfo audits
 

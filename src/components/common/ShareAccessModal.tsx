@@ -21,7 +21,7 @@ import {
 import { X as CloseIcon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useUsers } from '@/hooks/useUsers';
-import { RBACConfig } from '@/Shuffle-MCPs/datastore';
+import { RBACConfig } from '@/Shuffle-Core/datastore';
 
 export type AccessRole = 'viewer' | 'editor';
 

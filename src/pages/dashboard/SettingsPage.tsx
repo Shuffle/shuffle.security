@@ -14,7 +14,7 @@ import {
   InputAdornment,
 } from '@mui/material';
 import { LogOut, Eye, EyeOff, Sun, Moon, Monitor } from 'lucide-react';
-import { getApiUrl, getAuthHeader, API_CONFIG } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, API_CONFIG } from '@/Shuffle-Core/api';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useIsSupport } from '@/hooks/useIsSupport';

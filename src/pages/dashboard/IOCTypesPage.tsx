@@ -32,7 +32,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useDatastore } from '@/hooks/useDatastore';
 import { DEFAULT_IOC_TYPES, IOCType, IOC_CATEGORIES, IOCCategory, DEFAULT_ENABLED_IOCS, normalizeDefaultIOCType } from '@/hooks/useIOCTypes';
-import { DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { toast } from '@/lib/toast';
 import ThreatIntelAutomationBanner from '@/components/incidents/ThreatIntelAutomationBanner';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -90,7 +90,7 @@ const IOCTypesPage = () => {
         
         void (async () => {
           try {
-            const { setDatastoreItems } = await import('@/Shuffle-MCPs/datastore');
+            const { setDatastoreItems } = await import('@/Shuffle-Core/datastore');
             const bulkItems = defaults.map(ioc => ({ key: ioc.name, value: ioc }));
             const result = await setDatastoreItems(bulkItems, CATEGORY);
             if (!result.success) throw new Error(result.error || 'Failed to save default IOC types');
@@ -148,7 +148,7 @@ const IOCTypesPage = () => {
 
     void (async () => {
       try {
-        const { setDatastoreItems, deleteDatastoreItems, getDatastoreByCategory } = await import('@/Shuffle-MCPs/datastore');
+        const { setDatastoreItems, deleteDatastoreItems, getDatastoreByCategory } = await import('@/Shuffle-Core/datastore');
         const allKeys: string[] = [];
         let cursor: string | undefined;
         for (let i = 0; i < 50; i++) {
@@ -264,7 +264,7 @@ const IOCTypesPage = () => {
 
     void (async () => {
       try {
-        const { setDatastoreItems } = await import('@/Shuffle-MCPs/datastore');
+        const { setDatastoreItems } = await import('@/Shuffle-Core/datastore');
         const result = await setDatastoreItems(updatedTypes.map(type => ({ key: type.name, value: type })), CATEGORY);
         if (!result.success) throw new Error(result.error || 'Failed to save IOC type changes');
       } catch (err) {
@@ -294,7 +294,7 @@ const IOCTypesPage = () => {
     if (!ok) return;
     setDeletingProgressByType(prev => ({ ...prev, [typeName]: 0 }));
     try {
-      const { getDatastoreByCategory, deleteDatastoreItems } = await import('@/Shuffle-MCPs/datastore');
+      const { getDatastoreByCategory, deleteDatastoreItems } = await import('@/Shuffle-Core/datastore');
       let totalDeleted = 0;
       let totalFailed = 0;
       const attempted = new Set<string>();

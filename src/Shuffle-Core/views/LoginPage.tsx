@@ -46,7 +46,7 @@ import {
   setRegionUrl,
   API_ENDPOINTS,
 } from '../api';
-import { setHostBaseUrl as setMcpHostBaseUrl } from '@/Shuffle-MCPs/api';
+import { setHostBaseUrl as setMcpHostBaseUrl } from '@/Shuffle-Core/api';
 import { ShuffleCompanyLogo, ShuffleSecurityLogo } from '@/components/common/ShuffleLogo';
 import { sanitizeInternalDestination } from '@/lib/safeRedirect';
 import { SegmentedControl } from '../components/ui/segmented-control';

@@ -8,10 +8,10 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { Box, Typography, Button, Chip, CircularProgress, Collapse, useTheme } from '@mui/material';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
-import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { toast } from '@/Shuffle-MCPs/toast';
-import { useUserApiKey } from '@/Shuffle-MCPs/useUserApiKey';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
+import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { toast } from '@/Shuffle-Core/toast';
+import { useUserApiKey } from '@/Shuffle-Core/useUserApiKey';
 import JsonView from 'react18-json-view';
 import 'react18-json-view/src/style.css';
 import 'react18-json-view/src/dark.css';

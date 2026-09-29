@@ -58,7 +58,7 @@ import {
   validateRoutingAction,
 } from '@/components/settings/RoutingActionFields';
 
-import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { evaluateRoutingRules, type IncidentEvaluationContext } from '@/utils/routingRuleEvaluator';
 import { applyRoutingActionsToRaw } from '@/lib/applyRoutingActionsToRaw';
 import { writeIncidentSafe } from '@/lib/incidentRelations';

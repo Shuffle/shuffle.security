@@ -7,9 +7,9 @@
 
 import { Box, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
-import { AppAuthCard } from '@/Shuffle-MCPs/components/AppAuthConfig';
-import type { AlgoliaSearchApp } from '@/Shuffle-MCPs/shuffle-mcp.helpers';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+import { AppAuthCard } from '@/Shuffle-Core/components/AppAuthConfig';
+import type { AlgoliaSearchApp } from '@/Shuffle-Core/shuffle-mcp.helpers';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 
 export interface AppAuthSectionProps extends ShuffleHostProps {
   /** Display name (used in copy when no auth exists). */

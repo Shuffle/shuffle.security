@@ -8,7 +8,7 @@ import {
   Typography,
 } from '@mui/material';
 import { Shield, User, Eye } from 'lucide-react';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/lib/toast';
 import { invalidateUsersCache } from '@/hooks/useUsers';

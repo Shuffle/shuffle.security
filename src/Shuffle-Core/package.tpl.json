@@ -53,8 +53,7 @@
     "@emotion/styled": ">=11",
     "lucide-react": ">=0.300.0",
     "react-router-dom": ">=6",
-    "@shuffleio/shuffle-mcps": ">=0.0.55",
-    "html2canvas-pro": ">=2",
+        "html2canvas-pro": ">=2",
     "jspdf": ">=3"
   },
   "peerDependenciesMeta": {

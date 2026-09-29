@@ -13,8 +13,8 @@ import { useDemo } from '@/context/DemoContext';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { useEntityPreference } from '@/hooks/useEntityLabel';
 import { applyEntityTerminology } from '@/lib/entityTerminology';
-import { findIngestTicketsWorkflow, isWorkflowScheduleStopped } from '@/Shuffle-MCPs/ingestionDetection';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { findIngestTicketsWorkflow, isWorkflowScheduleStopped } from '@/Shuffle-Core/ingestionDetection';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { countDemoIncidents } from '@/services/demoMode';
 import { useAuth } from '@/context/AuthContext';
 

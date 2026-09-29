@@ -1,7 +1,7 @@
 import { Search as SearchIcon, ExternalLink as OpenInNewIcon, CheckCircle2 as CheckCircleIcon, HelpCircle as HelpOutlineIcon } from 'lucide-react';
 import { useState, type MouseEvent } from 'react';
 import { IconButton, Menu, MenuItem, ListItemIcon, ListItemText, Tooltip, CircularProgress, Divider, Typography } from '@mui/material';
-import { getDatastoreItem } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreItem } from '@/Shuffle-Core/datastore';
 import { toast } from '@/lib/toast';
 
 interface ObservableLookupMenuProps {

@@ -14,8 +14,8 @@ import {
 } from '@mui/material';
 import { IOC_CATEGORIES, IOCType, IOCCategory } from '@/hooks/useIOCTypes';
 import { useDatastore } from '@/hooks/useDatastore';
-import { DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
-import { getPopupZIndex } from '@/Shuffle-MCPs/drawerLayer';
+import { DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
+import { getPopupZIndex } from '@/Shuffle-Core/drawerLayer';
 
 interface ObservableTypeSelectorProps {
   value: string;

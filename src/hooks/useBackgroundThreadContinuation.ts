@@ -22,8 +22,8 @@ import { linkMergePairsIncremental, getLinkedPointers, isMergedIncident, isClose
 import { isDraftOnlyIncident } from '@/lib/emailThreadAdapters';
 import { useAutoMergeThread } from '@/hooks/useEntityLabel';
 import { extractThreadId } from '@/hooks/useThreadCorrelatedIncidents';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 
 interface IncidentListItem {
   id: string;

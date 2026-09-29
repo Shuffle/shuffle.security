@@ -17,7 +17,7 @@ import {
   InputAdornment,
 } from '@mui/material';
 import { X as CloseIcon, UserPlus, Mail, Lock, Shield } from 'lucide-react';
-import { getApiUrl, getAuthHeader, isCloud } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, isCloud } from '@/Shuffle-Core/api';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/lib/toast';
 import { invalidateUsersCache } from '@/hooks/useUsers';

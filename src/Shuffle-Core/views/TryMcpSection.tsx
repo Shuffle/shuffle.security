@@ -6,8 +6,8 @@
 
 import { Box, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
-import AppMcpChat from '@/Shuffle-MCPs/views/AppMcpChat';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+import AppMcpChat from '@/Shuffle-Core/views/AppMcpChat';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 
 export interface TryMcpSectionProps extends ShuffleHostProps {
   appName: string;

@@ -22,7 +22,7 @@
  * every consumer re-renders instantly.
  */
 import { useEffect, useSyncExternalStore } from 'react';
-import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 
 export type SlaSeverity = 'critical' | 'high' | 'medium' | 'low' | 'fallback';
 

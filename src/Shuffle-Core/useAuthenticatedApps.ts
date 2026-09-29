@@ -10,7 +10,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { fetchJsonCached } from './views/appsFetchCache';
 
 export interface AuthenticatedApp {

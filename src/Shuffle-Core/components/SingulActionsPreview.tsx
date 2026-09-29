@@ -10,8 +10,8 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { toast } from '@/Shuffle-MCPs/toast';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+import { toast } from '@/Shuffle-Core/toast';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import {
   Box,
   Typography,
@@ -32,9 +32,9 @@ import {
   Lock as LockIcon,
   Play as PlayArrowIcon
 } from 'lucide-react';
-import { API_CONFIG, getApiUrl, getAuthHeader, getTrackedOrgId } from '@/Shuffle-MCPs/api';
-import { getTopSurfaceZIndex, POPUP_OFFSET } from '@/Shuffle-MCPs/drawerLayer';
-import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
+import { API_CONFIG, getApiUrl, getAuthHeader, getTrackedOrgId } from '@/Shuffle-Core/api';
+import { getTopSurfaceZIndex, POPUP_OFFSET } from '@/Shuffle-Core/drawerLayer';
+import { useShuffleCoreTheme } from '@/Shuffle-Core/components/ShuffleCoreThemeProvider';
 import JsonView from 'react18-json-view';
 import 'react18-json-view/src/style.css';
 import 'react18-json-view/src/dark.css';
@@ -351,7 +351,7 @@ const SingulActionsPreview = ({
   onAuthenticate,
 }: SingulActionsPreviewProps) => {
   const theme = useTheme();
-  const themeScope = useShuffleMcpTheme();
+  const themeScope = useShuffleCoreTheme();
   const isDark = theme.palette.mode === 'dark';
   const scopeClassName = themeScope?.scopeClassName ?? (isDark ? 'shuffle-mcp-scope dark' : 'shuffle-mcp-scope light');
   const defaultCategory = useMemo(() => pickDefaultCategory(categories), [categories]);

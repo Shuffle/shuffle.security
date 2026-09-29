@@ -21,7 +21,7 @@ import {
   DialogActions,
 } from '@mui/material';
 import { Key, Trash2, ShieldAlert, Copy, Check, RefreshCw } from 'lucide-react';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { toast } from '@/lib/toast';
 
 export interface OAuthToken {
@@ -142,6 +142,7 @@ export const TenantOAuthTokens: React.FC<TenantOAuthTokensProps> = ({
         if (host.includes('claude.ai') || host.includes('anthropic.com')) return 'Claude';
         if (host.includes('cursor.sh') || host.includes('cursor.com')) return 'Cursor';
         if (host.includes('github.com')) return 'GitHub Copilot';
+        if (host.includes('127.0.0.1') || host.includes('localhost')) return 'Shuffle Agent';
       } catch {}
     }
     if (token.client_id) {
@@ -149,7 +150,7 @@ export const TenantOAuthTokens: React.FC<TenantOAuthTokensProps> = ({
       if (cid.includes('chatgpt') || cid.includes('openai')) return 'ChatGPT';
       if (cid.includes('claude') || cid.includes('anthropic')) return 'Claude';
       if (cid.includes('cursor')) return 'Cursor';
-      if (cid.startsWith('shuffle_client_')) return 'OAuth Application';
+      if (cid.startsWith('shuffle_client_') || cid.includes('shuffle-agent')) return 'Shuffle Agent';
       return token.client_id;
     }
     return 'OAuth Application';

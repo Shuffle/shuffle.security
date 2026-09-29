@@ -1,4 +1,4 @@
-import ShuffleMarkdown from '@/Shuffle-MCPs/components/Markdown';
+import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
 import { useState, useRef, useMemo } from 'react';
 import {
   CheckCircle as CheckCircleOutlineIcon,
@@ -16,12 +16,12 @@ import {
   Chip,
   InputBase,
 } from '@mui/material';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import { motion, AnimatePresence } from 'framer-motion';
-import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { safeRandomUUID } from '@/Shuffle-MCPs/uuid';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
-import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
+import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { safeRandomUUID } from '@/Shuffle-Core/uuid';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
+import { useSyncHostBaseUrl } from '@/Shuffle-Core/useSyncHostBaseUrl';
 import {
   THREAT_INTEL_PATTERNS,
   EMAIL_APP_PATTERNS,
@@ -29,9 +29,9 @@ import {
   SIEM_PATTERNS,
   CASES_PATTERNS,
   COMMUNICATION_PATTERNS_NAMES,
-} from '@/Shuffle-MCPs/ingestionDetection';
+} from '@/Shuffle-Core/ingestionDetection';
 
-interface AppMcpChatProps extends ShuffleHostProps {
+export interface AppMcpChatProps extends ShuffleHostProps {
   appName: string;
   appIcon?: string;
   appId?: string;

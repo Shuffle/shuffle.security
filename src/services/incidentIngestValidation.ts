@@ -4,8 +4,8 @@
  * incident in the datastore.
  */
 
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { getDatastoreByCategory, DATASTORE_CATEGORIES, DatastoreItem } from '@/Shuffle-MCPs/datastore';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { getDatastoreByCategory, DATASTORE_CATEGORIES, DatastoreItem } from '@/Shuffle-Core/datastore';
 import { fetchExecution, WorkflowExecution } from '@/Shuffle-Core/components/WorkflowRunExplorer';
 import { getNextSampleAlert, SampleAlert } from '@/services/sampleAlerts';
 

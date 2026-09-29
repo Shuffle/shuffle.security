@@ -8,7 +8,7 @@ import {
   Tab,
 } from '@mui/material';
 import TenantManagement from '@/components/tenants/TenantManagement';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { useAuth } from '@/context/AuthContext';
 import { OnCallScheduleManager, type OnCallUser } from '@/components/users/OnCallScheduleManager';
 import { ScheduleHealthBanner } from '@/components/users/ScheduleHealthBanner';

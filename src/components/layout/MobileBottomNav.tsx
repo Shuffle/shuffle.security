@@ -4,7 +4,7 @@ import {
   AlertTriangle as WarningAmberIcon,
   ShieldCheck as AdminPanelSettingsIcon,
 } from 'lucide-react';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import { useEntityPreference } from '@/hooks/useEntityLabel';
 
 export const MobileBottomNav = () => {

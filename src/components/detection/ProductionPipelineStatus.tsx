@@ -1,7 +1,7 @@
 import { ArrowRight as ArrowForwardIcon, Database as StorageIcon, Radio as SensorsIcon, Webhook as WebhookIcon, AlertTriangle as ReportProblemIcon, Forward as ForwardToInboxIcon, CheckCircle2 as CheckCircleIcon, AlertCircle as ErrorOutlineIcon } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { Box, Typography, Chip, Tooltip, CircularProgress } from '@mui/material';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { useWorkflows } from '@/hooks/useWorkflows';
 
 interface StageInfo {

@@ -3,7 +3,7 @@
  * Calls the Shuffle AI backend at POST /api/v1/conversation.
  */
 
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 
 export interface AIConversationOptions {
   query: string;

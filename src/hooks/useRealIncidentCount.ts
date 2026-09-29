@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getDatastoreByCategory, DATASTORE_CATEGORIES, type DatastoreItem } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreByCategory, DATASTORE_CATEGORIES, type DatastoreItem } from '@/Shuffle-Core/datastore';
 
 const isDemoIncident = (item: DatastoreItem): boolean => {
   const key = String((item as any)?.key || '');

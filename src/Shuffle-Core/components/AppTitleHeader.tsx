@@ -14,8 +14,8 @@ import {
   AlertCircle as ErrorOutlineIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { isNoAuthApp, getBuiltInAppImage } from '@/Shuffle-MCPs/noAuthApps';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+import { isNoAuthApp, getBuiltInAppImage } from '@/Shuffle-Core/noAuthApps';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 
 export interface AppTitleHeaderProps extends ShuffleHostProps {
   /** Display name of the app (will be capitalized via CSS). */

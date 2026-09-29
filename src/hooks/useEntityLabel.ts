@@ -1,6 +1,6 @@
 import { useLocation } from '@/lib/router-compat';
 import { useMemo, useEffect, useCallback, useSyncExternalStore } from 'react';
-import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { SIDEBAR_NAV, ALL_SIDEBAR_KEYS, SIDEBAR_DEFAULT_VISIBILITY, SidebarItemKey } from '@/config/sidebarNav';
 import { applyEntityTerminology } from '@/lib/entityTerminology';
 

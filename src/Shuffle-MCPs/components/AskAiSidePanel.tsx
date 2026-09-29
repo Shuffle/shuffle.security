@@ -37,13 +37,13 @@ import {
   X as CloseIcon,
 } from 'lucide-react';
 
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import AgentUI, { type AgentUIProps } from '@/Shuffle-MCPs/components/AgentUI';
 import { type AgentRunDrawerTab } from '@/Shuffle-MCPs/components/AgentRunDrawer';
-import LocalLLMConfig from '@/Shuffle-MCPs/components/LocalLLMConfig';
+import LocalLLMConfig from '@/Shuffle-Core/components/LocalLLMConfig';
 import { openSupportEscalation } from '@/Shuffle-MCPs/supportEscalation';
-import { type ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
-import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
+import { type ShuffleHostProps } from '@/Shuffle-Core/host-props';
+import { useSyncHostBaseUrl } from '@/Shuffle-Core/useSyncHostBaseUrl';
 import {
   isAgentRoute,
   resolveAgentContext,

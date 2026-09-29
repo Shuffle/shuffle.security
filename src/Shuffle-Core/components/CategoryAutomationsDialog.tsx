@@ -26,22 +26,22 @@ import {
   Switch,
   Tooltip,
 } from '@mui/material';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import { toast } from 'react-toastify';
-import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import PopupTextEditor from './PopupTextEditor';
 import AppSearchDrawer from '../views/AppSearchDrawer';
-import AiAgentPromptsEditor from '@/Shuffle-MCPs/components/AiAgentPromptsEditor';
-import { AgentPresets, AGENT_PRESETS, AgentPreset } from '@/Shuffle-MCPs/components/AgentPresets';
+import AiAgentPromptsEditor from '@/Shuffle-Core/components/AiAgentPromptsEditor';
+import { AgentPresets, AGENT_PRESETS, AgentPreset } from '@/Shuffle-Core/components/AgentPresets';
 import { useAuthenticatedApps } from '../useAuthenticatedApps';
 
-import { CategoryAutomation, DATASTORE_CATEGORIES, getDatastoreByCategory, RBACConfig } from '@/Shuffle-MCPs/datastore';
+import { CategoryAutomation, DATASTORE_CATEGORIES, getDatastoreByCategory, RBACConfig } from '@/Shuffle-Core/datastore';
 import { ShareAccessModal } from '@/components/common/ShareAccessModal';
 import { IncidentRoutingEditor } from '@/components/settings/IncidentRoutingEditor';
 import { useIsSupport } from '@/hooks/useIsSupport';
 import { propagateAutomationsToChildren } from '@/lib/automationPropagation';
-import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
-import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
+import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, extractWorkflowAppNames } from '@/Shuffle-Core/ingestionDetection';
+import { fetchAuthenticatedApps } from '@/Shuffle-Core/authenticatedApps';
 import { fetchAppsCached, fetchWorkflowsCached } from '../views/appsFetchCache';
 import {
   getToolsForSkill,
@@ -463,7 +463,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
       // apps (e.g. Shuffle Datastore) that aren't in the authenticated list
       // and works even when Algolia is blocked/offline.
       try {
-        const { fetchAppsViaApiConfig } = await import('@/Shuffle-MCPs/appsCache');
+        const { fetchAppsViaApiConfig } = await import('@/Shuffle-Core/appsCache');
         const apps = await fetchAppsViaApiConfig();
         if (!cancelled && Array.isArray(apps)) {
           const byId = new Map<string, any>();

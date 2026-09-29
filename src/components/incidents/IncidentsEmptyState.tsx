@@ -2,7 +2,7 @@ import { Rocket as RocketLaunchIcon, Inbox as InboxIcon, ArrowRight as ArrowForw
 import { Box, Typography, Button, IconButton, Tooltip, CircularProgress } from '@mui/material';
 import { Link } from '@/lib/router-compat';
 import { motion } from 'framer-motion';
-import { ValidatedIngestionApp } from '@/Shuffle-MCPs/ingestionDetection';
+import { ValidatedIngestionApp } from '@/Shuffle-Core/ingestionDetection';
 import { IngestionSourceButton } from './IngestionSourceButton';
 import { WebhookIngestionButton, WebhookIngestionInfo } from './WebhookIngestionButton';
 import { useEntityText } from '@/hooks/useEntityLabel';

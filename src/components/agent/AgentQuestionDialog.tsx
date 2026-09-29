@@ -10,7 +10,7 @@
 
 import { Box, Typography, IconButton, Dialog, DialogContent } from '@mui/material';
 import { X as CloseIcon } from 'lucide-react';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import InlineAgentQuestion from './InlineAgentQuestion';
 import { stripAgentTitlePrefix, type AgentNotification } from '@/services/notifications';
 

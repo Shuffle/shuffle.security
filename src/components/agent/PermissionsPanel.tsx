@@ -16,7 +16,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { Radar, Zap, Bell, Server, ShieldCheck, ShieldAlert, ShieldOff, Search, FileText, Globe, Ban, MonitorOff, UserX, KeyRound, Lightbulb, Database, Terminal, Settings2, Flame, Megaphone, AlertTriangle, Mail, Wifi, Monitor, Play, Laptop, ChevronDown as ExpandMoreIcon, ChevronUp as ExpandLessIcon, RotateCcw as RestoreIcon } from 'lucide-react';
 import { useAgentPermissions, RiskLevel, AgentPermissionCategory, AgentPermission } from '@/hooks/useAgentPermissions';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import AssignedToolsSection from '@/components/agent/AssignedToolsSection';
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {

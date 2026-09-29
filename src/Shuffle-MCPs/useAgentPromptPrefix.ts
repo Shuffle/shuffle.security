@@ -12,7 +12,7 @@
  * Value:    `{ prompt: string }` JSON payload.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getDatastoreItem, setDatastoreItem } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreItem, setDatastoreItem } from '@/Shuffle-Core/datastore';
 
 export const AGENT_PROMPT_PREFIX_CATEGORY = 'agent-prompt-prefix';
 

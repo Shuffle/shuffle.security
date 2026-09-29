@@ -54,7 +54,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
-import { SHUFFLE_AUTOMATION_URL, getShuffleCoreUrl } from "@/Shuffle-MCPs/api";
+import { SHUFFLE_AUTOMATION_URL, getShuffleCoreUrl } from "@/Shuffle-Core/api";
 import { navigateToShuffleCore } from "@/lib/authHandoff";
 // IntegrationStatus removed from sidebar; it now lives only on relevant pages (e.g. /onboarding/sources, infrastructure).
 import { SidebarSearchDialog } from "./SidebarSearchDialog";

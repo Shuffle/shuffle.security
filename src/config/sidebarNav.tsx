@@ -22,7 +22,7 @@
  * in `/preferences`. To remove one, delete it here.
  */
 import { Braces, Waypoints, Network, BookOpen, LayoutDashboard, HardDrive, MonitorCheck, Bug, Zap, Terminal, AlertTriangle as WarningAmberIcon, Radar as RadarIcon, FileText as DescriptionIcon, SlidersHorizontal as TuneIcon, Rss as RssFeedIcon, Fingerprint as FingerprintIcon } from 'lucide-react';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 
 /** Stable identifiers used as keys in the persisted visibility map.
  *  NEVER renumber/rename — these end up in the org datastore. New items

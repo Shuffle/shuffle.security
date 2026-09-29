@@ -1,2 +1,2 @@
-export { ShuffleMarkdown, default } from '@/Shuffle-MCPs/components/Markdown';
-export type { ShuffleMarkdownProps } from '@/Shuffle-MCPs/components/Markdown';
+export { ShuffleMarkdown, default } from '@/Shuffle-Core/components/Markdown';
+export type { ShuffleMarkdownProps } from '@/Shuffle-Core/components/Markdown';

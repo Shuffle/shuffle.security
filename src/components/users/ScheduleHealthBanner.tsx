@@ -20,7 +20,7 @@ import {
 } from '@mui/material';
 import { useNavigate } from '@/lib/router-compat';
 import { toast } from '@/lib/toast';
-import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import {
   analyzeSchedules,
   highestSeverity,

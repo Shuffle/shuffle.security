@@ -15,7 +15,7 @@ import {
 } from '@mui/material';
 import { statusConfig, severityColors, normalizeStatus, getSeverityColor } from '@/config/incidentConfig';
 import { isAIAssignee } from '@/lib/utils';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import { useUsers } from '@/hooks/useUsers';
 import { tlpLevels } from '@/components/incidents/CreateIncidentDialog';
 

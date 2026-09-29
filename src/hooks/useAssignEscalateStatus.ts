@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWorkflows, useWorkflowsMulti, WorkflowSummary } from './useWorkflows';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { getAutomationLabels } from '@/config/usecases';
-import { CategoryConfig, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { CategoryConfig, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 
 export interface AssignEscalateCheck {
   label: string;

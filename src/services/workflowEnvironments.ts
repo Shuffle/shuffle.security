@@ -1,4 +1,4 @@
-import { getApiUrl, shuffleFetch } from "@/Shuffle-MCPs/api";
+import { getApiUrl, shuffleFetch } from "@/Shuffle-Core/api";
 import { WorkflowSummary } from "@/hooks/useWorkflows";
 import { invalidateWorkflowsCache } from "@/Shuffle-Core/views/appsFetchCache";
 

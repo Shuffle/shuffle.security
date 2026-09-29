@@ -12,7 +12,7 @@ import React, {
   forwardRef,
 } from "react";
 import DOMPurify from "dompurify";
-import AgentIcon from "@/Shuffle-MCPs/components/AgentIcon";
+import AgentIcon from "@/Shuffle-Core/components/AgentIcon";
 import {
   useParams,
   Link,
@@ -81,7 +81,7 @@ import CorrelationContextStrip from "@/components/incidents/CorrelationContextSt
 import { IocDetailsCard } from "@/components/incidents/IocDetailsCard";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
-import { useAppDetail } from "@/Shuffle-MCPs/AppDetailContext";
+import { useAppDetail } from "@/Shuffle-Core/AppDetailContext";
 import { useDemo } from "@/context/DemoContext";
 import {
   forceCreateSingleDemoIncidentReturningKey,
@@ -96,8 +96,8 @@ import {
   setDatastoreItem,
   deleteDatastoreItem,
   getDatastoreByCategory,
-} from "@/Shuffle-MCPs/datastore";
-import type { DatastoreItem, RBACConfig } from "@/Shuffle-MCPs/datastore";
+} from "@/Shuffle-Core/datastore";
+import type { DatastoreItem, RBACConfig } from "@/Shuffle-Core/datastore";
 import { ShareAccessModal } from "@/components/common/ShareAccessModal";
 import IncidentReportDialog from "@/components/incidents/IncidentReportDialog";
 import type { GenerateReportInput } from "@/services/incidentReports";
@@ -109,7 +109,7 @@ import {
   getShuffleCoreWorkflowUrl,
   mapCloudRegionUrl,
   isDevEnvironment,
-} from "@/Shuffle-MCPs/api";
+} from "@/Shuffle-Core/api";
 import { navigateToShuffleCore } from "@/lib/authHandoff";
 import {
   resyncState,

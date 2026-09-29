@@ -22,7 +22,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/lib/toast';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { HostDetailPanel } from './HostDetailPanel';
 import { HostActionChips, getActiveUser as sharedGetActiveUser, inferAgentPrivilege } from './hostActionDefinitions';
 import { DEMO_HOST_HOSTNAME } from '@/services/demoLiveEnvironment';

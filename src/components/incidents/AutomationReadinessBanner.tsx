@@ -3,7 +3,7 @@ import { useWebhookStatus } from '@/hooks/useWebhookStatus';
 import { useEnrichmentStatus } from '@/hooks/useEnrichmentStatus';
 import { useAssignEscalateStatus } from '@/hooks/useAssignEscalateStatus';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
-import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { seedDefaultIOCTypes } from '@/hooks/useIOCTypes';
 import { seedDefaultThreatFeeds } from '@/hooks/useThreatFeeds';
 import {
@@ -14,7 +14,7 @@ import {
 } from '@/lib/defaultIncidentConfig';
 import { toast } from '@/lib/toast';
 import { UsecaseDrawer } from '@/Shuffle-Core';
-import { API_CONFIG } from '@/Shuffle-MCPs/api';
+import { API_CONFIG } from '@/Shuffle-Core/api';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import {

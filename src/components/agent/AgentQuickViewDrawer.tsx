@@ -34,11 +34,11 @@ import {
 import { hasOutputWarning, getFailureInfo } from '@/components/agent/AgentRunResultViewer';
 import { getTimeAgo, formatDuration, getRunTitle } from '@/components/agent/AgentRunHeader';
 import InlineMarkdown from '@/components/shared/InlineMarkdown';
-import { getShuffleCoreFormUrl, isAgentApprovalFormUrl } from '@/Shuffle-MCPs/api';
+import { getShuffleCoreFormUrl, isAgentApprovalFormUrl } from '@/Shuffle-Core/api';
 import { navigateToShuffleCore, isShuffleCoreUrl } from '@/lib/authHandoff';
 import { useEntityText } from '@/hooks/useEntityLabel';
 import { useIsSupport } from '@/hooks/useIsSupport';
-import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
+import { useDrawerLayer } from '@/Shuffle-Core/drawerLayer';
 
 export type QuickViewItem =
   | { type: 'notification'; notification: AgentNotification }

@@ -16,10 +16,10 @@
 import { useState } from 'react';
 import { Box, Typography, Button, TextField, CircularProgress, Tooltip, IconButton, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 import { Send, X, Check, ExternalLink } from 'lucide-react';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import { toast } from '@/lib/toast';
 import InlineMarkdown from '@/components/shared/InlineMarkdown';
-import { getApiUrl, shuffleFetch } from '@/Shuffle-MCPs/api';
+import { getApiUrl, shuffleFetch } from '@/Shuffle-Core/api';
 import {
   approveAgentAction,
   continueAgentExecution,

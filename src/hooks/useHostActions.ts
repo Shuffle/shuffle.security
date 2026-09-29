@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { toast } from '@/lib/toast';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { terminalStorageKey, readStoredSession } from '@/utils/terminalStorageKey';
 
 // localStorage caps — must mirror the per-entry truncation so a single huge

@@ -15,7 +15,7 @@ import { Box, Button, ButtonBase, ClickAwayListener, Paper, Popper, type PopperP
 import { Workflow, ShieldAlert, LifeBuoy, Bug, Radar, Monitor, Plus, X as CloseIcon, BellRing } from 'lucide-react';
 import { AppFallbackIcon } from './AppFallbackIcon';
 import { getPopupZIndex } from '../drawerLayer';
-import { useShuffleMcpTheme } from '../ShuffleMcpThemeProvider';
+import { useShuffleCoreTheme } from './ShuffleCoreThemeProvider';
 
 
 export interface AgentPreset {
@@ -325,7 +325,7 @@ export const AgentPresets = ({ variant = 'default', onSelectPreset, selectedPres
     );
   }, [list, query]);
 
-  const themeScope = useShuffleMcpTheme();
+  const themeScope = useShuffleCoreTheme();
   const scopeClassName = themeScope?.scopeClassName || 'shuffle-mcp-scope';
   const popperZIndex = getPopupZIndex();
 

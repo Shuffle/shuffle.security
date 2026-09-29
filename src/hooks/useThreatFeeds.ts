@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDatastore } from './useDatastore';
-import { DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 
 export interface ThreatFeed {
   id: string;
@@ -127,7 +127,7 @@ export const DEFAULT_THREAT_FEEDS: ThreatFeed[] = [
  */
 export const seedDefaultThreatFeeds = async (): Promise<boolean> => {
   try {
-    const { setDatastoreItem, DATASTORE_CATEGORIES } = await import('@/Shuffle-MCPs/datastore');
+    const { setDatastoreItem, DATASTORE_CATEGORIES } = await import('@/Shuffle-Core/datastore');
     const results = await Promise.all(
       DEFAULT_THREAT_FEEDS.map(feed =>
         setDatastoreItem(feed.id, feed, DATASTORE_CATEGORIES.THREAT_FEEDS),

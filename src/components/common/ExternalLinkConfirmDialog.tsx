@@ -22,7 +22,7 @@ import {
   openExternalLink,
   type ExternalLinkConfirmDetail,
 } from '@/utils/safeExternalLinks';
-import { getTopSurfaceZIndex } from '@/Shuffle-MCPs/drawerLayer';
+import { getTopSurfaceZIndex } from '@/Shuffle-Core/drawerLayer';
 
 const ExternalLinkConfirmDialog = () => {
   const [pending, setPending] = useState<ExternalLinkConfirmDetail | null>(null);

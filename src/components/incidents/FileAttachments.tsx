@@ -18,7 +18,7 @@ import {
   resolveFileUrl,
   downloadFileAttachment,
 } from '@/services/files';
-import { getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getAuthHeader } from '@/Shuffle-Core/api';
 import { toast } from '@/lib/toast';
 
 interface FileAttachment {

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { routeMeta } from '@/lib/routeMeta';
 import { useNavigate, Link } from '@/lib/router-compat';
-import { getApiUrl } from '@/Shuffle-MCPs/api';
+import { getApiUrl } from '@/Shuffle-Core/api';
 import { ShuffleCompanyLogo } from '@/components/common/ShuffleLogo';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 

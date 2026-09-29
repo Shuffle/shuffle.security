@@ -7,7 +7,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
-import { getApiUrl, getAuthHeader } from "@/Shuffle-MCPs/api";
+import { getApiUrl, getAuthHeader } from "@/Shuffle-Core/api";
 import { toast } from "@/lib/toast";
 import { WorkflowSummary } from "@/hooks/useWorkflows";
 import { updateWorkflowEnvironment } from "@/services/workflowEnvironments";

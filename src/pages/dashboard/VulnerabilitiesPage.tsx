@@ -10,15 +10,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Shield, Plus, RefreshCw, Search, Zap, ArrowRight, ArrowUp, ArrowDown, ArrowUpDown, Wrench, Sparkles, AlertTriangle, Globe, LogIn, Loader2, MonitorCheck, Rocket as RocketLaunchIcon } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { useVulnerabilities, Vulnerability, VulnSeverity, VulnCategory } from '@/hooks/useVulnerabilities';
-import { useAppAuth } from '@/Shuffle-MCPs/useAppAuth';
-import { isVulnScannerApp } from '@/Shuffle-MCPs/ingestionDetection';
+import { useAppAuth } from '@/Shuffle-Core/useAppAuth';
+import { isVulnScannerApp } from '@/Shuffle-Core/ingestionDetection';
 import { askAI } from '@/services/ai';
 import { toast } from '@/lib/toast';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useIsSupport } from '@/hooks/useIsSupport';
-import { getApiUrl, getAuthHeader, getShuffleCoreWorkflowUrl } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, getShuffleCoreWorkflowUrl } from '@/Shuffle-Core/api';
 import { navigateToShuffleCore } from '@/lib/authHandoff';
 import { VulnerabilityAutomationBanner } from '@/components/vulnerabilities/VulnerabilityAutomationBanner';
 import { VulnerabilityReadinessBanner } from '@/components/vulnerabilities/VulnerabilityReadinessBanner';
@@ -28,7 +28,7 @@ import { IngestionSourcesRow } from '@/components/ingestion/IngestionSourcesRow'
 import { AddVulnerabilityDialog } from '@/components/vulnerabilities/AddVulnerabilityDialog';
 import { CategoryAutomationsDialog } from '@shuffleio/shuffle-core';
 import { useDatastore } from '@/hooks/useDatastore';
-import { DATASTORE_CATEGORIES, CategoryAutomation } from '@/Shuffle-MCPs/datastore';
+import { DATASTORE_CATEGORIES, CategoryAutomation } from '@/Shuffle-Core/datastore';
 import { IconActionButton } from '@/components/common/IconActionButton';
 import { useHostMonitorCount } from '@/hooks/useHostMonitorCount';
 

@@ -36,11 +36,11 @@ import {
   Refresh as RefreshIcon,
   WarningAmber as WarningAmberIcon,
 } from '@mui/icons-material';
-import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { navigateToShuffleCore, isShuffleCoreUrl } from '@/lib/authHandoff';
 import { fetchWorkflowsCached, fetchOrgCached } from '../views/appsFetchCache';
 import { SegmentedControl } from './ui/segmented-control';
-import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
+import { useDrawerLayer } from '@/Shuffle-Core/drawerLayer';
 
 export const NOTIFICATIONS_OPEN_EVENT = 'notifications:open';
 

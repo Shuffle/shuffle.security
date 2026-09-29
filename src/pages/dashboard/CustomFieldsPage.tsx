@@ -28,7 +28,7 @@ import {
 import { motion } from 'framer-motion';
 import { useDatastore } from '@/hooks/useDatastore';
 
-import { DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
 const CATEGORY = DATASTORE_CATEGORIES.CUSTOM_FIELDS;

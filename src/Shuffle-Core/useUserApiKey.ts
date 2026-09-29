@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getApiUrl, getAuthHeader, API_CONFIG, getSessionToken, hasShuffleAuth } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, API_CONFIG, getSessionToken, hasShuffleAuth } from '@/Shuffle-Core/api';
 
 const API_KEY_CACHE_KEY = 'shuffle_user_apikey';
 

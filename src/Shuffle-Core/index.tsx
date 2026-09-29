@@ -506,12 +506,28 @@ import AppAuthSectionRaw, { type AppAuthSectionProps } from "./components/AppAut
 export const AppAuthSection = withTheme<AppAuthSectionProps>(AppAuthSectionRaw as any, "AppAuthSection");
 export type { AppAuthSectionProps };
 
-export {
-  AgentsView,
-  AgentUI,
-  defaultToolDrawerRenderer,
-  defaultAppDetailDrawerRenderer,
-} from "./views/ConnectedAgents";
+import TryMcpSectionRaw, { type TryMcpSectionProps } from "./views/TryMcpSection";
+export const TryMcpSection = withTheme<TryMcpSectionProps>(TryMcpSectionRaw as any, "TryMcpSection");
+export type { TryMcpSectionProps };
 
+import AppMcpChatRaw, { type AppMcpChatProps } from "./views/AppMcpChat";
+export const AppMcpChat = withTheme<AppMcpChatProps>(AppMcpChatRaw as any, "AppMcpChat");
+export type { AppMcpChatProps };
 
+import SingulActionsPreviewRaw, { type SingulActionsPreviewProps } from "./components/SingulActionsPreview";
+export const SingulActionsPreview = withTheme<SingulActionsPreviewProps>(SingulActionsPreviewRaw as any, "SingulActionsPreview");
+export type { SingulActionsPreviewProps };
 
+import ApiCallViewerRaw, { type ApiCallViewerProps } from "./components/ApiCallViewer";
+export const ApiCallViewer = withTheme<ApiCallViewerProps>(ApiCallViewerRaw as any, "ApiCallViewer");
+export type { ApiCallViewerProps };
+
+export { default as AiAgentPromptsEditor } from "./components/AiAgentPromptsEditor";
+export { AgentPresets, AGENT_PRESETS, type AgentPreset } from "./components/AgentPresets";
+export { AppDetailProvider, useAppDetail, useAppDetailOptional, type AppDetailContextType } from "./AppDetailContext";
+export { default as LocalLLMConfig, type LocalLLMConfigProps } from "./components/LocalLLMConfig";
+export { SegmentedControl, type SegmentedControlProps } from "./components/SegmentedControl";
+export { UsageBar, type UsageBarProps } from "./components/UsageBar";
+export { AppFallbackIcon, type AppFallbackIconProps } from "./components/AppFallbackIcon";
+export { AuthStatusChip } from "./components/AuthStatusChip";
+export { IntegrationStatus, type IntegrationStatusProps } from "./components/IntegrationStatus";

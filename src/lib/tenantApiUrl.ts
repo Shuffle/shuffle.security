@@ -6,7 +6,7 @@
  * `tenantApiUrl(path, orgId)` instead of `getApiUrl(path)`. Tenants whose
  * region is unknown or equal to the current one fall back to getApiUrl.
  */
-import { API_CONFIG, getApiUrl, isDevEnvironment, mapCloudRegionUrl } from '@/Shuffle-MCPs/api';
+import { API_CONFIG, getApiUrl, isDevEnvironment, mapCloudRegionUrl } from '@/Shuffle-Core/api';
 
 const STORAGE_KEY = 'shuffle-tenant-regions';
 

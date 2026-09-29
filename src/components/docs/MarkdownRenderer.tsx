@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import ShuffleMarkdown from '@/Shuffle-MCPs/components/Markdown';
+import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
 import {
   parseMarkdownSegments,
   DocDynamicComponent,
@@ -35,7 +35,7 @@ import {
   type ShuffleProduct,
 } from '@/lib/shuffleUrls';
 import { navigateToShuffleCore } from '@/lib/authHandoff';
-import { getSessionToken, hasShuffleAuth } from '@/Shuffle-MCPs/api';
+import { getSessionToken, hasShuffleAuth } from '@/Shuffle-Core/api';
 import {
   useDocContent,
   type RemoteDocMeta,

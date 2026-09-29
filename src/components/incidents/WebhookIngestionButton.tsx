@@ -1,7 +1,7 @@
 import { Webhook as WebhookIcon, Copy as ContentCopyIcon, Check as CheckIcon, CheckCircle as CheckCircleOutlineIcon, Ban as BlockIcon, Send as SendIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Box, IconButton, Popover, Typography, Tooltip, InputBase, Button, Chip, CircularProgress } from '@mui/material';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { trackPredefinedEvent, GA_EVENTS } from '@/lib/analytics';
 import { toast } from '@/lib/toast';
 import { useQueryClient } from '@tanstack/react-query';

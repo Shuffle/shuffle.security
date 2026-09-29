@@ -6,7 +6,7 @@
  */
 
 import { acquireDatastoreSlot } from './requestScheduler';
-import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 
 export const isCircuitBreakerResponse = (res: Response | null | undefined): boolean => {
   if (!res) return false;

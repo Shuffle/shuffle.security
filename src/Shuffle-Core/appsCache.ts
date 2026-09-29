@@ -15,7 +15,7 @@
  * multi-region setups stay isolated.
  */
 
-import { API_CONFIG, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { API_CONFIG, getAuthHeader } from '@/Shuffle-Core/api';
 
 export interface FetchAppsOptions {
   baseUrl: string;

@@ -3,8 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/context/AuthContext';
 import { useWorkflows, type WorkflowSummary } from '@/hooks/useWorkflows';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { getDatastoreByCategory } from '@/Shuffle-MCPs/datastore';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { getDatastoreByCategory } from '@/Shuffle-Core/datastore';
 import {
   findRoutingWorkflow,
   isWorkflowHookedToCategory,

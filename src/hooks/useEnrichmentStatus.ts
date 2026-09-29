@@ -1,8 +1,8 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWorkflows, useWorkflowsMulti, WorkflowSummary } from './useWorkflows';
-import { CategoryAutomation, CategoryConfig, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { CategoryAutomation, CategoryConfig, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 
 export interface EnrichmentStatusCheck {
   label: string;

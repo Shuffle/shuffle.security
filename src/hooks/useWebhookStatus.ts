@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWorkflows } from './useWorkflows';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { findIngestTicketsWorkflow, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { findIngestTicketsWorkflow, extractWorkflowAppNames } from '@/Shuffle-Core/ingestionDetection';
 
 export interface WebhookStatus {
   /** Whether the webhook workflow exists */

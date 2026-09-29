@@ -14,8 +14,8 @@ import {
   TextField,
 } from '@mui/material';
 import { toast } from '@/lib/toast';
-import { setDatastoreItem, getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import { setDatastoreItem, getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Radar, Zap, Bell, Server, ShieldCheck, ShieldAlert, ShieldOff, ChevronDown as ExpandMoreIcon, ChevronUp as ExpandLessIcon, RotateCcw as RestoreIcon } from 'lucide-react';
 import { useAgentPermissions, RiskLevel, AgentPermissionCategory } from '@/hooks/useAgentPermissions';

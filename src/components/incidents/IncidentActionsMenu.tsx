@@ -18,9 +18,9 @@ import {
 } from '@mui/material';
 import { toast } from '@/lib/toast';
 
-import { DATASTORE_CATEGORIES, getDatastoreItem } from '@/Shuffle-MCPs/datastore';
+import { DATASTORE_CATEGORIES, getDatastoreItem } from '@/Shuffle-Core/datastore';
 import { useAuth } from '@/context/AuthContext';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { tenantApiUrl } from '@/lib/tenantApiUrl';
 
 import { resyncState, getResyncBlockedReason, extractResyncFailureReason } from '@/lib/resyncState';

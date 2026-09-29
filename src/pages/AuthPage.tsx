@@ -15,7 +15,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { getApiUrl, API_ENDPOINTS, getHostBaseUrl, isDevEnvironment, isCapacitorNative, shuffleFetch, isCloud } from '@/Shuffle-MCPs/api';
+import { getApiUrl, API_ENDPOINTS, getHostBaseUrl, isDevEnvironment, isCapacitorNative, shuffleFetch, isCloud } from '@/Shuffle-Core/api';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 import { useAuth } from '@/context/AuthContext';
 import { trackPredefinedEvent, GA_EVENTS } from '@/lib/analytics';

@@ -34,13 +34,13 @@ import {
   X as CloseIcon
 } from 'lucide-react';
 
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import AgentUI, { type AgentUIProps } from '@/Shuffle-MCPs/components/AgentUI';
-import LocalLLMConfig from '@/Shuffle-MCPs/components/LocalLLMConfig';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
-import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
+import LocalLLMConfig from '@/Shuffle-Core/components/LocalLLMConfig';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
+import { useSyncHostBaseUrl } from '@/Shuffle-Core/useSyncHostBaseUrl';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
-import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
+import { useDrawerLayer } from '@/Shuffle-Core/drawerLayer';
 
 export type AgentRunDrawerTab = 'run' | 'permissions' | 'localLLM';
 

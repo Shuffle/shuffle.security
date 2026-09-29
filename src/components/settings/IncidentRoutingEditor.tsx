@@ -55,13 +55,13 @@ import {
   Divider,
 } from '@mui/material';
 import { toast } from '@/lib/toast';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { useDatastore } from '@/hooks/useDatastore';
 import { useSubOrgs } from '@/hooks/useSubOrgs';
 import { useAuth } from '@/context/AuthContext';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
-import { getDatastoreByCategory } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreByCategory } from '@/Shuffle-Core/datastore';
 import {
   findRoutingWorkflow,
   getExpectedRoutingWorkflowLabel,

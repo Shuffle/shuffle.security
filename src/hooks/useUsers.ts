@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getApiUrl, getAuthHeader, API_CONFIG } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, API_CONFIG } from '@/Shuffle-Core/api';
 
 export interface UserPublicProfile {
   github_avatar?: string;

@@ -21,7 +21,7 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
-import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { safeRandomUUID } from '@/utils/uuid';
 import { trackPredefinedEvent, GA_EVENTS } from '@/lib/analytics';
 import { DeploymentInstructions } from '@/components/detection/DeploymentInstructions';

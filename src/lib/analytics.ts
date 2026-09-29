@@ -4,7 +4,7 @@
 // preview and self-hosted (onprem) deployments, every call is a safe no-op.
 
 import ReactGA from 'react-ga4';
-import { isCloud } from '@/Shuffle-MCPs/api';
+import { isCloud } from '@/Shuffle-Core/api';
 
 const GA_MEASUREMENT_ID = 'G-YSYM9JDVEE';
 

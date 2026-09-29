@@ -4,8 +4,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { setDatastoreItem, getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
-import { hasShuffleAuth } from '@/Shuffle-MCPs/api';
+import { setDatastoreItem, getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
+import { hasShuffleAuth } from '@/Shuffle-Core/api';
 
 export type RiskLevel = 'low' | 'medium' | 'high';
 

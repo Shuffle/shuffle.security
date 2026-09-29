@@ -10,7 +10,7 @@
  * count, not the rows.
  */
 import { useQuery } from '@tanstack/react-query';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 
 const getOrgId = (): string | null => {
   try {

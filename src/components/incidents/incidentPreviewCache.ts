@@ -13,7 +13,7 @@
  * We also coalesce concurrent in-flight requests for the same key so a burst
  * of hovers on the same chip fires exactly one network call.
  */
-import { getDatastoreItem } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreItem } from '@/Shuffle-Core/datastore';
 import { toCanonicalIncidentId } from '@/lib/incidentUrl';
 
 export type IncidentLookupResult =

@@ -1,7 +1,7 @@
 import { AlertTriangle as WarningAmberIcon, ExternalLink as OpenInNewIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Box, Typography, Chip, CircularProgress, Link as MuiLink, Tooltip } from '@mui/material';
-import { getDatastoreItem, getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreItem, getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { isIocCategory, type Correlation } from './CorrelationRow';
 import type { ThreatFeed } from '@/hooks/useThreatFeeds';
 

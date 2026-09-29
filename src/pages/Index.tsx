@@ -7,7 +7,7 @@ import { CTASection } from '@/components/landing/CTASection';
 import { Footer } from '@/components/landing/Footer';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { useAuth } from '@/context/AuthContext';
-import { isCapacitorNative } from '@/Shuffle-MCPs/api';
+import { isCapacitorNative } from '@/Shuffle-Core/api';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { MobileAuthGateway } from '@/components/mobile/MobileAuthGateway';
 import { Navigate } from '@/lib/router-compat';

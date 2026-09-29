@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { getApiUrl, getAuthHeader, hasShuffleAuth } from '@/Shuffle-MCPs/api';
-import type { AppAuthState, AuthStatus, ApiAuthEntry } from '@/Shuffle-MCPs/components/AppAuthConfig';
-import { refreshAllIntegrationStatus } from '@/Shuffle-MCPs/components/IntegrationStatus';
+import { getApiUrl, getAuthHeader, hasShuffleAuth } from '@/Shuffle-Core/api';
+import type { AppAuthState, AuthStatus, ApiAuthEntry } from '@/Shuffle-Core/components/AppAuthConfig';
+import { refreshAllIntegrationStatus } from '@/Shuffle-Core/components/IntegrationStatus';
 import {
   fetchAuthenticatedApps as fetchSharedAuthenticatedApps,
   invalidateAuthenticatedAppsCache,
-} from '@/Shuffle-MCPs/authenticatedApps';
+} from '@/Shuffle-Core/authenticatedApps';
 
 // Helper to process auth data and invalidate entries older than 30 days
 const processAuthData = (authData: ApiAuthEntry[]): ApiAuthEntry[] => {

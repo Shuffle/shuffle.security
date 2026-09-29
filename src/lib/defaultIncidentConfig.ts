@@ -1,5 +1,5 @@
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
-import { CategoryConfig, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { CategoryConfig, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 
 /**
  * Default config helpers for the incidents category.

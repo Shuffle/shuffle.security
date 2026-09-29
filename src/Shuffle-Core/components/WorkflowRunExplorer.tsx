@@ -49,8 +49,8 @@ import {
 import { getApiUrl, getAuthHeader, getShuffleCoreUrl, getShuffleCoreWorkflowUrl } from '../api';
 import { navigateToShuffleCore } from '@/lib/authHandoff';
 import NotificationsDrawer from './NotificationsDrawer';
-import { useDrawerLayer, useOverlayLayer } from '@/Shuffle-MCPs/drawerLayer';
-import { AppFallbackIcon } from '@/Shuffle-MCPs/components/AppFallbackIcon';
+import { useDrawerLayer, useOverlayLayer } from '@/Shuffle-Core/drawerLayer';
+import { AppFallbackIcon } from '@/Shuffle-Core/components/AppFallbackIcon';
 import shuffleLogo from '@/assets/shuffle-logo.png';
 import singulAgentIcon from '@/assets/singul-agent-icon.png';
 

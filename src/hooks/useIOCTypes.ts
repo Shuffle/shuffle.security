@@ -5,7 +5,7 @@
 
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 
 // OCSF-based observable type categories
 export const IOC_CATEGORIES = [
@@ -221,7 +221,7 @@ const fetchIOCTypes = async (): Promise<IOCType[]> => {
  */
 export const seedDefaultIOCTypes = async (): Promise<boolean> => {
   try {
-    const { setDatastoreItems, DATASTORE_CATEGORIES } = await import('@/Shuffle-MCPs/datastore');
+    const { setDatastoreItems, DATASTORE_CATEGORIES } = await import('@/Shuffle-Core/datastore');
     const dsItems = DEFAULT_IOC_TYPES.map(ioc => ({
       key: ioc.name,
       value: { ...ioc, enabled: ioc.enabled ?? DEFAULT_ENABLED_IOCS.has(ioc.name) },

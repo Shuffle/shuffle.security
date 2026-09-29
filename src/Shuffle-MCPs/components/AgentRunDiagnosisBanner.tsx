@@ -14,7 +14,7 @@ import { Box, Button, IconButton, Tooltip, Typography } from '@mui/material';
 import { AlertTriangle, ArrowUpRight, ExternalLink, HelpCircle, Settings2, X } from 'lucide-react';
 import AgentDiagnosisCtas, { diagnosisHasCtas } from '@/Shuffle-MCPs/components/AgentDiagnosisCtas';
 import { useEffect, useMemo, useState } from 'react';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import {
   diagnoseOutputWarning,
   extractDecisionIndex,

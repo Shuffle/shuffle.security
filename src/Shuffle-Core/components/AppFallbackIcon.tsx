@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useRef, useState, CSSProperties } from 'react';
-import { isNoAuthApp, getBuiltInAppImage } from '@/Shuffle-MCPs/noAuthApps';
+import { isNoAuthApp, getBuiltInAppImage } from '@/Shuffle-Core/noAuthApps';
 
 const norm = (s: string) => s.toLowerCase().replace(/[\s_\-]+/g, '_');
 
@@ -128,7 +128,7 @@ const colorFromName = (name: string): string => {
   return `hsl(${h % 360}, 55%, 45%)`;
 };
 
-interface AppFallbackIconProps {
+export interface AppFallbackIconProps {
   name: string;
   imageUrl?: string;
   size?: number;

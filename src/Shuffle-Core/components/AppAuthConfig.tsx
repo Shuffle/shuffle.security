@@ -1,4 +1,4 @@
-import ShuffleMarkdown from '@/Shuffle-MCPs/components/Markdown';
+import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   CheckCircle2 as CheckCircleIcon,
@@ -12,10 +12,10 @@ import {
   EyeOff as EyeOffIcon,
 } from 'lucide-react';
 
-import { toast } from '@/Shuffle-MCPs/toast';
-import { AuthStatusChip } from '@/Shuffle-MCPs/components/AuthStatusChip';
-import { getValidatedAuthIds, rememberValidatedAuth, forgetValidatedAuth } from '@/Shuffle-MCPs/validatedAuthMemory';
-import { getPopupZIndex, getTopSurfaceZIndex } from '@/Shuffle-MCPs/drawerLayer';
+import { toast } from '@/Shuffle-Core/toast';
+import { AuthStatusChip } from '@/Shuffle-Core/components/AuthStatusChip';
+import { getValidatedAuthIds, rememberValidatedAuth, forgetValidatedAuth } from '@/Shuffle-Core/validatedAuthMemory';
+import { getPopupZIndex, getTopSurfaceZIndex } from '@/Shuffle-Core/drawerLayer';
 
 
 import {
@@ -44,14 +44,14 @@ import {
   DialogContent,
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import type { AlgoliaSearchApp } from '@/Shuffle-MCPs';
-import { AppFallbackIcon } from '@/Shuffle-MCPs/components/AppFallbackIcon';
-import { API_CONFIG, getApiUrl, getAuthHeader, isDevEnvironment, isCloudDomain } from '@/Shuffle-MCPs/api';
-import { useSyncHostBaseUrl } from '@/Shuffle-MCPs/useSyncHostBaseUrl';
-import { getIngestionCategory } from '@/Shuffle-MCPs/ingestionDetection';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
-import { fetchAppConfig as fetchSharedAppConfig } from '@/Shuffle-MCPs/appConfigFetch';
-import { invalidateAuthenticatedAppsCache } from '@/Shuffle-MCPs/authenticatedApps';
+import type { AlgoliaSearchApp } from '@/Shuffle-Core/shuffle-mcp.helpers';
+import { AppFallbackIcon } from '@/Shuffle-Core/components/AppFallbackIcon';
+import { API_CONFIG, getApiUrl, getAuthHeader, isDevEnvironment, isCloudDomain } from '@/Shuffle-Core/api';
+import { useSyncHostBaseUrl } from '@/Shuffle-Core/useSyncHostBaseUrl';
+import { getIngestionCategory } from '@/Shuffle-Core/ingestionDetection';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
+import { fetchAppConfig as fetchSharedAppConfig } from '@/Shuffle-Core/appConfigFetch';
+import { invalidateAuthenticatedAppsCache } from '@/Shuffle-Core/authenticatedApps';
 
 export type AuthStatus = 'pending' | 'testing' | 'connected' | 'error';
 

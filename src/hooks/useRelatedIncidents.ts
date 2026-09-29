@@ -16,7 +16,7 @@ import { decodeHtmlEntities } from '@/lib/utils';
 import {
   getDatastoreItem,
   DATASTORE_CATEGORIES,
-} from '@/Shuffle-MCPs/datastore';
+} from '@/Shuffle-Core/datastore';
 import {
   getPrimaryPointer,
   getLinkedPointers,

@@ -8,8 +8,8 @@
 import React from 'react';
 import { Box, ButtonBase, Tooltip, Typography } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
-import { isSupportUser } from '@/Shuffle-MCPs/components/AgentPresets';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
+import { isSupportUser } from '@/Shuffle-Core/components/AgentPresets';
 import { isAgentRoute } from '@/Shuffle-MCPs/agentContextRegistry';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 

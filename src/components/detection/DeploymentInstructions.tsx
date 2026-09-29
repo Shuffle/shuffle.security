@@ -14,7 +14,7 @@ import {
   Chip,
 } from '@mui/material';
 import { useAuth } from '@/context/AuthContext';
-import { API_CONFIG } from '@/Shuffle-MCPs/api';
+import { API_CONFIG } from '@/Shuffle-Core/api';
 import { Server, X as CloseIcon, Copy as ContentCopyIcon, Check as CheckIcon, ExternalLink as OpenInNewIcon } from 'lucide-react';
 import gcpLogo from '@/assets/gcp-logo.png';
 import awsLogo from '@/assets/aws-logo.png';

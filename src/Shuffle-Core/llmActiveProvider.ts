@@ -7,18 +7,18 @@
  *  - `LocalLLMConfig` provider selector and Shuffle AI button
  */
 
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import {
   fetchAuthenticatedApps,
   invalidateAuthenticatedAppsCache,
-} from '@/Shuffle-MCPs/authenticatedApps';
+} from '@/Shuffle-Core/authenticatedApps';
 import {
   ENDPOINT_PRESETS,
   SHUFFLE_AI_PRESET,
   getProviderLogoUrl,
   isOpenAICompatibleAuthEntry,
   providerLabelOfAuthEntry,
-} from '@/Shuffle-MCPs/llmProviderDetect';
+} from '@/Shuffle-Core/llmProviderDetect';
 
 export const SECRET_PLACEHOLDER = 'Secret. Replaced during app execution!';
 

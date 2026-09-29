@@ -18,9 +18,9 @@
  * same name/id are free.
  */
 
-import { fetchAppsViaApiConfig } from '@/Shuffle-MCPs/appsCache';
-import { fetchAuthenticatedApps } from '@/Shuffle-MCPs/authenticatedApps';
-import { isNoAuthApp, getBuiltInAppMetadata } from '@/Shuffle-MCPs/noAuthApps';
+import { fetchAppsViaApiConfig } from '@/Shuffle-Core/appsCache';
+import { fetchAuthenticatedApps } from '@/Shuffle-Core/authenticatedApps';
+import { isNoAuthApp, getBuiltInAppMetadata } from '@/Shuffle-Core/noAuthApps';
 
 export interface ResolvedApp {
   /** Canonical id — Algolia objectID when known, otherwise Shuffle app id. */

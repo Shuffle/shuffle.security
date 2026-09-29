@@ -1,6 +1,6 @@
 import { CheckCircle2 as CheckCircleIcon, Trash2 as DeleteIcon, ChevronDown as ExpandMoreIcon, ChevronUp as ExpandLessIcon } from 'lucide-react';
 import { useState } from 'react';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import {
   Box,
   Typography,

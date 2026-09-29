@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import type { AgentRun } from '@/services/agentActivity';
 
 const IN_PROGRESS_STATUSES = new Set(['EXECUTING', 'WAITING']);

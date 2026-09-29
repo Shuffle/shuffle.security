@@ -6,8 +6,8 @@
  */
 
 import { Drawer } from '@mui/material';
-import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+import { useShuffleCoreTheme } from '@/Shuffle-Core/components/ShuffleCoreThemeProvider';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import AppDetailContent, { checkAppNameMatch } from './AppDetailContent';
 import { useDrawerLayer } from '../drawerLayer';
 
@@ -65,7 +65,7 @@ export default function AppDetailDrawer({
   theme,
   colorMode,
 }: AppDetailDrawerProps) {
-  const themeScope = useShuffleMcpTheme();
+  const themeScope = useShuffleCoreTheme();
   const scopeClassName = themeScope?.scopeClassName ?? (theme === 'dark' ? 'shuffle-mcp-scope dark' : theme === 'light' ? 'shuffle-mcp-scope' : undefined);
   const drawerWidth = `min(${width}px, 100vw)`;
   const drawerMinWidth = `min(${minWidth}px, 100vw)`;

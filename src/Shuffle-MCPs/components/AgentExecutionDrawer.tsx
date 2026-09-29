@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import type { SxProps, Theme } from '@mui/material';
 import AgentUI, { type AgentUIProps } from '@/Shuffle-MCPs/components/AgentUI';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import {
   STATUS_CONFIG,
   formatDuration,
@@ -24,9 +24,9 @@ import {
   getTimeAgo,
 } from '@/Shuffle-MCPs/components/AgentActivityList';
 import type { AgentRun } from '@/Shuffle-MCPs/agentActivity';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
-import { useDrawerLayer } from '@/Shuffle-MCPs/drawerLayer';
+import { useDrawerLayer } from '@/Shuffle-Core/drawerLayer';
 
 export interface AgentExecutionDrawerProps extends ShuffleHostProps {
   open: boolean;

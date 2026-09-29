@@ -5,7 +5,7 @@ import {
   getActiveCallIncident,
 } from '@/services/pagerNotificationService';
 import { IncomingPagerCallModal } from './IncomingPagerCallModal';
-import { toast } from '@/Shuffle-MCPs/toast';
+import { toast } from '@/Shuffle-Core/toast';
 
 export const GlobalPagerWatcher = () => {
   const [activeIncident, setActiveIncident] = useState<PagerIncident | null>(null);

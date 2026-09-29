@@ -1,7 +1,7 @@
 import { Link, useLocation } from "@/lib/router-compat";
 import { useEffect } from "react";
 import { ArrowRight } from "lucide-react";
-import AgentIcon from "@/Shuffle-MCPs/components/AgentIcon";
+import AgentIcon from "@/Shuffle-Core/components/AgentIcon";
 import shuffleInfraLogo from "@/assets/shuffle-infrastructure-logo.png";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { getShuffleCoreUrl } from "@/lib/shuffleUrls";

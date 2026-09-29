@@ -66,17 +66,17 @@ import {
   setLastOpenedAgentRun,
   subscribeLastOpenedAgentRun,
 } from '@/Shuffle-MCPs/agentRunSync';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { navigateToShuffleCore } from '@/Shuffle-MCPs/navigation';
 
 import { diagnoseOutputWarning } from '@/Shuffle-MCPs/agentDiagnosis';
-import { fetchAppsViaApiConfig } from '@/Shuffle-MCPs/appsCache';
+import { fetchAppsViaApiConfig } from '@/Shuffle-Core/appsCache';
 import { collectLlmImageAttachments } from '@/Shuffle-MCPs/agentAttachments';
-import { toast } from '@/Shuffle-MCPs/toast';
+import { toast } from '@/Shuffle-Core/toast';
 import { Pencil, StopCircle, AlertTriangle } from 'lucide-react';
 
-import { SegmentedControl } from '@/Shuffle-MCPs/components/SegmentedControl';
-import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
+import { SegmentedControl } from '@/Shuffle-Core/components/SegmentedControl';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 
 // ── Status / icon helpers ────────────────────────────────────────────────────
 

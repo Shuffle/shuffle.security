@@ -300,7 +300,7 @@ export async function backfillAppImages(dedupedApps: DeduplicatedApp[]): Promise
   // Fallback to the user's /api/v1/apps list (already cached, no rate limits).
   // Runs BEFORE Algolia so icons keep resolving when the public catalog 429s.
   try {
-    const { fetchAppsViaApiConfig } = await import('@/Shuffle-MCPs/appsCache');
+    const { fetchAppsViaApiConfig } = await import('@/Shuffle-Core/appsCache');
     const apps = await fetchAppsViaApiConfig().catch(() => []);
     if (Array.isArray(apps) && apps.length > 0) {
       const byName = new Map<string, string>();

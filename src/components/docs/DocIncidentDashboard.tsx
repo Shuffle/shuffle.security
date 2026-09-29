@@ -16,7 +16,7 @@ import {
 } from 'recharts';
 import { useNavigate } from '@/lib/router-compat';
 import { useDatastore } from '@/hooks/useDatastore';
-import { DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import { DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import {
   NEON,
   TooltipContent,

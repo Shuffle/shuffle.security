@@ -20,8 +20,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   getDatastoreItem,
   DATASTORE_CATEGORIES,
-} from '@/Shuffle-MCPs/datastore';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+} from '@/Shuffle-Core/datastore';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 
 import type { LinkedIncidentSummary } from '@/hooks/useRelatedIncidents';
 import { extractReadableTitle, extractReadableDescription } from '@/hooks/useRelatedIncidents';

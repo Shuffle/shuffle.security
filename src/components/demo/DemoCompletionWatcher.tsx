@@ -15,7 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast';
 import { useDemo, TOUR_STEPS } from '@/context/DemoContext';
 import { useWorkflows } from '@/hooks/useWorkflows';
-import { isWorkflowScheduleStopped } from '@/Shuffle-MCPs/ingestionDetection';
+import { isWorkflowScheduleStopped } from '@/Shuffle-Core/ingestionDetection';
 import { seedDemoWazuhImplantIncident } from '@/services/demoMode';
 import { useEntityPreference } from '@/hooks/useEntityLabel';
 

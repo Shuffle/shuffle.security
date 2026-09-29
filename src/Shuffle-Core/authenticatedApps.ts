@@ -19,7 +19,7 @@
  * lookups stay isolated from the active org's data.
  */
 
-import { getApiUrl, getAuthHeader, hasShuffleAuth } from '@/Shuffle-MCPs/api';
+import { getApiUrl, getAuthHeader, hasShuffleAuth } from '@/Shuffle-Core/api';
 import { invalidateAuthCache } from '@/Shuffle-Core/views/appsFetchCache';
 
 export interface AuthenticatedAppRaw {

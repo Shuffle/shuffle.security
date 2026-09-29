@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, CircularProgress } from '@mui/material';
-import { getApiUrl } from '@/Shuffle-MCPs/api';
+import { getApiUrl } from '@/Shuffle-Core/api';
 
 export interface OpenIdCallbackViewProps {
   mode?: 'openid' | 'sso';

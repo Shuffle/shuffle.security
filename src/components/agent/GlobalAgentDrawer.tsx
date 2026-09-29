@@ -16,7 +16,7 @@ import {
   type AgentUIProps,
 } from '@/Shuffle-MCPs';
 import PermissionsPanel from '@/components/agent/PermissionsPanel';
-import LocalLLMConfig from '@/Shuffle-MCPs/components/LocalLLMConfig';
+import LocalLLMConfig from '@/Shuffle-Core/components/LocalLLMConfig';
 import { useTheme } from '@/context/ThemeContext';
 import {
   AGENT_DRAWER_OPEN_EVENT,

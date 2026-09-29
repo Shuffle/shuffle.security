@@ -14,7 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import { Printer as PrinterIcon } from 'lucide-react';
-import ShuffleMarkdown from '@/Shuffle-MCPs/components/Markdown';
+import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
 import { fetchDocMarkdown, fetchDocsList, resolveDocName } from '@/components/docs/remoteDocs';
 import {
   extractHeadings,

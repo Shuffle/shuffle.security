@@ -37,8 +37,8 @@ import {
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { toast } from '@/lib/toast';
-import AgentIcon from '@/Shuffle-MCPs/components/AgentIcon';
-import { setDatastoreItem, getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-MCPs/datastore';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
+import { setDatastoreItem, getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { WeeklyScheduleTimeline, AI_AGENT_SCHEDULE } from '@/components/users/WeeklyScheduleTimeline';
 import { ScheduleImportDialog } from '@/components/users/ScheduleImportDialog';
 import { AddUserDialog } from '@/components/users/AddUserDialog';

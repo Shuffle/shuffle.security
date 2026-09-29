@@ -20,7 +20,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import ShuffleMarkdown from "@/Shuffle-MCPs/components/Markdown";
+import ShuffleMarkdown from "@/Shuffle-Core/components/Markdown";
 import AgentUI from "@/Shuffle-MCPs/components/AgentUI";
 import AgentActivityList from "@/Shuffle-MCPs/components/AgentActivityList";
 import AgentExecutionDrawer from "@/Shuffle-MCPs/components/AgentExecutionDrawer";
@@ -30,25 +30,25 @@ import {
   AgentPresets,
   AGENT_PRESETS,
   type AgentPreset,
-} from "@/Shuffle-MCPs/components/AgentPresets";
-import AppMcpChat from "@/Shuffle-MCPs/views/AppMcpChat";
-import { useAppLookup } from "@/Shuffle-MCPs/useAppLookup";
-import AgentIcon from "@/Shuffle-MCPs/components/AgentIcon";
+} from "@/Shuffle-Core/components/AgentPresets";
+import AppMcpChat from "@/Shuffle-Core/views/AppMcpChat";
+import { useAppLookup } from "@/Shuffle-Core/useAppLookup";
+import AgentIcon from "@/Shuffle-Core/components/AgentIcon";
 import { openAgentDrawer } from "@/lib/agentDrawer";
-import { fetchAuthenticatedApps } from "@/Shuffle-MCPs/authenticatedApps";
-import { resolveActiveLLMProvider } from "@/Shuffle-MCPs/llmProviderDetect";
+import { fetchAuthenticatedApps } from "@/Shuffle-Core/authenticatedApps";
+import { resolveActiveLLMProvider } from "@/Shuffle-Core/llmProviderDetect";
 import { DocCurlViewer } from "./DocCurlViewer";
 import { DocIncidentDashboard } from "./DocIncidentDashboard";
 import { IngestionSourcesRow } from "@/components/ingestion/IngestionSourcesRow";
 import { useNavigate } from "@/lib/router-compat";
 import { useDatastore } from "@/hooks/useDatastore";
-import { DATASTORE_CATEGORIES, type CategoryAutomation } from "@/Shuffle-MCPs/datastore";
+import { DATASTORE_CATEGORIES, type CategoryAutomation } from "@/Shuffle-Core/datastore";
 import { useVulnerabilities } from "@/hooks/useVulnerabilities";
 import { useHostMonitorCount } from "@/hooks/useHostMonitorCount";
-import { getApiUrl, getAuthHeader, getRegionUrl, setRegionUrl, getShuffleCoreUrl } from "@/Shuffle-MCPs/api";
+import { getApiUrl, getAuthHeader, getRegionUrl, setRegionUrl, getShuffleCoreUrl } from "@/Shuffle-Core/api";
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { UsecaseDrawer, CategoryAutomationsDialog } from "@/Shuffle-Core";
-import { API_CONFIG } from "@/Shuffle-MCPs/api";
+import { API_CONFIG } from "@/Shuffle-Core/api";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { AutomationReadinessBanner } from "@/components/incidents/AutomationReadinessBanner";

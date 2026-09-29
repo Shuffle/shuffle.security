@@ -13,7 +13,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import { useNavigate } from '@/lib/router-compat';
-import { useWorkflows } from '@/hooks/useWorkflows';
+import { useWorkflows } from '@/Shuffle-MCPs/useWorkflows';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   DEFAULT_USECASES,

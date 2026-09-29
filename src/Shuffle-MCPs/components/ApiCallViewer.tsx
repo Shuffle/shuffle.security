@@ -11,7 +11,7 @@ import { Box, Typography, Button, Chip, CircularProgress, Collapse, useTheme } f
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
 import { toast } from '@/Shuffle-MCPs/toast';
-import { useUserApiKey } from '@/hooks/useUserApiKey';
+import { useUserApiKey } from '@/Shuffle-MCPs/useUserApiKey';
 import JsonView from 'react18-json-view';
 import 'react18-json-view/src/style.css';
 import 'react18-json-view/src/dark.css';

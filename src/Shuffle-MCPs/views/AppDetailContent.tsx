@@ -50,7 +50,7 @@ import SingulActionsPreview from '@/Shuffle-MCPs/components/SingulActionsPreview
 import ApiCallViewer from '@/Shuffle-MCPs/components/ApiCallViewer';
 import AppRelatedUsecases from '@/Shuffle-MCPs/components/AppRelatedUsecases';
 import { useQueryClient } from '@tanstack/react-query';
-import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/hooks/useWorkflows';
+import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/Shuffle-MCPs/useWorkflows';
 import { isVulnScannerApp, normalizeAppName, extractWorkflowAppNames } from '@/Shuffle-MCPs/ingestionDetection';
 import type { ShuffleHostProps } from '@/Shuffle-MCPs/host-props';
 

@@ -51,9 +51,9 @@ import ApiCallViewer from '@/Shuffle-Core/components/ApiCallViewer';
 import AppRelatedUsecasesRaw from '@/Shuffle-Core/components/AppRelatedUsecases';
 
 class UsecasesBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
-  state = { hasError: false };
+  override state = { hasError: false };
   static getDerivedStateFromError() { return { hasError: true }; }
-  render() { return this.state.hasError ? null : this.props.children; }
+  override render() { return this.state.hasError ? null : this.props.children; }
 }
 
 const AppRelatedUsecases: typeof AppRelatedUsecasesRaw = (props) => (

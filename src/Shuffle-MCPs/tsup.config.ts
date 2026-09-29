@@ -44,6 +44,7 @@ export default defineConfig({
     '@mui/system/createTheme',
     '@mui/system/styled',
     '@mui/icons-material',
+    '@mui/x-data-grid',
     '@emotion/react',
     '@emotion/styled',
     '@emotion/cache',
@@ -72,6 +73,37 @@ export default defineConfig({
           path: 'react-router-dom',
           external: true,
         }));
+      },
+    },
+    {
+      name: 'resolve-at-alias',
+      setup(build) {
+        build.onResolve({ filter: /^@\// }, (args) => {
+          if (args.path === '@/lib/router-compat') {
+            return undefined;
+          }
+          const subpath = args.path.replace(/^@\//, '');
+          const srcDir = path.resolve(__dirname, '..');
+          const target = path.resolve(srcDir, subpath);
+          return build.resolve(target, {
+            resolveDir: args.resolveDir,
+            kind: args.kind,
+          });
+        });
+      },
+    },
+    {
+      name: 'resolve-sibling-imports-from-mcps',
+      setup(build) {
+        build.onResolve({ filter: /^[^./@]/ }, (args) => {
+          if (args.resolveDir && !args.resolveDir.startsWith(__dirname)) {
+            return build.resolve(args.path, {
+              resolveDir: __dirname,
+              kind: args.kind,
+            });
+          }
+          return undefined;
+        });
       },
     },
   ],

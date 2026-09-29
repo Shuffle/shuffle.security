@@ -1136,7 +1136,13 @@ const FormInput = (defaultprops: any) => {
 				return
 			}
 
-			if (execution_id !== undefined && execution_id !== null && authorization !== undefined && authorization !== null && execution_id.length > 0 && authorization.length > 0 && disableButtons === false && responseJson?.status !== "" && responseJson?.status !== "WAITING") {
+			const waitingForInput = responseJson?.status === "WAITING" || responseJson?.results?.some((result: any) => result?.status === "WAITING")
+			if (waitingForInput) {
+				setDisableButtons(false)
+				setExecutionRunning(false)
+			}
+
+			if (!waitingForInput && execution_id !== undefined && execution_id !== null && authorization !== undefined && authorization !== null && execution_id.length > 0 && authorization.length > 0 && disableButtons === false && responseJson?.status !== "" && responseJson?.status !== "WAITING") {
 				console.log("IN here 1")
 				setDisableButtons(true)
 			}
@@ -1919,11 +1925,14 @@ const FormInput = (defaultprops: any) => {
 											{message}
 										</Typography>
 									: 
-										<Fade in={true} timeout={2500}>
-											<Typography variant="body1" style={{textAlign: "center", marginTop: 30, marginBottom: 20, }}>
-												{disabledButtons ? "Question answered. You may close this window." : ""}
-											</Typography>
-										</Fade>
+									<Fade in={true} timeout={2500}>
+										<Typography variant="body1" style={{textAlign: "center", marginTop: 30, marginBottom: 20, }}>
+											{/* Show the confirmation both right after an in-page click and
+												whenever the execution is already handled (refreshed link,
+												already answered) so the state is never a silent grey-out. */}
+											{buttonClicked.length > 0 || disabledButtons ? "Question answered. You may close this window." : ""}
+										</Typography>
+									</Fade>
 									}
 
 									{disabledButtons ? null :

@@ -94,6 +94,7 @@ export const AGENT_PRESETS: AgentPreset[] = [
     defaultPrompt: 'Take control of this host and help me with: ',
     icon: <Monitor size={16} />,
     enabled: true,
+    tag: 'Beta',
     defaultApps: [{ name: 'shuffle_host_monitors' }],
     requiredApps: ['shuffle_host_monitors'],
   },

@@ -86,8 +86,8 @@ export const AutomationReadinessBanner = ({
   }, [isAdmin, checkDefaults]);
 
   const allActive = useMemo(
-    () => webhook.enabled && enrichment.active && assign.active && defaultsReady === true,
-    [webhook.enabled, enrichment.active, assign.active, defaultsReady],
+    () => (webhook.enabled || webhook.hasSources) && enrichment.active && assign.active && defaultsReady === true,
+    [webhook.enabled, webhook.hasSources, enrichment.active, assign.active, defaultsReady],
   );
 
   const isLoading =
@@ -95,7 +95,7 @@ export const AutomationReadinessBanner = ({
 
   // "Empty" = nothing configured at all, once every check has resolved.
   const isEmpty =
-    !isLoading && !webhook.enabled && !enrichment.active && !assign.active && defaultsReady !== true;
+    !isLoading && !webhook.enabled && !webhook.hasSources && !enrichment.active && !assign.active && defaultsReady !== true;
 
   useEffect(() => {
     if (isLoading) return;
@@ -166,17 +166,43 @@ export const AutomationReadinessBanner = ({
       .finally(() => setBusy(null));
   }, [isAdmin, isLoading, defaultsReady, webhook.enabled, enrichment.active, assign.active, enableDefaults]);
 
+  // Ingest is on (webhook or any source) -> fully enable readiness with the
+  // same functions as "Enable all". Runs once per tenant so later manual
+  // disables are respected.
+  const ingestAutoRanRef = useRef(false);
+  const ingestOn = webhook.enabled || webhook.hasSources;
+  useEffect(() => {
+    if (!isAdmin || isLoading || enablingAll || ingestAutoRanRef.current) return;
+    if (!ingestOn || allActive) return;
+    const orgId = getActiveOrgId();
+    if (!orgId) return;
+    const key = `shuffle-ingest-readiness-sync::${orgId}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, new Date().toISOString());
+    } catch {
+      return;
+    }
+    ingestAutoRanRef.current = true;
+    void handleEnableAll();
+  }, [isAdmin, isLoading, enablingAll, ingestOn, allActive, handleEnableAll]);
+
   if (!isAdmin) return null;
 
   const items: ReadinessItem[] = [
     {
       id: 'Ingestion',
       label: 'Ingestion',
-      active: webhook.enabled,
+      active: webhook.enabled || webhook.hasSources,
       loading: webhook.isLoading,
       busy: busy === 'Ingestion',
       tooltip: 'Pushes alerts directly into incidents via webhook URL',
       checks: [
+        {
+          label: 'Ingest sources connected',
+          active: webhook.hasSources,
+          detail: 'No source apps are configured in the "Ingest Tickets" workflow.',
+        },
         {
           label: '"Ingestion Webhook" workflow exists',
           active: webhook.exists,

@@ -427,6 +427,7 @@ import {
   type ActiveIncidentPromptContext,
 } from "@/lib/incidentPromptContext";
 import { useScheduleAgentRun } from "@/hooks/useScheduleAgentRun";
+import { tenantApiUrl, registerTenantRegions } from "@/lib/tenantApiUrl";
 
 // Transport failures (circuit-breaker 503s, flaky tunnels) are not the same as
 // a missing incident. Keep retrying quietly for ~30s before showing anything
@@ -3213,7 +3214,7 @@ const IncidentDetailPage = () => {
     try {
       const categoryKey = DATASTORE_CATEGORIES.INCIDENTS;
       const response = await fetch(
-        getApiUrl(
+        (crossOrgId ? (p: string) => tenantApiUrl(p, crossOrgId) : getApiUrl)(
           `/api/v2/datastore/category/${encodeURIComponent(categoryKey)}/${encodeURIComponent(id)}/revisions`,
         ),
         {
@@ -3719,7 +3720,7 @@ const IncidentDetailPage = () => {
       try {
         const categoryKey = DATASTORE_CATEGORIES.INCIDENTS;
         const response = await fetch(
-          getApiUrl(
+          (crossOrgId ? (p: string) => tenantApiUrl(p, crossOrgId) : getApiUrl)(
             `/api/v2/datastore/category/${encodeURIComponent(categoryKey)}/${encodeURIComponent(id)}/revisions`,
           ),
           {

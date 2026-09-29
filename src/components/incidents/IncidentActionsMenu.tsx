@@ -21,6 +21,8 @@ import { toast } from '@/lib/toast';
 import { DATASTORE_CATEGORIES, getDatastoreItem } from '@/Shuffle-MCPs/datastore';
 import { useAuth } from '@/context/AuthContext';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-MCPs/api';
+import { tenantApiUrl } from '@/lib/tenantApiUrl';
+
 import { resyncState, getResyncBlockedReason, extractResyncFailureReason } from '@/lib/resyncState';
 import { useEntityText } from '@/hooks/useEntityLabel';
 import { writeIncidentSafe } from '@/lib/incidentRelations';
@@ -84,6 +86,7 @@ export const IncidentActionsMenu = ({
   const currentUsername = userInfo?.username || '';
 
   const crossOrgHeaders: Record<string, string> = crossOrgId ? { 'Org-Id': crossOrgId } : {};
+  const orgApiUrl = (path: string) => (crossOrgId ? tenantApiUrl(path, crossOrgId) : getApiUrl(path));
 
   const [anchor, setAnchor] = useState<null | HTMLElement>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -119,7 +122,7 @@ export const IncidentActionsMenu = ({
       );
       const previousEdited = preResult.item?.edited || 0;
 
-      const response = await fetch(getApiUrl('/api/v1/apps/categories/run'), {
+      const response = await fetch(orgApiUrl('/api/v1/apps/categories/run'), {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -177,7 +180,7 @@ export const IncidentActionsMenu = ({
     setAnchor(null);
     setShowForwardDialog(true);
     setForwardingAppsLoading(true);
-    fetch(getApiUrl('/api/v1/apps/authentication'), {
+    fetch(orgApiUrl('/api/v1/apps/authentication'), {
       credentials: 'include',
       headers: { ...getAuthHeader(), ...crossOrgHeaders },
     })
@@ -248,7 +251,7 @@ export const IncidentActionsMenu = ({
             app_name: app.id,
             fields: [{ key: 'key', value: JSON.stringify(ticketPayload) }],
           };
-      const response = await fetch(getApiUrl('/api/v1/apps/categories/run'), {
+      const response = await fetch(orgApiUrl('/api/v1/apps/categories/run'), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader(), ...crossOrgHeaders },

@@ -5,6 +5,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getApiUrl, getAuthHeader, mapCloudRegionUrl } from '@/Shuffle-MCPs/api';
 import { useAuth } from '@/context/AuthContext';
+import { registerTenantRegions } from '@/lib/tenantApiUrl';
+
 
 export interface SubOrg {
   id: string;
@@ -81,9 +83,11 @@ export const useSubOrgs = (currentOrgId: string | undefined): UseSubOrgsReturn =
           region_url: org.region_url ? (mapCloudRegionUrl(org.region_url) || org.region_url) : undefined,
         })));
 
+        registerTenantRegions(trueChildren);
         // Extract parent org if available
         const parent = data.parentOrg || data.parent_org;
         if (parent && parent.id) {
+          registerTenantRegions([parent]);
           setParentOrg({
             id: parent.id,
             name: parent.name || parent.id,

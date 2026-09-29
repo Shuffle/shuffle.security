@@ -22,12 +22,14 @@ export default defineConfig({
       host: "0.0.0.0",
     },
     resolve: {
-      alias: {
-        // Internal Shuffle libraries vendored under src/ — point directly to source entries
-        "@/Shuffle-Core": path.resolve(dirname, "./src/Shuffle-Core/index.tsx"),
-        "@shuffleio/shuffle-mcps": path.resolve(dirname, "./src/Shuffle-MCPs/index.ts"),
-        "@shuffleio/shuffle-core": path.resolve(dirname, "./src/Shuffle-Core/index.tsx"),
-      },
+      alias: [
+        // Internal Shuffle libraries vendored under src/ — point bare imports directly to
+        // source entries so Vite never falls back to the package.json "module" (dist) field.
+        { find: /^@\/Shuffle-Core$/, replacement: path.resolve(dirname, "./src/Shuffle-Core/index.tsx") },
+        { find: /^@\/Shuffle-MCPs$/, replacement: path.resolve(dirname, "./src/Shuffle-MCPs/index.ts") },
+        { find: /^@shuffleio\/shuffle-mcps$/, replacement: path.resolve(dirname, "./src/Shuffle-MCPs/index.ts") },
+        { find: /^@shuffleio\/shuffle-core$/, replacement: path.resolve(dirname, "./src/Shuffle-Core/index.tsx") },
+      ],
     },
   },
 });

@@ -29,6 +29,7 @@ import {
   saveIncidentReport,
   type IncidentReport,
   type GenerateReportInput,
+  refreshReportTimeline,
 } from '@/services/incidentReports';
 
 interface IncidentReportDialogProps {
@@ -97,7 +98,7 @@ const IncidentReportDialog = ({
       if (!force) {
         const existing = await loadIncidentReport(input.incidentId, overrideOrgId);
         if (existing) {
-          setReport(existing);
+          setReport(refreshReportTimeline(existing, input));
           setLoading(false);
           return;
         }
@@ -154,12 +155,16 @@ const IncidentReportDialog = ({
         @media print {
           body.printing-incident-report > *:not(.MuiDialog-root):not(.MuiPopover-root) { display: none !important; }
           body.printing-incident-report .MuiDialog-root .MuiBackdrop-root { display: none !important; }
-          body.printing-incident-report .MuiDialog-root .MuiDialog-container { position: static !important; height: auto !important; }
-          body.printing-incident-report .MuiDialog-root .MuiPaper-root { box-shadow: none !important; max-height: none !important; max-width: none !important; width: 100% !important; margin: 0 !important; border: none !important; }
+          html:has(body.printing-incident-report), body.printing-incident-report { overflow: visible !important; height: auto !important; }
+          body.printing-incident-report .MuiDialog-root { position: static !important; inset: auto !important; }
+          body.printing-incident-report .MuiDialog-root .MuiDialog-container { position: static !important; height: auto !important; display: block !important; overflow: visible !important; }
+          body.printing-incident-report .MuiDialog-root .MuiDialogContent-root { overflow: visible !important; max-height: none !important; height: auto !important; }
+          body.printing-incident-report .MuiDialog-root .MuiPaper-root { display: block !important; overflow: visible !important; height: auto !important; box-shadow: none !important; max-height: none !important; max-width: none !important; width: 100% !important; margin: 0 !important; border: none !important; }
           body.printing-incident-report .report-no-print { display: none !important; }
           body.printing-incident-report .report-printable { color: #000 !important; background: #fff !important; }
           body.printing-incident-report .report-printable * { color: #000 !important; background: transparent !important; border-color: #ccc !important; }
-          body.printing-incident-report .report-printable .report-section { page-break-inside: avoid; }
+          body.printing-incident-report .report-printable .report-section { page-break-inside: auto; break-inside: auto; }
+          body.printing-incident-report .report-printable .report-timeline-row { break-inside: avoid; page-break-inside: avoid; }
           @page { margin: 18mm; }
         }
       `}</style>
@@ -420,7 +425,7 @@ const IncidentReportDialog = ({
                 </Typography>
               )}
               {report.timeline.map((entry, i) => (
-                <Box key={i} sx={{ display: 'flex', gap: 2, py: 0.75, borderBottom: '1px solid hsl(var(--border))' }}>
+                <Box key={i} className="report-timeline-row" sx={{ display: 'flex', gap: 2, py: 0.75, borderBottom: '1px solid hsl(var(--border))' }}>
                   <Box sx={{ minWidth: 160, fontSize: 11, fontFamily: 'monospace', color: 'hsl(var(--muted-foreground))' }}>
                     {formatTs(entry.timestamp)}
                   </Box>

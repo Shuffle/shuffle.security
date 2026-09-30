@@ -18705,6 +18705,7 @@ const IncidentDetailPage = () => {
                   tasks: visibleTasks,
                   activity: activity as any,
                   agentRuns: (agentRuns || []) as any,
+                  workflowRuns: (allIncidentWorkflowRuns || []) as any,
                   rawOCSF: incident?.rawOCSF,
                 })}
               />

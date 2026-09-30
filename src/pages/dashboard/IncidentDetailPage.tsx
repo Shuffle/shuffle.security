@@ -234,6 +234,18 @@ import {
 import { useIncidentAgentRuns } from "@/hooks/useIncidentAgentRuns";
 import { useIncidentWorkflowRuns } from "@/hooks/useIncidentWorkflowRuns";
 import { isFailedParseValue } from "@/lib/failedParse";
+
+/** Parse a JSON-array string like '["a","b"]'; returns null when not a list. */
+const parseListString = (v: string): unknown[] | null => {
+  const t = v.trim();
+  if (!t.startsWith("[") || !t.endsWith("]")) return null;
+  try {
+    const parsed = JSON.parse(t);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
 import { useAgentNotifications } from "@/hooks/useNotifications";
 import {
   isApprovalNotification,
@@ -9511,23 +9523,49 @@ const IncidentDetailPage = () => {
     );
 
     switch (field.type) {
-      case "text":
+      case "text": {
+        // Lists (arrays or JSON-array strings) are shown as "a, b, c" for
+        // readability and saved back in their original list form.
+        const listForm: "array" | "json" | null = Array.isArray(value)
+          ? "array"
+          : typeof value === "string" && parseListString(value)
+            ? "json"
+            : null;
+        const listItems = Array.isArray(value)
+          ? value
+          : listForm === "json"
+            ? parseListString(value as string)!
+            : null;
+        const displayValue = listItems
+          ? listItems
+              .map((v) => (typeof v === "string" ? v : JSON.stringify(v)))
+              .join(", ")
+          : typeof value === "string"
+            ? value
+            : value == null
+              ? ""
+              : String(value);
         return wrap(
           <DeferredTextField
-            value={
-              typeof value === "string"
-                ? value
-                : value == null
-                  ? ""
-                  : String(value)
-            }
-            onCommit={(next) => handleCustomFieldChange(field, next)}
+            value={displayValue}
+            onCommit={(next) => {
+              if (!listForm) return handleCustomFieldChange(field, next);
+              const parts = next
+                .split(",")
+                .map((p) => p.trim())
+                .filter(Boolean);
+              handleCustomFieldChange(
+                field,
+                (listForm === "array" ? parts : JSON.stringify(parts)) as any,
+              );
+            }}
             placeholder={placeholder}
             fullWidth
             size="small"
             sx={inputSx}
           />,
         );
+      }
       case "number":
         return wrap(
           <DeferredTextField

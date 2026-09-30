@@ -19608,7 +19608,7 @@ const IncidentDetailPage = () => {
                       )}
                       {simpleHiddenFailedCount > 0 && (
                         <Box sx={{ gridColumn: "1 / -1" }}>
-                          <Typography sx={{ fontSize: 11, color: "hsl(var(--warning, 38 92% 50%))", mt: 1 }}>
+                          <Typography sx={{ fontSize: 11, color: "hsl(var(--severity-medium, 38 92% 50%))", mt: 1 }}>
                         {simpleHiddenFailedCount} field{simpleHiddenFailedCount === 1 ? "" : "s"} hidden because the value failed to parse.
                       </Typography>
                         </Box>
@@ -20734,7 +20734,7 @@ const IncidentDetailPage = () => {
                               )}
                             </Box>
                             {hiddenFailedCount > 0 && (
-                              <Typography sx={{ fontSize: 11, color: "hsl(var(--warning, 38 92% 50%))", mt: 1 }}>
+                              <Typography sx={{ fontSize: 11, color: "hsl(var(--severity-medium, 38 92% 50%))", mt: 1 }}>
                         {hiddenFailedCount} field{hiddenFailedCount === 1 ? "" : "s"} hidden because the value failed to parse.
                       </Typography>
                             )}
@@ -21713,7 +21713,7 @@ const IncidentDetailPage = () => {
                                     ? "hsl(var(--warning, 38 92% 50%) / 0.45)"
                                     : "hsl(var(--primary) / 0.4)",
                                   color: mismatch
-                                    ? "hsl(var(--warning, 38 92% 50%))"
+                                    ? "hsl(var(--severity-medium, 38 92% 50%))"
                                     : "hsl(var(--primary))",
                                 }}
                               />

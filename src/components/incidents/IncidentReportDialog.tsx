@@ -29,6 +29,7 @@ import {
   saveIncidentReport,
   type IncidentReport,
   type GenerateReportInput,
+  refreshReportTimeline,
 } from '@/services/incidentReports';
 
 interface IncidentReportDialogProps {

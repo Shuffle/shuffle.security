@@ -80,8 +80,8 @@ export const AgentsRoute = () => {
         isLoggedIn={isAuthenticated}
         permissionsSlot={<PermissionsPanel compact />}
         usecaseFilters={usecaseFilters}
-        renderToolDrawer={(p) => <AppSearchDrawer {...(p as any)} />}
-        renderAppDetailDrawer={(p) => <AppDetailDrawer {...(p as any)} />}
+        renderToolDrawer={(p: any) => <AppSearchDrawer {...(p as any)} />}
+        renderAppDetailDrawer={(p: any) => <AppDetailDrawer {...(p as any)} />}
         presetCtas={{
           'host-monitor-control': {
             show: hostMonitorCount === 0,

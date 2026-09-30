@@ -12,6 +12,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 import { AgentsView } from '@/Shuffle-MCPs';
+import { AppSearchDrawer, AppDetailDrawer } from '@/Shuffle-Core';
 import PermissionsPanel from '@/components/agent/PermissionsPanel';
 import UsecasesPageRaw from '@/pages/dashboard/UsecasesPage';
 import MonitorsView from '@/Shuffle-Core/views/monitors/MonitorsView';
@@ -79,6 +80,8 @@ export const AgentsRoute = () => {
         isLoggedIn={isAuthenticated}
         permissionsSlot={<PermissionsPanel compact />}
         usecaseFilters={usecaseFilters}
+        renderToolDrawer={(p: any) => <AppSearchDrawer {...(p as any)} />}
+        renderAppDetailDrawer={(p: any) => <AppDetailDrawer {...(p as any)} />}
         presetCtas={{
           'host-monitor-control': {
             show: hostMonitorCount === 0,

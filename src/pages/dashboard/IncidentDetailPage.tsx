@@ -233,6 +233,7 @@ import {
 } from "@/components/incidents/TimelineAttributeComponents";
 import { useIncidentAgentRuns } from "@/hooks/useIncidentAgentRuns";
 import { useIncidentWorkflowRuns } from "@/hooks/useIncidentWorkflowRuns";
+import { isFailedParseValue } from "@/lib/failedParse";
 import { useAgentNotifications } from "@/hooks/useNotifications";
 import {
   isApprovalNotification,
@@ -19581,8 +19582,13 @@ const IncidentDetailPage = () => {
                             : ("text" as const),
                       required: false,
                     }));
-                  return [...customFields, ...dynamicFields];
+                  return [...customFields, ...dynamicFields].filter(
+                    (f) => !isFailedParseValue(editedCustomFields[f.key]),
+                  );
                 })();
+                const simpleHiddenFailedCount = Object.values(
+                  editedCustomFields,
+                ).filter(isFailedParseValue).length;
 
                 const simpleCustomFields =
                   simpleCustomFieldDefs.length > 0 ? (
@@ -19599,6 +19605,13 @@ const IncidentDetailPage = () => {
                     >
                       {simpleCustomFieldDefs.map((field) =>
                         renderCustomField(field),
+                      )}
+                      {simpleHiddenFailedCount > 0 && (
+                        <Box sx={{ gridColumn: "1 / -1" }}>
+                          <Typography sx={{ fontSize: 11, color: "hsl(var(--severity-medium, 38 92% 50%))", mt: 1 }}>
+                        {simpleHiddenFailedCount} field{simpleHiddenFailedCount === 1 ? "" : "s"} hidden because the value failed to parse.
+                      </Typography>
+                        </Box>
                       )}
                     </Box>
                   ) : null;
@@ -20687,7 +20700,12 @@ const IncidentDetailPage = () => {
                           }),
                         );
                         // Combine defined fields + dynamic fields from data
-                        const allFields = [...customFields, ...dynamicFields];
+                        const allFields = [...customFields, ...dynamicFields].filter(
+                          (f) => !isFailedParseValue(editedCustomFields[f.key]),
+                        );
+                        const hiddenFailedCount = Object.values(
+                          editedCustomFields,
+                        ).filter(isFailedParseValue).length;
 
                         return allFields.length > 0 ||
                           Object.keys(editedCustomFields).length > 0 ? (
@@ -20715,6 +20733,11 @@ const IncidentDetailPage = () => {
                                 renderCustomField(field),
                               )}
                             </Box>
+                            {hiddenFailedCount > 0 && (
+                              <Typography sx={{ fontSize: 11, color: "hsl(var(--severity-medium, 38 92% 50%))", mt: 1 }}>
+                        {hiddenFailedCount} field{hiddenFailedCount === 1 ? "" : "s"} hidden because the value failed to parse.
+                      </Typography>
+                            )}
                           </Section>
                         ) : null;
                       })()}
@@ -21690,7 +21713,7 @@ const IncidentDetailPage = () => {
                                     ? "hsl(var(--warning, 38 92% 50%) / 0.45)"
                                     : "hsl(var(--primary) / 0.4)",
                                   color: mismatch
-                                    ? "hsl(var(--warning, 38 92% 50%))"
+                                    ? "hsl(var(--severity-medium, 38 92% 50%))"
                                     : "hsl(var(--primary))",
                                 }}
                               />

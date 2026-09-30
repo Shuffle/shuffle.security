@@ -111,6 +111,12 @@ export interface GenerateReportInput {
     decision?: string;
     summary?: string;
   }>;
+  workflowRuns?: Array<{
+    execution_id?: string;
+    started_at?: number | string;
+    status?: string;
+    workflow?: { name?: string };
+  }>;
   rawOCSF?: any;
 }
 
@@ -204,8 +210,26 @@ const buildTimeline = (input: GenerateReportInput): ReportTimelineEntry[] => {
     });
   });
 
+  (input.workflowRuns || []).forEach(r => {
+    if (!r?.started_at) return;
+    const raw = typeof r.started_at === 'number' ? r.started_at : (Number(r.started_at) || Date.parse(String(r.started_at)));
+    if (!raw || isNaN(raw)) return;
+    const ms = raw < 1e12 ? raw * 1000 : raw;
+    entries.push({
+      timestamp: ms,
+      label: `Workflow run: ${r.workflow?.name || 'Workflow'} (${(r.status || 'unknown').toLowerCase()})`,
+      source: 'Workflow',
+    });
+  });
+
   return entries.sort((a, b) => a.timestamp - b.timestamp);
 };
+
+/** Rebuild the timeline of a stored report from current incident data so it is always complete. */
+export const refreshReportTimeline = (report: IncidentReport, input: GenerateReportInput): IncidentReport => ({
+  ...report,
+  timeline: buildTimeline(input),
+});
 
 const buildIocs = (input: GenerateReportInput): ReportIOC[] => {
   const seen = new Set<string>();

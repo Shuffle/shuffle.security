@@ -7,7 +7,8 @@
  * so subsequent opens are instant.
  */
 
-import { X as CloseIcon, Printer as PrintIcon, RefreshCw as RefreshIcon, Wand2 as AutoFixHighIcon } from 'lucide-react';
+import { X as CloseIcon, Printer as PrintIcon, RefreshCw as RefreshIcon, Wand2 as AutoFixHighIcon, MessageSquare as CommentIcon, Pencil as EditIcon, UserPlus as AssignIcon, CheckSquare as TaskIcon, Zap as WorkflowIcon, Flag as LifecycleIcon, Activity as StatusIcon, CircleDot as DefaultEventIcon } from 'lucide-react';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import { useEffect, useRef, useState } from 'react';
 import {
   Dialog,

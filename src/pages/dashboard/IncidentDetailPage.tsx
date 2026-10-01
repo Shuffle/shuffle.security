@@ -233,6 +233,19 @@ import {
 } from "@/components/incidents/TimelineAttributeComponents";
 import { useIncidentAgentRuns } from "@/hooks/useIncidentAgentRuns";
 import { useIncidentWorkflowRuns } from "@/hooks/useIncidentWorkflowRuns";
+import { isFailedParseValue } from "@/lib/failedParse";
+
+/** Parse a JSON-array string like '["a","b"]'; returns null when not a list. */
+const parseListString = (v: string): unknown[] | null => {
+  const t = v.trim();
+  if (!t.startsWith("[") || !t.endsWith("]")) return null;
+  try {
+    const parsed = JSON.parse(t);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
 import { useAgentNotifications } from "@/hooks/useNotifications";
 import {
   isApprovalNotification,
@@ -9615,23 +9628,49 @@ const IncidentDetailPage = () => {
     );
 
     switch (field.type) {
-      case "text":
+      case "text": {
+        // Lists (arrays or JSON-array strings) are shown as "a, b, c" for
+        // readability and saved back in their original list form.
+        const listForm: "array" | "json" | null = Array.isArray(value)
+          ? "array"
+          : typeof value === "string" && parseListString(value)
+            ? "json"
+            : null;
+        const listItems = Array.isArray(value)
+          ? value
+          : listForm === "json"
+            ? parseListString(value as string)!
+            : null;
+        const displayValue = listItems
+          ? listItems
+              .map((v) => (typeof v === "string" ? v : JSON.stringify(v)))
+              .join(", ")
+          : typeof value === "string"
+            ? value
+            : value == null
+              ? ""
+              : String(value);
         return wrap(
           <DeferredTextField
-            value={
-              typeof value === "string"
-                ? value
-                : value == null
-                  ? ""
-                  : String(value)
-            }
-            onCommit={(next) => handleCustomFieldChange(field, next)}
+            value={displayValue}
+            onCommit={(next) => {
+              if (!listForm) return handleCustomFieldChange(field, next);
+              const parts = next
+                .split(",")
+                .map((p) => p.trim())
+                .filter(Boolean);
+              handleCustomFieldChange(
+                field,
+                (listForm === "array" ? parts : JSON.stringify(parts)) as any,
+              );
+            }}
             placeholder={placeholder}
             fullWidth
             size="small"
             sx={inputSx}
           />,
         );
+      }
       case "number":
         return wrap(
           <DeferredTextField
@@ -18810,6 +18849,7 @@ const IncidentDetailPage = () => {
                   tasks: visibleTasks,
                   activity: activity as any,
                   agentRuns: (agentRuns || []) as any,
+                  workflowRuns: (allIncidentWorkflowRuns || []) as any,
                   rawOCSF: incident?.rawOCSF,
                 })}
               />
@@ -19685,8 +19725,13 @@ const IncidentDetailPage = () => {
                             : ("text" as const),
                       required: false,
                     }));
-                  return [...customFields, ...dynamicFields];
+                  return [...customFields, ...dynamicFields].filter(
+                    (f) => !isFailedParseValue(editedCustomFields[f.key]),
+                  );
                 })();
+                const simpleHiddenFailedCount = Object.values(
+                  editedCustomFields,
+                ).filter(isFailedParseValue).length;
 
                 const simpleCustomFields =
                   simpleCustomFieldDefs.length > 0 ? (
@@ -19703,6 +19748,13 @@ const IncidentDetailPage = () => {
                     >
                       {simpleCustomFieldDefs.map((field) =>
                         renderCustomField(field),
+                      )}
+                      {simpleHiddenFailedCount > 0 && (
+                        <Box sx={{ gridColumn: "1 / -1" }}>
+                          <Typography sx={{ fontSize: 11, color: "hsl(var(--severity-medium, 38 92% 50%))", mt: 1 }}>
+                        {simpleHiddenFailedCount} field{simpleHiddenFailedCount === 1 ? "" : "s"} hidden because the value failed to parse.
+                      </Typography>
+                        </Box>
                       )}
                     </Box>
                   ) : null;
@@ -20791,7 +20843,12 @@ const IncidentDetailPage = () => {
                           }),
                         );
                         // Combine defined fields + dynamic fields from data
-                        const allFields = [...customFields, ...dynamicFields];
+                        const allFields = [...customFields, ...dynamicFields].filter(
+                          (f) => !isFailedParseValue(editedCustomFields[f.key]),
+                        );
+                        const hiddenFailedCount = Object.values(
+                          editedCustomFields,
+                        ).filter(isFailedParseValue).length;
 
                         return allFields.length > 0 ||
                           Object.keys(editedCustomFields).length > 0 ? (
@@ -20819,6 +20876,11 @@ const IncidentDetailPage = () => {
                                 renderCustomField(field),
                               )}
                             </Box>
+                            {hiddenFailedCount > 0 && (
+                              <Typography sx={{ fontSize: 11, color: "hsl(var(--severity-medium, 38 92% 50%))", mt: 1 }}>
+                        {hiddenFailedCount} field{hiddenFailedCount === 1 ? "" : "s"} hidden because the value failed to parse.
+                      </Typography>
+                            )}
                           </Section>
                         ) : null;
                       })()}
@@ -21819,7 +21881,7 @@ const IncidentDetailPage = () => {
                                     ? "hsl(var(--warning, 38 92% 50%) / 0.45)"
                                     : "hsl(var(--primary) / 0.4)",
                                   color: mismatch
-                                    ? "hsl(var(--warning, 38 92% 50%))"
+                                    ? "hsl(var(--severity-medium, 38 92% 50%))"
                                     : "hsl(var(--primary))",
                                 }}
                               />

@@ -7,7 +7,8 @@
  * so subsequent opens are instant.
  */
 
-import { X as CloseIcon, Printer as PrintIcon, RefreshCw as RefreshIcon, Wand2 as AutoFixHighIcon } from 'lucide-react';
+import { X as CloseIcon, Printer as PrintIcon, RefreshCw as RefreshIcon, Wand2 as AutoFixHighIcon, MessageSquare as CommentIcon, Pencil as EditIcon, UserPlus as AssignIcon, CheckSquare as TaskIcon, Zap as WorkflowIcon, Flag as LifecycleIcon, Activity as StatusIcon, CircleDot as DefaultEventIcon } from 'lucide-react';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import { useEffect, useRef, useState } from 'react';
 import {
   Dialog,
@@ -29,6 +30,7 @@ import {
   saveIncidentReport,
   type IncidentReport,
   type GenerateReportInput,
+  refreshReportTimeline,
 } from '@/services/incidentReports';
 
 interface IncidentReportDialogProps {
@@ -97,7 +99,7 @@ const IncidentReportDialog = ({
       if (!force) {
         const existing = await loadIncidentReport(input.incidentId, overrideOrgId);
         if (existing) {
-          setReport(existing);
+          setReport(refreshReportTimeline(existing, input));
           setLoading(false);
           return;
         }
@@ -154,12 +156,16 @@ const IncidentReportDialog = ({
         @media print {
           body.printing-incident-report > *:not(.MuiDialog-root):not(.MuiPopover-root) { display: none !important; }
           body.printing-incident-report .MuiDialog-root .MuiBackdrop-root { display: none !important; }
-          body.printing-incident-report .MuiDialog-root .MuiDialog-container { position: static !important; height: auto !important; }
-          body.printing-incident-report .MuiDialog-root .MuiPaper-root { box-shadow: none !important; max-height: none !important; max-width: none !important; width: 100% !important; margin: 0 !important; border: none !important; }
+          html:has(body.printing-incident-report), body.printing-incident-report { overflow: visible !important; height: auto !important; }
+          body.printing-incident-report .MuiDialog-root { position: static !important; inset: auto !important; }
+          body.printing-incident-report .MuiDialog-root .MuiDialog-container { position: static !important; height: auto !important; display: block !important; overflow: visible !important; }
+          body.printing-incident-report .MuiDialog-root .MuiDialogContent-root { overflow: visible !important; max-height: none !important; height: auto !important; }
+          body.printing-incident-report .MuiDialog-root .MuiPaper-root { display: block !important; overflow: visible !important; height: auto !important; box-shadow: none !important; max-height: none !important; max-width: none !important; width: 100% !important; margin: 0 !important; border: none !important; }
           body.printing-incident-report .report-no-print { display: none !important; }
           body.printing-incident-report .report-printable { color: #000 !important; background: #fff !important; }
           body.printing-incident-report .report-printable * { color: #000 !important; background: transparent !important; border-color: #ccc !important; }
-          body.printing-incident-report .report-printable .report-section { page-break-inside: avoid; }
+          body.printing-incident-report .report-printable .report-section { page-break-inside: auto; break-inside: auto; }
+          body.printing-incident-report .report-printable .report-timeline-row { break-inside: avoid; page-break-inside: avoid; }
           @page { margin: 18mm; }
         }
       `}</style>
@@ -419,28 +425,45 @@ const IncidentReportDialog = ({
                   No timeline events recorded.
                 </Typography>
               )}
-              {report.timeline.map((entry, i) => (
-                <Box key={i} sx={{ display: 'flex', gap: 2, py: 0.75, borderBottom: '1px solid hsl(var(--border))' }}>
-                  <Box sx={{ minWidth: 160, fontSize: 11, fontFamily: 'monospace', color: 'hsl(var(--muted-foreground))' }}>
-                    {formatTs(entry.timestamp)}
-                  </Box>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography sx={{ fontSize: 13, fontWeight: 500 }}>
-                      {entry.label}
-                      {entry.source && (
-                        <Box component="span" sx={{ ml: 1, fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>
-                          [{entry.source}]
+              {report.timeline.map((entry, i) => {
+                const src = (entry.source || '').toLowerCase();
+                const Icon =
+                  src === 'agent' ? AgentIcon :
+                  src === 'workflow' ? WorkflowIcon :
+                  src === 'task' ? TaskIcon :
+                  src === 'comment' ? CommentIcon :
+                  src === 'status' ? StatusIcon :
+                  src === 'assignment' ? AssignIcon :
+                  src === 'change' || src === 'edit' ? EditIcon :
+                  src === 'lifecycle' ? LifecycleIcon :
+                  DefaultEventIcon;
+                const d = new Date(entry.timestamp);
+                const shortTs = isNaN(d.getTime())
+                  ? ''
+                  : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                return (
+                  <Box key={i} className="report-timeline-row" sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, py: 0.5 }}>
+                    <Box sx={{ width: 18, height: 18, mt: '1px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'hsl(var(--muted-foreground))', flexShrink: 0 }}>
+                      <Icon size={13} />
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+                        <Typography sx={{ fontSize: 12, fontWeight: 500, flex: 1, minWidth: 0 }}>
+                          {entry.label}
+                        </Typography>
+                        <Box component="span" sx={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          {shortTs}
                         </Box>
+                      </Box>
+                      {entry.detail && (
+                        <Typography sx={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', whiteSpace: 'pre-wrap', mt: 0.25 }}>
+                          {entry.detail}
+                        </Typography>
                       )}
-                    </Typography>
-                    {entry.detail && (
-                      <Typography sx={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', whiteSpace: 'pre-wrap' }}>
-                        {entry.detail}
-                      </Typography>
-                    )}
+                    </Box>
                   </Box>
-                </Box>
-              ))}
+                );
+              })}
             </Section>
 
             <Box sx={{ mt: 5, pt: 2, borderTop: '1px solid hsl(var(--border))', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>

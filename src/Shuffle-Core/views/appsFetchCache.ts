@@ -17,6 +17,7 @@ export interface IntegrationItem {
 export interface AlluvialCache {
   allApps: any[];
   ingestAppNames: Set<string>;
+  vulnAppNames?: Set<string>;
   forwardAppNames: Set<string>;
   webhookInfo: { url: string | null; exists: boolean; enabled: boolean; workflowId: string | null };
   ts: number;
@@ -269,6 +270,14 @@ export function updateAlluvialIngest(appName: string, enabled: boolean, normaliz
   const norm = normalizeAppName(appName);
   if (enabled) next.add(norm); else next.delete(norm);
   _alluvialCache.ingestAppNames = next;
+  _alluvialCache.ts = Date.now();
+}
+export function updateAlluvialVuln(appName: string, enabled: boolean, normalizeAppName: (n: string) => string) {
+  if (!_alluvialCache) return;
+  const next = new Set(_alluvialCache.vulnAppNames || []);
+  const norm = normalizeAppName(appName);
+  if (enabled) next.add(norm); else next.delete(norm);
+  _alluvialCache.vulnAppNames = next;
   _alluvialCache.ts = Date.now();
 }
 export function updateAlluvialForward(desiredAppNames: string[], normalizeAppName: (n: string) => string) {

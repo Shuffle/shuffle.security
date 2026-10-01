@@ -560,6 +560,7 @@ export const UsecaseDetailContent = ({
         </Box>
         {['siem_case_management_1', 'edr_case_management_1', 'email_case_management_1'].includes(flow.id) ? (
           <UsecaseAlluvialDiagram
+            flowId={flow.id}
             sourceCategory={flow.source}
             targetCategory={flow.target}
             highlightCategory={flow.source}

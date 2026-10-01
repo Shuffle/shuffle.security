@@ -9,6 +9,9 @@ import {
   extractWorkflowAppNames,
   normalizeAppName,
   ValidatedIngestionApp,
+  isVulnScannerApp,
+  CASES_PATTERNS,
+  COMMUNICATION_PATTERNS_NAMES,
 } from '@/Shuffle-Core/ingestionDetection';
 import { IngestionSourceButton } from '@/components/incidents/IngestionSourceButton';
 import { WebhookIngestionButton, WebhookIngestionInfo } from '@/components/incidents/WebhookIngestionButton';
@@ -183,7 +186,21 @@ export const IngestionSourcesRow = ({
         }
       }
 
-      const results = extractValidatedIngestionApps(authApps, workflowAppNames);
+      let results = extractValidatedIngestionApps(authApps, workflowAppNames);
+      if (category === 'vulnerabilities' || workflowLabel.toLowerCase().includes('vulnerab')) {
+        results = results.filter(app =>
+          app.enabled || isVulnScannerApp(app.name)
+        );
+      } else if (category === 'cases' || workflowLabel.toLowerCase().includes('ticket')) {
+        results = results.filter(app =>
+          app.enabled || (
+            !CASES_PATTERNS.some(p => app.name.toLowerCase().includes(p)) &&
+            !COMMUNICATION_PATTERNS_NAMES.some(p => app.name.toLowerCase().includes(p)) &&
+            !isVulnScannerApp(app.name) &&
+            (app.category === 'email' || app.category === 'edr' || app.category === 'siem')
+          )
+        );
+      }
       // Backfill missing images the same way IncidentsPage does.
       try {
         const { backfillAppImages, deduplicateAuthApps } = await import('@/lib/utils');

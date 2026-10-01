@@ -41,6 +41,8 @@ import {
   findForwardTicketsWorkflow,
   extractWorkflowAppNames,
   normalizeAppName,
+  isVulnScannerApp,
+  isEmailApp,
 } from '../ingestionDetection';
 import { TOOL_CATEGORIES } from './Usecases';
 import {
@@ -49,6 +51,7 @@ import {
   getAlluvialCache,
   setAlluvialCache,
   updateAlluvialIngest,
+  updateAlluvialVuln,
   updateAlluvialForward,
 } from './appsFetchCache';
 import shuffleInfraLogo from '../assets/shuffle-infrastructure-logo.png';
@@ -1054,6 +1057,9 @@ export default function UsecaseAlluvialDiagram({
     flowId === 'case_management_communication_1' ||
     (sourceCategory === 'case_management' && targetCategory === 'communication');
   const isForwardTicketsFlow = flowId === 'case_management_cases_forward_1';
+  const isForwardTicketsContext =
+    isForwardTicketsFlow ||
+    Boolean(flowId && ['siem_case_management_1', 'edr_case_management_1', 'email_case_management_1'].includes(flowId));
 
   const isVulnFlow =
     flowId === 'vulnerability_ingestion_1' ||
@@ -1127,6 +1133,7 @@ export default function UsecaseAlluvialDiagram({
   const cached = getAlluvialCache();
   const [allApps, setAllApps] = useState<AppNode[]>(() => cached?.allApps || []);
   const [ingestAppNames, setIngestAppNames] = useState<Set<string> | null>(() => cached?.ingestAppNames || null);
+  const [vulnAppNames, setVulnAppNames] = useState<Set<string> | null>(() => cached?.vulnAppNames || null);
   const [forwardAppNames, setForwardAppNames] = useState<Set<string> | null>(() => cached?.forwardAppNames || null);
   const [notificationAppNames, setNotificationAppNames] = useState<Set<string> | null>(null);
   const [notificationWfEnabled, setNotificationWfEnabled] = useState<boolean>(true);
@@ -1261,19 +1268,27 @@ export default function UsecaseAlluvialDiagram({
 
   // Toggle sync: same debounced approach as /incidents page
   const handleToggleSync = useCallback((appName: string, enabled: boolean) => {
-    // Optimistic update: toggle the app in ingestAppNames
-    setIngestAppNames(prev => {
-      if (!prev) return prev;
-      const next = new Set(prev);
-      const normalized = normalizeAppName(appName);
-      if (enabled) {
-        next.add(normalized);
-      } else {
-        next.delete(normalized);
-      }
-      return next;
-    });
-    updateAlluvialIngest(appName, enabled, normalizeAppName);
+    const targetSourceWorkflow = isVulnFlow ? 'Ingest Vulnerabilities' : 'Ingest Tickets';
+    const targetSourceCategory = isVulnFlow ? 'vulnerabilities' : 'cases';
+
+    // Optimistic update: toggle the app in active set
+    if (isVulnFlow) {
+      setVulnAppNames(prev => {
+        const next = new Set(prev || []);
+        const normalized = normalizeAppName(appName);
+        if (enabled) next.add(normalized); else next.delete(normalized);
+        return next;
+      });
+      updateAlluvialVuln(appName, enabled, normalizeAppName);
+    } else {
+      setIngestAppNames(prev => {
+        const next = new Set(prev || []);
+        const normalized = normalizeAppName(appName);
+        if (enabled) next.add(normalized); else next.delete(normalized);
+        return next;
+      });
+      updateAlluvialIngest(appName, enabled, normalizeAppName);
+    }
 
     pendingTogglesRef.current.set(appName, enabled);
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -1282,12 +1297,25 @@ export default function UsecaseAlluvialDiagram({
       pendingTogglesRef.current.clear();
 
       // Build active app names from current source apps + toggles
-      const currentIngest = ingestAppNames || new Set<string>();
+      const currentActive = isVulnFlow ? (vulnAppNames || new Set<string>()) : (ingestAppNames || new Set<string>());
       const activeNames: string[] = [];
-      // Include currently enabled apps (minus any toggled off)
-      allApps.filter(a => a.hasValidAuth && !isShuffleInternalApp(a.name)).forEach(a => {
+
+      // Filter candidates strictly according to the flow's domain
+      const eligibleApps = allApps.filter(a => {
+        if (!a.hasValidAuth || isShuffleInternalApp(a.name)) return false;
+        if (isVulnFlow) {
+          return isVulnScannerApp(a.name) || matchesCategory(a.name, 'vulnerabilities') || matchesCategory(a.name, 'asset_management');
+        }
+        // For incident alerts (Ingest Tickets): strictly SIEM, EDR, Email
+        // Never include ticketing/case tools, notification channels, or vulnerability scanners
+        if (isVulnScannerApp(a.name)) return false;
+        if (matchesCategory(a.name, 'cases') || matchesCategory(a.name, 'communication')) return false;
+        return matchesCategory(a.name, 'siem') || matchesCategory(a.name, 'edr') || matchesCategory(a.name, 'email') || isEmailApp(a.name);
+      });
+
+      eligibleApps.forEach(a => {
         const norm = normalizeAppName(a.name);
-        const isCurrentlyIn = currentIngest.has(norm);
+        const isCurrentlyIn = currentActive.has(norm);
         const toggled = toggles.get(a.name);
         const shouldBeEnabled = toggled !== undefined ? toggled : isCurrentlyIn;
         if (shouldBeEnabled) activeNames.push(a.name);
@@ -1299,18 +1327,18 @@ export default function UsecaseAlluvialDiagram({
           credentials: 'include',
           headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            label: 'Ingest Tickets',
+            label: targetSourceWorkflow,
             app_name: activeNames.join(','),
-            category: 'cases',
+            category: targetSourceCategory,
           }),
         });
-        toast.success('Ingestion sources updated');
+        toast.success(`${isVulnFlow ? 'Vulnerability' : 'Ingestion'} sources updated`);
       } catch (error) {
         console.error('Failed to update ingestion sources:', error);
         toast.error('Failed to update ingestion sources');
       }
     }, 3000);
-  }, [allApps, ingestAppNames]);
+  }, [allApps, ingestAppNames, vulnAppNames, isVulnFlow]);
 
   /**
    * Re-fetch the Forward Tickets workflow and sync `forwardAppNames` from
@@ -1519,10 +1547,10 @@ export default function UsecaseAlluvialDiagram({
   const handleToggleDestinationApp = useCallback((appName: string, enabled: boolean) => {
     if (isNotificationFlow) {
       handleToggleNotification(appName, enabled);
-    } else {
+    } else if (isForwardTicketsContext) {
       handleToggleForward(appName, enabled);
     }
-  }, [isNotificationFlow, handleToggleNotification, handleToggleForward]);
+  }, [isNotificationFlow, isForwardTicketsContext, handleToggleNotification, handleToggleForward]);
 
   useEffect(() => {
     if (!isLoggedIn) { setLoading(false); return; }
@@ -1608,6 +1636,7 @@ export default function UsecaseAlluvialDiagram({
         }
 
         let nextIngest = new Set<string>();
+        let nextVuln = new Set<string>();
         let nextForward = new Set<string>();
         let nextNotification = new Set<string>();
         let isNotifWfActive = false;
@@ -1624,8 +1653,7 @@ export default function UsecaseAlluvialDiagram({
             return n.includes('vulnerabilit') || tags.some((t: string) => t.includes('vulnerabilit'));
           });
           if (vulnWf) {
-            const vulnApps = extractWorkflowAppNames(vulnWf);
-            vulnApps.forEach(a => nextIngest.add(a));
+            nextVuln = extractWorkflowAppNames(vulnWf);
           }
 
           const forwardWf = findForwardTicketsWorkflow(workflowsData);
@@ -1665,6 +1693,7 @@ export default function UsecaseAlluvialDiagram({
         if (!cancelled) {
           setAllApps(nodes);
           setIngestAppNames(nextIngest);
+          setVulnAppNames(nextVuln);
           setForwardAppNames(nextForward);
           setNotificationAppNames(nextNotification);
           setNotificationWfEnabled(isNotifWfActive);
@@ -1672,6 +1701,7 @@ export default function UsecaseAlluvialDiagram({
           setAlluvialCache({
             allApps: nodes,
             ingestAppNames: nextIngest,
+            vulnAppNames: nextVuln,
             forwardAppNames: nextForward,
             webhookInfo: nextWebhook,
             ts: Date.now(),
@@ -1781,14 +1811,20 @@ export default function UsecaseAlluvialDiagram({
     const sourceBlockReason = ingestHealth?.primaryProblem?.description;
     const sourceActionUrl = ingestHealth?.primaryProblem?.actionUrl;
 
-    if (highlightCategory && ingestAppNames) {
+    const activeSourceAppNames = isVulnFlow ? vulnAppNames : ingestAppNames;
+    const categoryToFilter = highlightCategory || (isVulnFlow ? 'vulnerabilities' : undefined);
+
+    if (categoryToFilter && activeSourceAppNames) {
       // Only show apps that match the usecase's source category from the user's apps
       const categoryApps = allApps.filter(a =>
-        !isShuffleInternalApp(a.name) && matchesCategory(a.name, highlightCategory)
+        !isShuffleInternalApp(a.name) && (
+          matchesCategory(a.name, categoryToFilter) ||
+          (isVulnFlow && (matchesCategory(a.name, 'asset_management') || isVulnScannerApp(a.name)))
+        )
       );
 
       const enabledNodes = categoryApps
-        .filter(a => ingestAppNames.has(normalizeAppName(a.name)))
+        .filter(a => activeSourceAppNames.has(normalizeAppName(a.name)))
         .map(a => ({
           ...a,
           isHighlighted: true,
@@ -1799,7 +1835,7 @@ export default function UsecaseAlluvialDiagram({
         }));
 
       const disabledNodes = categoryApps
-        .filter(a => !ingestAppNames.has(normalizeAppName(a.name)))
+        .filter(a => !activeSourceAppNames.has(normalizeAppName(a.name)))
         .map(a => ({
           ...a,
           isHighlighted: false,
@@ -1809,7 +1845,7 @@ export default function UsecaseAlluvialDiagram({
       // If user has no apps matching this category, fall back to samples
       const filtered = [...enabledNodes, ...disabledNodes].filter(a => !hiddenApps.has(a.name.toLowerCase()));
       if (filtered.length === 0) {
-        const samples = getSampleApps(highlightCategory);
+        const samples = getSampleApps(categoryToFilter);
         return prependWebhook(samples.map(a => ({ ...a, isHighlighted: true, isEnabled: true })));
       }
 
@@ -1824,7 +1860,7 @@ export default function UsecaseAlluvialDiagram({
         actionUrl: sourceActionUrl,
       }))
     );
-  }, [allApps, sourceCategory, highlightCategory, ingestAppNames, isLoggedIn, guestSourceNames, guestAppIcons, hiddenApps, webhookNode, lockSource, shouldOmitSource, isForwardTicketsFlow, usecaseLabel, ingestHealth, forwardHealth]);
+  }, [allApps, sourceCategory, highlightCategory, ingestAppNames, vulnAppNames, isVulnFlow, isLoggedIn, guestSourceNames, guestAppIcons, hiddenApps, webhookNode, lockSource, shouldOmitSource, isForwardTicketsFlow, usecaseLabel, ingestHealth, forwardHealth]);
 
   // Target/destination apps: user-selectable
   const targetApps = useMemo(() => {
@@ -1907,7 +1943,7 @@ export default function UsecaseAlluvialDiagram({
       return [...enabledApps, ...disabledApps];
     }
 
-    if (forwardAppNames && forwardAppNames.size > 0) {
+    if (isForwardTicketsContext && forwardAppNames && forwardAppNames.size > 0) {
       const isForwardBlocked = Boolean(forwardHealth?.hasProblem);
       const forwardBlockReason = forwardHealth?.primaryProblem?.description;
       const forwardActionUrl = forwardHealth?.primaryProblem?.actionUrl;
@@ -1927,7 +1963,7 @@ export default function UsecaseAlluvialDiagram({
       return [...enabledApps, ...disabledApps];
     }
     return matched;
-  }, [allApps, targetCategory, forwardAppNames, notificationAppNames, notificationWfEnabled, isNotificationFlow, isForwardTicketsFlow, isLoggedIn, guestDestNames, guestAppIcons, hiddenApps, manualDestApps, notifHealth, forwardHealth]);
+  }, [allApps, targetCategory, forwardAppNames, notificationAppNames, notificationWfEnabled, isNotificationFlow, isForwardTicketsFlow, isForwardTicketsContext, isLoggedIn, guestDestNames, guestAppIcons, hiddenApps, manualDestApps, notifHealth, forwardHealth]);
 
   const sourceMeta = TOOL_CATEGORIES.find(c => c.id === sourceCategory);
   const targetMeta = TOOL_CATEGORIES.find(c => c.id === targetCategory);
@@ -2308,7 +2344,7 @@ export default function UsecaseAlluvialDiagram({
                   disabled={app.isEnabled === false}
                   usecaseLabel={usecaseLabel}
                   onRemoveApp={lockSource ? undefined : handleRemoveApp}
-                  onToggleSync={isLoggedIn && highlightCategory ? handleToggleSync : undefined}
+                  onToggleSync={isLoggedIn && (highlightCategory || isVulnFlow) ? handleToggleSync : undefined}
                   onVisitApp={handleVisitApp}
                   onPrimaryClick={onBubbleClick ? (name, el, s) => !!onBubbleClick({ appName: name, side: s, anchorEl: el }) : undefined}
                   webhookInfo={app.id === 'webhook-ingestion' ? webhookInfo : undefined}
@@ -2395,7 +2431,7 @@ export default function UsecaseAlluvialDiagram({
                   disabled={app.isEnabled === false}
                   usecaseLabel={usecaseLabel}
                   onRemoveApp={handleRemoveApp}
-                  onToggleSync={isLoggedIn ? handleToggleDestinationApp : undefined}
+                  onToggleSync={isLoggedIn && (isNotificationFlow || isForwardTicketsContext) ? handleToggleDestinationApp : undefined}
                   onVisitApp={handleVisitApp}
                   onPrimaryClick={onBubbleClick ? (name, el, s) => !!onBubbleClick({ appName: name, side: s, anchorEl: el }) : undefined}
                   isNotification={isNotificationFlow}
@@ -2638,7 +2674,7 @@ export default function UsecaseAlluvialDiagram({
             })();
           }
 
-          if (side === 'left' && highlightCategory) {
+          if (side === 'left' && (highlightCategory || isVulnFlow)) {
             handleToggleSync(addedAppName, true);
             setHiddenApps(prev => { const next = new Set(prev); next.delete(addedAppName.toLowerCase()); return next; });
             toast.success(`${addedAppName.replace(/_/g, ' ')} added to ingestion sources`);
@@ -2648,7 +2684,9 @@ export default function UsecaseAlluvialDiagram({
             // and verify the workflow picked it up.
             setManualDestApps(prev => { const next = new Set(prev); next.add(normalizeAppName(addedAppName)); return next; });
             setHiddenApps(prev => { const next = new Set(prev); next.delete(addedAppName.toLowerCase()); return next; });
-            handleToggleDestinationApp(addedAppName, true);
+            if (isNotificationFlow || isForwardTicketsContext) {
+              handleToggleDestinationApp(addedAppName, true);
+            }
           }
           setSearchOpen(null);
         } : undefined}
@@ -2668,7 +2706,7 @@ export default function UsecaseAlluvialDiagram({
           }
 
           // Already authenticated: add to the workflow directly
-          if (searchOpen === 'left' && highlightCategory) {
+          if (searchOpen === 'left' && (highlightCategory || isVulnFlow)) {
             // Add to ingestion sources
             handleToggleSync(matchedApp.name, true);
             // Also unhide if it was hidden
@@ -2684,18 +2722,21 @@ export default function UsecaseAlluvialDiagram({
               next.delete(matchedApp.name.toLowerCase());
               return next;
             });
-            // Activate the app in the tenant first (no-op if already active),
-            // then push the FULL desired destination app list and verify.
-            (async () => {
-              try {
-                if (matchedApp.id) {
-                  await fetch(getApiUrl(`/api/v1/apps/${matchedApp.id}/activate`), {
-                    method: 'POST', credentials: 'include', headers: { ...getAuthHeader() },
-                  });
-                }
-              } catch {}
-              handleToggleDestinationApp(matchedApp.name, true);
-            })();
+            setManualDestApps(prev => { const next = new Set(prev); next.add(normalizeAppName(matchedApp.name)); return next; });
+            if (isNotificationFlow || isForwardTicketsContext) {
+              // Activate the app in the tenant first (no-op if already active),
+              // then push the FULL desired destination app list and verify.
+              (async () => {
+                try {
+                  if (matchedApp.id) {
+                    await fetch(getApiUrl(`/api/v1/apps/${matchedApp.id}/activate`), {
+                      method: 'POST', credentials: 'include', headers: { ...getAuthHeader() },
+                    });
+                  }
+                } catch {}
+                handleToggleDestinationApp(matchedApp.name, true);
+              })();
+            }
           }
           setSearchOpen(null);
           return true; // Handled — don't open detail drawer
@@ -2732,14 +2773,17 @@ export default function UsecaseAlluvialDiagram({
 
             // Auto-add to the correct side
             const side = searchOpen || 'right';
-            if (side === 'left' && highlightCategory) {
+            if (side === 'left' && (highlightCategory || isVulnFlow)) {
               handleToggleSync(match.app.name, true);
               setHiddenApps(prev => { const n = new Set(prev); n.delete(match.app.name.toLowerCase()); return n; });
               toast.success(`${match.app.name.replace(/_/g, ' ')} authenticated & added to ingestion`);
             } else {
-              handleToggleDestinationApp(match.app.name, true);
               setHiddenApps(prev => { const n = new Set(prev); n.delete(match.app.name.toLowerCase()); return n; });
-              toast.success(`${match.app.name.replace(/_/g, ' ')} authenticated & added to destination`);
+              setManualDestApps(prev => { const next = new Set(prev); next.add(normalizeAppName(match.app.name)); return next; });
+              if (isNotificationFlow || isForwardTicketsContext) {
+                handleToggleDestinationApp(match.app.name, true);
+                toast.success(`${match.app.name.replace(/_/g, ' ')} authenticated & added to destination`);
+              }
             }
           } catch (err) {
             console.error('[AlluvialDiagram] post-auth check failed:', err);

@@ -60,8 +60,16 @@ const AppRelatedUsecases: typeof AppRelatedUsecasesRaw = (props) => (
   <UsecasesBoundary><AppRelatedUsecasesRaw {...props} /></UsecasesBoundary>
 );
 import { useQueryClient } from '@tanstack/react-query';
-import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/Shuffle-Core/useWorkflows';
-import { isVulnScannerApp, normalizeAppName, extractWorkflowAppNames } from '@/Shuffle-Core/ingestionDetection';
+import {
+  isVulnScannerApp,
+  normalizeAppName,
+  extractWorkflowAppNames,
+  isEmailApp,
+  EDR_PATTERNS,
+  SIEM_PATTERNS,
+  CASES_PATTERNS,
+  COMMUNICATION_PATTERNS_NAMES,
+} from '@/Shuffle-Core/ingestionDetection';
 import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 
 export interface AppInfo {
@@ -684,7 +692,28 @@ export default function AppDetailContent({
   }, [open, appName]);
 
   // Ingestion workflow calculation and toggle handler
-  const isVuln = useMemo(() => isVulnScannerApp(appName || ''), [appName]);
+  const isVuln = useMemo(() => {
+    if (!appName) return false;
+    const name = appName.toLowerCase();
+    const categories = (appInfo?.categories || []).map(c => c.toLowerCase());
+    return isVulnScannerApp(name) || categories.includes('vulnerabilities') || categories.includes('asset_management');
+  }, [appName, appInfo?.categories]);
+
+  const isAlertSource = useMemo(() => {
+    if (!appName) return false;
+    const name = appName.toLowerCase();
+    const categories = (appInfo?.categories || []).map(c => c.toLowerCase());
+    if (COMMUNICATION_PATTERNS_NAMES.some(p => name.includes(p)) || categories.includes('communication')) return false;
+    if (CASES_PATTERNS.some(p => name.includes(p)) || categories.includes('cases') || categories.includes('itsm')) return false;
+    return isEmailApp(name) ||
+      EDR_PATTERNS.some(p => name.includes(p)) ||
+      SIEM_PATTERNS.some(p => name.includes(p)) ||
+      categories.includes('siem') ||
+      categories.includes('edr') ||
+      categories.includes('email');
+  }, [appName, appInfo?.categories]);
+
+  const isIngestEligible = isAlertSource || isVuln;
   const targetWorkflowName = isVuln ? 'Ingest Vulnerabilities' : 'Ingest Tickets';
   const targetCategory = isVuln ? 'vulnerabilities' : 'cases';
 
@@ -693,13 +722,16 @@ export default function AppDetailContent({
   }, [workflows, targetWorkflowName]);
 
   const isIngestEnabled = useMemo(() => {
-    if (!appName || !ingestWorkflow) return false;
+    if (!appName || !ingestWorkflow) return null;
     const names = extractWorkflowAppNames(ingestWorkflow);
-    return names.has(normalizeAppName(appName));
-  }, [appName, ingestWorkflow]);
+    const inWorkflow = names.has(normalizeAppName(appName));
+    if (inWorkflow) return true;
+    if (!isIngestEligible) return null;
+    return false;
+  }, [appName, ingestWorkflow, isIngestEligible]);
 
   const handleToggleIngest = async () => {
-    if (!appName || ingestLoading) return;
+    if (!appName || ingestLoading || isIngestEnabled === null) return;
     setIngestLoading(true);
     const willEnable = !isIngestEnabled;
     try {

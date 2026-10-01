@@ -47,7 +47,18 @@ import { deduplicateTasks, decodeHtmlEntities, isAIAssignee } from '@/lib/utils'
 import { autoCorrectTranslatedString } from '@/lib/translationFallback';
 import { ResolveIncidentDialog, ResolutionData, RESOLUTION_REASONS } from '@/components/incidents/ResolveIncidentDialog';
 import { CategoryAutomationsDialog } from '@shuffleio/shuffle-core';
-import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, findForwardTicketsWorkflow, extractWorkflowAppNames, normalizeAppName, isWorkflowScheduleStopped } from '@/Shuffle-Core/ingestionDetection';
+import {
+  extractValidatedIngestionApps,
+  ValidatedIngestionApp,
+  findIngestTicketsWorkflow,
+  findForwardTicketsWorkflow,
+  extractWorkflowAppNames,
+  normalizeAppName,
+  isWorkflowScheduleStopped,
+  isVulnScannerApp,
+  CASES_PATTERNS,
+  COMMUNICATION_PATTERNS_NAMES,
+} from '@/Shuffle-Core/ingestionDetection';
 import { fetchAuthenticatedApps } from '@/Shuffle-Core/authenticatedApps';
 import { API_CONFIG, getApiUrl, getAuthHeader, getShuffleCoreWorkflowUrl, isDevEnvironment, mapCloudRegionUrl } from '@/Shuffle-Core/api';
 import { IncidentCardView } from '@/components/incidents/IncidentCardView';
@@ -1142,7 +1153,15 @@ const IncidentsPage = () => {
             }
           } catch {}
         }
-        setIngestionApps(ingestionResults);
+        const validIngestionCandidates = ingestionResults.filter(app =>
+          app.enabled || (
+            !CASES_PATTERNS.some(p => app.name.toLowerCase().includes(p)) &&
+            !COMMUNICATION_PATTERNS_NAMES.some(p => app.name.toLowerCase().includes(p)) &&
+            !isVulnScannerApp(app.name) &&
+            (app.category === 'email' || app.category === 'edr' || app.category === 'siem')
+          )
+        );
+        setIngestionApps(validIngestionCandidates);
 
         // Extract forward apps using same auth data but Forward Tickets workflow
         const forwardResults = extractValidatedIngestionApps(authApps, forwardAppNames);

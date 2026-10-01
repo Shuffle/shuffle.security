@@ -49,7 +49,7 @@ import { ResolveIncidentDialog, ResolutionData, RESOLUTION_REASONS } from '@/com
 import { CategoryAutomationsDialog } from '@shuffleio/shuffle-core';
 import { extractValidatedIngestionApps, ValidatedIngestionApp, findIngestTicketsWorkflow, findForwardTicketsWorkflow, extractWorkflowAppNames, normalizeAppName, isWorkflowScheduleStopped } from '@/Shuffle-Core/ingestionDetection';
 import { fetchAuthenticatedApps } from '@/Shuffle-Core/authenticatedApps';
-import { API_CONFIG, getApiUrl, getAuthHeader, isDevEnvironment, mapCloudRegionUrl } from '@/Shuffle-Core/api';
+import { API_CONFIG, getApiUrl, getAuthHeader, getShuffleCoreWorkflowUrl, isDevEnvironment, mapCloudRegionUrl } from '@/Shuffle-Core/api';
 import { IncidentCardView } from '@/components/incidents/IncidentCardView';
 import { useBackgroundThreadContinuation } from '@/hooks/useBackgroundThreadContinuation';
 import { IncidentStatsCards } from '@/components/incidents/IncidentStatsCards';
@@ -1149,7 +1149,10 @@ const IncidentsPage = () => {
         forwardResults.forEach(app => {
           if (!app.image) app.image = imgMap.get(normalizeAppName(app.name)) || '';
         });
-        setForwardApps(forwardResults);
+        const validForwardCandidates = forwardResults.filter(app =>
+          app.enabled || app.category === 'cases' || /slack|teams|mattermost|discord|webhook|pagerduty/i.test(app.name)
+        );
+        setForwardApps(validForwardCandidates);
       }
     } catch (error) {
       console.error('Failed to fetch ingestion apps:', error);
@@ -2519,6 +2522,150 @@ const IncidentsPage = () => {
             )}
           </Box>
         )}
+
+        {/* Arrow between Ingest and Forward */}
+        {!ingestionLoading && !isDemoTourActive && !demoActive && (
+          <Box className="automation-arrow" sx={{ display: 'flex', alignItems: 'center', color: 'hsl(var(--muted-foreground))', mx: -0.25, maxWidth: 30, opacity: 1 }}>
+            <ChevronRightIcon size={18} />
+          </Box>
+        )}
+
+        {/* Forward Destinations */}
+        {!ingestionLoading && !isDemoTourActive && !demoActive && (
+          <Box className={`automation-section-forward${forwardHovered ? ' is-hovered' : ''}`}
+            onMouseEnter={handleForwardEnter}
+            onMouseLeave={handleForwardLeave}
+            sx={{
+              position: 'relative',
+              overflow: 'visible',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              bgcolor: 'hsl(var(--muted) / 0.4)',
+              border: '1px solid hsl(var(--border))',
+              borderRadius: 1.5,
+              px: 0.75,
+              py: 0.5,
+              '& .automation-overflow': {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                position: 'absolute',
+                right: 'calc(100% - 6px)',
+                top: -1,
+                bottom: -1,
+                opacity: 0,
+                pr: 1.5,
+                pl: 0.75,
+                bgcolor: 'hsl(var(--muted))',
+                borderRadius: '6px 0 0 6px',
+                border: '1px solid hsl(var(--border))',
+                borderRight: 'none',
+                transition: 'opacity 0.3s ease',
+                pointerEvents: 'none',
+              },
+              '& .automation-overflow-count': {
+                maxWidth: 36,
+                opacity: 1,
+                overflow: 'hidden',
+                transition: 'max-width 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease',
+              },
+              '&:hover .automation-overflow, &.is-hovered .automation-overflow': {
+                opacity: 1,
+                pointerEvents: 'auto',
+                transitionDelay: '0.25s',
+              },
+              '&:hover, &.is-hovered': {
+                borderRadius: '0 6px 6px 0',
+              },
+              '&:hover .automation-overflow-count, &.is-hovered .automation-overflow-count': {
+                maxWidth: 0,
+                opacity: 0,
+              },
+            }}
+          >
+            <Typography className="automation-section-title" sx={{
+              position: 'absolute',
+              top: -10,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: '0.55rem',
+              fontWeight: 600,
+              color: 'hsl(var(--muted-foreground))',
+              bgcolor: 'hsl(var(--muted))',
+              border: '1px solid hsl(var(--border))',
+              borderRadius: 10,
+              px: 1,
+              py: 0.15,
+              lineHeight: 1.3,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              whiteSpace: 'nowrap',
+            }}>
+              <Tooltip title="Apps configured to receive forwarded incidents. Toggle to control which tools incidents are sent to." placement="top" arrow>
+                <span style={{ cursor: 'help' }}>Forward</span>
+              </Tooltip>
+            </Typography>
+            {forwardApps.slice(0, 3).map(app => (
+              <IngestionSourceButton key={app.name} app={app} onToggle={handleToggleForwardApp} variant="forward" />
+            ))}
+            {forwardApps.length > 3 && (
+              <>
+                <Typography className="automation-overflow-count" sx={{ fontSize: '0.65rem', color: 'hsl(var(--muted-foreground))', fontWeight: 600, px: 0.25 }}>
+                  +{forwardApps.length - 3}
+                </Typography>
+                <Box className="automation-overflow" sx={{ px: 0.75, py: 0.5 }}>
+                  {forwardApps.slice(3).map(app => (
+                    <IngestionSourceButton key={app.name} app={app} onToggle={handleToggleForwardApp} variant="forward" />
+                  ))}
+                </Box>
+              </>
+            )}
+            <Tooltip title="Add forward destination">
+              <IconButton
+                onClick={() => setForwardAppSearchOpen(true)}
+                size="small"
+                sx={{
+                  width: 28,
+                  height: 28,
+                  color: 'hsl(var(--muted-foreground))',
+                  border: '1px dashed hsl(var(--border))',
+                  borderRadius: 1,
+                  '&:hover': {
+                    bgcolor: 'hsl(var(--muted))',
+                    borderStyle: 'solid',
+                    color: 'hsl(var(--primary))',
+                  },
+                }}
+              >
+                <AddIcon size={16} />
+              </IconButton>
+            </Tooltip>
+            {forwardWorkflowId && (
+              <Tooltip title={isUpdatingForwardApps ? "Updating destinations…" : "Open workflow"}>
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={() => window.open(getShuffleCoreWorkflowUrl(forwardWorkflowId), '_blank')}
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      color: 'hsl(var(--muted-foreground))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: 1,
+                      '&:hover': {
+                        bgcolor: 'hsl(var(--muted))',
+                        color: 'hsl(var(--primary))',
+                      },
+                    }}
+                  >
+                    {isUpdatingForwardApps ? <CircularProgress size={14} color="inherit" /> : <PlayArrowIcon size={16} />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
+          </Box>
+        )}
       </Box>
     );
   };
@@ -3220,8 +3367,8 @@ const IncidentsPage = () => {
               </IconButton>
             </Tooltip>
 
-      {false && <>
       <AppSearchDrawer
+        theme={resolvedTheme}
         open={forwardAppSearchOpen}
         onClose={() => {
           setForwardAppSearchOpen(false);
@@ -3230,7 +3377,6 @@ const IncidentsPage = () => {
         title="Add Forward Destination"
         subtitle="Search and authenticate a tool to forward incidents to"
       />
-      </>}
 
             {/* Bulk actions */}
             {selectedIds.size > 0 && (

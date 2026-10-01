@@ -7244,6 +7244,141 @@ const IncidentDetailPage = () => {
     [id, crossOrgHeaders],
   );
 
+  /**
+   * Adaptive progressive observable & enrichment polling.
+   * Checks quickly (1.2s, 2.6s, 4.6s, etc.) so rapid backend enrichments
+   * reflect immediately instead of forcing the user to wait a fixed 7+ seconds.
+   * Terminates early the moment newly arrived enrichments or observables land.
+   */
+  const scheduleAdaptiveObservableRefresh = useCallback(() => {
+    if (!incident?.id) return;
+
+    if (obsRefreshTimerRef.current) {
+      clearTimeout(obsRefreshTimerRef.current);
+      obsRefreshTimerRef.current = null;
+    }
+    if ((obsRefreshTimerRef as any)._hardTimeout) {
+      clearTimeout((obsRefreshTimerRef as any)._hardTimeout);
+    }
+
+    setRefreshingObservables(true);
+    obsCheckStartedAtRef.current = Date.now();
+    setObsCheckTick((t) => t + 1);
+    const refreshId = Date.now();
+    (obsRefreshTimerRef as any)._activeId = refreshId;
+
+    // Hard wall-clock safety: force the spinner off after 15s so the UI never gets stuck
+    const hardTimeout = setTimeout(() => {
+      if ((obsRefreshTimerRef as any)._activeId === refreshId) {
+        console.warn("[ObsRefresh] Hard timeout reached — ending check");
+        setRefreshingObservables(false);
+      }
+    }, 15000);
+    (obsRefreshTimerRef as any)._hardTimeout = hardTimeout;
+
+    // Progressive polling delays: 1200ms, 1400ms, 2000ms, 2800ms, 3600ms
+    const pollDelays = [1200, 1400, 2000, 2800, 3600];
+    const initialEnrichmentKeys = new Set(
+      enrichments.map(
+        (e) =>
+          `${(e.type || "").toLowerCase()}::${(e.value || (e as any).data || "").toLowerCase()}`,
+      ),
+    );
+    const initialObsLength = editedObservables.filter((o) => !o.archived).length;
+
+    const runPollStep = (stepIdx: number) => {
+      obsRefreshTimerRef.current = setTimeout(async () => {
+        if ((obsRefreshTimerRef as any)._activeId !== refreshId) return;
+
+        try {
+          const refreshResult = isPublicView
+            ? await getDatastoreItemPublic(incident.id, publicOrg!, publicAuth!)
+            : await getDatastoreItem(
+                incident.id,
+                DATASTORE_CATEGORIES.INCIDENTS,
+                crossOrgId || undefined,
+              );
+
+          if (
+            (obsRefreshTimerRef as any)._activeId === refreshId &&
+            refreshResult.success &&
+            refreshResult.item
+          ) {
+            const refreshData = {
+              key: refreshResult.item.key || incident.id,
+              value: refreshResult.item.value,
+              created: refreshResult.item.created,
+              edited: refreshResult.item.edited,
+              enrichments: refreshResult.item.enrichments,
+            };
+            const reParsed = parseIncidentFromDatastore(refreshData);
+            if (reParsed) {
+              const newEnrichments = reParsed.enrichments || [];
+              const newObservables = reParsed.observables || [];
+
+              const newKeys = new Set(
+                newEnrichments.map(
+                  (e: any) =>
+                    `${(e.type || "").toLowerCase()}::${(e.value || e.data || "").toLowerCase()}`,
+                ),
+              );
+              const newlyFoundKeys = [...newKeys].filter(
+                (k) => !initialEnrichmentKeys.has(k),
+              );
+              const hasNewEnrichments =
+                newEnrichments.length > initialEnrichmentKeys.size ||
+                newlyFoundKeys.length > 0;
+              const hasNewServerObservables =
+                newObservables.length > initialObsLength;
+
+              setEnrichments(newEnrichments);
+              if (hasNewServerObservables) {
+                setEditedObservables(newObservables);
+              }
+              if (newlyFoundKeys.length > 0) {
+                setNewlyArrivedObservables(
+                  (prev) => new Set([...prev, ...newlyFoundKeys]),
+                );
+              }
+
+              if (hasNewEnrichments || hasNewServerObservables) {
+                console.log(
+                  `[ObsRefresh] Found updates early on poll ${stepIdx + 1} (${newEnrichments.length} enrichments)`,
+                );
+                clearTimeout(hardTimeout);
+                setRefreshingObservables(false);
+                return;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("[ObsRefresh] Poll step error:", err);
+        }
+
+        if (stepIdx + 1 < pollDelays.length) {
+          if ((obsRefreshTimerRef as any)._activeId === refreshId) {
+            runPollStep(stepIdx + 1);
+          }
+        } else {
+          clearTimeout(hardTimeout);
+          if ((obsRefreshTimerRef as any)._activeId === refreshId) {
+            setRefreshingObservables(false);
+          }
+        }
+      }, pollDelays[stepIdx]);
+    };
+
+    runPollStep(0);
+  }, [
+    incident?.id,
+    crossOrgId,
+    isPublicView,
+    publicOrg,
+    publicAuth,
+    enrichments,
+    editedObservables,
+  ]);
+
   const saveToDatastore = useCallback(async () => {
     if (!incident?.id) return;
 
@@ -7559,75 +7694,8 @@ const IncidentDetailPage = () => {
         loadRevisions();
       }, 1000);
 
-      // Schedule observable/enrichment refresh ~7s after save
-      // Backend may update enrichments asynchronously after the save
-      if (obsRefreshTimerRef.current) clearTimeout(obsRefreshTimerRef.current);
-      setRefreshingObservables(true);
-      obsCheckStartedAtRef.current = Date.now();
-      setObsCheckTick((t) => t + 1);
-      const refreshId = Date.now();
-      (obsRefreshTimerRef as any)._activeId = refreshId;
-      // Hard wall-clock safety: even if the refresh fetch hangs (the
-      // datastore fetch has no abort signal), force the spinner off after
-      // 20s so the UI never gets stuck. Stored on the ref so a subsequent
-      // refresh can clear it.
-      const hardTimeout = setTimeout(() => {
-        if ((obsRefreshTimerRef as any)._activeId === refreshId) {
-          console.warn(
-            "[ObsRefresh] Hard timeout reached — forcing spinner off",
-          );
-          setRefreshingObservables(false);
-        }
-      }, 20000);
-      (obsRefreshTimerRef as any)._hardTimeout = hardTimeout;
-      obsRefreshTimerRef.current = setTimeout(async () => {
-        try {
-          const refreshResult = isPublicView
-            ? await getDatastoreItemPublic(incident.id, publicOrg!, publicAuth!)
-            : await getDatastoreItem(
-                incident.id,
-                DATASTORE_CATEGORIES.INCIDENTS,
-                crossOrgId || undefined,
-              );
-          if (refreshResult.success && refreshResult.item) {
-            const refreshData = {
-              key: refreshResult.item.key || incident.id,
-              value: refreshResult.item.value,
-              created: refreshResult.item.created,
-              edited: refreshResult.item.edited,
-              enrichments: refreshResult.item.enrichments,
-            };
-            const reParsed = parseIncidentFromDatastore(refreshData);
-            if (reParsed) {
-              const prevCount =
-                editedObservables.filter((o) => !o.archived).length +
-                enrichments.length;
-              const newEnrichments = reParsed.enrichments || [];
-              const newObservables = reParsed.observables || [];
-              const newCount =
-                newObservables.filter((o: any) => !o.archived).length +
-                newEnrichments.length;
-              setEnrichments(newEnrichments);
-              // Only update manual observables if server added new ones (don't overwrite user edits)
-              if (newObservables.length > editedObservables.length) {
-                setEditedObservables(newObservables);
-              }
-              // Silently refresh observables — no toast needed
-              console.log(
-                `[ObsRefresh] Refreshed observables: ${prevCount} → ${newCount}`,
-              );
-            }
-          }
-        } catch (err) {
-          console.warn("[ObsRefresh] Failed to refresh observables:", err);
-        } finally {
-          clearTimeout(hardTimeout);
-          // Only clear loading if this is still the active refresh
-          if ((obsRefreshTimerRef as any)._activeId === refreshId) {
-            setRefreshingObservables(false);
-          }
-        }
-      }, 7000);
+      // Schedule adaptive observable/enrichment refresh
+      scheduleAdaptiveObservableRefresh();
     } finally {
       setIsSaving(false);
     }
@@ -7650,6 +7718,7 @@ const IncidentDetailPage = () => {
     sharedOrgs,
     loadRevisions,
     crossOrgId,
+    scheduleAdaptiveObservableRefresh,
   ]);
 
   // Cache stringified complex values to avoid re-serializing on every render
@@ -7735,9 +7804,6 @@ const IncidentDetailPage = () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
-      if (obsRefreshTimerRef.current) {
-        clearTimeout(obsRefreshTimerRef.current);
-      }
     };
   }, [
     incident,
@@ -7755,6 +7821,18 @@ const IncidentDetailPage = () => {
     tasks,
     saveToDatastore,
   ]);
+
+  // Clean up any pending observable refresh timers when the page unmounts
+  useEffect(() => {
+    return () => {
+      if (obsRefreshTimerRef.current) {
+        clearTimeout(obsRefreshTimerRef.current);
+      }
+      if ((obsRefreshTimerRef as any)?._hardTimeout) {
+        clearTimeout((obsRefreshTimerRef as any)._hardTimeout);
+      }
+    };
+  }, []);
 
   // Metrics calculation with MTTD and MTTR
   const metrics = useMemo(() => {
@@ -7967,6 +8045,103 @@ const IncidentDetailPage = () => {
     setEditedObservables(updated);
   };
 
+  /**
+   * Scan incident narrative, description, comments, and references against all active
+   * IOC patterns (including custom patterns like hostname, domain, IP, etc.) and
+   * persist any newly discovered observables immediately to datastore.
+   */
+  const handleRescanObservables = useCallback(async () => {
+    if (!incident || isSaving) return;
+    setRefreshingObservables(true);
+    try {
+      // 1. Gather all searchable incident text
+      const textParts = [
+        editedTitle,
+        editedMessage,
+        ...activity.map((a) => a.content || ""),
+        ...editedReferences,
+        ...Object.values(editedCustomFields).map(String),
+      ];
+      const textCorpus = textParts.filter(Boolean).join("\n");
+
+      // 2. Scan locally against enabled IOC patterns
+      const existingKeys = new Set([
+        ...editedObservables.map(
+          (o) =>
+            `${(o.type || "").toLowerCase()}::${(o.value || "").toLowerCase()}`,
+        ),
+        ...enrichments.map(
+          (e) =>
+            `${(e.type || "").toLowerCase()}::${(e.value || (e as any).data || "").toLowerCase()}`,
+        ),
+      ]);
+
+      const newlyDiscovered: Observable[] = [];
+      const discoveredKeys = new Set<string>();
+      const now = Date.now();
+
+      for (const ioc of iocTypes) {
+        if (!ioc.enabled || !ioc.regex) continue;
+        try {
+          // Strip start/end anchors so regex searches across free-form text
+          const cleanPattern = ioc.regex.replace(/^\^|\$$/g, "");
+          const re = new RegExp(cleanPattern, "gi");
+          let match: RegExpExecArray | null;
+          let matchCount = 0;
+          while ((match = re.exec(textCorpus)) !== null && matchCount < 100) {
+            matchCount++;
+            const val = match[0].trim();
+            if (!val || val.length < 2) continue;
+            const key = `${ioc.name.toLowerCase()}::${val.toLowerCase()}`;
+            if (!existingKeys.has(key) && !discoveredKeys.has(key)) {
+              discoveredKeys.add(key);
+              newlyDiscovered.push({
+                type: ioc.name,
+                value: val,
+                first_seen: now,
+                last_seen: now,
+              });
+            }
+          }
+        } catch {
+          // ignore pattern syntax issues
+        }
+      }
+
+      if (newlyDiscovered.length > 0) {
+        setEditedObservables((prev) => [...prev, ...newlyDiscovered]);
+        setNewlyArrivedObservables(
+          (prev) => new Set([...prev, ...discoveredKeys]),
+        );
+        toast.success(
+          `Extracted ${newlyDiscovered.length} new observable${newlyDiscovered.length === 1 ? "" : "s"}`,
+        );
+      } else {
+        toast.info("No new observables detected in incident text");
+      }
+
+      // Persist to datastore so backend enrichments run immediately with anti-recursion hash
+      await saveToDatastore();
+      scheduleAdaptiveObservableRefresh();
+    } catch (err) {
+      console.error("[handleRescanObservables] error:", err);
+      setRefreshingObservables(false);
+    }
+  }, [
+    incident,
+    isSaving,
+    editedTitle,
+    editedMessage,
+    activity,
+    editedReferences,
+    editedCustomFields,
+    editedObservables,
+    enrichments,
+    iocTypes,
+    saveToDatastore,
+    scheduleAdaptiveObservableRefresh,
+  ]);
+
   const handleAddComment = async (overrideText?: string) => {
     const effectiveText =
       typeof overrideText === "string" ? overrideText : newComment;
@@ -8083,78 +8258,8 @@ const IncidentDetailPage = () => {
       );
     }
 
-    // Schedule observable/enrichment refresh ~7s after comment save
-    // Backend may extract IOCs from comment text and create enrichments
-    if (obsRefreshTimerRef.current) clearTimeout(obsRefreshTimerRef.current);
-    setRefreshingObservables(true);
-    obsCheckStartedAtRef.current = Date.now();
-    setObsCheckTick((t) => t + 1);
-    obsRefreshBaselineRef.current =
-      editedObservables.filter((o) => !o.archived).length + enrichments.length;
-    const refreshId = Date.now();
-    (obsRefreshTimerRef as any)._activeId = refreshId;
-    // Hard wall-clock safety: force the spinner off after 20s even if the
-    // datastore fetch hangs. The original safety timer here was a no-op
-    // (`setTimeout(() => {}, 15000)`), which let the spinner run forever
-    // when the backend was slow.
-    const hardTimeout = setTimeout(() => {
-      if ((obsRefreshTimerRef as any)._activeId === refreshId) {
-        console.warn(
-          "[ObsRefresh/Comment] Hard timeout reached — forcing spinner off",
-        );
-        setRefreshingObservables(false);
-      }
-    }, 20000);
-    (obsRefreshTimerRef as any)._hardTimeout = hardTimeout;
-    obsRefreshTimerRef.current = setTimeout(async () => {
-      try {
-        const refreshResult = isPublicView
-          ? await getDatastoreItemPublic(incident.id, publicOrg!, publicAuth!)
-          : await getDatastoreItem(
-              incident.id,
-              DATASTORE_CATEGORIES.INCIDENTS,
-              crossOrgId || undefined,
-            );
-        if (refreshResult.success && refreshResult.item) {
-          const refreshData = {
-            key: refreshResult.item.key || incident.id,
-            value: refreshResult.item.value,
-            created: refreshResult.item.created,
-            edited: refreshResult.item.edited,
-            enrichments: refreshResult.item.enrichments,
-          };
-          const reParsed = parseIncidentFromDatastore(refreshData);
-          if (reParsed) {
-            const prevCount =
-              editedObservables.filter((o) => !o.archived).length +
-              enrichments.length;
-            const newEnrichments = reParsed.enrichments || [];
-            const newObservables = reParsed.observables || [];
-            const newCount =
-              newObservables.filter((o: any) => !o.archived).length +
-              newEnrichments.length;
-            setEnrichments(newEnrichments);
-            if (newObservables.length > editedObservables.length) {
-              setEditedObservables(newObservables);
-            }
-            // Silently refresh observables — no toast needed
-            console.log(
-              `[ObsRefresh/Comment] Refreshed observables: ${prevCount} → ${newCount}`,
-            );
-          }
-        }
-      } catch (err) {
-        console.warn(
-          "[ObsRefresh/Comment] Failed to refresh observables:",
-          err,
-        );
-      } finally {
-        clearTimeout(hardTimeout);
-        if ((obsRefreshTimerRef as any)._activeId === refreshId) {
-          setRefreshingObservables(false);
-        }
-      }
-    }, 7000);
+    // Schedule adaptive observable/enrichment refresh after comment save
+    scheduleAdaptiveObservableRefresh();
   };
 
   /**
@@ -21264,6 +21369,31 @@ const IncidentDetailPage = () => {
                       <ArrowUpwardIcon size={16} />
                     )}
                   </IconButton>
+                  <Tooltip
+                    title="Re-scan incident content with active IOC patterns and fetch enrichments"
+                    arrow
+                  >
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={handleRescanObservables}
+                        disabled={refreshingObservables || isSaving}
+                        sx={{
+                          p: 0.5,
+                          color: refreshingObservables
+                            ? "hsl(var(--primary))"
+                            : "hsl(var(--muted-foreground))",
+                          "&:hover": { color: "hsl(var(--primary))" },
+                        }}
+                      >
+                        {refreshingObservables ? (
+                          <CircularProgress size={16} />
+                        ) : (
+                          <RefreshIcon size={16} />
+                        )}
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                   {/* Clear filters */}
                   {(obsFilterTypes.length > 0 ||
                     obsFilterText ||

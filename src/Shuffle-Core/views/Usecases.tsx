@@ -3992,7 +3992,7 @@ function UsecaseDetailContent({
           });
           return;
         }
-        if (validatedSourceAppNames.length > 0) {
+        if (validatedSourceAppNames.length > 0 && !isShuffleSourcedFlow) {
           requestBody.app_name = validatedSourceAppNames.join(',');
         }
       } else {
@@ -4981,6 +4981,13 @@ function UsecaseDetailContent({
                 destinationEnabledNamesSet.add(key);
               }
             }
+            if (USECASE_IDS_WITH_FORWARD_TICKETS_CONTEXT.has(flow.id)) {
+              for (const n of readInjectedUsecaseApps('case_management_cases_forward_1')) {
+                const key = normalizeAppName(n);
+                destinationEnabledNamesSet.add(key);
+                enabledNamesSet.add(key);
+              }
+            }
           }
           const handleUsecaseAppToggle = async (
             appName: string,
@@ -4998,6 +5005,8 @@ function UsecaseDetailContent({
               toast.error('This usecase is not toggleable yet');
               return;
             }
+            const isForwardContext = automationLabel === 'Forward Tickets';
+            const injectedFlowId = isForwardContext ? 'case_management_cases_forward_1' : flow.id;
             const activeSet = context?.enabledNamesSet || enabledNamesSet;
             const workflowScope = context?.workflows || allLinkedForApps;
             const toastLabel = context?.toastLabel || flow.label;
@@ -5007,8 +5016,8 @@ function UsecaseDetailContent({
             // Keep the localStorage "injected apps" snapshot in sync with the
             // toggle, otherwise readInjectedUsecaseApps() will keep showing
             // a disabled app as still-enabled in the Source/Destination strip.
-            if (enabled) pushInjectedUsecaseApp(flow.id, appName);
-            else removeInjectedUsecaseApp(flow.id, appName);
+            if (enabled) pushInjectedUsecaseApp(injectedFlowId, appName);
+            else removeInjectedUsecaseApp(injectedFlowId, appName);
             // Optimistically refresh the tool strip so the user sees the
             // change immediately, before the backend write completes.
             invalidateAppsCache(); setIntegrationsRefreshKey((k2) => k2 + 1);
@@ -5059,8 +5068,8 @@ function UsecaseDetailContent({
                     onToggled?.(automationLabel, activeNames.length > 0);
                   } catch (err: any) {
                     // Roll back the optimistic localStorage update on failure.
-                    if (enabled) removeInjectedUsecaseApp(flow.id, appName);
-                    else pushInjectedUsecaseApp(flow.id, appName);
+                    if (enabled) removeInjectedUsecaseApp(injectedFlowId, appName);
+                    else pushInjectedUsecaseApp(injectedFlowId, appName);
                     invalidateAppsCache(); setIntegrationsRefreshKey((k2) => k2 + 1);
                     toast.error(`Failed to ${enabled ? 'enable' : 'disable'} ${appName}`, {
                       description: err?.message || 'The backend rejected the request.',
@@ -5405,65 +5414,8 @@ function UsecaseDetailContent({
             enabledNamesSetLW.add(normalizeAppName(n));
           }
         }
-        const handleUsecaseAppToggleLW = async (appName: string, enabled: boolean) => {
-          if (!flow.automationLabel) {
-            toast.error('This usecase is not toggleable yet');
-            return;
-          }
-          const next = new Set(Array.from(enabledNamesSetLW));
-          const key = normalizeAppName(appName);
-          if (enabled) next.add(key); else next.delete(key);
-          if (enabled) pushInjectedUsecaseApp(flow.id, appName);
-          else removeInjectedUsecaseApp(flow.id, appName);
-          // Optimistically refresh the tool strip so the change is visible
-          // immediately, without waiting for the backend write.
-          invalidateAppsCache(); setIntegrationsRefreshKey((k2) => k2 + 1);
-          // Source of truth = the actual apps inside the linked workflow(s).
-          const activeNames: string[] = [];
-          const seen = new Set<string>();
-          for (const wf of allLinkedForSet) {
-            for (const action of (wf.actions || [])) {
-              for (const n of extractActionAppNames(action)) {
-                const k = normalizeAppName(n);
-                if (!k || seen.has(k)) continue;
-                if (!enabled && k === key) continue; // drop the one being disabled
-                seen.add(k);
-                activeNames.push(n);
-              }
-            }
-          }
-          if (enabled && !seen.has(key)) { activeNames.push(appName); seen.add(key); }
-
-          try {
-            const body: Record<string, string> = { label: flow.automationLabel };
-            if (flow.automationCategory) body.category = flow.automationCategory;
-            if (activeNames.length > 0) body.app_name = activeNames.join(',');
-            else body.action_name = 'remove';
-            const res = await fetch(apiUrl('/api/v2/workflows/generate'), {
-              method: 'POST',
-              credentials: 'include',
-              headers: { ...authHeader(), 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            });
-            let parsed: any = null;
-            try { parsed = await res.json(); } catch { /* ignore */ }
-            const ok = res.ok && parsed?.success !== false;
-            if (!ok) throw new Error(parsed?.reason || `Request failed (${res.status})`);
-            toast.success(enabled
-              ? `${appName} enabled for ${flow.label}`
-              : `${appName} disabled for ${flow.label}`);
-            invalidateAppsCache(); setIntegrationsRefreshKey((k2) => k2 + 1);
-            onToggled?.(flow.automationLabel, activeNames.length > 0);
-          } catch (err: any) {
-            // Roll back the optimistic localStorage update on failure.
-            if (enabled) removeInjectedUsecaseApp(flow.id, appName);
-            else pushInjectedUsecaseApp(flow.id, appName);
-            invalidateAppsCache(); setIntegrationsRefreshKey((k2) => k2 + 1);
-            toast.error(`Failed to ${enabled ? 'enable' : 'disable'} ${appName}`, {
-              description: err?.message || 'The backend rejected the request.',
-            });
-          }
-        };
+        // Each linked workflow handles its own app toggling scoped to its specific
+        // automation label (e.g. Forward Tickets vs Ingest Tickets).
         // The three ingest-to-case_management flows share the "Forward Tickets"
         // workflow on the destination side. Surface it here as informational
         // context — enabling a destination tool on these usecases does NOT
@@ -5606,18 +5558,97 @@ function UsecaseDetailContent({
                         e.stopPropagation();
                       }}
                     >
-                      {actionApps.length > 0 && (
-                        <Box title={`Actions: ${actionApps.map(a => a.replace(/[_\-]+/g, ' ')).join(', ')}`} sx={{ display: 'flex', alignItems: 'center' }}>
-                          <IntegrationStatusLite
-                            singleLine
-                            filterApps={actionApps}
-                            workflowAppNames={actionApps}
-                            usecaseEnabledNames={enabledNamesSetLW}
-                            onUsecaseAppToggle={flow.automationLabel ? handleUsecaseAppToggleLW : undefined}
-                            usecaseLabel={flow.label}
-                          />
-                        </Box>
-                      )}
+                      {actionApps.length > 0 && (() => {
+                        const targetAutomationLabel = isForwardingContext ? 'Forward Tickets' : flow.automationLabel;
+                        const targetAutomationCategory = isForwardingContext ? 'cases' : flow.automationCategory;
+                        const targetScopeWorkflows = isForwardingContext
+                          ? forwardTicketsWorkflows
+                          : allLinked.filter((w) => !forwardTicketsWorkflows.some((f) => f.id === w.id));
+                        const wfEnabledNames = getWorkflowEnabledAppNames([wf]);
+                        if (isForwardingContext) {
+                          for (const n of readInjectedUsecaseApps('case_management_cases_forward_1')) {
+                            wfEnabledNames.add(normalizeAppName(n));
+                          }
+                        } else {
+                          for (const n of readInjectedUsecaseApps(flow.id)) {
+                            wfEnabledNames.add(normalizeAppName(n));
+                          }
+                        }
+
+                        const handleWorkflowAppToggle = async (appName: string, enabled: boolean) => {
+                          if (!targetAutomationLabel) {
+                            toast.error('This workflow is not toggleable yet');
+                            return;
+                          }
+                          const key = normalizeAppName(appName);
+                          const activeNames: string[] = [];
+                          const seen = new Set<string>();
+                          for (const targetWf of targetScopeWorkflows) {
+                            for (const action of (targetWf.actions || [])) {
+                              for (const n of extractActionAppNames(action)) {
+                                const k = normalizeAppName(n);
+                                if (!k || seen.has(k)) continue;
+                                if (!enabled && k === key) continue;
+                                seen.add(k);
+                                activeNames.push(n);
+                              }
+                            }
+                          }
+                          if (enabled && !seen.has(key)) {
+                            activeNames.push(appName);
+                            seen.add(key);
+                          }
+
+                          const injectedFlowId = isForwardingContext ? 'case_management_cases_forward_1' : flow.id;
+                          if (enabled) pushInjectedUsecaseApp(injectedFlowId, appName);
+                          else removeInjectedUsecaseApp(injectedFlowId, appName);
+                          invalidateAppsCache(); setIntegrationsRefreshKey((k2) => k2 + 1);
+
+                          try {
+                            const body: Record<string, string> = { label: targetAutomationLabel };
+                            if (targetAutomationCategory) body.category = targetAutomationCategory;
+                            if (activeNames.length > 0) body.app_name = activeNames.join(',');
+                            else body.action_name = 'remove';
+
+                            const res = await fetch(apiUrl('/api/v2/workflows/generate'), {
+                              method: 'POST',
+                              credentials: 'include',
+                              headers: { ...authHeader(), 'Content-Type': 'application/json' },
+                              body: JSON.stringify(body),
+                            });
+                            let parsed: any = null;
+                            try { parsed = await res.json(); } catch { /* ignore */ }
+                            const ok = res.ok && parsed?.success !== false;
+                            if (!ok) throw new Error(parsed?.reason || `Request failed (${res.status})`);
+                            const wfDisplayName = isForwardingContext ? 'Forward Tickets' : flow.label;
+                            toast.success(enabled
+                              ? `${appName} enabled for ${wfDisplayName}`
+                              : `${appName} disabled for ${wfDisplayName}`);
+                            invalidateAppsCache(); setIntegrationsRefreshKey((k2) => k2 + 1);
+                            onToggled?.(targetAutomationLabel, activeNames.length > 0);
+                          } catch (err: any) {
+                            if (enabled) removeInjectedUsecaseApp(injectedFlowId, appName);
+                            else pushInjectedUsecaseApp(injectedFlowId, appName);
+                            invalidateAppsCache(); setIntegrationsRefreshKey((k2) => k2 + 1);
+                            toast.error(`Failed to ${enabled ? 'enable' : 'disable'} ${appName}`, {
+                              description: err?.message || 'The backend rejected the request.',
+                            });
+                          }
+                        };
+
+                        return (
+                          <Box title={`Actions: ${actionApps.map(a => a.replace(/[_\-]+/g, ' ')).join(', ')}`} sx={{ display: 'flex', alignItems: 'center' }}>
+                            <IntegrationStatusLite
+                              singleLine
+                              filterApps={actionApps}
+                              workflowAppNames={actionApps}
+                              usecaseEnabledNames={wfEnabledNames}
+                              onUsecaseAppToggle={targetAutomationLabel ? handleWorkflowAppToggle : undefined}
+                              usecaseLabel={isForwardingContext ? 'Forward Tickets' : flow.label}
+                            />
+                          </Box>
+                        );
+                      })()}
                       <ExternalLink size={13} style={{ color: MUTED, flexShrink: 0 }} />
                     </Box>
                   </Box>
@@ -5715,7 +5746,8 @@ function UsecaseDetailContent({
           }
           const newKey = normalizeAppName(app.name);
           const alreadyWired = enabledNames.has(newKey);
-          pushInjectedUsecaseApp(flow.id, app.name);
+          const injectedFlowId = addTargetsForwardTickets ? 'case_management_cases_forward_1' : flow.id;
+          pushInjectedUsecaseApp(injectedFlowId, app.name);
           // Optimistically refresh the tool strip so the newly-picked app
           // appears immediately, before the backend write completes.
           invalidateAppsCache(); setIntegrationsRefreshKey((k) => k + 1);
@@ -5756,7 +5788,7 @@ function UsecaseDetailContent({
             const ok = res.ok && parsed?.success !== false;
             if (!ok) {
               // Roll back the optimistic localStorage update on failure.
-              removeInjectedUsecaseApp(flow.id, app.name);
+              removeInjectedUsecaseApp(injectedFlowId, app.name);
               invalidateAppsCache(); setIntegrationsRefreshKey((k) => k + 1);
               toast.error(`Failed to add ${app.name}`, {
                 description: parsed?.reason || `Request failed (${res.status})`,
@@ -5768,7 +5800,7 @@ function UsecaseDetailContent({
             onToggled?.(automationLabel, true);
           }).catch((err) => {
             // Roll back the optimistic localStorage update on failure.
-            removeInjectedUsecaseApp(flow.id, app.name);
+            removeInjectedUsecaseApp(injectedFlowId, app.name);
             invalidateAppsCache(); setIntegrationsRefreshKey((k) => k + 1);
             toast.error(`Failed to add ${app.name}`, {
               description: err?.message || 'The backend rejected the request.',

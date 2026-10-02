@@ -9,6 +9,7 @@ import {
   Outlet,
   Scripts,
   useRouter,
+  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { ThemeProvider as MuiThemeProvider, CssBaseline, Box } from "@mui/material";
 import { ToastContainer } from "react-toastify";

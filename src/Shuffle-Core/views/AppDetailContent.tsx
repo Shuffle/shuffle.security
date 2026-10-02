@@ -60,6 +60,7 @@ const AppRelatedUsecases: typeof AppRelatedUsecasesRaw = (props) => (
   <UsecasesBoundary><AppRelatedUsecasesRaw {...props} /></UsecasesBoundary>
 );
 import { useQueryClient } from '@tanstack/react-query';
+import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/Shuffle-Core/useWorkflows';
 import {
   isVulnScannerApp,
   normalizeAppName,

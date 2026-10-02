@@ -343,7 +343,7 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
         </div>
         <h1 className="mb-2 text-xl font-bold text-foreground">View Recovered</h1>
         <p className="mb-4 text-sm text-muted-foreground">
-          {error?.message || "Something went wrong while rendering this page."}
+          {(error instanceof Error ? error.message : String(error ?? "")) || "Something went wrong while rendering this page."}
         </p>
         <div className="flex flex-wrap justify-center gap-2">
           <button

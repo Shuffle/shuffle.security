@@ -434,15 +434,19 @@ function buildHttp(
   body: unknown,
   maskAuth: boolean,
 ): string {
-  let parsed: URL;
+  let parsed: URL | null = null;
   try {
     parsed = new URL(url);
   } catch {
-    parsed = new URL(url, 'https://localhost');
+    try {
+      parsed = new URL(url, 'https://localhost');
+    } catch {
+      parsed = null;
+    }
   }
 
-  const lines = [`${(method || 'GET').toUpperCase()} ${parsed.pathname}${parsed.search} HTTP/1.1`];
-  lines.push(`Host: ${parsed.host}`);
+  const lines = [`${(method || 'GET').toUpperCase()} ${parsed?.pathname ?? ''} HTTP/1.1`];
+  lines.push(`Host: ${parsed?.host ?? url}`);
 
   for (const [key, value] of Object.entries(headers)) {
     if (key.toLowerCase() === 'host') continue;

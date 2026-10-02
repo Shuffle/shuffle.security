@@ -740,7 +740,7 @@ export default function AppDetailContent({
       const normalizedTarget = normalizeAppName(canonicalName);
 
       const freshWfs = await fetchWorkflows(undefined, true);
-      const currentIngestWf = freshWfs.find(w => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
+      const currentIngestWf = freshWfs.find((w: any) => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
       const existingNames = currentIngestWf ? Array.from(extractWorkflowAppNames(currentIngestWf)) : [];
 
       let nextAppNames: string[];

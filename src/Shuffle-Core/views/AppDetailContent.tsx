@@ -60,6 +60,7 @@ const AppRelatedUsecases: typeof AppRelatedUsecasesRaw = (props) => (
   <UsecasesBoundary><AppRelatedUsecasesRaw {...props} /></UsecasesBoundary>
 );
 import { useQueryClient } from '@tanstack/react-query';
+import { useWorkflows, fetchWorkflows, invalidateWorkflowsCache } from '@/Shuffle-Core/useWorkflows';
 import {
   isVulnScannerApp,
   normalizeAppName,
@@ -739,7 +740,7 @@ export default function AppDetailContent({
       const normalizedTarget = normalizeAppName(canonicalName);
 
       const freshWfs = await fetchWorkflows(undefined, true);
-      const currentIngestWf = freshWfs.find(w => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
+      const currentIngestWf = freshWfs.find((w: any) => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
       const existingNames = currentIngestWf ? Array.from(extractWorkflowAppNames(currentIngestWf)) : [];
 
       let nextAppNames: string[];
@@ -801,7 +802,7 @@ export default function AppDetailContent({
       if (willEnable) {
         try {
           const updatedWfs = await fetchWorkflows(undefined, true);
-          const updatedIngest = updatedWfs.find(w => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
+          const updatedIngest = updatedWfs.find((w: any) => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
           if (updatedIngest?.id) {
             fetch(getApiUrl(`/api/v1/workflows/${updatedIngest.id}/execute`), {
               method: 'POST',

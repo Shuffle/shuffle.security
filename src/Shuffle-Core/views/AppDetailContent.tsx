@@ -802,7 +802,7 @@ export default function AppDetailContent({
       if (willEnable) {
         try {
           const updatedWfs = await fetchWorkflows(undefined, true);
-          const updatedIngest = updatedWfs.find(w => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
+          const updatedIngest = updatedWfs.find((w: any) => (w.name || '').toLowerCase() === targetWorkflowName.toLowerCase());
           if (updatedIngest?.id) {
             fetch(getApiUrl(`/api/v1/workflows/${updatedIngest.id}/execute`), {
               method: 'POST',

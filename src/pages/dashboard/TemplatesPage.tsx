@@ -41,7 +41,7 @@ const TemplatesPage = () => {
   usePageMeta({
     title: 'Templates',
     description: 'Browse incident response and automation templates.',
-    url: '/templates',
+    url: '/incidents/templates',
   });
   const { 
     templates, 

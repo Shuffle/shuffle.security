@@ -21,7 +21,7 @@
  * To add a new sidebar item, add it here and it will automatically appear
  * in `/preferences`. To remove one, delete it here.
  */
-import { Braces, Waypoints, Network, BookOpen, LayoutDashboard, HardDrive, MonitorCheck, Bug, Zap, Terminal, AlertTriangle as WarningAmberIcon, Radar as RadarIcon, FileText as DescriptionIcon, SlidersHorizontal as TuneIcon, Rss as RssFeedIcon, Fingerprint as FingerprintIcon } from 'lucide-react';
+import { Braces, Waypoints, Network, BookOpen, LayoutDashboard, HardDrive, MonitorCheck, Bug, Zap, Terminal, ClipboardList as ClipboardListIcon, AlertTriangle as WarningAmberIcon, Radar as RadarIcon, FileText as DescriptionIcon, SlidersHorizontal as TuneIcon, Rss as RssFeedIcon, Fingerprint as FingerprintIcon } from 'lucide-react';
 import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 
 /** Stable identifiers used as keys in the persisted visibility map.
@@ -93,6 +93,12 @@ export const SIDEBAR_NAV: SidebarItemSpec[] = [
     path: '/incidents',
     alwaysVisible: true,
     children: [
+      {
+        tabKey: 'incidents_templates',
+        label: 'Templates',
+        path: '/incidents/templates',
+        icon: <ClipboardListIcon size={16} />,
+      },
       {
         tabKey: 'incidents_custom_fields',
         label: 'Custom Fields',

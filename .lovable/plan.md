@@ -9,7 +9,10 @@
 
 ## Changes in this app
 
-- Add `/api/v1/login_openid` and `/api/v1/login_sso` on shuffle.security as alias return pages. They do the same thing as `/login_openid` and `/login_sso`, so either redirect URI works in Keycloak.
+- Add a catch-all `/api/*` redirect on shuffle.security. Any request to `shuffle.security/api/...` gets a temporary redirect (307, which keeps the method and body) to the same path and query on the Shuffle backend. That covers `/api/v1/login_openid`, `/api/v1/login_sso`, `/api/v1/orgs/sso/link` and anything else.
+  - Which backend: if the request carries an `Org-Id` header, or a `state` with `org=<id>`, use that tenant's region. Otherwise use a `region` hint in the request, then the default host.
+  - Limits: browsers follow the redirect for page visits and simple calls. Scripts and `curl` need to follow redirects (`curl -L`). Cross-site calls from a browser still need the backend's own CORS rules.
+- `/api/v1/login_openid` and `/api/v1/login_sso` still get special handling: they go through the same return page as `/login_openid`, so the code reaches the right region.
 - On the return page, decode `state`, read `org=<id>`, and send the code to that tenant's region. First check the saved tenant-to-region list. If the tenant is not in it, use the region from the `redirect=` value inside `state`. Only fall back to the default host if neither gives an answer.
 - Any page that gets `?code=...&state=...` (for example `/incidents`) passes it to the return page instead of dropping it. That covers redirect URIs pointed at the root or `/incidents`.
 - After the backend finishes, send the user to `/incidents`. If the session did not stick, show a clear message instead of a silent loop back to login.

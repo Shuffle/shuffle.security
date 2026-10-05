@@ -54,3 +54,4 @@ See `docs/AGENTS.md` for documentation voice, GitHub-first rules and editorial c
 - If an action is restricted, preview, or support-only, state this clearly inside the action's `<Tooltip>` title (e.g., `Routing rules are a support-only preview and are not visible to regular users yet.`), and display the status chip in the title area or view body when that view is active.
 
 - /api/v* on this site is a 307 redirect to the tenant's regional backend (src/routes/api.$version.$.ts, region from subdomain, then the shuffle-region cookie, then OpenID state) — the app has no API of its own.
+- Sidebar region flags use RegionFlagImage with hosted image assets and the shared resolved region code, so rendering never depends on emoji fonts.

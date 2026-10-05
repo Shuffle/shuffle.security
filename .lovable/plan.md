@@ -9,9 +9,13 @@
 
 ## Changes in this app
 
-- Add a catch-all `/api/*` redirect on shuffle.security. Any request to `shuffle.security/api/...` gets a temporary redirect (307, which keeps the method and body) to the same path and query on the Shuffle backend. That covers `/api/v1/login_openid`, `/api/v1/login_sso`, `/api/v1/orgs/sso/link` and anything else.
-  - Which backend: if the request carries an `Org-Id` header, or a `state` with `org=<id>`, use that tenant's region. Otherwise use a `region` hint in the request, then the default host.
-  - Limits: browsers follow the redirect for page visits and simple calls. Scripts and `curl` need to follow redirects (`curl -L`). Cross-site calls from a browser still need the backend's own CORS rules.
+- Add a redirect for `/api/v*` only (for example `/api/v1/...`, `/api/v2/...`). Other `/api/` paths are not touched. Each request gets a temporary redirect (307, which keeps the method and body) to the same path and query on the region's Shuffle backend. That covers `/api/v1/login_openid`, `/api/v1/login_sso`, `/api/v1/orgs/sso/link` and the rest.
+- The redirect follows the tenant's region, checked in this order:
+  1. The region subdomain: `ca.shuffle.security/api/v1/...` goes to `ca.shuffler.io`, `uk.` to UK, and so on.
+  2. A region cookie that this app sets after login, from the tenant's `region_url`. The server cannot see the saved region list in the browser, so this cookie passes it along. It is updated on every login and tenant switch.
+  3. A `region_url` or `redirect=` value inside `state`, for sign-in returns.
+  4. The default host.
+  - Limits: the server cannot look up a region from an `Org-Id` header alone, so a first-time `curl` to `shuffle.security/api/v1/...` with no subdomain goes to the default host. Using `ca.shuffle.security` fixes that. Scripts and `curl` need to follow redirects (`curl -L`).
 - `/api/v1/login_openid` and `/api/v1/login_sso` still get special handling: they go through the same return page as `/login_openid`, so the code reaches the right region.
 - On the return page, decode `state`, read `org=<id>`, and send the code to that tenant's region. First check the saved tenant-to-region list. If the tenant is not in it, use the region from the `redirect=` value inside `state`. Only fall back to the default host if neither gives an answer.
 - Any page that gets `?code=...&state=...` (for example `/incidents`) passes it to the return page instead of dropping it. That covers redirect URIs pointed at the root or `/incidents`.

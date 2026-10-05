@@ -94,6 +94,12 @@ export const SIDEBAR_NAV: SidebarItemSpec[] = [
     alwaysVisible: true,
     children: [
       {
+        tabKey: 'incidents_templates',
+        label: 'Templates',
+        path: '/incidents/templates',
+        icon: <ClipboardListIcon size={16} />,
+      },
+      {
         tabKey: 'incidents_custom_fields',
         label: 'Custom Fields',
         path: '/incidents/custom-fields',

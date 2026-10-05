@@ -549,8 +549,9 @@ const FormInput = (defaultprops: any) => {
 				}
 			}
 
-			if (sourceNode !== undefined && sourceNode !== null && sourceNode.length > 0 && !url.includes("node_id=")) {
-				url += `&node_id=${encodeURIComponent(sourceNode)}`
+			if (sourceNode !== undefined && sourceNode !== null && sourceNode.length > 0) {
+				const sourceNodeParameter = decisionId !== undefined && decisionId !== null && decisionId.length > 0 ? "node_id" : "start"
+				url += `&${sourceNodeParameter}=${encodeURIComponent(sourceNode)}`
 			}
 		} else {
 			fetchBody.method = "POST"

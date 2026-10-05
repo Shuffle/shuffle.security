@@ -81,3 +81,4 @@
 - **No Redundant Badges or Chips in Action Groups**: Do not place `<Chip>` badges (such as "Support only", "Beta", or status pills) next to icon buttons in compact header action rows.
 - If an action is restricted, preview, or support-only, state this clearly inside the action's `<Tooltip>` title (e.g., `Routing rules are a support-only preview and are not visible to regular users yet.`), and display the status chip in the title area or view body when that view is active.
 
+- /api/v* on this site is a 307 redirect to the tenant's regional backend (src/routes/api.$version.$.ts, region from subdomain, then the shuffle-region cookie, then OpenID state) — the app has no API of its own.

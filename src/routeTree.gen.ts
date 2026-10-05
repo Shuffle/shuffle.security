@@ -101,6 +101,7 @@ import { Route as OnboardingOnboardingAutomateRouteImport } from './routes/_onbo
 import { Route as OnboardingOnboardingProductRouteImport } from './routes/_onboarding.onboarding.product'
 import { Route as OnboardingOnboardingSourcesRouteImport } from './routes/_onboarding.onboarding.sources'
 import { Route as OnboardingOnboardingWelcomeRouteImport } from './routes/_onboarding.onboarding.welcome'
+import { Route as ApiVersionSplatRouteImport } from './routes/api.$version.$'
 import { Route as LoginUrlMfaSetupRouteImport } from './routes/login.$url.mfa-setup'
 import { Route as CondUsecasesFlowIdIndexRouteImport } from './routes/_cond.usecases.$flowId.index'
 import { Route as CondUsecasesFlowIdDetailsRouteImport } from './routes/_cond.usecases.$flowId.details'
@@ -580,6 +581,11 @@ const OnboardingOnboardingWelcomeRoute =
     path: '/onboarding/welcome',
     getParentRoute: () => OnboardingRoute,
   } as any)
+const ApiVersionSplatRoute = ApiVersionSplatRouteImport.update({
+  id: '/api/$version/$',
+  path: '/api/$version/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginUrlMfaSetupRoute = LoginUrlMfaSetupRouteImport.update({
   id: '/$url/mfa-setup',
   path: '/$url/mfa-setup',
@@ -686,6 +692,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/product': typeof OnboardingOnboardingProductRoute
   '/onboarding/sources': typeof OnboardingOnboardingSourcesRoute
   '/onboarding/welcome': typeof OnboardingOnboardingWelcomeRoute
+  '/api/$version/$': typeof ApiVersionSplatRoute
   '/login/$url/mfa-setup': typeof LoginUrlMfaSetupRoute
   '/forms/': typeof CondFormsIndexRoute
   '/usecases/': typeof CondUsecasesIndexRoute
@@ -783,6 +790,7 @@ export interface FileRoutesByTo {
   '/onboarding/product': typeof OnboardingOnboardingProductRoute
   '/onboarding/sources': typeof OnboardingOnboardingSourcesRoute
   '/onboarding/welcome': typeof OnboardingOnboardingWelcomeRoute
+  '/api/$version/$': typeof ApiVersionSplatRoute
   '/login/$url/mfa-setup': typeof LoginUrlMfaSetupRoute
   '/forms': typeof CondFormsIndexRoute
   '/usecases': typeof CondUsecasesIndexRoute
@@ -884,6 +892,7 @@ export interface FileRoutesById {
   '/_onboarding/onboarding/product': typeof OnboardingOnboardingProductRoute
   '/_onboarding/onboarding/sources': typeof OnboardingOnboardingSourcesRoute
   '/_onboarding/onboarding/welcome': typeof OnboardingOnboardingWelcomeRoute
+  '/api/$version/$': typeof ApiVersionSplatRoute
   '/login/$url/mfa-setup': typeof LoginUrlMfaSetupRoute
   '/_cond/forms/': typeof CondFormsIndexRoute
   '/_cond/usecases/': typeof CondUsecasesIndexRoute
@@ -983,6 +992,7 @@ export interface FileRouteTypes {
     | '/onboarding/product'
     | '/onboarding/sources'
     | '/onboarding/welcome'
+    | '/api/$version/$'
     | '/login/$url/mfa-setup'
     | '/forms/'
     | '/usecases/'
@@ -1080,6 +1090,7 @@ export interface FileRouteTypes {
     | '/onboarding/product'
     | '/onboarding/sources'
     | '/onboarding/welcome'
+    | '/api/$version/$'
     | '/login/$url/mfa-setup'
     | '/forms'
     | '/usecases'
@@ -1180,6 +1191,7 @@ export interface FileRouteTypes {
     | '/_onboarding/onboarding/product'
     | '/_onboarding/onboarding/sources'
     | '/_onboarding/onboarding/welcome'
+    | '/api/$version/$'
     | '/login/$url/mfa-setup'
     | '/_cond/forms/'
     | '/_cond/usecases/'
@@ -1232,6 +1244,7 @@ export interface RootRouteChildren {
   BlogIndexRoute: typeof BlogIndexRoute
   DocsIndexRoute: typeof DocsIndexRoute
   LegalIndexRoute: typeof LegalIndexRoute
+  ApiVersionSplatRoute: typeof ApiVersionSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1880,6 +1893,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingOnboardingWelcomeRouteImport
       parentRoute: typeof OnboardingRoute
     }
+    '/api/$version/$': {
+      id: '/api/$version/$'
+      path: '/api/$version/$'
+      fullPath: '/api/$version/$'
+      preLoaderRoute: typeof ApiVersionSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login/$url/mfa-setup': {
       id: '/login/$url/mfa-setup'
       path: '/$url/mfa-setup'
@@ -2130,6 +2150,7 @@ const rootRouteChildren: RootRouteChildren = {
   BlogIndexRoute: BlogIndexRoute,
   DocsIndexRoute: DocsIndexRoute,
   LegalIndexRoute: LegalIndexRoute,
+  ApiVersionSplatRoute: ApiVersionSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

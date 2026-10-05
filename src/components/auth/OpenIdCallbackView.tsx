@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, CircularProgress } from '@mui/material';
 import { getApiUrl } from '@/Shuffle-Core/api';
+import { getTenantRegionBase } from '@/lib/tenantApiUrl';
+import { decodeOpenIdState } from '@/lib/regionRouting';
 
 export interface OpenIdCallbackViewProps {
   mode?: 'openid' | 'sso';
@@ -112,7 +114,9 @@ export const OpenIdCallbackView: React.FC<OpenIdCallbackViewProps> = ({ mode = '
     }
 
     const endpoint = mode === 'sso' ? '/api/v1/login_sso' : '/api/v1/login_openid';
-    const targetUrl = `${getApiUrl(endpoint)}${search}`;
+    const stateOrg = decodeOpenIdState(state).org;
+    const regionBase = stateOrg ? getTenantRegionBase(stateOrg) : null;
+    const targetUrl = `${regionBase ? `${regionBase}${endpoint}` : getApiUrl(endpoint)}${search}`;
 
     if (
       search &&

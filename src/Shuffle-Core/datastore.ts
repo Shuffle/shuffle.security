@@ -7,6 +7,7 @@
 
 import { acquireDatastoreSlot } from './requestScheduler';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { ensureSecurityRulesForWrite } from './securityRulesGuard';
 
 export const isCircuitBreakerResponse = (res: Response | null | undefined): boolean => {
   if (!res) return false;
@@ -393,6 +394,8 @@ export const setDatastoreItem = async (
     return { success: false, error: 'No organization ID found' };
   }
 
+  await ensureSecurityRulesForWrite(orgId, category, options?.regionUrl);
+
   const rawKey = normalizeDatastoreKey(key);
   let serialized = serializeDatastoreValue(value);
 
@@ -527,6 +530,9 @@ export const setDatastoreItems = async (
   if (!orgId) {
     return { success: false, error: 'No organization ID found' };
   }
+
+  await ensureSecurityRulesForWrite(orgId, category);
+
 
   // Use v2 API for bulk operations - send as array
   const payload = items.map(item => ({

@@ -386,7 +386,7 @@ export const setDatastoreItem = async (
   value: string | object,
   category: string,
   overrideOrgId?: string,
-  options?: { regionUrl?: string }
+  options?: { regionUrl?: string; ignoreSecurityRules?: boolean }
 ): Promise<DatastoreResponse> => {
   const extractedOrgId = !overrideOrgId ? extractOrgIdFromDatastoreKey(key) : null;
   const orgId = overrideOrgId || extractedOrgId || (await waitForOrgId());
@@ -426,7 +426,8 @@ export const setDatastoreItem = async (
     value: v,
     category,
     org_id: orgId,
-    ...(category === 'shuffle-security_incidents' ? { ignore_security_rules: true } : {}),
+    // Full-object overwrite: only for direct raw edits (OCSF tab).
+    ...(options?.ignoreSecurityRules ? { ignore_security_rules: true } : {}),
   }]);
 
   const headers: Record<string, string> = {
@@ -539,7 +540,6 @@ export const setDatastoreItems = async (
     key: item.key,
     value: serializeDatastoreValue(item.value),
     category,
-    ...(category === 'shuffle-security_incidents' ? { ignore_security_rules: true } : {}),
   }));
 
   const response = await fetch(getApiUrl('/api/v2/datastore'), {

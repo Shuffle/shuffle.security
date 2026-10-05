@@ -23281,7 +23281,10 @@ const IncidentDetailPage = () => {
                             incident.id,
                             parsed,
                             crossOrgId || undefined,
-                            tenantRegionOptions(crossOrgId || undefined),
+                            {
+                              ...(tenantRegionOptions(crossOrgId || undefined) || {}),
+                              ignoreSecurityRules: true,
+                            },
                           );
                           if (result.success) {
                             toast.success(

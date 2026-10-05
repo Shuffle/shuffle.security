@@ -1541,7 +1541,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                                   cursor: !region.code ? "help" : "default",
                                 }}
                               >
-                                <span style={{ fontSize: "14px" }}>
+                                <span style={{ fontSize: "14px", fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif', flexShrink: 0 }}>
                                   {region.flag}
                                 </span>
                                 <Typography
@@ -1625,7 +1625,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                           cursor: !region.code ? "help" : "inherit",
                         }}
                       >
-                        <span style={{ fontSize: "14px", lineHeight: 1 }}>
+                        <span style={{ fontSize: "14px", lineHeight: 1, fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif', flexShrink: 0 }}>
                           {region.flag}
                         </span>
                         <span

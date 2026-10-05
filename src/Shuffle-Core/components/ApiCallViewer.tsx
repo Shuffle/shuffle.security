@@ -445,7 +445,8 @@ function buildHttp(
     }
   }
 
-  const lines = [`${(method || 'GET').toUpperCase()} ${parsed?.pathname ?? ''} HTTP/1.1`];
+  const requestTarget = parsed ? `${parsed.pathname}${parsed.search}` : url || '/';
+  const lines = [`${(method || 'GET').toUpperCase()} ${requestTarget} HTTP/1.1`];
   lines.push(`Host: ${parsed?.host ?? url}`);
 
   for (const [key, value] of Object.entries(headers)) {

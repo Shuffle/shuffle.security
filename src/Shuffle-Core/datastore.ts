@@ -426,8 +426,9 @@ export const setDatastoreItem = async (
     value: v,
     category,
     org_id: orgId,
-    // Full-object overwrite: only for direct raw edits (OCSF tab).
-    ...(options?.ignoreSecurityRules ? { ignore_security_rules: true } : {}),
+    // Full-object overwrite on manual saves; Security Rules are still
+    // ensured enabled by ensureSecurityRulesForWrite above.
+    ignore_security_rules: true,
   }]);
 
   const headers: Record<string, string> = {

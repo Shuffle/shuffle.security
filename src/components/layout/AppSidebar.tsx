@@ -62,6 +62,7 @@ import { SidebarSearchDialog } from "./SidebarSearchDialog";
 import { useEntityPreference, useSidebarTabs } from "@/hooks/useEntityLabel";
 import { SIDEBAR_NAV, SidebarChildSpec } from "@/config/sidebarNav";
 import { getRegionFlag } from "@/lib/regionFlag";
+import { RegionFlagImage } from "@/components/shared/RegionFlagImage";
 import { useSubOrgs } from "@/hooks/useSubOrgs";
 import { resolveUserAvatar } from "@/components/incidents/UserHoverCard";
 import { useUsers } from "@/hooks/useUsers";
@@ -1541,9 +1542,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                                   cursor: !region.code ? "help" : "default",
                                 }}
                               >
-                                <span style={{ fontSize: "14px", fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif', flexShrink: 0 }}>
-                                  {region.flag}
-                                </span>
+                                <RegionFlagImage code={region.code} />
                                 <Typography
                                   sx={{
                                     fontSize: "0.75rem",
@@ -1625,9 +1624,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                           cursor: !region.code ? "help" : "inherit",
                         }}
                       >
-                        <span style={{ fontSize: "14px", lineHeight: 1, fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif', flexShrink: 0 }}>
-                          {region.flag}
-                        </span>
+                        <RegionFlagImage code={region.code} />
                         <span
                           style={{
                             fontSize: "0.75rem",

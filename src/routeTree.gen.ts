@@ -81,6 +81,7 @@ import { Route as DashIncidentsCustomFieldsRouteImport } from './routes/_dash.in
 import { Route as DashIncidentsIocTypesRouteImport } from './routes/_dash.incidents.ioc-types'
 import { Route as DashIncidentsObservablesRouteImport } from './routes/_dash.incidents.observables'
 import { Route as DashIncidentsResponseActionsRouteImport } from './routes/_dash.incidents.response-actions'
+import { Route as DashIncidentsTemplatesRouteImport } from './routes/_dash.incidents.templates'
 import { Route as DashIncidentsThreatFeedsRouteImport } from './routes/_dash.incidents.threat-feeds'
 import { Route as DashInfrastructureIndexRouteImport } from './routes/_dash.infrastructure.index'
 import { Route as DashJobsIndexRouteImport } from './routes/_dash.jobs.index'
@@ -474,6 +475,11 @@ const DashIncidentsResponseActionsRoute =
     path: '/incidents/response-actions',
     getParentRoute: () => DashRoute,
   } as any)
+const DashIncidentsTemplatesRoute = DashIncidentsTemplatesRouteImport.update({
+  id: '/incidents/templates',
+  path: '/incidents/templates',
+  getParentRoute: () => DashRoute,
+} as any)
 const DashIncidentsThreatFeedsRoute =
   DashIncidentsThreatFeedsRouteImport.update({
     id: '/incidents/threat-feeds',
@@ -678,6 +684,7 @@ export interface FileRoutesByFullPath {
   '/incidents/ioc-types': typeof DashIncidentsIocTypesRoute
   '/incidents/observables': typeof DashIncidentsObservablesRoute
   '/incidents/response-actions': typeof DashIncidentsResponseActionsRoute
+  '/incidents/templates': typeof DashIncidentsTemplatesRoute
   '/incidents/threat-feeds': typeof DashIncidentsThreatFeedsRoute
   '/jobs/$id': typeof DashJobsIdRoute
   '/monitors/response': typeof DashMonitorsResponseRoute
@@ -776,6 +783,7 @@ export interface FileRoutesByTo {
   '/incidents/ioc-types': typeof DashIncidentsIocTypesRoute
   '/incidents/observables': typeof DashIncidentsObservablesRoute
   '/incidents/response-actions': typeof DashIncidentsResponseActionsRoute
+  '/incidents/templates': typeof DashIncidentsTemplatesRoute
   '/incidents/threat-feeds': typeof DashIncidentsThreatFeedsRoute
   '/jobs/$id': typeof DashJobsIdRoute
   '/monitors/response': typeof DashMonitorsResponseRoute
@@ -878,6 +886,7 @@ export interface FileRoutesById {
   '/_dash/incidents/ioc-types': typeof DashIncidentsIocTypesRoute
   '/_dash/incidents/observables': typeof DashIncidentsObservablesRoute
   '/_dash/incidents/response-actions': typeof DashIncidentsResponseActionsRoute
+  '/_dash/incidents/templates': typeof DashIncidentsTemplatesRoute
   '/_dash/incidents/threat-feeds': typeof DashIncidentsThreatFeedsRoute
   '/_dash/jobs/$id': typeof DashJobsIdRoute
   '/_dash/monitors/response': typeof DashMonitorsResponseRoute
@@ -978,6 +987,7 @@ export interface FileRouteTypes {
     | '/incidents/ioc-types'
     | '/incidents/observables'
     | '/incidents/response-actions'
+    | '/incidents/templates'
     | '/incidents/threat-feeds'
     | '/jobs/$id'
     | '/monitors/response'
@@ -1076,6 +1086,7 @@ export interface FileRouteTypes {
     | '/incidents/ioc-types'
     | '/incidents/observables'
     | '/incidents/response-actions'
+    | '/incidents/templates'
     | '/incidents/threat-feeds'
     | '/jobs/$id'
     | '/monitors/response'
@@ -1177,6 +1188,7 @@ export interface FileRouteTypes {
     | '/_dash/incidents/ioc-types'
     | '/_dash/incidents/observables'
     | '/_dash/incidents/response-actions'
+    | '/_dash/incidents/templates'
     | '/_dash/incidents/threat-feeds'
     | '/_dash/jobs/$id'
     | '/_dash/monitors/response'
@@ -1753,6 +1765,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashIncidentsResponseActionsRouteImport
       parentRoute: typeof DashRoute
     }
+    '/_dash/incidents/templates': {
+      id: '/_dash/incidents/templates'
+      path: '/incidents/templates'
+      fullPath: '/incidents/templates'
+      preLoaderRoute: typeof DashIncidentsTemplatesRouteImport
+      parentRoute: typeof DashRoute
+    }
     '/_dash/incidents/threat-feeds': {
       id: '/_dash/incidents/threat-feeds'
       path: '/incidents/threat-feeds'
@@ -2001,6 +2020,7 @@ interface DashRouteChildren {
   DashIncidentsIocTypesRoute: typeof DashIncidentsIocTypesRoute
   DashIncidentsObservablesRoute: typeof DashIncidentsObservablesRoute
   DashIncidentsResponseActionsRoute: typeof DashIncidentsResponseActionsRoute
+  DashIncidentsTemplatesRoute: typeof DashIncidentsTemplatesRoute
   DashIncidentsThreatFeedsRoute: typeof DashIncidentsThreatFeedsRoute
   DashJobsIdRoute: typeof DashJobsIdRoute
   DashMonitorsResponseRoute: typeof DashMonitorsResponseRoute
@@ -2058,6 +2078,7 @@ const DashRouteChildren: DashRouteChildren = {
   DashIncidentsIocTypesRoute: DashIncidentsIocTypesRoute,
   DashIncidentsObservablesRoute: DashIncidentsObservablesRoute,
   DashIncidentsResponseActionsRoute: DashIncidentsResponseActionsRoute,
+  DashIncidentsTemplatesRoute: DashIncidentsTemplatesRoute,
   DashIncidentsThreatFeedsRoute: DashIncidentsThreatFeedsRoute,
   DashJobsIdRoute: DashJobsIdRoute,
   DashMonitorsResponseRoute: DashMonitorsResponseRoute,

@@ -20209,28 +20209,21 @@ const IncidentDetailPage = () => {
                           minHeight: 120,
                           maxHeight: 350,
                           overflow: "auto",
-                          whiteSpace: "pre-wrap",
-                          cursor: "pointer",
-                          "&:hover": {
-                            borderColor: "hsl(var(--muted-foreground) / 0.4)",
-                          },
                         }}
-                        onClick={() => setIsEditingDescription(true)}
                       >
                         {editedMessage ? (
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              color: "text.primary",
-                              whiteSpace: "pre-wrap",
-                            }}
-                          >
-                            {editedMessage}
-                          </Typography>
+                          <MarkdownDescriptionEditor
+                            key={`${incident?.id}-detailed-view`}
+                            value={editedMessage}
+                            onCommit={() => {}}
+                            readOnly
+                            incidentId={incident?.id}
+                          />
                         ) : (
                           <Typography
                             variant="body2"
-                            sx={{ color: "text.disabled", fontStyle: "italic" }}
+                            onClick={() => setIsEditingDescription(true)}
+                            sx={{ color: "text.disabled", fontStyle: "italic", cursor: "pointer" }}
                           >
                             No description. Click to add one.
                           </Typography>

@@ -1373,7 +1373,7 @@ export const writeIncidentSafe = async (
   id: string,
   nextRaw: any,
   orgId?: string,
-  options?: { regionUrl?: string },
+  options?: { regionUrl?: string; ignoreSecurityRules?: boolean },
 ): Promise<{ success: boolean; error?: string }> => {
   let nextObj: any = nextRaw;
   if (typeof nextRaw === 'string') {
@@ -1393,7 +1393,10 @@ export const writeIncidentSafe = async (
     JSON.stringify(hardened),
     DATASTORE_CATEGORIES.INCIDENTS,
     orgId,
-    options?.regionUrl ? { regionUrl: options.regionUrl } : undefined,
+    {
+      ...(options?.regionUrl ? { regionUrl: options.regionUrl } : {}),
+      ...(options?.ignoreSecurityRules ? { ignoreSecurityRules: true } : {}),
+    },
   );
 };
 

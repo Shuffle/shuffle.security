@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback, useRef } from 'react';
 import { registerTenantRegions } from '@/lib/tenantApiUrl';
+import { setRegionCookie } from '@/lib/regionRouting';
 import { getApiUrl, getAuthHeader, getSessionAuthHeader, setRegionUrl, resetRegionUrl, getTrackedOrgId, applyRegionFromPayload, setHostBaseUrl, getHostBaseUrl, setSessionToken as persistSessionToken, clearAuthTokens, getSessionToken, isDevEnvironment, isCloud, mapCloudRegionUrl, getDefaultBaseUrl, getRegionUrl, isCapacitorNative, isCrossDomainBackend } from '@/Shuffle-Core/api';
 import { setRuntimeOrgId } from '@/Shuffle-Core/datastore';
 import { invalidateAuthenticatedAppsCache } from '@/Shuffle-Core/authenticatedApps';
@@ -126,6 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       sync_features: data.sync_features,
     };
     registerTenantRegions([...(Array.isArray((info as any)?.orgs) ? (info as any).orgs : []), (info as any)?.active_org]);
+    setRegionCookie((info as any)?.active_org?.region_url);
     setUserInfo(info);
     setRuntimeOrgId(newOrgId);
     localStorage.setItem('shuffle_user_info', JSON.stringify(info));

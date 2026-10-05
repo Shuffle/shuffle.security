@@ -300,6 +300,20 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
+    // Sign-in returns that land on any other page (for example /incidents) are passed to the return page.
+    try {
+      const { pathname, search } = window.location;
+      const sp = new URLSearchParams(search);
+      if (sp.get('code') && sp.get('state') && !pathname.startsWith('/login')) {
+        const raw = sp.get('state') || '';
+        let decoded = raw;
+        try { decoded = atob(raw.replace(/-/g, '+').replace(/_/g, '/')); } catch { /* not base64 */ }
+        if (/(^|&)org=/.test(decoded)) {
+          window.location.replace(`/login_openid${search}`);
+          return;
+        }
+      }
+    } catch { /* ignore */ }
     initAnalytics();
     trackReferralParams();
   }, []);

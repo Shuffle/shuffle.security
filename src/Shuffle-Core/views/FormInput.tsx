@@ -78,6 +78,7 @@ import {
 	DialogContent,
 	MenuItem,
     Autocomplete,
+  Box,
 } from '@mui/material';
 
 const hrefStyle = {
@@ -116,6 +117,8 @@ const FormInput = (defaultprops: any) => {
   const [boxWidth, setBoxWidth] = React.useState(560)
   const [inputQuestions, setInputQuestions] = React.useState([])
   const [agentic, setAgentic] = React.useState(false)
+  // Dropdown questions where the user picked "Other…" (only offered when question.allow_other is set)
+  const [otherSelected, setOtherSelected] = React.useState({})
 
   const searchParams = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search)
   const answer = searchParams.get("answer")
@@ -238,7 +241,7 @@ const FormInput = (defaultprops: any) => {
 				})()
 
 			for (const q of questions) {
-				if (q?.deleted === true) {
+				if (q?.deleted === true || q?.optional === true) {
 					continue
 				}
 				const key = (q?.value || "").includes(";") ? q.value.split(";")[0] : q?.value
@@ -739,7 +742,7 @@ const FormInput = (defaultprops: any) => {
 
 				var multiChoiceOptions = question.value !== undefined && question.value !== null && question.value.length > 0 && question.value.includes(";") ? question.value.split(";") : []
 				if (multiChoiceOptions.length > 1) {
-					newexec[multiChoiceOptions[0]] = multiChoiceOptions[1] || ""
+					newexec[multiChoiceOptions[0]] = question.no_default === true ? "" : (multiChoiceOptions[1] || "")
 				} else {
 					newexec[question.value] = ""
 				}
@@ -1067,8 +1070,15 @@ const FormInput = (defaultprops: any) => {
         setExecutionRunning(false);
         setDisableButtons(true);
       } else if (normalizedStatus === "EXECUTING" || normalizedStatus === "RUNNING") {
-        setExecutionRunning(true);
-        setDisableButtons(true);
+        // A paused agent or User Input step keeps the execution EXECUTING while its result waits for an answer
+        if (responseJson?.results?.some((result) => result?.status === "WAITING")) {
+          stop();
+          setExecutionRunning(false);
+          setDisableButtons(false);
+        } else {
+          setExecutionRunning(true);
+          setDisableButtons(true);
+        }
       }
 		})
 	}
@@ -1226,6 +1236,30 @@ const FormInput = (defaultprops: any) => {
 
 						var parsedresult = validated.result
 						console.log("PARSED RES: ", parsedresult)
+
+						// Newer backends send the pending questions (approvals included) ready-made.
+						// Older backends don't, and the derivation from decisions below runs as before.
+						if (Array.isArray(parsedresult?.input_questions) && parsedresult.input_questions.length > 0) {
+							const backendQuestions = parsedresult.input_questions.filter((q) => q?.deleted !== true)
+							setExecutionArgument((prev) => {
+								const next = typeof prev === "object" && prev !== null ? {...prev} : {}
+								for (const q of backendQuestions) {
+									const options = (q?.value || "").split(";").filter((e) => e !== "")
+									const key = options[0]
+									if (key && !(key in next)) {
+										next[key] = options.length > 1 && q?.no_default !== true ? options[1] : ""
+									}
+								}
+								return next
+							})
+
+							setInputQuestions(backendQuestions)
+							responseJson.workflow.input_questions = backendQuestions
+							setWorkflow(responseJson?.workflow)
+							setDisableButtons(false)
+							break
+						}
+
 						if (parsedresult?.decisions?.length > 0) {
 							var newexec = executionArgument
 							if (newexec === undefined || newexec === null || Object.keys(newexec).length === 0) {
@@ -1789,7 +1823,7 @@ const FormInput = (defaultprops: any) => {
 
 									const questionKey = multiChoiceOptions.length > 0 ? multiChoiceOptions[0] : (question.value || `question_${index}`)
 
-									const parsedLabel = question?.value?.startsWith("question_") ? 
+									const parsedLabel = question?.hide_label === true ? "" : question?.value?.startsWith("question_") ? 
 										"" 
 										: 
 										question?.value?.charAt(0)?.toUpperCase() + question?.value?.slice(1)
@@ -1806,11 +1840,14 @@ const FormInput = (defaultprops: any) => {
 													<Select
 														disabled={disabledButtons}
 														fullWidth
-														required
+														required={question?.optional !== true}
+														displayEmpty={question?.no_default === true}
 														label={multiChoiceOptions[0]}
-														value={executionArgument[questionKey] || multiChoiceOptions[1] || ""}
+														value={otherSelected[questionKey] === true ? "__shuffle_other__" : question?.no_default === true ? (executionArgument[questionKey] ?? "") : (executionArgument[questionKey] || multiChoiceOptions[1] || "")}
 														onChange={(e) => {
-															const nextVal = e.target.value
+															const isOther = e.target.value === "__shuffle_other__"
+															const nextVal = isOther ? "" : e.target.value
+															setOtherSelected((prev) => ({...prev, [questionKey]: isOther}))
 															setExecutionArgument((prev) => ({
 																...(typeof prev === "object" && prev !== null ? prev : {}),
 																[questionKey]: nextVal,
@@ -1833,6 +1870,11 @@ const FormInput = (defaultprops: any) => {
 														}}
 													>
 
+														{question?.no_default === true ?
+															<MenuItem value="" disabled sx={{ color: "hsl(var(--muted-foreground))" }}>
+																Select…
+															</MenuItem>
+														: null}
 														{multiChoiceOptions.map((option, menuIndex) => {
 															if (menuIndex === 0) {
 																return null
@@ -1853,13 +1895,46 @@ const FormInput = (defaultprops: any) => {
 																</MenuItem>
 															)
 														})}
+														{question?.allow_other === true ?
+															<MenuItem
+																value="__shuffle_other__"
+																sx={{
+																	color: "hsl(var(--popover-foreground))",
+																	"&:hover": {
+																		backgroundColor: "hsl(var(--muted))",
+																	},
+																}}
+															>
+																Other…
+															</MenuItem>
+														: null}
 													</Select>
+													{otherSelected[questionKey] === true ?
+														<TextField
+															color="primary"
+															required={question?.optional !== true}
+															disabled={disabledButtons}
+															fullWidth={true}
+															placeholder="Type your answer"
+															id={`form-question-other-${index}`}
+															margin="dense"
+															variant="outlined"
+															value={executionArgument[questionKey] ?? ""}
+															onChange={(e) => {
+																const nextVal = e.target.value
+																setExecutionArgument((prev) => ({
+																	...(typeof prev === "object" && prev !== null ? prev : {}),
+																	[questionKey]: nextVal,
+																}))
+															}}
+														/>
+													: null}
 												</div>
 												:
 												<TextField
 													color="primary"
 													label={parsedLabel}
-													required
+													required={question?.optional !== true}
 													disabled={disabledButtons}
 													fullWidth={true}
 													placeholder=""

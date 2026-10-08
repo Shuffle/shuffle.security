@@ -158,8 +158,9 @@ const IOCTypesPage = () => {
           if (!page?.cursor || pageItems.length === 0) break;
           cursor = page.cursor;
         }
-        if (allKeys.length > 0) {
-          const deleteResult = await deleteDatastoreItems(allKeys, CATEGORY);
+        const uniqueKeys = [...new Set(allKeys)];
+        if (uniqueKeys.length > 0) {
+          const deleteResult = await deleteDatastoreItems(uniqueKeys, CATEGORY);
           if (!deleteResult.success) throw new Error(deleteResult.error || 'Failed to delete existing IOC types');
         }
         const saveResult = await setDatastoreItems(defaults.map(type => ({ key: type.name, value: type })), CATEGORY);

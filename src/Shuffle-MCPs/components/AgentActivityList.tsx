@@ -798,7 +798,7 @@ const AgentRunRow = ({ run, onClick, sx, appIcons, onAppClick, apiKey, apiBaseUr
                       if (onAppClick) {
                         onAppClick({ id: t.id, name: t.name });
                       } else {
-                        navigate(`/apps/${encodeURIComponent(slug)}`);
+                        navigate(`/apps/${encodeURIComponent(t.id || slug)}`);
                       }
                     }}
                     sx={{

@@ -856,7 +856,7 @@ export const SearchDialog = ({
           navigateToShuffleSecurity(result.path, { newTab: true });
         }
       } else if (result.type === 'app') {
-        safeNavigate(`/apps?app=${encodeURIComponent(result.app.name)}`);
+        safeNavigate(`/apps/${encodeURIComponent(result.app.objectID)}`);
       } else if (result.type === 'usecase') {
         const slug = slugify(result.usecase.label);
         if (currentPlatform === 'security') {

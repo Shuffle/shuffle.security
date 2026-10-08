@@ -586,11 +586,25 @@ export const setDatastoreItems = async (
       `[datastore.setMany] category=${category} unchanged keys: ${okParsed.keysExisted.filter(k => !k.changed).map(k => k.key).join(', ')}`,
     );
   }
+  if (okParsed.success === false) {
+    // HTTP 200 but the body says success=false — the bulk endpoint does this
+    // even when the keys were written. Verify per key before reporting failure.
+    const fallbackResults = await Promise.all(items.map(item =>
+      setDatastoreItem(item.key, item.value, category)
+    ));
+    const failedWrites = fallbackResults.filter(result => !result.success);
+    if (failedWrites.length > 0) {
+      return {
+        success: false,
+        error: failedWrites[0]?.error || 'Backend reported success=false for bulk datastore write',
+      };
+    }
+    return { success: true };
+  }
   return {
-    success: okParsed.success !== false,
+    success: true,
     keysExisted: okParsed.keysExisted,
     changed: okParsed.keysExisted ? okParsed.keysExisted.some(k => k.changed) : undefined,
-    ...(okParsed.success === false ? { error: 'Backend reported success=false for bulk datastore write' } : {}),
   };
 };
 

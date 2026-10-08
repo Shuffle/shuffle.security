@@ -326,8 +326,19 @@ export default function AppDetailContent({
           });
           hits = (res as any)?.results?.[0]?.hits || [];
         }
+        // When we have an ID, the ID is the only source of truth: never let a
+        // name search pick a different app.
+        if (appId) {
+          let byId = hits.find((h: any) => h.objectID === appId);
+          if (!byId) {
+            try {
+              const res = await (client as any).getObject({ indexName: 'appsearch', objectID: appId });
+              if (res?.objectID) byId = res;
+            } catch { /* not in catalog */ }
+          }
+          return byId ? { hit: byId, isFallback: false } : null;
+        }
         const exact =
-          (appId && hits.find((h: any) => h.objectID === appId)) ||
           hits.find((h: any) =>
             h.name?.toLowerCase().replace(/[\s_\-]+/g, '_') === normalizedName
           );
@@ -336,6 +347,8 @@ export default function AppDetailContent({
         const close = hits.find((h: any) => checkAppNameMatch(appName, h.name).isCloseMatch);
         if (close) return { hit: close, isFallback: false };
 
+        // Built-in apps must never be replaced by an arbitrary first hit.
+        if (isNoAuthApp(appName)) return null;
         return hits.length > 0 ? { hit: hits[0], isFallback: true } : null;
       } catch {
         return null;

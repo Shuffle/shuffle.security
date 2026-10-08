@@ -344,7 +344,7 @@ export default function SearchPage() {
 
   // Handlers for clicking results
   const handleAppClick = (app: AlgoliaSearchApp) => {
-    navigate(`/apps?app=${encodeURIComponent(app.name)}`);
+    navigate(`/apps/${encodeURIComponent(app.objectID)}`);
   };
 
   const handleUsecaseClick = (usecase: Usecase) => {

@@ -16,7 +16,7 @@ import {
   type AgentUIProps,
 } from '@/Shuffle-MCPs';
 import PermissionsPanel from '@/components/agent/PermissionsPanel';
-import LocalLLMConfig from '@/Shuffle-Core/components/LocalLLMConfig';
+import { LocalLLMConfig } from '@/Shuffle-Core';
 import { useTheme } from '@/context/ThemeContext';
 import {
   AGENT_DRAWER_OPEN_EVENT,
@@ -199,7 +199,14 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
       globalUrl={API_CONFIG.baseUrl}
       theme={theme}
       permissionsSlot={<PermissionsPanel compact />}
-      localLLMSlot={<LocalLLMConfig globalUrl={API_CONFIG.baseUrl} />}
+      localLLMSlot={
+        <LocalLLMConfig
+          globalUrl={API_CONFIG.baseUrl}
+          theme={theme}
+          userdata={userInfo}
+          isLoggedIn={isAuthenticated}
+        />
+      }
       agentUIProps={{
         onSchedule: handleSchedule,
         apiBaseUrl: API_CONFIG.baseUrl,

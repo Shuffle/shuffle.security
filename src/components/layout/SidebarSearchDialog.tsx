@@ -7,6 +7,7 @@
 
 import { SearchDialog } from '@/Shuffle-Core';
 import { useNavigate } from '@/lib/router-compat';
+import { useTheme } from '@/context/ThemeContext';
 
 export interface SidebarSearchDialogProps {
   open: boolean;
@@ -15,6 +16,7 @@ export interface SidebarSearchDialogProps {
 
 export const SidebarSearchDialog = ({ open, onOpenChange }: SidebarSearchDialogProps) => {
   const navigate = useNavigate();
+  const { resolvedTheme } = useTheme();
 
   return (
     <SearchDialog
@@ -23,6 +25,7 @@ export const SidebarSearchDialog = ({ open, onOpenChange }: SidebarSearchDialogP
       hostPlatform="security"
       onNavigate={(path: string) => navigate(path)}
       enableCorrelations={true}
+      theme={resolvedTheme}
     />
   );
 };

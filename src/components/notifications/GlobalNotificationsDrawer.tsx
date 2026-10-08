@@ -7,10 +7,12 @@
 
 import { useEffect, useState } from 'react';
 import { NotificationsDrawer, NOTIFICATIONS_OPEN_EVENT } from '@/Shuffle-Core';
+import { useTheme } from '@/context/ThemeContext';
 
 const GlobalNotificationsDrawer = () => {
   const [open, setOpen] = useState(false);
   const [context, setContext] = useState<{ executionId?: string; workflowId?: string }>({});
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -31,6 +33,7 @@ const GlobalNotificationsDrawer = () => {
       onClose={() => setOpen(false)}
       executionId={context.executionId}
       workflowId={context.workflowId}
+      theme={resolvedTheme}
     />
   );
 };

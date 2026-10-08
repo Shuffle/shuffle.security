@@ -20,13 +20,218 @@
  */
 import React from "react";
 import { ThemeProvider, createTheme, useTheme as useMuiTheme } from "@mui/material";
-// Pull in the Shuffle-MCPs HSL token stylesheet so ANY consumer that wraps
-// itself in this provider (or imports anything that does) automatically gets
-// `.shuffle-mcp-scope[.dark]` tokens — even when entering through a sub-entry
-// point that doesn't import the top-level `src/Shuffle-MCPs/index.ts`.
-// Bundlers de-dupe the import.
-import "./shuffle-mcp.css";
 
+export type ShuffleTokenStyle = React.CSSProperties & Record<`--${string}`, string>;
+
+export const lightTokenStyle: ShuffleTokenStyle = {
+  "--background": "0 0% 98%",
+  "--background-elevated": "0 0% 100%",
+  "--background-surface": "0 0% 96%",
+  "--foreground": "0 0% 9%",
+  "--foreground-muted": "0 0% 40%",
+  "--card": "0 0% 100%",
+  "--card-foreground": "0 0% 9%",
+  "--popover": "0 0% 100%",
+  "--popover-foreground": "0 0% 9%",
+  "--primary": "22 100% 50%",
+  "--primary-foreground": "0 0% 100%",
+  "--secondary": "0 0% 94%",
+  "--secondary-foreground": "0 0% 9%",
+  "--muted": "0 0% 94%",
+  "--muted-foreground": "0 0% 45%",
+  "--accent": "0 0% 92%",
+  "--accent-foreground": "0 0% 9%",
+  "--destructive": "0 84% 60%",
+  "--destructive-foreground": "0 0% 100%",
+  "--border": "0 0% 80%",
+  "--border-subtle": "0 0% 86%",
+  "--input": "0 0% 94%",
+  "--ring": "22 100% 50%",
+  "--severity-critical": "0 84% 60%",
+  "--severity-high": "12 92% 52%",
+  "--severity-medium": "45 93% 47%",
+  "--severity-low": "142 71% 45%",
+  "--severity-info": "210 100% 56%",
+  "--sidebar-background": "0 0% 97%",
+  "--sidebar-foreground": "0 0% 9%",
+  "--sidebar-accent": "0 0% 94%",
+  "--sidebar-accent-foreground": "0 0% 9%",
+  "--sidebar-border": "0 0% 80%",
+  "--gradient-card": "linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%)",
+};
+
+export const darkTokenStyle: ShuffleTokenStyle = {
+  ...lightTokenStyle,
+  "--background": "0 0% 10%",
+  "--background-elevated": "0 0% 13%",
+  "--background-surface": "0 0% 16%",
+  "--foreground": "0 0% 100%",
+  "--foreground-muted": "0 0% 60%",
+  "--card": "0 0% 13%",
+  "--card-foreground": "0 0% 100%",
+  "--popover": "0 0% 12%",
+  "--popover-foreground": "0 0% 100%",
+  "--secondary": "0 0% 18%",
+  "--secondary-foreground": "0 0% 100%",
+  "--muted": "0 0% 16%",
+  "--muted-foreground": "0 0% 50%",
+  "--accent": "0 0% 20%",
+  "--accent-foreground": "0 0% 100%",
+  "--destructive": "0 84% 60%",
+  "--destructive-foreground": "0 0% 100%",
+  "--border": "0 0% 20%",
+  "--border-subtle": "0 0% 16%",
+  "--input": "0 0% 18%",
+  "--sidebar-background": "0 0% 9%",
+  "--sidebar-foreground": "0 0% 100%",
+  "--sidebar-accent": "0 0% 16%",
+  "--sidebar-accent-foreground": "0 0% 100%",
+  "--sidebar-border": "0 0% 16%",
+  "--gradient-card": "linear-gradient(145deg, hsl(0 0% 14%) 0%, hsl(0 0% 12%) 100%)",
+};
+
+export const SHUFFLE_MCP_BASE_CSS = `
+:where(:root) {
+  --background: 0 0% 10%;
+  --background-elevated: 0 0% 13%;
+  --background-surface: 0 0% 16%;
+  --foreground: 0 0% 98%;
+  --card: 0 0% 13%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 13%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 22 100% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 16%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 16%;
+  --muted-foreground: 0 0% 65%;
+  --accent: 22 100% 50%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 20%;
+  --input: 0 0% 16%;
+  --ring: 22 100% 50%;
+  --severity-info: 210 90% 60%;
+  --severity-low: 142 70% 45%;
+  --severity-medium: 38 92% 50%;
+  --severity-high: 12 92% 52%;
+  --severity-critical: 0 84% 60%;
+  --infra-email: 210 90% 60%;
+}
+
+.shuffle-mcp-scope,
+.shuffle-mcp-scope *,
+.shuffle-mcp-scope *::before,
+.shuffle-mcp-scope *::after {
+  box-sizing: border-box;
+}
+
+.shuffle-mcp-scope {
+  color: hsl(var(--foreground));
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  isolation: isolate;
+}
+
+:root:not(.dark) .shuffle-mcp-scope:not(.dark),
+html:not(.dark) .shuffle-mcp-scope:not(.dark),
+body:not(.dark) .shuffle-mcp-scope:not(.dark),
+.shuffle-mcp-scope.light,
+[data-shuffle-mode="light"] .shuffle-mcp-scope,
+[data-shuffle-mode="light"] {
+  --background: 0 0% 98%;
+  --background-elevated: 0 0% 100%;
+  --background-surface: 0 0% 96%;
+  --foreground: 0 0% 9%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 9%;
+  --secondary: 0 0% 94%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 0 0% 92%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 78%;
+  --input: 0 0% 94%;
+  --severity-info: 215 90% 45%;
+  --severity-low: 142 72% 31%;
+  --severity-medium: 38 92% 33%;
+  --severity-high: 12 88% 46%;
+  --severity-critical: 0 72% 51%;
+  --infra-email: 215 90% 45%;
+}
+
+.dark .shuffle-mcp-scope:not(.light),
+.shuffle-mcp-scope.dark,
+[data-shuffle-mode="dark"] .shuffle-mcp-scope,
+[data-shuffle-mode="dark"] {
+  --background: 0 0% 10%;
+  --background-elevated: 0 0% 13%;
+  --background-surface: 0 0% 16%;
+  --foreground: 0 0% 100%;
+  --card: 0 0% 13%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 12%;
+  --popover-foreground: 0 0% 100%;
+  --secondary: 0 0% 18%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 16%;
+  --muted-foreground: 0 0% 50%;
+  --accent: 0 0% 20%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 20%;
+  --input: 0 0% 18%;
+}
+
+.MuiTooltip-tooltip.shuffle-mcp-scope {
+  background-color: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12) !important;
+  border-radius: 8px !important;
+}
+
+.MuiTooltip-tooltip.shuffle-mcp-scope .MuiTooltip-arrow {
+  color: hsl(var(--popover)) !important;
+}
+
+.MuiTooltip-tooltip.shuffle-mcp-scope .MuiTooltip-arrow::before {
+  border: 1px solid hsl(var(--border)) !important;
+  box-sizing: border-box;
+}
+
+@keyframes singul-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes singul-skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+`;
+
+export const ensureShuffleMcpStyles = (): void => {
+  if (typeof document === "undefined") return;
+  const STYLE_ID = "shuffle-mcp-injected-styles";
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = SHUFFLE_MCP_BASE_CSS;
+  document.head.appendChild(style);
+};
+
+if (typeof document !== "undefined") {
+  ensureShuffleMcpStyles();
+}
 
 export type ShuffleMcpColorMode = "light" | "dark" | "auto";
 
@@ -103,19 +308,20 @@ export const ShuffleMcpThemeContext = React.createContext<ShuffleMcpThemeContext
 export const useShuffleMcpTheme = (): ShuffleMcpThemeContextValue | null =>
   React.useContext(ShuffleMcpThemeContext);
 
-const buildComponentOverrides = (scopeClassName: string) => ({
+const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleTokenStyle) => ({
   MuiButton: { defaultProps: { size: "small" as const } },
   MuiAutocomplete: {
     defaultProps: {
       slotProps: {
-        popper: { className: scopeClassName, sx: { zIndex: 10040 } },
-        paper: { className: scopeClassName },
+        popper: { className: scopeClassName, style: scopeStyle, sx: { zIndex: 10040 } },
+        paper: { className: scopeClassName, style: scopeStyle },
       },
     },
   },
   MuiPopper: {
     defaultProps: {
       className: scopeClassName,
+      style: scopeStyle,
     },
     styleOverrides: {
       root: { zIndex: 10040 },
@@ -155,9 +361,9 @@ const buildComponentOverrides = (scopeClassName: string) => ({
       },
     },
   },
-  // ---- Portaled surfaces: stamp scopeClassName so HSL tokens resolve ----
+  // ---- Portaled surfaces: stamp scopeClassName and scopeStyle so HSL tokens resolve ----
   MuiDrawer: {
-    defaultProps: { slotProps: { paper: { className: scopeClassName } } },
+    defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
       paper: {
         backgroundColor: "hsl(var(--sidebar-background, var(--card)))",
@@ -167,7 +373,7 @@ const buildComponentOverrides = (scopeClassName: string) => ({
     },
   },
   MuiDialog: {
-    defaultProps: { slotProps: { paper: { className: scopeClassName } } },
+    defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
       root: { zIndex: 10010 },
       paper: {
@@ -179,7 +385,7 @@ const buildComponentOverrides = (scopeClassName: string) => ({
     },
   },
   MuiMenu: {
-    defaultProps: { slotProps: { paper: { className: scopeClassName } } },
+    defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
       root: { zIndex: 10040 },
       paper: {
@@ -191,7 +397,7 @@ const buildComponentOverrides = (scopeClassName: string) => ({
     },
   },
   MuiPopover: {
-    defaultProps: { slotProps: { paper: { className: scopeClassName } } },
+    defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
       root: { zIndex: 10040 },
       paper: {
@@ -205,7 +411,7 @@ const buildComponentOverrides = (scopeClassName: string) => ({
   MuiTooltip: {
     defaultProps: {
       slotProps: {
-        tooltip: { className: scopeClassName },
+        tooltip: { className: scopeClassName, style: scopeStyle },
         // Render above app drawers, dialogs, menus, and popovers.
         popper: { sx: { zIndex: 10050 } },
       },
@@ -259,6 +465,7 @@ export const ShuffleMcpThemeProvider: React.FC<ShuffleMcpThemeProviderProps> = (
 
   const scopeClassName = effectiveDark ? "shuffle-mcp-scope dark" : "shuffle-mcp-scope light";
   const resolvedModeAttr = effectiveDark ? "dark" : "light";
+  const scopeStyle = effectiveDark ? darkTokenStyle : lightTokenStyle;
 
   const merged = React.useMemo(
     () =>
@@ -270,16 +477,20 @@ export const ShuffleMcpThemeProvider: React.FC<ShuffleMcpThemeProviderProps> = (
         },
         components: {
           ...(parent as any).components,
-          ...buildComponentOverrides(scopeClassName),
+          ...buildComponentOverrides(scopeClassName, scopeStyle),
         },
       }),
-    [parent, effectiveDark, scopeClassName],
+    [parent, effectiveDark, scopeClassName, scopeStyle],
   );
 
   const ctxValue = React.useMemo<ShuffleMcpThemeContextValue>(
     () => ({ mode, isDark: effectiveDark, scopeClassName }),
     [mode, effectiveDark, scopeClassName],
   );
+
+  React.useEffect(() => {
+    ensureShuffleMcpStyles();
+  }, []);
 
   if (sameAsParent) {
     return (
@@ -293,7 +504,7 @@ export const ShuffleMcpThemeProvider: React.FC<ShuffleMcpThemeProviderProps> = (
   return (
     <ShuffleMcpThemeContext.Provider value={ctxValue}>
       <ThemeProvider theme={merged}>
-        <div className={scopeClassName} data-shuffle-mode={resolvedModeAttr} data-shuffle-mcp-root>
+        <div className={scopeClassName} style={scopeStyle} data-shuffle-mode={resolvedModeAttr} data-shuffle-mcp-root>
           <span ref={anchorRef} style={{ display: "none" }} aria-hidden />
           {children}
         </div>

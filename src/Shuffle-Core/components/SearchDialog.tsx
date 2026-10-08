@@ -400,6 +400,7 @@ export interface SearchDialogProps {
   onNavigate?: (path: string) => void;
   enableCorrelations?: boolean;
   userdata?: any;
+  theme?: 'light' | 'dark' | 'auto';
 }
 
 export const SearchDialog = ({

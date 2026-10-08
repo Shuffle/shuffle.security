@@ -6,7 +6,11 @@
  */
 
 import { Drawer } from '@mui/material';
-import { useShuffleCoreTheme } from '@/Shuffle-Core/components/ShuffleCoreThemeProvider';
+import {
+  useShuffleCoreTheme,
+  darkTokenStyle,
+  lightTokenStyle,
+} from '@/Shuffle-Core/components/ShuffleCoreThemeProvider';
 import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import AppDetailContent, { checkAppNameMatch } from './AppDetailContent';
 import { useDrawerLayer } from '../drawerLayer';
@@ -77,8 +81,12 @@ export default function AppDetailDrawer({
     onClose();
   };
 
+  const isDark = themeScope?.isDark ?? (theme === 'dark' || colorMode === 'dark');
+  const scopeStyle = isDark ? darkTokenStyle : lightTokenStyle;
+
   const drawerPaperProps = {
     className: scopeClassName,
+    style: scopeStyle,
     sx: {
       width: drawerWidth,
       minWidth: drawerMinWidth,

@@ -16,8 +16,11 @@ import { AddAppDialog } from '../components/AddAppDialog';
 import type { AppSelectedEvent } from '../shuffle-mcp.helpers';
 import { API_CONFIG } from '../api';
 import { ShufflePipelinesBanner } from '../components/ShufflePipelinesBanner';
-import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
-import { useShuffleCoreTheme } from '@/Shuffle-Core/components/ShuffleCoreThemeProvider';
+import {
+  useShuffleCoreTheme,
+  darkTokenStyle,
+  lightTokenStyle,
+} from '@/Shuffle-Core/components/ShuffleCoreThemeProvider';
 import { useDrawerLayer } from '../drawerLayer';
 
 
@@ -322,8 +325,12 @@ export default function AppSearchDrawer({
   };
 
 
+  const isDark = themeScope?.isDark ?? (theme === 'dark' || colorMode === 'dark');
+  const scopeStyle = isDark ? darkTokenStyle : lightTokenStyle;
+
   const drawerPaperProps = {
     className: scopeClassName,
+    style: scopeStyle,
     sx: {
       // Strict, environment-independent sizing so the drawer
       // looks identical on every host (Shuffle Security, /agents,

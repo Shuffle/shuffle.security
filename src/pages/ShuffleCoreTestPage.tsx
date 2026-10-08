@@ -38,7 +38,6 @@ import { LandingNavbar } from '@/components/landing/LandingNavbar';
  */
 
 const SNIPPET_USECASES = `import { Usecases } from '@shuffleio/shuffle-core';
-import '@shuffleio/shuffle-core/shuffle-core.css';
 
 // Full Usecases explorer — card grid + detail view.
 // Reads :flowId from useParams() and selected_object from useSearchParams().

@@ -11,12 +11,17 @@
  * ensuring unified theming and token styles matching Shuffle Security.
  */
 
-import "./shuffle-core.css";
 import React from "react";
 import {
   ShuffleCoreThemeProvider,
   type ShuffleColorMode,
+  type ShuffleTokenStyle,
+  darkTokenStyle,
+  lightTokenStyle,
+  ensureShuffleCoreStyles,
 } from "./components/ShuffleCoreThemeProvider";
+
+ensureShuffleCoreStyles();
 import {
   QueryClient,
   QueryClientProvider,
@@ -522,12 +527,26 @@ import ApiCallViewerRaw, { type ApiCallViewerProps } from "./components/ApiCallV
 export const ApiCallViewer = withTheme<ApiCallViewerProps>(ApiCallViewerRaw as any, "ApiCallViewer");
 export type { ApiCallViewerProps };
 
-export { default as AiAgentPromptsEditor } from "./components/AiAgentPromptsEditor";
-export { AgentPresets, AGENT_PRESETS, type AgentPreset } from "./components/AgentPresets";
+import AiAgentPromptsEditorRaw, { type AiAgentPromptsEditorProps } from "./components/AiAgentPromptsEditor";
+export const AiAgentPromptsEditor = withTheme<AiAgentPromptsEditorProps>(AiAgentPromptsEditorRaw as any, "AiAgentPromptsEditor");
+export type { AiAgentPromptsEditorProps };
+import AgentPresetsRaw, { type AgentPresetsProps } from "./components/AgentPresets";
+export const AgentPresets = withTheme<AgentPresetsProps>(AgentPresetsRaw as any, "AgentPresets");
+export { AGENT_PRESETS, type AgentPreset, type AgentPresetsProps } from "./components/AgentPresets";
 export { AppDetailProvider, useAppDetail, useAppDetailOptional, type AppDetailContextType } from "./AppDetailContext";
-export { default as LocalLLMConfig, type LocalLLMConfigProps } from "./components/LocalLLMConfig";
+import LocalLLMConfigRaw, { type LocalLLMConfigProps } from "./components/LocalLLMConfig";
+export const LocalLLMConfig = withTheme<LocalLLMConfigProps>(LocalLLMConfigRaw as any, "LocalLLMConfig");
+export type { LocalLLMConfigProps };
 export { SegmentedControl, type SegmentedControlProps } from "./components/SegmentedControl";
 export { UsageBar, type UsageBarProps } from "./components/UsageBar";
 export { AppFallbackIcon, type AppFallbackIconProps } from "./components/AppFallbackIcon";
 export { AuthStatusChip } from "./components/AuthStatusChip";
 export { IntegrationStatus, type IntegrationStatusProps } from "./components/IntegrationStatus";
+export {
+  ShuffleCoreThemeProvider,
+  type ShuffleColorMode,
+  type ShuffleTokenStyle,
+  darkTokenStyle,
+  lightTokenStyle,
+  ensureShuffleCoreStyles,
+};

@@ -3,18 +3,21 @@
  * No host-app `@/` imports remain inside this folder (assets aside).
  */
 
-// Side-effect import: ensures shadcn-style token fallbacks (--card, --background,
-// --border, --foreground, --muted, --primary, etc.) are always defined when any
-// lib component is used standalone in a host app that does NOT define those
-// CSS custom properties. Host overrides still win (defaults use :where(:root),
-// specificity 0).
-import './shuffle-mcp.css';
 export { safeRandomUUID, uuid, installCryptoRandomUuidPolyfill } from '@/Shuffle-Core/uuid';
 export { copyToClipboard, fallbackCopyToClipboard, installClipboardPolyfill } from '@/Shuffle-MCPs/clipboard';
 import '@/lib/browser-shims';
 import React from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { ShuffleMcpThemeProvider, type ShuffleMcpColorMode } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
+import {
+  ShuffleMcpThemeProvider,
+  type ShuffleMcpColorMode,
+  type ShuffleTokenStyle,
+  darkTokenStyle,
+  lightTokenStyle,
+  ensureShuffleMcpStyles,
+} from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
+
+ensureShuffleMcpStyles();
 import { AuthFallbackProvider } from '@/context/AuthContext';
 
 let _fallbackQueryClient: QueryClient | null = null;
@@ -111,6 +114,7 @@ import AskAiSidePanelRaw, {
 } from '@/Shuffle-MCPs/components/AskAiSidePanel';
 import AskAiWidgetRaw from '@/Shuffle-MCPs/components/AskAiWidget';
 import ApiCallViewerRaw from '@/Shuffle-Core/components/ApiCallViewer';
+import AgentPresetsRaw from '@/Shuffle-Core/components/AgentPresets';
 
 export { ShuffleMcpThemeProvider } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 export type { ShuffleMcpColorMode, ShuffleMcpThemeProviderProps } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
@@ -135,7 +139,8 @@ export type {
   AppDetailDrawerRenderProps,
 } from '@/Shuffle-MCPs/components/AgentUI';
 export { VERIFIED_BUILTIN_APPS } from '@/Shuffle-MCPs/components/AgentUI';
-export { AgentPresets, AGENT_PRESETS } from '@/Shuffle-Core/components/AgentPresets';
+export const AgentPresets = withMcpTheme(AgentPresetsRaw as React.ComponentType<any>, 'AgentPresets');
+export { AGENT_PRESETS } from '@/Shuffle-Core/components/AgentPresets';
 export type { AgentPreset, AgentPresetsProps } from '@/Shuffle-Core/components/AgentPresets';
 export { AgentPromptPrefixChip } from '@/Shuffle-MCPs/components/AgentPromptPrefixChip';
 export type { AgentPromptPrefixChipProps } from '@/Shuffle-MCPs/components/AgentPromptPrefixChip';
@@ -347,4 +352,12 @@ export type {
   SupportEscalationContext,
   ResolvedContactUserInfo,
 } from '@/Shuffle-MCPs/supportEscalation';
+export {
+  ShuffleMcpThemeProvider,
+  type ShuffleMcpColorMode,
+  type ShuffleTokenStyle,
+  darkTokenStyle,
+  lightTokenStyle,
+  ensureShuffleMcpStyles,
+};
 

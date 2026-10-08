@@ -10,12 +10,23 @@
  * frontend no longer seeds the prompt or pre-selects tools locally. Disabled
  * presets render with a "coming soon" chip and are not clickable.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { Box, Button, ButtonBase, ClickAwayListener, Paper, Popper, type PopperProps, TextField, Tooltip, Typography, SxProps, Theme } from '@mui/material';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Box, Button, ButtonBase, ClickAwayListener, Paper, Popper, type PopperProps, TextField, Tooltip, Typography, SxProps, Theme, useTheme } from '@mui/material';
 import { Workflow, ShieldAlert, LifeBuoy, Bug, Radar, Monitor, Plus, X as CloseIcon, BellRing } from 'lucide-react';
 import { AppFallbackIcon } from './AppFallbackIcon';
 import { getPopupZIndex } from '../drawerLayer';
-import { useShuffleCoreTheme } from './ShuffleCoreThemeProvider';
+import {
+  useShuffleCoreTheme,
+  darkTokenStyle,
+  lightTokenStyle,
+  readElementAncestorDark,
+  readHtmlDarkClass,
+  ensureShuffleCoreStyles,
+} from './ShuffleCoreThemeProvider';
+
+if (typeof document !== 'undefined') {
+  ensureShuffleCoreStyles();
+}
 
 
 export interface AgentPreset {
@@ -189,12 +200,100 @@ export interface AgentPresetsProps {
   sx?: SxProps<Theme>;
   /** Popper placement override (defaults to 'bottom-start') */
   placement?: PopperProps['placement'];
+  /** Theme mode for the dropdown menu and trigger chip ('light' | 'dark' | 'auto' | 'system'). */
+  theme?: 'light' | 'dark' | 'auto' | 'system' | string;
+  /** Alternate colorMode prop for consistency with Shuffle surfaces ('light' | 'dark' | 'auto'). */
+  colorMode?: 'light' | 'dark' | 'auto';
 }
 
 
-export const AgentPresets = ({ variant = 'default', onSelectPreset, selectedPreset, onRemoveSelected, presets, chipRef, isSupport, sx, placement }: AgentPresetsProps) => {
+export const AgentPresets = ({
+  variant = 'default',
+  onSelectPreset,
+  selectedPreset,
+  onRemoveSelected,
+  presets,
+  chipRef,
+  isSupport,
+  sx,
+  placement,
+  theme,
+  colorMode,
+}: AgentPresetsProps) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+
+  const setButtonRefs = useCallback(
+    (node: HTMLButtonElement | null) => {
+      buttonRef.current = node;
+      if (typeof chipRef === 'function') {
+        chipRef(node);
+      } else if (chipRef && typeof chipRef === 'object' && 'current' in chipRef) {
+        (chipRef as React.MutableRefObject<HTMLButtonElement | null>).current = node;
+      }
+    },
+    [chipRef],
+  );
+
+  const themeScope = useShuffleCoreTheme();
+  const muiTheme = useTheme();
+  const resolvedThemeProp = colorMode || (theme === 'system' ? 'auto' : theme);
+
+  const computeIsDark = useCallback((): boolean => {
+    // 1. Explicit theme or colorMode prop
+    if (resolvedThemeProp === 'dark') return true;
+    if (resolvedThemeProp === 'light') return false;
+
+    // 2. ShuffleCoreThemeContext if available
+    if (themeScope) return themeScope.isDark;
+
+    // 3. Inspect DOM ancestor of anchorEl or button
+    const targetEl = anchorEl || buttonRef.current;
+    if (targetEl) {
+      const ancestorDark = readElementAncestorDark(targetEl);
+      if (ancestorDark !== null) return ancestorDark;
+    }
+
+    // 4. MUI Theme mode / type
+    const muiMode =
+      (muiTheme?.palette as any)?.mode ||
+      (muiTheme?.palette as any)?.type ||
+      (muiTheme?.palette as any)?.theme;
+    if (muiMode === 'dark') return true;
+    if (muiMode === 'light') return false;
+
+    // 5. HTML or Body classes / attributes
+    if (readHtmlDarkClass()) return true;
+
+    // 6. Media query preference
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)')?.matches) {
+      return true;
+    }
+
+    return false;
+  }, [resolvedThemeProp, themeScope, anchorEl, muiTheme]);
+
+  const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+  const [isDark, setIsDark] = useState<boolean>(computeIsDark);
+
+  useIsoLayoutEffect(() => {
+    setIsDark(computeIsDark());
+  }, [computeIsDark, open]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleThemeChange = () => setIsDark(computeIsDark());
+    window.addEventListener('shuffle:theme-change', handleThemeChange);
+    return () => window.removeEventListener('shuffle:theme-change', handleThemeChange);
+  }, [computeIsDark]);
+
+  const scopeStyle = isDark ? darkTokenStyle : lightTokenStyle;
+  const scopeClassName = isDark
+    ? 'shuffle-core-scope shuffle-mcp-scope dark'
+    : 'shuffle-core-scope shuffle-mcp-scope light';
+  const resolvedModeAttr = isDark ? 'dark' : 'light';
+
   // Support status hydrates asynchronously (/getinfo), so re-read it when the
   // dropdown opens and when storage changes instead of only on first mount.
   const [supportTick, setSupportTick] = useState(0);
@@ -218,7 +317,10 @@ export const AgentPresets = ({ variant = 'default', onSelectPreset, selectedPres
 
   const trigger = (
     <ButtonBase
-      ref={chipRef}
+      ref={setButtonRefs}
+      className={scopeClassName}
+      data-shuffle-mode={resolvedModeAttr}
+      style={scopeStyle}
       onClick={(e) => setAnchorEl(e.currentTarget)}
       aria-label={selectedPreset ? `Skill: ${selectedPreset.label}` : 'Select skill'}
       sx={[
@@ -248,22 +350,17 @@ export const AgentPresets = ({ variant = 'default', onSelectPreset, selectedPres
         ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
       ]}
     >
-      <Box
-        component="span"
-        sx={{
+      <span
+        style={{
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
           color: selectedPreset ? 'hsl(var(--primary))' : 'inherit',
-          '& svg': {
-            width: variant === 'floating' ? 14 : 16,
-            height: variant === 'floating' ? 14 : 16,
-          },
         }}
       >
         {selectedPreset ? (selectedPreset.icon ?? undefined) : <Plus size={variant === 'floating' ? 12 : 14} />}
-      </Box>
+      </span>
 
       <Typography
         component="span"
@@ -325,8 +422,6 @@ export const AgentPresets = ({ variant = 'default', onSelectPreset, selectedPres
     );
   }, [list, query]);
 
-  const themeScope = useShuffleCoreTheme();
-  const scopeClassName = themeScope?.scopeClassName || 'shuffle-mcp-scope';
   const popperZIndex = getPopupZIndex();
 
   const menu = open ? (
@@ -336,26 +431,32 @@ export const AgentPresets = ({ variant = 'default', onSelectPreset, selectedPres
       placement={placement || 'bottom-start'}
       className={scopeClassName}
       data-shuffle-layer="popup"
-      style={{ zIndex: popperZIndex }}
+      data-shuffle-mode={resolvedModeAttr}
+      style={{ ...scopeStyle, zIndex: popperZIndex }}
       modifiers={[
         { name: 'offset', options: { offset: [0, 6] } },
         { name: 'preventOverflow', options: { padding: 8 } },
       ]}
     >
       <ClickAwayListener onClickAway={() => { setAnchorEl(null); setQuery(''); }}>
-        <Paper
-          className={scopeClassName}
-          data-shuffle-layer="popup"
-          sx={{
-            width: 360,
-            maxWidth: '90vw',
-            bgcolor: 'hsl(var(--card))',
-            border: '1px solid hsl(var(--border))',
-            boxShadow: '0 8px 24px hsl(var(--background) / 0.4)',
-            overflow: 'hidden',
-          }}
-        >
-          <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid hsl(var(--border))' }}>
+          <Paper
+            className={scopeClassName}
+            data-shuffle-layer="popup"
+            data-shuffle-mode={resolvedModeAttr}
+            style={scopeStyle}
+            sx={{
+              width: 360,
+              maxWidth: '90vw',
+              bgcolor: isDark ? 'hsl(0 0% 13%)' : 'hsl(0 0% 100%)',
+              color: isDark ? 'hsl(0 0% 100%)' : 'hsl(0 0% 9%)',
+              border: `1px solid ${isDark ? 'hsl(0 0% 20%)' : 'hsl(0 0% 80%)'}`,
+              boxShadow: isDark
+                ? '0 8px 24px rgba(0, 0, 0, 0.4)'
+                : '0 8px 24px rgba(0, 0, 0, 0.1)',
+              overflow: 'hidden',
+            }}
+          >
+          <Box sx={{ px: 1.5, py: 1, borderBottom: `1px solid ${isDark ? 'hsl(0 0% 20%)' : 'hsl(0 0% 80%)'}` }}>
             <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))' }}>
               Agent skills
             </Typography>
@@ -413,22 +514,22 @@ export const AgentPresets = ({ variant = 'default', onSelectPreset, selectedPres
                       '&:hover': { bgcolor: p.enabled ? 'hsl(var(--muted))' : 'transparent' },
                     }}
                   >
-                    <Box
-                      sx={{
-                        mt: 0.25,
+                    <div
+                      style={{
+                        marginTop: 2,
                         width: 26,
                         height: 26,
-                        borderRadius: 1,
+                        borderRadius: 4,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        bgcolor: 'hsl(var(--muted))',
+                        backgroundColor: 'hsl(var(--muted))',
                         color: 'hsl(var(--muted-foreground))',
                         flexShrink: 0,
                       }}
                     >
                       {p.icon}
-                    </Box>
+                    </div>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
                         <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>

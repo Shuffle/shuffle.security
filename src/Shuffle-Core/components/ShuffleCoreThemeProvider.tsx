@@ -13,24 +13,179 @@
  */
 import React from "react";
 import { ThemeProvider, createTheme, useTheme as useMuiTheme } from "@mui/material";
-// Pull in the Shuffle-Core HSL token stylesheet so ANY consumer that wraps
-// itself in this provider (or imports anything that does — e.g.
-// `@/Shuffle-Core/onboarding`) automatically gets `.shuffle-core-scope[.dark]`
-// tokens. Previously only `src/Shuffle-Core/index.tsx` imported the CSS, so
-// sub-entry points like `onboarding/index.tsx` rendered unstyled when the
-// host hadn't separately loaded it. Bundlers de-dupe the import.
-import "../shuffle-core.css";
+export const SHUFFLE_CORE_BASE_CSS = `
+:where(:root) {
+  --background: 0 0% 10%;
+  --background-elevated: 0 0% 13%;
+  --background-surface: 0 0% 16%;
+  --foreground: 0 0% 98%;
+  --foreground-muted: 0 0% 60%;
+  --card: 0 0% 13%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 13%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 22 100% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 16%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 16%;
+  --muted-foreground: 0 0% 65%;
+  --accent: 22 100% 50%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 20%;
+  --border-subtle: 0 0% 16%;
+  --input: 0 0% 16%;
+  --ring: 22 100% 50%;
+  --primary-glow: 24 100% 60%;
+  --severity-critical: 0 84% 60%;
+  --severity-high: 12 92% 52%;
+  --severity-medium: 45 93% 47%;
+  --severity-low: 142 71% 45%;
+  --severity-info: 210 100% 56%;
+  --sidebar-background: 0 0% 9%;
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-primary: 24 100% 50%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 0% 16%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-border: 0 0% 16%;
+  --sidebar-ring: 24 100% 50%;
+  --gradient-card: linear-gradient(145deg, hsl(0 0% 14%) 0%, hsl(0 0% 12%) 100%);
+  --gradient-accent: linear-gradient(135deg, hsl(24 100% 50%) 0%, hsl(24 100% 60%) 100%);
+}
 
+.shuffle-core-scope,
+.shuffle-core-scope *,
+.shuffle-core-scope *::before,
+.shuffle-core-scope *::after {
+  box-sizing: border-box;
+}
+
+.shuffle-core-scope {
+  color: hsl(var(--foreground));
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  isolation: isolate;
+}
+
+.shuffle-core-scope button,
+.shuffle-core-scope input,
+.shuffle-core-scope textarea,
+.shuffle-core-scope select {
+  font: inherit;
+}
+
+:root:not(.dark) .shuffle-core-scope:not(.dark),
+html:not(.dark) .shuffle-core-scope:not(.dark),
+body:not(.dark) .shuffle-core-scope:not(.dark),
+.shuffle-core-scope.light,
+[data-shuffle-mode="light"] .shuffle-core-scope,
+[data-shuffle-mode="light"] {
+  --background: 0 0% 98%;
+  --background-elevated: 0 0% 100%;
+  --background-surface: 0 0% 96%;
+  --foreground: 0 0% 9%;
+  --foreground-muted: 0 0% 40%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 9%;
+  --secondary: 0 0% 94%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 0 0% 92%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 78%;
+  --border-subtle: 0 0% 86%;
+  --input: 0 0% 94%;
+  --severity-critical: 0 72% 51%;
+  --severity-high: 12 88% 46%;
+  --severity-medium: 38 92% 33%;
+  --severity-low: 142 72% 31%;
+  --severity-info: 215 90% 45%;
+  --sidebar-background: 0 0% 97%;
+  --sidebar-foreground: 0 0% 9%;
+  --sidebar-accent: 0 0% 94%;
+  --sidebar-accent-foreground: 0 0% 9%;
+  --sidebar-border: 0 0% 80%;
+  --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%);
+}
+
+.dark .shuffle-core-scope:not(.light),
+.shuffle-core-scope.dark,
+[data-shuffle-mode="dark"] .shuffle-core-scope,
+[data-shuffle-mode="dark"] {
+  --background: 0 0% 10%;
+  --background-elevated: 0 0% 13%;
+  --background-surface: 0 0% 16%;
+  --foreground: 0 0% 100%;
+  --foreground-muted: 0 0% 60%;
+  --card: 0 0% 13%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 12%;
+  --popover-foreground: 0 0% 100%;
+  --secondary: 0 0% 18%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 16%;
+  --muted-foreground: 0 0% 50%;
+  --accent: 0 0% 20%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 20%;
+  --border-subtle: 0 0% 16%;
+  --input: 0 0% 18%;
+  --severity-critical: 0 84% 60%;
+  --severity-high: 12 92% 52%;
+  --severity-medium: 45 93% 47%;
+  --severity-low: 142 71% 45%;
+  --severity-info: 210 100% 56%;
+  --sidebar-background: 0 0% 9%;
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-accent: 0 0% 16%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-border: 0 0% 16%;
+  --gradient-card: linear-gradient(145deg, hsl(0 0% 14%) 0%, hsl(0 0% 12%) 100%);
+}
+
+.MuiTooltip-tooltip.shuffle-core-scope {
+  background-color: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12) !important;
+  border-radius: 8px !important;
+}
+
+.MuiTooltip-tooltip.shuffle-core-scope .MuiTooltip-arrow {
+  color: hsl(var(--popover)) !important;
+}
+
+.MuiTooltip-tooltip.shuffle-core-scope .MuiTooltip-arrow::before {
+  border: 1px solid hsl(var(--border)) !important;
+  box-sizing: border-box;
+}
+`;
+
+export const ensureShuffleCoreStyles = (): void => {
+  if (typeof document === "undefined") return;
+  const STYLE_ID = "shuffle-core-injected-styles";
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = SHUFFLE_CORE_BASE_CSS;
+  document.head.appendChild(style);
+};
+
+if (typeof document !== "undefined") {
+  ensureShuffleCoreStyles();
+}
 
 export type ShuffleColorMode = "light" | "dark" | "auto";
-
-const readHtmlDarkClass = (): boolean => {
-  if (typeof document === "undefined") return false;
-  return (
-    document.documentElement.classList.contains("dark") ||
-    (Boolean(document.body) && document.body.classList.contains("dark"))
-  );
-};
 
 /**
  * Resolve "auto" theme by inspecting the nearest ancestor that already
@@ -38,7 +193,7 @@ const readHtmlDarkClass = (): boolean => {
  * Shuffle-Core / Shuffle-MCPs package boundary (React context can't, since
  * each package ships its own copy).
  */
-const readAncestorDark = (anchor: Element | null): boolean | null => {
+export const readAncestorDark = (anchor: Element | null): boolean | null => {
   if (!anchor || typeof document === "undefined") return null;
   // anchorRef is placed inside this provider's own root element ([data-shuffle-core-root] / [data-shuffle-mcp-root]).
   // We must skip this provider's own element and inspect true ancestors strictly above it.
@@ -50,6 +205,25 @@ const readAncestorDark = (anchor: Element | null): boolean | null => {
   const darkAncestor = start.closest(".dark");
   if (darkAncestor) return true;
   return null;
+};
+
+export const readElementAncestorDark = (node: Element | null): boolean | null => {
+  if (!node || typeof document === "undefined") return null;
+  const scoped = node.closest('[data-shuffle-mode="dark"], [data-shuffle-mode="light"]');
+  if (scoped) return scoped.getAttribute("data-shuffle-mode") === "dark";
+  if (node.closest(".dark")) return true;
+  if (node.closest(".light")) return false;
+  return null;
+};
+
+export const readHtmlDarkClass = (): boolean => {
+  if (typeof document === "undefined") return false;
+  return (
+    document.documentElement.classList.contains("dark") ||
+    document.body?.classList.contains("dark") ||
+    document.documentElement.getAttribute("data-theme") === "dark" ||
+    document.body?.getAttribute("data-theme") === "dark"
+  );
 };
 
 const useAutoDarkClass = (enabled: boolean, anchorRef: React.RefObject<HTMLElement | null>): boolean => {
@@ -89,9 +263,9 @@ interface ShuffleCoreThemeContextValue {
   scopeClassName: string;
 }
 
-type ShuffleTokenStyle = React.CSSProperties & Record<`--${string}`, string>;
+export type ShuffleTokenStyle = React.CSSProperties & Record<`--${string}`, string>;
 
-const lightTokenStyle: ShuffleTokenStyle = {
+export const lightTokenStyle: ShuffleTokenStyle = {
   "--background": "0 0% 98%",
   "--background-elevated": "0 0% 100%",
   "--background-surface": "0 0% 96%",
@@ -125,7 +299,7 @@ const lightTokenStyle: ShuffleTokenStyle = {
   "--gradient-card": "linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%)",
 };
 
-const darkTokenStyle: ShuffleTokenStyle = {
+export const darkTokenStyle: ShuffleTokenStyle = {
   ...lightTokenStyle,
   "--background": "0 0% 10%",
   "--background-elevated": "0 0% 13%",
@@ -386,6 +560,10 @@ export const ShuffleCoreThemeProvider: React.FC<ShuffleCoreThemeProviderProps> =
     () => ({ mode, isDark: effectiveDark, scopeClassName }),
     [mode, effectiveDark, scopeClassName],
   );
+
+  React.useEffect(() => {
+    ensureShuffleCoreStyles();
+  }, []);
 
   return (
     <ShuffleCoreThemeContext.Provider value={ctxValue}>

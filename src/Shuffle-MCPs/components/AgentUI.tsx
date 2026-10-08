@@ -6172,6 +6172,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
       onRemoveSelected={handleRemovePreset}
       onSelectPreset={handleSelectPresetInternal}
       placement="bottom-start"
+      theme={theme || (themeScope?.isDark ? 'dark' : 'light')}
+      colorMode={colorMode}
       sx={{
         height: 32,
         alignSelf: 'center',
@@ -6703,6 +6705,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
                       selectedPreset={selectedPreset}
                       onRemoveSelected={handleRemovePreset}
                       onSelectPreset={handleSelectPresetInternal}
+                      theme={theme || (themeScope?.isDark ? 'dark' : 'light')}
+                      colorMode={colorMode}
                     />
                   )}
                 </Box>

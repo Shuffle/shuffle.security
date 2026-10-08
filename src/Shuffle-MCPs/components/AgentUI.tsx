@@ -2101,7 +2101,14 @@ const TimelineRow: React.FC<TimelineRowProps> = ({
         const req = extractAuthRequest(details);
         if (!req) return null;
         if (authAppsLoading) return null;
+        // Built-in Shuffle apps never need app authentication, so a 401 there
+        // is a session/permission problem — not something "connecting" fixes.
+        if (isNoAuthApp(normalizeAgentAppName(req.appName))) return null;
         const authed = !!isAppAuthenticated?.(req.appName, req.appId);
+        // "Now connected, rerun" only makes sense for a step that actually failed
+        // or is still waiting on auth.
+        const stepBlocked = isFailed || effectiveStatus === 'WAITING' || effectiveStatus === 'PENDING';
+        if (!stepBlocked) return null;
         const pretty = req.appName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
         const slug = normalizeAgentAppName(req.appName);
         const appId = req.appId || appsById[req.appName]?.id || appsById[slug]?.id || null;

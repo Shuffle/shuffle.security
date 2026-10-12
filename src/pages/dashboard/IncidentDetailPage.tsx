@@ -14944,7 +14944,7 @@ const IncidentDetailPage = () => {
                     value={String(item.attrAfter || "medium")}
                     onChange={(newSev) => {
                       autoProgressStatus();
-                      handleManualSeverityChange(newSev);
+                      onSeveritySelect(newSev);
                     }}
                     disabled={isPublicView}
                   />
@@ -14952,7 +14952,7 @@ const IncidentDetailPage = () => {
                   <TimelineStatusDropdown
                     value={String(item.attrAfter || "new")}
                     onChange={(newStatus) => {
-                      handleManualStatusChange(newStatus);
+                      onStatusSelect(newStatus);
                     }}
                     onResolveRequest={() => setShowResolveDialog(true)}
                     disabled={isPublicView}
@@ -15327,7 +15327,7 @@ const IncidentDetailPage = () => {
                   value={String(item.attrAfter || "medium")}
                   onChange={(newSev) => {
                     autoProgressStatus();
-                    handleManualSeverityChange(newSev);
+                    onSeveritySelect(newSev);
                   }}
                   disabled={isPublicView}
                 />
@@ -15335,7 +15335,7 @@ const IncidentDetailPage = () => {
                 <TimelineStatusDropdown
                   value={String(item.attrAfter || "new")}
                   onChange={(newStatus) => {
-                    handleManualStatusChange(newStatus);
+                    onStatusSelect(newStatus);
                   }}
                   onResolveRequest={() => setShowResolveDialog(true)}
                   disabled={isPublicView}
@@ -15720,7 +15720,7 @@ const IncidentDetailPage = () => {
               >
                 <TimelineStatusDropdown
                   value="resolved"
-                  onChange={(newStatus) => handleManualStatusChange(newStatus)}
+                  onChange={(newStatus) => onStatusSelect(newStatus)}
                   onResolveRequest={() => setShowResolveDialog(true)}
                   disabled={isPublicView}
                 />
@@ -15871,7 +15871,7 @@ const IncidentDetailPage = () => {
             >
               <TimelineStatusDropdown
                 value="resolved"
-                onChange={(newStatus) => handleManualStatusChange(newStatus)}
+                onChange={(newStatus) => onStatusSelect(newStatus)}
                 onResolveRequest={() => setShowResolveDialog(true)}
                 disabled={isPublicView}
               />

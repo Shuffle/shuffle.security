@@ -67,4 +67,16 @@ describe('custom lists', () => {
     expect(m.getCustomSeverity('p1')?.base).toBe('critical');
     expect(m.getCustomStatus('awaiting_customer')?.base).toBe('on_hold');
   });
+
+  it('custom state only shows while the incident is still in its base state', async () => {
+    const m = await import('./lifecycleOverrides');
+    applyLifecycleOverrides({
+      statuses: { builtin: {}, custom: [{ key: '', label: 'Awaiting Customer', base: 'on_hold' }] },
+      severities: { builtin: {}, custom: [{ key: '', label: 'P1', base: 'critical' }] },
+    });
+    expect(m.getActiveCustomStatus('awaiting_customer', 'on_hold')?.label).toBe('Awaiting Customer');
+    expect(m.getActiveCustomStatus('awaiting_customer', 'in_progress')).toBeUndefined();
+    expect(m.getActiveCustomSeverity('p1', 'critical')?.label).toBe('P1');
+    expect(m.getActiveCustomSeverity('p1', 'high')).toBeUndefined();
+  });
 });

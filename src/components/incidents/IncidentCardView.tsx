@@ -17,7 +17,8 @@ import {
   ListTodo,
   Link2,
 } from 'lucide-react';
-import { statusConfig, severityColors, isKnownStatus } from '@/config/incidentConfig';
+import { statusConfig, severityColors, isKnownStatus, getSeverityColor } from '@/config/incidentConfig';
+import { getActiveCustomStatus, getActiveCustomSeverity, getSeverityLabel } from '@/config/lifecycleOverrides';
 import { useState, useEffect, useRef } from 'react';
 import { useSourceAppImage } from '@/hooks/useSourceAppImage';
 import { useAuth } from '@/context/AuthContext';
@@ -49,6 +50,7 @@ const ResolvedSourceImage = ({
 };
 
 interface DisplayIncident {
+  lifecycle?: { status?: string; severity?: string };
   id: string;
   title?: string;
   source?: string;
@@ -344,9 +346,14 @@ export const IncidentCardView = ({
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       {incidents.map((incident, index) => {
         const IconComponent = getIncidentIcon(incident.source, incident.title);
-        const statusInfo = statusConfig[incident.status] || statusConfig.new;
+        const baseStatusInfo = statusConfig[incident.status] || statusConfig.new;
+        const customStatus = getActiveCustomStatus(incident.lifecycle?.status, incident.status);
+        const customSeverity = getActiveCustomSeverity(incident.lifecycle?.severity, incident.severity);
+        const statusInfo = customStatus
+          ? { ...baseStatusInfo, label: customStatus.label, color: customStatus.color || baseStatusInfo.color, bg: customStatus.color ? `${customStatus.color}26` : baseStatusInfo.bg }
+          : baseStatusInfo;
         const StatusIcon = statusInfo.icon;
-        const severityColor = severityColors[incident.severity] || '#94a3b8';
+        const severityColor = customSeverity?.color || getSeverityColor(incident.severity) || severityColors[incident.severity] || '#94a3b8';
         // Use status color for the icon (blue for new, orange for in_progress, green for resolved, etc.)
         const iconColor = statusInfo.color;
         const selected = isSelected(incident.id);
@@ -827,7 +834,7 @@ export const IncidentCardView = ({
                 )}
                 {/* Labels moved to the bottom meta row to free up title space. */}
                 <Chip
-                  label={incident.severity || 'unknown'}
+                  label={customSeverity?.label || (incident.severity ? getSeverityLabel(incident.severity) : 'unknown')}
                   size="small"
                   onClick={(e) => {
                     e.stopPropagation();

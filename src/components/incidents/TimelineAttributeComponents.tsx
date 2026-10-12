@@ -17,6 +17,7 @@ import { statusConfig, severityColors, normalizeStatus, getSeverityColor } from 
 import { isAIAssignee } from '@/lib/utils';
 import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
 import { useUsers } from '@/hooks/useUsers';
+import { getCustomStatuses, getCustomSeverities, getCustomStatus, getSeverityLabel } from '@/config/lifecycleOverrides';
 import { tlpLevels } from '@/components/incidents/CreateIncidentDialog';
 
 // ============================================================================
@@ -50,6 +51,7 @@ export const TimelineSeverityDropdown: React.FC<TimelineSeverityDropdownProps> =
       <Select
         value={normalized}
         onChange={(e) => onChange?.(e.target.value)}
+        renderValue={(val) => getSeverityLabel(String(val))}
         disabled={isReadOnly}
         disableUnderline
         sx={{
@@ -80,11 +82,11 @@ export const TimelineSeverityDropdown: React.FC<TimelineSeverityDropdownProps> =
           },
         }}
       >
-        <MenuItem value="critical" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('critical') }}>Critical</MenuItem>
-        <MenuItem value="high" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('high') }}>High</MenuItem>
-        <MenuItem value="medium" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('medium') }}>Medium</MenuItem>
-        <MenuItem value="low" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('low') }}>Low</MenuItem>
-        <MenuItem value="informational" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('informational') }}>Informational</MenuItem>
+        <MenuItem value="critical" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('critical') }}>{getSeverityLabel('critical')}</MenuItem>
+        <MenuItem value="high" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('high') }}>{getSeverityLabel('high')}</MenuItem>
+        <MenuItem value="medium" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('medium') }}>{getSeverityLabel('medium')}</MenuItem>
+        <MenuItem value="low" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('low') }}>{getSeverityLabel('low')}</MenuItem>
+        <MenuItem value="informational" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('informational') }}>{getSeverityLabel('informational')}</MenuItem>
       </Select>
     </FormControl>
   );
@@ -150,6 +152,7 @@ export const TimelineStatusDropdown: React.FC<TimelineStatusDropdownProps> = ({
           },
         }}
         renderValue={(val) => {
+          if (String(val).startsWith('custom:')) return getCustomStatus(String(val).slice(7))?.label || String(val);
           const currentCfg = statusConfig[val];
           return currentCfg ? currentCfg.label : String(val).replace(/_/g, ' ');
         }}
@@ -184,6 +187,19 @@ export const TimelineStatusDropdown: React.FC<TimelineStatusDropdownProps> = ({
                     Soon
                   </Typography>
                 )}
+              </MenuItem>
+            );
+          })}
+        {getCustomStatuses()
+          .filter((c) => c.base !== 'merged')
+          .map((c) => {
+            const color = c.color || statusConfig[c.base]?.color;
+            return (
+              <MenuItem key={`custom:${c.key}`} value={`custom:${c.key}`} sx={{ fontSize: '0.75rem', gap: 1 }}>
+                <Box component="span" sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color }} />
+                <Typography component="span" sx={{ fontSize: '0.75rem', fontWeight: 500, color }}>
+                  {c.label}
+                </Typography>
               </MenuItem>
             );
           })}

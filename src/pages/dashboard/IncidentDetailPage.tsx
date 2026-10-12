@@ -18071,7 +18071,7 @@ const IncidentDetailPage = () => {
                     {Object.entries(statusConfig)
                       // "Merged" is set only by the auto-merge action — never let a user
                       // pick it manually from the status dropdown.
-                      .filter(([key]) => key !== "merged")
+                      .filter(([key, cfg]) => key !== "merged" && !cfg.hidden)
                       .map(([key, cfg]) => {
                         const isDisabled =
                           key === "on_hold" || key === "escalated";
@@ -19322,7 +19322,7 @@ const IncidentDetailPage = () => {
                           }
                         >
                           {Object.entries(statusConfig)
-                            .filter(([key]) => key !== "merged")
+                            .filter(([key, cfg]) => key !== "merged" && !cfg.hidden)
                             .map(([key, cfg]) => {
                               const isDisabled =
                                 key === "on_hold" || key === "escalated";

@@ -7,7 +7,7 @@
  * of a built-in "base" state, so everything saved stays a built-in key/id.
  * With no overrides, behaviour is identical to the defaults.
  */
-import { statusConfig, STATUS_SYNONYMS, severityColors } from './incidentConfig';
+import { statusConfig, STATUS_SYNONYMS, severityColors, registerSeverityColorOverride } from './incidentConfig';
 
 export const BUILTIN_SEVERITIES = ['critical', 'high', 'medium', 'low', 'informational'] as const;
 
@@ -158,3 +158,5 @@ export function getSeverityColorOverride(sev: string): string | undefined {
 export function getCustomStatus(key: string | undefined): CustomState | undefined {
   return key ? customStatusLabels[normalizeKey(key)] : undefined;
 }
+
+registerSeverityColorOverride((sev) => severityColorOverrides[sev]);

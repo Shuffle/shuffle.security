@@ -164,7 +164,7 @@ export const TimelineStatusDropdown: React.FC<TimelineStatusDropdownProps> = ({
         }}
       >
         {Object.entries(statusConfig)
-          .filter(([key]) => key !== 'merged')
+          .filter(([key, c]) => key !== 'merged' && !c.hidden)
           .map(([key, itemCfg]) => {
             const isDisabled = key === 'on_hold' || key === 'escalated';
             const Icon = itemCfg.icon;

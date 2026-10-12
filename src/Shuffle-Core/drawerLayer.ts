@@ -41,7 +41,14 @@ export const getOverlayStack = (): OverlayRecord[] => {
   if (!Array.isArray(store[STACK_KEY])) {
     store[STACK_KEY] = [];
   }
-  return store[STACK_KEY] as OverlayRecord[];
+  const stack = store[STACK_KEY] as OverlayRecord[];
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const el = stack[i].element;
+    if (el && !el.isConnected) {
+      stack.splice(i, 1);
+    }
+  }
+  return stack;
 };
 
 export const getTopSurfaceZIndex = (base: number = OVERLAY_BASE): number => {
@@ -190,13 +197,29 @@ const isChildPopupElement = (el: Element): boolean => {
  * Autocomplete poppers, menus) are also treated as Shuffle-owned so they never
  * end up hidden behind active drawers.
  */
+const SHUFFLE_SCOPE_SELECTOR = '.shuffle-core-scope, .shuffle-mcp-scope, [data-shuffle-layer]';
+
+const OWN_PANEL_SELECTOR = [
+  ':scope > .MuiPaper-root',
+  ':scope > .MuiDialog-container > .MuiPaper-root',
+  ':scope > [role="dialog"]',
+  ':scope > [role="alertdialog"]',
+  ':scope > [role="tooltip"]',
+  ':scope > .MuiTooltip-tooltip',
+].join(', ');
+
+const hasShuffleScopedPanel = (el: HTMLElement): boolean => {
+  const panels = el.querySelectorAll<HTMLElement>(OWN_PANEL_SELECTOR);
+  for (let i = 0; i < panels.length; i++) {
+    if (panels[i].matches(SHUFFLE_SCOPE_SELECTOR)) return true;
+  }
+  return false;
+};
+
 const isShuffleOwnedOverlay = (el: HTMLElement): boolean =>
-  el.classList.contains('shuffle-core-scope') ||
-  el.classList.contains('shuffle-mcp-scope') ||
-  el.querySelector('.shuffle-core-scope, .shuffle-mcp-scope') !== null ||
+  el.matches(SHUFFLE_SCOPE_SELECTOR) ||
+  hasShuffleScopedPanel(el) ||
   el.closest('[data-radix-portal]') !== null ||
-  el.hasAttribute('data-shuffle-layer') ||
-  el.querySelector('[data-shuffle-layer]') !== null ||
   (getOverlayStack().some((r) => r.type === 'surface') && isChildPopupElement(el));
 
 const isTooltipElement = (el: Element): boolean => {
@@ -224,7 +247,10 @@ export const installGlobalOverlayAutoLayer = (): void => {
   const handleElementOpen = (el: HTMLElement) => {
     // Only ever manage Shuffle's own overlays — never the host app's dialogs,
     // menus or tooltips (covers all three paths below in one place).
-    if (!isShuffleOwnedOverlay(el)) return;
+    if (!isShuffleOwnedOverlay(el)) {
+      if (el.dataset.shuffleLayerZ) handleElementClose(el);
+      return;
+    }
     if (isSurfaceElement(el)) {
       let layerId = el.dataset.shuffleLayerId;
       if (!layerId) {
@@ -273,9 +299,12 @@ export const installGlobalOverlayAutoLayer = (): void => {
     if (layerId) {
       releaseOverlayLayer(layerId);
       delete el.dataset.shuffleLayerId;
-      delete el.dataset.shuffleLayerZ;
     } else {
       releaseOverlayLayer(el);
+    }
+    if (el.dataset.shuffleLayerZ) {
+      if (el.style.zIndex === el.dataset.shuffleLayerZ) el.style.removeProperty('z-index');
+      delete el.dataset.shuffleLayerZ;
     }
   };
 

@@ -315,6 +315,12 @@ interface IncidentRoutingEditorProps {
    * entityCategory for other entities.
    */
   generateCategory?: string;
+  /**
+   * Drop the editor's own card styling (borders and tinted fills) so its
+   * sections sit directly on the surrounding surface. Used by the usecase
+   * drawer, which has no paper of its own.
+   */
+  borderless?: boolean;
 }
 
 export const IncidentRoutingEditor = ({
@@ -322,6 +328,7 @@ export const IncidentRoutingEditor = ({
   entityCategory = DEFAULT_ROUTING_ENTITY_CATEGORY,
   entityLabel = { singular: 'incident', plural: 'incidents' },
   generateCategory,
+  borderless = false,
 }: IncidentRoutingEditorProps) => {
   const entityPluralCap = entityLabel.plural.charAt(0).toUpperCase() + entityLabel.plural.slice(1);
   const effectiveGenerateCategory =
@@ -929,8 +936,9 @@ export const IncidentRoutingEditor = ({
       <Paper
         variant="outlined"
         sx={{
-          p: 1.5,
+          p: borderless ? 0 : 1.5,
           borderRadius: 1.5,
+          border: borderless ? 'none' : '1px solid',
           borderColor:
             workflowHealth.status === 'automated'
               ? 'hsl(var(--severity-low) / 0.35)'
@@ -939,8 +947,9 @@ export const IncidentRoutingEditor = ({
                 : workflowHealth.status === 'execution_error'
                   ? 'hsl(var(--destructive) / 0.35)'
                   : 'hsl(var(--border))',
-          bgcolor:
-            workflowHealth.status === 'automated'
+          bgcolor: borderless
+            ? 'transparent'
+            : workflowHealth.status === 'automated'
               ? 'hsl(var(--severity-low) / 0.05)'
               : workflowHealth.status === 'hook_missing'
                 ? 'hsl(var(--severity-medium) / 0.05)'
@@ -1165,9 +1174,9 @@ export const IncidentRoutingEditor = ({
       {hasFetched && sortedRules.length === 0 && (
         <Paper
           sx={{
-            p: 3,
-            bgcolor: 'hsl(var(--muted) / 0.3)',
-            border: '1px dashed hsl(var(--border))',
+            p: borderless ? 0 : 3,
+            bgcolor: borderless ? 'transparent' : 'hsl(var(--muted) / 0.3)',
+            border: borderless ? 'none' : '1px dashed hsl(var(--border))',
             borderRadius: 2,
             textAlign: 'center',
           }}
@@ -1205,8 +1214,8 @@ export const IncidentRoutingEditor = ({
           key={rule.id}
           sx={{
             p: isOpen ? 2 : 1.25,
-            bgcolor: 'hsl(var(--card))',
-            border: '1px solid hsl(var(--border))',
+            bgcolor: borderless ? 'transparent' : 'hsl(var(--card))',
+            border: borderless ? 'none' : '1px solid hsl(var(--border))',
             borderRadius: 2,
             display: 'flex',
             flexDirection: 'column',

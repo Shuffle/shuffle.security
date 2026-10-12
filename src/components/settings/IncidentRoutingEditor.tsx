@@ -938,9 +938,9 @@ export const IncidentRoutingEditor = ({
         sx={{
           p: borderless ? 0 : 1.5,
           borderRadius: 1.5,
-          borderColor: borderless
-            ? 'transparent'
-            : workflowHealth.status === 'automated'
+          border: borderless ? 'none' : '1px solid',
+          borderColor:
+            workflowHealth.status === 'automated'
               ? 'hsl(var(--severity-low) / 0.35)'
               : workflowHealth.status === 'hook_missing'
                 ? 'hsl(var(--severity-medium) / 0.35)'

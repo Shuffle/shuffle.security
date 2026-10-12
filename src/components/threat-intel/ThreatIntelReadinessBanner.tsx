@@ -85,8 +85,8 @@ export const ThreatIntelReadinessBanner: React.FC<ThreatIntelReadinessBannerProp
     busy: check.busy,
     tooltip: check.tooltip,
     checks: check.parts,
-    onEnable: check.enable,
-    onDisable: check.disable,
+    onEnable: guardAction(check.enable, 'enable'),
+    onDisable: guardAction(check.disable, 'disable'),
     onOpenUsecase: check.usecaseId ? () => handleOpenUsecase(check.usecaseId!) : undefined,
   }));
 
@@ -98,9 +98,10 @@ export const ThreatIntelReadinessBanner: React.FC<ThreatIntelReadinessBannerProp
         allActive={status.allActive}
         isLoading={status.isLoading}
         isEnablingAll={status.isEnablingAll}
-        onEnableAll={status.enableAll}
+        onEnableAll={guardAction(status.enableAll, 'enable all')}
         enableAllLabel="Enable all"
         atTop={atTop}
+        borderless
       />
       <UsecaseDrawer
         open={!!internalDrawerId}
@@ -109,7 +110,7 @@ export const ThreatIntelReadinessBanner: React.FC<ThreatIntelReadinessBannerProp
         globalUrl={API_CONFIG.baseUrl}
         userdata={userInfo as any}
         isLoaded={true}
-        isLoggedIn={!!userInfo}
+        isLoggedIn={isLoggedIn}
         theme={resolvedTheme}
       />
     </>

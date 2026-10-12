@@ -202,6 +202,18 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   const isAgentDisabled = isAgentRoute(currentPathname);
   const isVisible = open && !isAgentDisabled;
 
+  // Defer mounting the heavy agent content until the slide-in animation has
+  // mostly completed, so the open transition is not janked by the mount.
+  const [contentReady, setContentReady] = useState(false);
+  useEffect(() => {
+    if (!isVisible) {
+      setContentReady(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setContentReady(true), 280);
+    return () => window.clearTimeout(timer);
+  }, [isVisible]);
+
   // Auto-close if currently open when user navigates to an agent route
   useEffect(() => {
     if (isAgentDisabled && open) {

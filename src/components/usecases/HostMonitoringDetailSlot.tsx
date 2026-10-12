@@ -100,10 +100,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
           flexWrap: 'wrap',
           gap: 1.5,
           p: 2,
-          borderRadius: 2,
-          bgcolor: 'action.hover',
-          border: '1px solid',
-          borderColor: 'divider',
+          bgcolor: 'transparent',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -115,9 +112,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
               width: 40,
               height: 40,
               borderRadius: '50%',
-              bgcolor: 'background.paper',
-              border: '1px solid',
-              borderColor: 'divider',
+              bgcolor: 'transparent',
               color: isConnected ? 'hsl(var(--severity-low))' : 'text.secondary',
             }}
           >
@@ -194,10 +189,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
       <Box
         sx={{
           p: 2,
-          borderRadius: 2,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: 'background.paper',
+          bgcolor: 'transparent',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
@@ -243,9 +235,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
             gap: 1.5,
             p: 1.25,
             borderRadius: 1.5,
-            bgcolor: 'action.selected',
-            border: '1px solid',
-            borderColor: 'divider',
+            bgcolor: 'transparent',
             fontFamily: 'monospace',
             fontSize: '0.78rem',
             color: 'text.primary',
@@ -315,10 +305,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
                   alignItems: 'flex-start',
                   gap: 1.25,
                   p: 1.5,
-                  borderRadius: 1.5,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  bgcolor: 'background.paper',
+                  bgcolor: 'transparent',
                 }}
               >
                 <Box
@@ -329,7 +316,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
                     width: 28,
                     height: 28,
                     borderRadius: 1,
-                    bgcolor: 'action.hover',
+                    bgcolor: 'transparent',
                     color: 'text.secondary',
                     flexShrink: 0,
                     mt: 0.25,
@@ -358,10 +345,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
           alignItems: 'center',
           gap: 1.25,
           p: 1.5,
-          borderRadius: 1.5,
-          bgcolor: 'action.hover',
-          border: '1px solid',
-          borderColor: 'divider',
+          bgcolor: 'transparent',
         }}
       >
         <Activity size={18} className="text-muted-foreground shrink-0" />

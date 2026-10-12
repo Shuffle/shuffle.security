@@ -31,6 +31,8 @@ import {
   ShufflePipelinesBanner,
   UsageBar,
   useAppLookup,
+  LocalLLMConfig,
+  type AgentRun,
 } from '@/Shuffle-MCPs';
 import PermissionsPanel from '@/components/agent/PermissionsPanel';
 import { useAuth } from '@/context/AuthContext';

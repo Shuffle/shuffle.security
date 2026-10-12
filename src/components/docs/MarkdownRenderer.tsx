@@ -6,6 +6,7 @@ import {
   DocExpandable,
 } from './DocDynamicComponents';
 import { DocCurlViewer } from './DocCurlViewer';
+import { DocCodeBlock } from './DocCodeBlock';
 import { Link, useLocation, useNavigate } from '@/lib/router-compat';
 import {
   Avatar,
@@ -758,7 +759,13 @@ export const MarkdownRenderer = ({
             if (/^(?:\$\s*)?curl(?:\s+|$)/i.test(clean)) {
               return <DocCurlViewer rawCurl={text} />;
             }
-            return <pre {...props}>{children}</pre>;
+            const className: string = child?.props?.className || '';
+            const language = /language-([\w-]+)/.exec(className)?.[1];
+            return (
+              <DocCodeBlock text={text} language={language} {...props}>
+                {children}
+              </DocCodeBlock>
+            );
           },
         };
 

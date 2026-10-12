@@ -1294,7 +1294,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                 }}
               />
             </Box>
-          </>
+          </Box>
         )}
       </Box>
     </>

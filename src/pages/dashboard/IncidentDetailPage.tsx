@@ -19359,6 +19359,7 @@ const IncidentDetailPage = () => {
                           >
                             {getSeverityLabel("informational")}
                           </MenuItem>
+                          {customSeverityMenuItems}
                         </Select>
                       </FormControl>
                       <FormControl

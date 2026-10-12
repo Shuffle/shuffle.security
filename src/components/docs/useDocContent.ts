@@ -240,7 +240,11 @@ export const useDocContent = ({
         } else {
           setTitle(null);
           setContent('');
-          setError(`Documentation not found: ${slug}`);
+          setError(
+            typeof navigator !== 'undefined' && navigator.onLine === false
+              ? `offline:${slug}`
+              : `Documentation not found: ${slug}`,
+          );
         }
       } catch (err: any) {
         if (err?.name === 'AbortError' || controller.signal.aborted) {

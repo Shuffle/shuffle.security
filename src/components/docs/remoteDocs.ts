@@ -23,12 +23,32 @@ const docsQuery = (folder?: string, resetCache = false) => {
 const cachedList: Record<string, RemoteDocEntry[]> = {};
 const inflight: Record<string, Promise<RemoteDocEntry[]> | null> = {};
 
+// Partial hard-coded docs list so the sidebar keeps working when the network is down.
+const FALLBACK_DOCS: RemoteDocEntry[] = [
+  'getting_started', 'about', 'tenants', 'features', 'api',
+  'workflows', 'apps', 'ai',
+  'incidents', 'vulnerabilities', 'detection',
+  'architecture', 'configuration', 'extensions', 'troubleshooting',
+].map((name) => ({ name }) as RemoteDocEntry);
+
+const withFallback = (folder: string | undefined, list: RemoteDocEntry[]) =>
+  list.length === 0 && (!folder || folder === 'docs') ? FALLBACK_DOCS : list;
+
 export const fetchDocsList = async (
   resetCache = false,
   folder?: string,
   signal?: AbortSignal,
 ): Promise<RemoteDocEntry[]> => {
   const key = folder || 'docs';
+  return withFallback(folder, await fetchDocsListRaw(resetCache, folder, signal, key));
+};
+
+const fetchDocsListRaw = async (
+  resetCache: boolean,
+  folder: string | undefined,
+  signal: AbortSignal | undefined,
+  key: string,
+): Promise<RemoteDocEntry[]> => {
   if (!resetCache && cachedList[key]) return cachedList[key];
   if (!resetCache && inflight[key]) return inflight[key]!;
 

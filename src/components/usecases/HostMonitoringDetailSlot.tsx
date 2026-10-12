@@ -101,9 +101,9 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
           gap: 1.5,
           p: 2,
           borderRadius: 2,
-          bgcolor: isConnected ? 'rgba(34, 197, 94, 0.08)' : 'rgba(234, 179, 8, 0.08)',
+          bgcolor: 'action.hover',
           border: '1px solid',
-          borderColor: isConnected ? 'rgba(34, 197, 94, 0.25)' : 'rgba(234, 179, 8, 0.25)',
+          borderColor: 'divider',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -115,8 +115,10 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
               width: 40,
               height: 40,
               borderRadius: '50%',
-              bgcolor: isConnected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)',
-              color: isConnected ? '#22c55e' : '#eab308',
+              bgcolor: 'background.paper',
+              border: '1px solid',
+              borderColor: 'divider',
+              color: isConnected ? 'hsl(var(--severity-low))' : 'text.secondary',
             }}
           >
             {isConnected ? <ShieldCheck size={22} /> : <Server size={22} />}
@@ -137,8 +139,8 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
                   height: 20,
                   fontSize: '0.7rem',
                   fontWeight: 600,
-                  bgcolor: isConnected ? 'rgba(34, 197, 94, 0.2)' : 'rgba(234, 179, 8, 0.2)',
-                  color: isConnected ? '#16a34a' : '#ca8a04',
+                  bgcolor: isConnected ? 'hsl(var(--severity-low) / 0.15)' : 'hsl(var(--severity-medium) / 0.15)',
+                  color: isConnected ? 'hsl(var(--severity-low))' : 'hsl(var(--severity-medium))',
                   borderRadius: 1,
                 }}
               />
@@ -162,9 +164,6 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
                 fontSize: '0.78rem',
                 fontWeight: 600,
                 textTransform: 'none',
-                bgcolor: '#22c55e',
-                color: '#fff',
-                '&:hover': { bgcolor: '#16a34a' },
               }}
             >
               Deploy Host

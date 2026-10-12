@@ -1620,6 +1620,59 @@ const IncidentDetailPage = () => {
     [editedStatus, incident?.status, currentUsername],
   );
 
+  usePageMeta({
+    title: currentIncidentTitle
+      ? `${currentIncidentTitle} | Incident`
+      : "Incident",
+    description:
+      "Incident details, observables, correlations, timeline, and AI agent triage.",
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as any).__shuffleActiveEntityTitle =
+        currentIncidentTitle || undefined;
+      (window as any).__shuffleActiveIncidentId = rawId || undefined;
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        (window as any).__shuffleActiveEntityTitle = undefined;
+        (window as any).__shuffleActiveIncidentId = undefined;
+      }
+    };
+  }, [currentIncidentTitle, rawId]);
+  const [editedMessage, setEditedMessage] = useState("");
+  const [editedSeverity, setEditedSeverity] = useState("");
+  // Tenant custom lifecycle states (see /admin/preferences). The built-in
+  // base status/severity is what gets saved; the custom key is stored
+  // alongside in custom_attributes.lifecycle.
+  useLifecycleConfig();
+  const [editedLifecycle, setEditedLifecycle] = useState<{ status?: string; severity?: string }>({});
+  const initLifecycleRef = useRef("{}");
+
+  const handleManualSeverityChange = useCallback(
+    (nextSeverity: string) => {
+      manualSeverityChangedRef.current = true;
+      const prevSeverity = (editedSeverity || incident?.severity || "medium").trim();
+      const newSeverityTrimmed = (nextSeverity || "").trim();
+      setEditedSeverity(nextSeverity);
+      if (newSeverityTrimmed && newSeverityTrimmed !== prevSeverity) {
+        setOptimisticAttrChanges((prev) => [
+          ...prev.filter(
+            (p) => p.field !== "severity" || Date.now() - p.timestamp > 20000,
+          ),
+          {
+            field: "severity",
+            prevRaw: prevSeverity,
+            currRaw: newSeverityTrimmed,
+            timestamp: Date.now(),
+            actor: currentUsername || "You",
+          },
+        ]);
+      }
+    },
+    [editedSeverity, incident?.severity, currentUsername],
+  );
   const activeCustomStatus =
     editedLifecycle.status && getCustomStatus(editedLifecycle.status)?.base === editedStatus
       ? getCustomStatus(editedLifecycle.status)
@@ -1674,59 +1727,6 @@ const IncidentDetailPage = () => {
     </MenuItem>
   ));
 
-  usePageMeta({
-    title: currentIncidentTitle
-      ? `${currentIncidentTitle} | Incident`
-      : "Incident",
-    description:
-      "Incident details, observables, correlations, timeline, and AI agent triage.",
-  });
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      (window as any).__shuffleActiveEntityTitle =
-        currentIncidentTitle || undefined;
-      (window as any).__shuffleActiveIncidentId = rawId || undefined;
-    }
-    return () => {
-      if (typeof window !== "undefined") {
-        (window as any).__shuffleActiveEntityTitle = undefined;
-        (window as any).__shuffleActiveIncidentId = undefined;
-      }
-    };
-  }, [currentIncidentTitle, rawId]);
-  const [editedMessage, setEditedMessage] = useState("");
-  const [editedSeverity, setEditedSeverity] = useState("");
-  // Tenant custom lifecycle states (see /admin/preferences). The built-in
-  // base status/severity is what gets saved; the custom key is stored
-  // alongside in custom_attributes.lifecycle.
-  useLifecycleConfig();
-  const [editedLifecycle, setEditedLifecycle] = useState<{ status?: string; severity?: string }>({});
-  const initLifecycleRef = useRef("{}");
-
-  const handleManualSeverityChange = useCallback(
-    (nextSeverity: string) => {
-      manualSeverityChangedRef.current = true;
-      const prevSeverity = (editedSeverity || incident?.severity || "medium").trim();
-      const newSeverityTrimmed = (nextSeverity || "").trim();
-      setEditedSeverity(nextSeverity);
-      if (newSeverityTrimmed && newSeverityTrimmed !== prevSeverity) {
-        setOptimisticAttrChanges((prev) => [
-          ...prev.filter(
-            (p) => p.field !== "severity" || Date.now() - p.timestamp > 20000,
-          ),
-          {
-            field: "severity",
-            prevRaw: prevSeverity,
-            currRaw: newSeverityTrimmed,
-            timestamp: Date.now(),
-            actor: currentUsername || "You",
-          },
-        ]);
-      }
-    },
-    [editedSeverity, incident?.severity, currentUsername],
-  );
   const [editedAssignee, setEditedAssignee] = useState("");
   const [editedTlp, setEditedTlp] = useState("TLP:AMBER");
   const [editedReferences, setEditedReferences] = useState<string[]>([]);

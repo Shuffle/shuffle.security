@@ -240,8 +240,21 @@ export const useDocContent = ({
         } else {
           setTitle(null);
           setContent('');
+          // Known page that failed to load gets a fallback message with a GitHub link;
+          // unknown pages keep the "does not exist" message.
+          let knownName: string | null = null;
+          try {
+            const list = await fetchDocsList(false, folder, controller.signal);
+            const match = list.find((d) => docSlug(d.name) === slug.toLowerCase());
+            knownName = match?.name ?? null;
+          } catch {
+            // ignore
+          }
+          if (controller.signal.aborted || currentRequestId !== requestIdRef.current) return;
           setError(
-            typeof navigator !== 'undefined' && navigator.onLine === false
+            knownName
+              ? `loadfailed:${knownName}`
+              : typeof navigator !== 'undefined' && navigator.onLine === false
               ? `offline:${slug}`
               : `Documentation not found: ${slug}`,
           );

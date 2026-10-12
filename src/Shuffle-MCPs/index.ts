@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import {
   ShuffleMcpThemeProvider,
   type ShuffleMcpColorMode,
+  type ShuffleMcpThemeProviderProps,
   type ShuffleTokenStyle,
   darkTokenStyle,
   lightTokenStyle,
@@ -116,8 +117,6 @@ import AskAiWidgetRaw from '@/Shuffle-MCPs/components/AskAiWidget';
 import ApiCallViewerRaw from '@/Shuffle-Core/components/ApiCallViewer';
 import AgentPresetsRaw from '@/Shuffle-Core/components/AgentPresets';
 
-export { ShuffleMcpThemeProvider } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
-export type { ShuffleMcpColorMode, ShuffleMcpThemeProviderProps } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
 
 export type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 

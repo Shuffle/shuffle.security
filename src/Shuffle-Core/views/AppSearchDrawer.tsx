@@ -16,6 +16,7 @@ import { AddAppDialog } from '../components/AddAppDialog';
 import type { AppSelectedEvent } from '../shuffle-mcp.helpers';
 import { API_CONFIG } from '../api';
 import { ShufflePipelinesBanner } from '../components/ShufflePipelinesBanner';
+import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import {
   useShuffleCoreTheme,
   darkTokenStyle,

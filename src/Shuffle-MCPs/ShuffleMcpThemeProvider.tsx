@@ -20,6 +20,7 @@
  */
 import React from "react";
 import { ThemeProvider, createTheme, useTheme as useMuiTheme } from "@mui/material";
+import "./shuffle-mcp.css";
 
 export type ShuffleTokenStyle = React.CSSProperties & Record<`--${string}`, string>;
 

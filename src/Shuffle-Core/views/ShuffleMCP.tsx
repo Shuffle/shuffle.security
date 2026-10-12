@@ -9,7 +9,6 @@ import { algoliasearch, SearchClient } from 'algoliasearch';
 import { Tooltip } from '@mui/material';
 import type { AlgoliaSearchApp, AppSelectedEvent, ShuffleMCPProps, AppAuthentication } from '../shuffle-mcp.helpers';
 import AppDetailDrawer from './AppDetailDrawer';
-import '../shuffle-core.css';
 import { fetchApps } from '../appsCache';
 import { AppFallbackIcon } from '../components/AppFallbackIcon';
 import { SegmentedControl } from '../components/SegmentedControl';

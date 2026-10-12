@@ -37,7 +37,9 @@
     "README.md",
     "LICENSE"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
     "build": "tsup",
     "prepublishOnly": "npm run build"

@@ -177,7 +177,7 @@ type SortKey = 'title' | 'severity' | 'status' | 'assignee' | 'created' | 'edite
 
 // Status and severity colors now imported from shared config
 import { statusConfig, severityColors, severityOrder, getSeverityColor } from '@/config/incidentConfig';
-import { getSeverityLabel } from '@/config/lifecycleOverrides';
+import { statusFilterLabel, severityFilterLabel, severityFilterColor, matchesStatusFilter, matchesSeverityFilter } from '@/config/lifecycleOverrides';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
 /**
@@ -1755,11 +1755,14 @@ const IncidentsPage = () => {
       if (Array.isArray(filters.severity)) {
         const sevs = filters.severity;
         result = result.filter(i => {
-          const match = sevs.includes(i.severity);
+          const match = sevs.some(f => matchesSeverityFilter(i, f));
           return neg ? !match : match;
         });
       } else {
-        result = result.filter(i => neg ? i.severity !== filters.severity : i.severity === filters.severity);
+        result = result.filter(i => {
+          const match = matchesSeverityFilter(i, filters.severity as string);
+          return neg ? !match : match;
+        });
       }
     }
     if (filters.status) {
@@ -1768,13 +1771,13 @@ const IncidentsPage = () => {
       if (Array.isArray(filters.status)) {
         result = result.filter(i => {
           const isKnown = knownStatuses.includes(i.status);
-          const matches = filters.status!.includes(i.status) || !isKnown;
+          const matches = (filters.status as string[]).some(f => matchesStatusFilter(i, f)) || !isKnown;
           return neg ? !matches : matches;
         });
       } else {
         result = result.filter(i => {
           const isKnown = knownStatuses.includes(i.status);
-          const matches = i.status === filters.status || !isKnown;
+          const matches = matchesStatusFilter(i, filters.status as string) || !isKnown;
           return neg ? !matches : matches;
         });
       }
@@ -3464,8 +3467,8 @@ const IncidentsPage = () => {
 
               {filters.severity && (() => {
                 const sevArr = Array.isArray(filters.severity) ? filters.severity : [filters.severity];
-                const sevLabel = sevArr.map((s) => getSeverityLabel(s)).join(' / ');
-                const sevColor = sevArr.length === 1 ? (getSeverityColor(sevArr[0]) || severityColors[sevArr[0]] || '#94a3b8') : '#94a3b8';
+                const sevLabel = sevArr.map((s) => severityFilterLabel(s)).join(' / ');
+                const sevColor = sevArr.length === 1 ? (severityFilterColor(sevArr[0]) || severityColors[sevArr[0]] || '#94a3b8') : '#94a3b8';
                 return (
                   <Chip
                     label={`${negatedFilters.has('severity') ? 'NOT ' : ''}${sevLabel}`}
@@ -3487,7 +3490,7 @@ const IncidentsPage = () => {
               {filters.status && (
                 Array.isArray(filters.status) ? (
                   <Chip
-                    label={`${negatedFilters.has('status') ? 'NOT ' : ''}${filters.status.map(s => statusConfig[s]?.label || s).join(' / ')}`}
+                    label={`${negatedFilters.has('status') ? 'NOT ' : ''}${filters.status.map(s => statusFilterLabel(s)).join(' / ')}`}
                     size="small"
                     onClick={() => setNegatedFilters(prev => { const next = new Set(prev); next.has('status') ? next.delete('status') : next.add('status'); return next; })}
                     onDelete={() => { setFilters(prev => ({ ...prev, status: null })); setNegatedFilters(prev => { const next = new Set(prev); next.delete('status'); return next; }); }}
@@ -3501,7 +3504,7 @@ const IncidentsPage = () => {
                   />
                 ) : (
                   <Chip
-                    label={`${negatedFilters.has('status') ? 'NOT ' : ''}${statusConfig[filters.status]?.label || filters.status.replace('_', ' ')}`}
+                    label={`${negatedFilters.has('status') ? 'NOT ' : ''}${statusFilterLabel(filters.status)}`}
                     size="small"
                     onClick={() => setNegatedFilters(prev => { const next = new Set(prev); next.has('status') ? next.delete('status') : next.add('status'); return next; })}
                     onDelete={() => { setFilters(prev => ({ ...prev, status: null })); setNegatedFilters(prev => { const next = new Set(prev); next.delete('status'); return next; }); }}

@@ -186,3 +186,32 @@ export function getActiveCustomSeverity(key: string | undefined, severity: strin
   const c = getCustomSeverity(key);
   return c && severity && c.base === resolveSeverity(severity) ? c : undefined;
 }
+
+/**
+ * Filter values: built-in keys ("on_hold") or custom keys prefixed "custom:".
+ * A built-in filter also matches incidents in a custom state based on it.
+ */
+type FilterableIncident = { status: string; severity: string; lifecycle?: { status?: string; severity?: string } };
+export function matchesStatusFilter(i: FilterableIncident, f: string): boolean {
+  if (f.startsWith('custom:')) return getActiveCustomStatus(i.lifecycle?.status, i.status)?.key === f.slice(7);
+  return i.status === f;
+}
+export function matchesSeverityFilter(i: FilterableIncident, f: string): boolean {
+  if (f.startsWith('custom:')) return getActiveCustomSeverity(i.lifecycle?.severity, i.severity)?.key === f.slice(7);
+  return i.severity === f;
+}
+export function statusFilterLabel(f: string): string {
+  if (f.startsWith('custom:')) return getCustomStatus(f.slice(7))?.label || f.slice(7);
+  return statusConfigRef?.[f]?.label || f.replace(/_/g, ' ');
+}
+export function severityFilterLabel(f: string): string {
+  if (f.startsWith('custom:')) return getCustomSeverity(f.slice(7))?.label || f.slice(7);
+  return getSeverityLabel(f);
+}
+export function severityFilterColor(f: string): string | undefined {
+  if (f.startsWith('custom:')) {
+    const c = getCustomSeverity(f.slice(7));
+    return c ? c.color || getSeverityColorFn(c.base) : undefined;
+  }
+  return getSeverityColorFn(f);
+}

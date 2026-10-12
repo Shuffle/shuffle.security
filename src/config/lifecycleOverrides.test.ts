@@ -55,3 +55,16 @@ describe('lifecycle overrides', () => {
     expect(getSeverityLabel('high')).toBe('Severe');
   });
 });
+
+describe('custom lists', () => {
+  it('exposes custom statuses and severities for menus', async () => {
+    const m = await import('./lifecycleOverrides');
+    m.applyLifecycleOverrides({
+      statuses: { builtin: {}, custom: [{ key: '', label: 'Awaiting Customer', base: 'on_hold' }] },
+      severities: { builtin: {}, custom: [{ key: '', label: 'P1', base: 'critical' }] },
+    });
+    expect(m.getCustomStatuses().map((c) => c.key)).toEqual(['awaiting_customer']);
+    expect(m.getCustomSeverity('p1')?.base).toBe('critical');
+    expect(m.getCustomStatus('awaiting_customer')?.base).toBe('on_hold');
+  });
+});

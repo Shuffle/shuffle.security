@@ -103,6 +103,7 @@ export function sanitizeLifecycle(input: unknown): LifecycleOverrides {
 /** Apply overrides onto the shared config objects. Always resets to defaults first. */
 export function applyLifecycleOverrides(raw: LifecycleOverrides | null | undefined) {
   const o = sanitizeLifecycle(raw);
+  setCustomLists(o);
 
   for (const [k, d] of Object.entries(DEFAULT_STATUS)) {
     const ov = o.statuses.builtin[k] || {};
@@ -160,3 +161,17 @@ export function getCustomStatus(key: string | undefined): CustomState | undefine
 }
 
 registerSeverityColorOverride((sev) => severityColorOverrides[sev]);
+
+let customSeverityMap: Record<string, CustomState> = {};
+let customStatusList: CustomState[] = [];
+let customSeverityList: CustomState[] = [];
+export function getCustomStatuses(): CustomState[] { return customStatusList; }
+export function getCustomSeverities(): CustomState[] { return customSeverityList; }
+export function getCustomSeverity(key: string | undefined): CustomState | undefined {
+  return key ? customSeverityMap[normalizeKey(key)] : undefined;
+}
+export function setCustomLists(o: LifecycleOverrides) {
+  customStatusList = o.statuses.custom;
+  customSeverityList = o.severities.custom;
+  customSeverityMap = Object.fromEntries(o.severities.custom.map((c) => [c.key, c]));
+}

@@ -27,17 +27,23 @@ export interface TimelineSeverityDropdownProps {
   value: string;
   onChange?: (next: string) => void;
   disabled?: boolean;
+  /** Also list tenant custom severities; onChange then receives `custom:<key>`. */
+  allowCustom?: boolean;
 }
 
 export const TimelineSeverityDropdown: React.FC<TimelineSeverityDropdownProps> = ({
   value,
   onChange,
   disabled = false,
+  allowCustom = false,
 }) => {
   const VALID_SEVERITIES = ['critical', 'high', 'medium', 'low', 'informational'];
   const lowerVal = String(value || '').toLowerCase().trim();
-  const normalized = VALID_SEVERITIES.includes(lowerVal) ? lowerVal : 'medium';
-  const color = getSeverityColor(normalized);
+  const customSev = allowCustom && lowerVal.startsWith('custom:')
+    ? getCustomSeverities().find((c) => c.key === String(value).slice(7))
+    : undefined;
+  const normalized = customSev ? `custom:${customSev.key}` : VALID_SEVERITIES.includes(lowerVal) ? lowerVal : 'medium';
+  const color = customSev?.color || getSeverityColor(customSev?.base || normalized);
   const isReadOnly = disabled || !onChange;
 
   return (
@@ -51,7 +57,7 @@ export const TimelineSeverityDropdown: React.FC<TimelineSeverityDropdownProps> =
       <Select
         value={normalized}
         onChange={(e) => onChange?.(e.target.value)}
-        renderValue={(val) => getSeverityLabel(String(val))}
+        renderValue={(val) => (customSev ? customSev.label : getSeverityLabel(String(val)))}
         disabled={isReadOnly}
         disableUnderline
         sx={{
@@ -73,6 +79,7 @@ export const TimelineSeverityDropdown: React.FC<TimelineSeverityDropdownProps> =
           },
         }}
         MenuProps={{
+          sx: { zIndex: 9999 },
           PaperProps: {
             sx: {
               bgcolor: 'hsl(var(--card))',
@@ -87,6 +94,9 @@ export const TimelineSeverityDropdown: React.FC<TimelineSeverityDropdownProps> =
         <MenuItem value="medium" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('medium') }}>{getSeverityLabel('medium')}</MenuItem>
         <MenuItem value="low" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('low') }}>{getSeverityLabel('low')}</MenuItem>
         <MenuItem value="informational" sx={{ fontSize: '0.75rem', fontWeight: 600, color: getSeverityColor('informational') }}>{getSeverityLabel('informational')}</MenuItem>
+        {allowCustom && getCustomSeverities().map((c) => (
+          <MenuItem key={`custom:${c.key}`} value={`custom:${c.key}`} sx={{ fontSize: '0.75rem', fontWeight: 600, color: c.color || getSeverityColor(c.base) }}>{c.label}</MenuItem>
+        ))}
       </Select>
     </FormControl>
   );
@@ -110,8 +120,8 @@ export const TimelineStatusDropdown: React.FC<TimelineStatusDropdownProps> = ({
   onResolveRequest,
   disabled = false,
 }) => {
-  const canonical = normalizeStatus(value);
-  const cfg = statusConfig[canonical] || statusConfig.new;
+  const canonical = String(value || "").startsWith("custom:") && getCustomStatus(String(value).slice(7)) ? String(value) : normalizeStatus(value);
+  const cfg = statusConfig[canonical.startsWith("custom:") ? (getCustomStatus(canonical.slice(7))?.base || "new") : canonical] || statusConfig.new;
   const isReadOnly = disabled || !onChange;
 
   return (
@@ -156,7 +166,7 @@ export const TimelineStatusDropdown: React.FC<TimelineStatusDropdownProps> = ({
           const currentCfg = statusConfig[val];
           return currentCfg ? currentCfg.label : String(val).replace(/_/g, ' ');
         }}
-        MenuProps={{
+        MenuProps={{ sx: { zIndex: 9999 },
           PaperProps: {
             sx: {
               bgcolor: 'hsl(var(--card))',
@@ -278,7 +288,7 @@ export const TimelineAssigneeDropdown: React.FC<TimelineAssigneeDropdownProps> =
           }
           return (val as string) || 'Unassigned';
         }}
-        MenuProps={{
+        MenuProps={{ sx: { zIndex: 9999 },
           PaperProps: {
             sx: {
               bgcolor: 'hsl(var(--card))',
@@ -546,7 +556,7 @@ export const TimelineTlpDropdown: React.FC<TimelineTlpDropdownProps> = ({
             </Box>
           );
         }}
-        MenuProps={{
+        MenuProps={{ sx: { zIndex: 9999 },
           PaperProps: {
             sx: {
               bgcolor: 'hsl(var(--card))',

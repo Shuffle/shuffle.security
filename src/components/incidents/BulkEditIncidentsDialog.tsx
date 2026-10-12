@@ -76,7 +76,10 @@ export function BulkEditIncidentsDialog({ open, onClose, onApply, onResolveReque
 
   const customFieldKeys = useMemo(() => {
     const s = new Set<string>();
-    incidents.forEach(i => Object.keys(i.customFields || {}).forEach(k => s.add(k)));
+    incidents.forEach(i => {
+      const cf = i.customFields;
+      if (cf && typeof cf === 'object' && !Array.isArray(cf)) Object.keys(cf).forEach(k => s.add(k));
+    });
     return Array.from(s).sort();
   }, [incidents]);
 
@@ -91,12 +94,12 @@ export function BulkEditIncidentsDialog({ open, onClose, onApply, onResolveReque
         case 'assignee': return (i.assignee || '') !== assignee;
         case 'tlp': return (i.tlp || '') !== tlp;
         case 'tags': {
-          const cur = i.labels || [];
+          const cur = Array.isArray(i.labels) ? i.labels : [];
           if (tagMode === 'add') return tags.some(t => !cur.includes(t));
           if (tagMode === 'remove') return tags.some(t => cur.includes(t));
           return cur.length !== tags.length || cur.some(t => !tags.includes(t));
         }
-        case 'customField': return String(i.customFields?.[cfKey] ?? '') !== cfValue;
+        case 'customField': return String((i.customFields as any)?.[cfKey] ?? '') !== cfValue;
         default: return true;
       }
     }).length;
@@ -156,7 +159,7 @@ export function BulkEditIncidentsDialog({ open, onClose, onApply, onResolveReque
         {row('status', 'Status',
           <TimelineStatusDropdown value={status} onChange={setStatus}
             onResolveRequest={onResolveRequest} />)}
-        {row('severity', 'Severity', <TimelineSeverityDropdown value={severity} onChange={setSeverity} />)}
+        {row('severity', 'Severity', <TimelineSeverityDropdown value={severity} onChange={setSeverity} allowCustom />)}
         {row('assignee', 'Assignee', <TimelineAssigneeDropdown value={assignee} onChange={setAssignee} />)}
         {row('tlp', 'TLP', <TimelineTlpDropdown value={tlp} onChange={setTlp} />)}
         {row('tags', 'Tags',

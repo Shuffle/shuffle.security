@@ -1108,7 +1108,11 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
         {safeActiveTab === 'run' && contentReady && (
           <Box
             sx={{
-              display: 'contents',
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
               '@keyframes askAiContentFadeIn': {
                 from: { opacity: 0 },
                 to: { opacity: 1 },

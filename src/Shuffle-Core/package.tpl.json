@@ -27,20 +27,16 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     },
-    "./shuffle-core.css": "./dist/shuffle-core.css",
     "./dist/*": "./dist/*"
   },
   "files": [
     "dist",
-    "shuffle-core.css",
     "README.md",
     "LICENSE"
   ],
-  "sideEffects": [
-    "**/*.css"
-  ],
+  "sideEffects": false,
   "scripts": {
-    "build": "tsup && cp shuffle-core.css dist/shuffle-core.css",
+    "build": "tsup",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {

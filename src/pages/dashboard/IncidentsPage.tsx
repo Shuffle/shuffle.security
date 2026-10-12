@@ -2025,9 +2025,10 @@ const IncidentsPage = () => {
 
     const targets = selectedIncidentsList;
     const results = await Promise.all(targets.map(async (incident) => {
+     try {
       const rawOCSF = (incident.rawOCSF || {}) as any;
       const customAttrs = rawOCSF.metadata?.extensions?.custom_attributes || {};
-      const prevLifecycle = { ...(customAttrs.lifecycle || {}) };
+      const prevLifecycle: { status?: string; severity?: string } = customAttrs.lifecycle && typeof customAttrs.lifecycle === 'object' ? { ...customAttrs.lifecycle } : {};
       if (changes.status) {
         if (changes.customStatus) prevLifecycle.status = changes.customStatus; else delete prevLifecycle.status;
       }
@@ -2061,7 +2062,7 @@ const IncidentsPage = () => {
 
       let nextTags: string[] | undefined;
       if (changes.tags) {
-        const cur: string[] = Array.isArray(rawOCSF.types) ? rawOCSF.types : (incident.labels || []);
+        const cur: string[] = (Array.isArray(rawOCSF.types) ? rawOCSF.types : Array.isArray(incident.labels) ? incident.labels : []).filter((t: unknown): t is string => typeof t === 'string');
         const vals = changes.tags.values;
         nextTags = changes.tags.mode === 'add'
           ? Array.from(new Set([...cur, ...vals]))
@@ -2076,7 +2077,7 @@ const IncidentsPage = () => {
         class_name: 'Incident Finding',
         finding_uid: rawOCSF.finding_uid || incident.id,
         title: rawOCSF.title || incident.title,
-        activity: [...(rawOCSF.activity || []), ...newActivity],
+        activity: [...(Array.isArray(rawOCSF.activity) ? rawOCSF.activity : []), ...newActivity],
         metadata: {
           ...rawOCSF.metadata,
           extensions: {
@@ -2087,7 +2088,7 @@ const IncidentsPage = () => {
               ...(changes.assignee !== undefined ? { assignee: changes.assignee } : {}),
               ...(changes.tlp ? { tlp: changes.tlp } : {}),
               ...(changes.customField ? {
-                customFields: { ...(customAttrs.customFields || {}), [changes.customField.key]: changes.customField.value },
+                customFields: { ...(customAttrs.customFields && typeof customAttrs.customFields === 'object' && !Array.isArray(customAttrs.customFields) ? customAttrs.customFields : {}), [changes.customField.key]: changes.customField.value },
               } : {}),
             },
           },
@@ -2104,6 +2105,10 @@ const IncidentsPage = () => {
         Promise.allSettled(incident.sharedOrgs.map(org => writeIncidentSafe(rawKey, updated, org.orgId)));
       }
       return { id: incident.id, success: !!primary?.success };
+     } catch (err) {
+      console.error('[BulkEdit] Failed to update incident', incident.id, err);
+      return { id: incident.id, success: false };
+     }
     }));
 
     const failedIds = results.filter(r => !r.success).map(r => r.id);

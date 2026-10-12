@@ -46,6 +46,9 @@ import { OCSFIncidentFinding, Observable, TLP_LABELS, convertLegacyTlp, mapOCSFS
 import { deduplicateTasks, decodeHtmlEntities, isAIAssignee } from '@/lib/utils';
 import { autoCorrectTranslatedString } from '@/lib/translationFallback';
 import { ResolveIncidentDialog, ResolutionData, RESOLUTION_REASONS } from '@/components/incidents/ResolveIncidentDialog';
+import { BulkEditIncidentsDialog, BulkEditChanges } from '@/components/incidents/BulkEditIncidentsDialog';
+import { getOCSFStatus } from '@/config/incidentConfig';
+import { severityOptions as OCSF_SEVERITY_OPTIONS } from '@/config/ocsfIncidentSchema';
 import { CategoryAutomationsDialog } from '@shuffleio/shuffle-core';
 import {
   extractValidatedIngestionApps,
@@ -2003,6 +2006,77 @@ const IncidentsPage = () => {
     await fetchItems();
   }, [selectedIds, selectedIncidentsList, currentUsername, fetchItems]);
 
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const handleBulkEdit = useCallback(async (changes: BulkEditChanges) => {
+    if (selectedIds.size === 0) return;
+    setIsBulkResolving(true);
+    const sevOpt = changes.severity ? OCSF_SEVERITY_OPTIONS.find(s => s.value === changes.severity) : undefined;
+    const ocsfStatus = changes.status ? getOCSFStatus(changes.status) : undefined;
+    const parts: string[] = [];
+    if (changes.status) parts.push(`status to ${changes.customStatus || ocsfStatus?.label}`);
+    if (changes.severity) parts.push(`severity to ${changes.customSeverity || sevOpt?.label}`);
+    if (changes.assignee !== undefined) parts.push(changes.assignee ? `assignee to ${changes.assignee}` : 'removed assignee');
+
+    const results = await Promise.all(selectedIncidentsList.map(async (incident) => {
+      const rawOCSF = (incident.rawOCSF || {}) as any;
+      const customAttrs = rawOCSF.metadata?.extensions?.custom_attributes || {};
+      const prevLifecycle = { ...(customAttrs.lifecycle || {}) };
+      if (changes.status) {
+        if (changes.customStatus) prevLifecycle.status = changes.customStatus; else delete prevLifecycle.status;
+      }
+      if (changes.severity) {
+        if (changes.customSeverity) prevLifecycle.severity = changes.customSeverity; else delete prevLifecycle.severity;
+      }
+      const activityItem: ActivityItem = {
+        id: `bulk-${Date.now()}-${incident.id}`,
+        type: 'status',
+        user: currentUsername,
+        timestamp: Date.now(),
+        content: `Bulk edit: ${parts.join(', ')}`,
+        details: {},
+        attachments: [],
+      };
+      const updated: any = {
+        ...rawOCSF,
+        class_uid: 2005,
+        class_name: 'Incident Finding',
+        finding_uid: rawOCSF.finding_uid || incident.id,
+        title: rawOCSF.title || incident.title,
+        activity: [...(rawOCSF.activity || []), activityItem],
+        metadata: {
+          ...rawOCSF.metadata,
+          extensions: {
+            ...rawOCSF.metadata?.extensions,
+            custom_attributes: {
+              ...customAttrs,
+              lifecycle: prevLifecycle,
+              ...(changes.assignee !== undefined ? { assignee: changes.assignee } : {}),
+            },
+          },
+        },
+      };
+      if (ocsfStatus) { updated.status_id = ocsfStatus.id; updated.status = ocsfStatus.label; }
+      if (sevOpt) { updated.severity_id = sevOpt.id; updated.severity = sevOpt.label; }
+      if (changes.assignee !== undefined) updated.assignee = changes.assignee;
+
+      const rawKey = toRawIncidentKey(incident.id);
+      const primary = await writeIncidentSafe(rawKey, updated);
+      if (incident.sharedOrgs && incident.sharedOrgs.length > 0) {
+        Promise.allSettled(incident.sharedOrgs.map(org => writeIncidentSafe(rawKey, updated, org.orgId)));
+      }
+      return primary;
+    }));
+
+    const ok = results.filter(r => r.success).length;
+    const failed = results.length - ok;
+    setIsBulkResolving(false);
+    setBulkEditOpen(false);
+    if (ok > 0) toast.success(t(`Updated ${ok} incident${ok !== 1 ? 's' : ''}`));
+    if (failed > 0) toast.warning(t(`Failed to update ${failed} incident${failed !== 1 ? 's' : ''}`));
+    setSelectedIds(new Set());
+    await fetchItems();
+  }, [selectedIds, selectedIncidentsList, currentUsername, fetchItems]);
+
   const getIncidentUrl = (incident: DisplayIncident) => {
     const isInvalidData = (!incident.title || incident.title === 'Untitled Incident' || incident.title === 'Requires sync' || incident.title === incident.id) && !incident.source;
     const params = new URLSearchParams();
@@ -3408,6 +3482,15 @@ const IncidentsPage = () => {
             {/* Bulk actions */}
             {selectedIds.size > 0 && (
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setBulkEditOpen(true)}
+                  disabled={isBulkResolving}
+                  sx={{ height: 36, borderColor: 'hsl(var(--border))', color: 'text.primary', whiteSpace: 'nowrap' }}
+                >
+                  Bulk edit
+                </Button>
                 {allSelectedResolved ? (
                   <Button
                     size="small"
@@ -3913,6 +3996,15 @@ const IncidentsPage = () => {
           fetchIngestionApps();
           triggerSync();
         }}
+      />
+
+      <BulkEditIncidentsDialog
+        open={bulkEditOpen}
+        onClose={() => setBulkEditOpen(false)}
+        onApply={handleBulkEdit}
+        count={selectedIds.size}
+        users={users}
+        isLoading={isBulkResolving}
       />
 
       <ResolveIncidentDialog

@@ -202,6 +202,18 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   const isAgentDisabled = isAgentRoute(currentPathname);
   const isVisible = open && !isAgentDisabled;
 
+  // Defer mounting the heavy agent content until the slide-in animation has
+  // mostly completed, so the open transition is not janked by the mount.
+  const [contentReady, setContentReady] = useState(false);
+  useEffect(() => {
+    if (!isVisible) {
+      setContentReady(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setContentReady(true), 280);
+    return () => window.clearTimeout(timer);
+  }, [isVisible]);
+
   // Auto-close if currently open when user navigates to an agent route
   useEffect(() => {
     if (isAgentDisabled && open) {
@@ -816,7 +828,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
             transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
             transition: isResizing
               ? 'none'
-              : 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), width 0.2s ease',
+              : 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), width 0.2s ease',
             pointerEvents: isVisible ? 'auto' : 'none',
             visibility: isVisible ? 'visible' : 'hidden',
             boxSizing: 'border-box',
@@ -1093,8 +1105,21 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
         )}
 
         {/* Tab Panel: Run (AgentUI) */}
-        {safeActiveTab === 'run' && (
-          <>
+        {safeActiveTab === 'run' && contentReady && (
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              '@keyframes askAiContentFadeIn': {
+                from: { opacity: 0 },
+                to: { opacity: 1 },
+              },
+              animation: 'askAiContentFadeIn 0.25s ease',
+            }}
+          >
             {/* Missing Config Banner for Support Users */}
             {context.missingConfig && (
               <Box
@@ -1269,7 +1294,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                 }}
               />
             </Box>
-          </>
+          </Box>
         )}
       </Box>
     </>

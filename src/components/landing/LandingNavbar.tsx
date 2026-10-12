@@ -58,7 +58,7 @@ export const LandingNavbar = ({ onMobileMenuClick }: LandingNavbarProps = {}) =>
           left: 0,
           right: { xs: 0, md: 'var(--ask-ai-panel-width, 0px)' },
           width: 'auto',
-          transition: 'right 0.2s ease',
+          transition: 'right 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
         <Toolbar sx={{ justifyContent: 'space-between', py: 1, position: 'relative' }}>

@@ -187,6 +187,7 @@ export const AutomationReadinessCard: React.FC<AutomationReadinessCardProps> = (
   onEnableAll,
   enableAllLabel = 'Enable all',
   atTop,
+  borderless,
   sx,
 }) => {
   const total = explicitTotalCount ?? items.length;

@@ -120,8 +120,8 @@ export const TimelineStatusDropdown: React.FC<TimelineStatusDropdownProps> = ({
   onResolveRequest,
   disabled = false,
 }) => {
-  const canonical = normalizeStatus(value);
-  const cfg = statusConfig[canonical] || statusConfig.new;
+  const canonical = String(value || "").startsWith("custom:") && getCustomStatus(String(value).slice(7)) ? String(value) : normalizeStatus(value);
+  const cfg = statusConfig[canonical.startsWith("custom:") ? (getCustomStatus(canonical.slice(7))?.base || "new") : canonical] || statusConfig.new;
   const isReadOnly = disabled || !onChange;
 
   return (
@@ -166,7 +166,7 @@ export const TimelineStatusDropdown: React.FC<TimelineStatusDropdownProps> = ({
           const currentCfg = statusConfig[val];
           return currentCfg ? currentCfg.label : String(val).replace(/_/g, ' ');
         }}
-        MenuProps={{
+        MenuProps={{ sx: { zIndex: 9999 },
           PaperProps: {
             sx: {
               bgcolor: 'hsl(var(--card))',
@@ -288,7 +288,7 @@ export const TimelineAssigneeDropdown: React.FC<TimelineAssigneeDropdownProps> =
           }
           return (val as string) || 'Unassigned';
         }}
-        MenuProps={{
+        MenuProps={{ sx: { zIndex: 9999 },
           PaperProps: {
             sx: {
               bgcolor: 'hsl(var(--card))',
@@ -556,7 +556,7 @@ export const TimelineTlpDropdown: React.FC<TimelineTlpDropdownProps> = ({
             </Box>
           );
         }}
-        MenuProps={{
+        MenuProps={{ sx: { zIndex: 9999 },
           PaperProps: {
             sx: {
               bgcolor: 'hsl(var(--card))',

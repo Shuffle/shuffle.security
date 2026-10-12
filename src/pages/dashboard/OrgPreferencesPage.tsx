@@ -22,6 +22,7 @@ import {
 import { SIDEBAR_NAV } from '@/config/sidebarNav';
 import { TaskStatusesEditor } from '@/components/settings/TaskStatusesEditor';
 import { SlaEditor } from '@/components/settings/SlaEditor';
+import { LifecycleEditor } from '@/components/settings/LifecycleEditor';
 import { DefaultEnvironmentSelector } from '@/components/settings/DefaultEnvironmentSelector';
 
 import { useAuth } from '@/context/AuthContext';

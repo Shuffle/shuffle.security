@@ -276,7 +276,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
                 py: 0.3,
                 fontSize: '0.72rem',
                 textTransform: 'none',
-                color: copied ? '#22c55e' : 'text.secondary',
+                color: copied ? 'hsl(var(--severity-low))' : 'text.secondary',
                 bgcolor: 'background.paper',
                 border: '1px solid',
                 borderColor: 'divider',
@@ -330,7 +330,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
                     height: 28,
                     borderRadius: 1,
                     bgcolor: 'action.hover',
-                    color: 'primary.main',
+                    color: 'text.secondary',
                     flexShrink: 0,
                     mt: 0.25,
                   }}

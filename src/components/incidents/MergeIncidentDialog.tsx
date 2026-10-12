@@ -22,7 +22,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { getDatastoreByCategory, getDatastoreItem, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { mapOCSFSeverity, mapOCSFStatus, Observable } from '@/config/ocsfIncidentSchema';
-import { severityColors, statusConfig } from '@/config/incidentConfig';
+import { severityColors, statusConfig, getSeverityColor } from '@/config/incidentConfig';
+import { getActiveCustomStatus, getActiveCustomSeverity, getSeverityLabel } from '@/config/lifecycleOverrides';
 import { toast } from '@/lib/toast';
 import { useEntityText } from '@/hooks/useEntityLabel';
 import { linkMergePair, isMergedIncident } from '@/lib/incidentRelations';
@@ -40,6 +41,7 @@ interface IncidentSummary {
   taskCount: number;
   commentCount: number;
   rawValue: string;
+  lifecycle?: { status?: string; severity?: string };
 }
 
 interface MergeIncidentDialogProps {
@@ -91,6 +93,7 @@ const parseIncidentSummary = (item: { key: string; value: string; created?: numb
     }
 
     return {
+      lifecycle: (customAttrs as any)?.lifecycle || data.lifecycle,
       id: item.key,
       title: title || item.key,
       severity,
@@ -272,8 +275,11 @@ export const MergeIncidentDialog = ({
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                   {filtered.map((inc) => {
                     const isSelected = selectedTarget?.id === inc.id;
-                    const sevColor = severityColors[inc.severity] || severityColors.medium;
-                    const statConfig = statusConfig[inc.status];
+                    const customSev = getActiveCustomSeverity(inc.lifecycle?.severity, inc.severity);
+                    const customStat = getActiveCustomStatus(inc.lifecycle?.status, inc.status);
+                    const sevColor = customSev?.color || getSeverityColor(inc.severity) || severityColors.medium;
+                    const statLabel = customStat?.label || statusConfig[inc.status]?.label || inc.status;
+                    const sevLabel = customSev?.label || getSeverityLabel(inc.severity);
                     const isMerged = inc.status === 'Merged';
 
                     return (
@@ -298,7 +304,7 @@ export const MergeIncidentDialog = ({
                         }}
                       >
                         {/* Severity dot */}
-                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: sevColor, flexShrink: 0 }} />
+                        <Box title={`${sevLabel}, ${statLabel}`} sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: sevColor, flexShrink: 0 }} />
 
                         {/* Content */}
                         <Box sx={{ flex: 1, minWidth: 0 }}>

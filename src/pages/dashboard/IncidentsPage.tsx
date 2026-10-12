@@ -176,7 +176,8 @@ type SortDirection = 'asc' | 'desc';
 type SortKey = 'title' | 'severity' | 'status' | 'assignee' | 'created' | 'edited';
 
 // Status and severity colors now imported from shared config
-import { statusConfig, severityColors, severityOrder } from '@/config/incidentConfig';
+import { statusConfig, severityColors, severityOrder, getSeverityColor } from '@/config/incidentConfig';
+import { getSeverityLabel } from '@/config/lifecycleOverrides';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
 /**
@@ -3463,8 +3464,8 @@ const IncidentsPage = () => {
 
               {filters.severity && (() => {
                 const sevArr = Array.isArray(filters.severity) ? filters.severity : [filters.severity];
-                const sevLabel = sevArr.join(' / ');
-                const sevColor = sevArr.length === 1 ? (severityColors[sevArr[0]] || '#94a3b8') : '#94a3b8';
+                const sevLabel = sevArr.map((s) => getSeverityLabel(s)).join(' / ');
+                const sevColor = sevArr.length === 1 ? (getSeverityColor(sevArr[0]) || severityColors[sevArr[0]] || '#94a3b8') : '#94a3b8';
                 return (
                   <Chip
                     label={`${negatedFilters.has('severity') ? 'NOT ' : ''}${sevLabel}`}

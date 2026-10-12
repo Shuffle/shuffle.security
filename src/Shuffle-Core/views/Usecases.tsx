@@ -3511,7 +3511,7 @@ function AssignEscalateOutcomeBlock({ flow, workflows }: { flow: Usecase; workfl
 
   if (loading) {
     return (
-      <Box sx={{ p: 2.5, borderRadius: 2, border: `1px solid ${BORDER}`, bgcolor: CARD, mb: 3 }}>
+      <Box sx={{ p: 2.5, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
         <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: MUTED, letterSpacing: 0.6, mb: 1 }}>
           Outcome · last 30 days
         </Typography>

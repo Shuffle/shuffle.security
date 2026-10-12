@@ -315,6 +315,12 @@ interface IncidentRoutingEditorProps {
    * entityCategory for other entities.
    */
   generateCategory?: string;
+  /**
+   * Drop the editor's own card styling (borders and tinted fills) so its
+   * sections sit directly on the surrounding surface. Used by the usecase
+   * drawer, which has no paper of its own.
+   */
+  borderless?: boolean;
 }
 
 export const IncidentRoutingEditor = ({
@@ -322,6 +328,7 @@ export const IncidentRoutingEditor = ({
   entityCategory = DEFAULT_ROUTING_ENTITY_CATEGORY,
   entityLabel = { singular: 'incident', plural: 'incidents' },
   generateCategory,
+  borderless = false,
 }: IncidentRoutingEditorProps) => {
   const entityPluralCap = entityLabel.plural.charAt(0).toUpperCase() + entityLabel.plural.slice(1);
   const effectiveGenerateCategory =

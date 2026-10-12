@@ -4793,7 +4793,9 @@ function UsecaseDetailContent({
         const navProps = flow.customAction.url
           ? { component: 'a' as const, href: flow.customAction.url, target: '_blank', rel: 'noopener noreferrer' }
           : flow.customAction.href
-            ? { component: Link, to: flow.customAction.href }
+            ? { component: Link, to: !isAuthenticated && flow.customAction.modal === 'add-host'
+                ? `/login?view=${encodeURIComponent('/monitors?add_host=true')}`
+                : flow.customAction.href }
             : null;
         return (
           <Box sx={{ p: 2.5, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
@@ -7443,7 +7445,9 @@ export function UsecaseCard({
                 <Button
                   {...(flow.customAction.url
                     ? { component: 'a' as const, href: flow.customAction.url, target: '_blank', rel: 'noopener noreferrer' }
-                    : { component: Link, to: flow.customAction.href! })}
+                    : { component: Link, to: !isAuthenticated && flow.customAction.modal === 'add-host'
+                        ? `/login?view=${encodeURIComponent('/monitors?add_host=true')}`
+                        : flow.customAction.href })}
                   size="small"
                   variant="contained"
                   disableElevation

@@ -34,6 +34,7 @@ import { trackPredefinedEvent, GA_EVENTS } from '@/Shuffle-Core/lib/analytics';
 import { isDemoActive } from '@/services/demoMode';
 import { DEMO_HOST_HOSTNAME } from '@/services/demoLiveEnvironment';
 import { fetchEnvironmentsCached } from '../appsFetchCache';
+import { deploymentLoginRedirect, isHostDeploymentRequested } from './deploymentLoginRedirect';
 
 const OsIcon = ({ os, size = 14, className = '' }: { os: string; size?: number; className?: string }) => {
   const lower = (os || '').toLowerCase();
@@ -428,7 +429,15 @@ const MonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps = {}) => {
   // here — so embedding MonitorsView in dialog mode doesn't clobber the
   // host page's title.
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const loginRedirect = deploymentLoginRedirect({
+    authenticated: isAuthenticated,
+    loading: authLoading,
+    dialog: mode === 'add-host-dialog',
+    requested: isHostDeploymentRequested(searchParams.get('add_host')),
+  });
   if (authLoading) return null;
+  if (loginRedirect) return <Navigate to={loginRedirect} replace />;
   if (!isAuthenticated) return mode === 'page' ? <PublicMonitorsView /> : null;
   return <AuthenticatedMonitorsView mode={mode} onClose={onClose} />;
 };
@@ -1136,7 +1145,7 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
   // Auto-open Add Host dialog when ?add_host=true is present in the URL
   // (small delay so users can see the page they navigated to first)
   useEffect(() => {
-    if (searchParams.get('add_host') === 'true' && !addHostOpen) {
+    if (isHostDeploymentRequested(searchParams.get('add_host')) && !addHostOpen) {
       const timer = setTimeout(() => {
         handleOpenAddHost();
         const next = new URLSearchParams(searchParams);

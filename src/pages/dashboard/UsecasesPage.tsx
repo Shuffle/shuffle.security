@@ -112,6 +112,10 @@ const UsecasesPage = (props: UsecasesPageProps = {}) => {
       return (
         <HostMonitoringDetailSlot
           onDeployClick={() => {
+            if (!isAuthenticated) {
+              navigate(`/login?view=${encodeURIComponent('/monitors?add_host=true')}`);
+              return;
+            }
             if (onOpenModal) onOpenModal('add-host');
             else setDirectAddHost(true);
           }}
@@ -120,7 +124,7 @@ const UsecasesPage = (props: UsecasesPageProps = {}) => {
       );
     }
     return null;
-  }, [vulnAutomation, navigate]);
+  }, [vulnAutomation, navigate, isAuthenticated]);
 
   const renderUsecaseActionModal = useCallback(({ modal, open, onClose }: {
     modal: string;

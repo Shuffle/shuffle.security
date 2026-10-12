@@ -8,6 +8,7 @@
  */
 import React, { useState } from 'react';
 import { useTheme } from '@mui/material';
+import { toast } from 'sonner';
 import {
   useThreatIntelAutomationStatus,
   ThreatIntelAutomationStatus,
@@ -44,6 +45,29 @@ export const ThreatIntelReadinessBanner: React.FC<ThreatIntelReadinessBannerProp
     userInfo = undefined;
   }
   const [internalDrawerId, setInternalDrawerId] = useState<string | null>(null);
+  const isLoggedIn = !!userInfo;
+
+  // Enabling automations requires a signed-in session. Without one the
+  // underlying API calls fail silently, so guard up front and surface any
+  // unexpected failure instead of leaving the spinner hanging.
+  const guardAction = (fn?: () => void | Promise<void>, label?: string) => {
+    if (!fn) return undefined;
+    return async () => {
+      if (!isLoggedIn) {
+        toast.error('Sign in to enable automations', {
+          description: 'You need an active session before automation settings can be changed.',
+        });
+        return;
+      }
+      try {
+        await fn();
+      } catch (error: any) {
+        toast.error(`Could not ${label ? `${label} ` : ''}update automation`, {
+          description: error?.message || 'The request failed. Please try again.',
+        });
+      }
+    };
+  };
 
   const handleOpenUsecase = (flowId: string) => {
     if (onOpenUsecase) {

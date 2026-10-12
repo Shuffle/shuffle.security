@@ -7,7 +7,7 @@
  * of a built-in "base" state, so everything saved stays a built-in key/id.
  * With no overrides, behaviour is identical to the defaults.
  */
-import { statusConfig, STATUS_SYNONYMS, severityColors, registerSeverityColorOverride } from './incidentConfig';
+import { statusConfig, STATUS_SYNONYMS, severityColors, registerSeverityColorOverride, getSeverityColor as getSeverityColorFn } from './incidentConfig';
 
 export const BUILTIN_SEVERITIES = ['critical', 'high', 'medium', 'low', 'informational'] as const;
 
@@ -202,7 +202,7 @@ export function matchesSeverityFilter(i: FilterableIncident, f: string): boolean
 }
 export function statusFilterLabel(f: string): string {
   if (f.startsWith('custom:')) return getCustomStatus(f.slice(7))?.label || f.slice(7);
-  return statusConfigRef?.[f]?.label || f.replace(/_/g, ' ');
+  return statusConfig[f]?.label || f.replace(/_/g, ' ');
 }
 export function severityFilterLabel(f: string): string {
   if (f.startsWith('custom:')) return getCustomSeverity(f.slice(7))?.label || f.slice(7);

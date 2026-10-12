@@ -839,7 +839,7 @@ export const IncidentCardView = ({
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    onFilterChange?.('severity', incident.severity);
+                    onFilterChange?.('severity', customSeverity ? `custom:${customSeverity.key}` : incident.severity);
                   }}
                   sx={{
                     backgroundColor: `${severityColor}20`,
@@ -860,7 +860,7 @@ export const IncidentCardView = ({
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        onFilterChange?.('status', incident.status);
+                        onFilterChange?.('status', customStatus ? `custom:${customStatus.key}` : incident.status);
                       }}
                       sx={{
                         backgroundColor: 'hsl(var(--severity-medium) / 0.15)',
@@ -881,7 +881,7 @@ export const IncidentCardView = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      onFilterChange?.('status', incident.status);
+                      onFilterChange?.('status', customStatus ? `custom:${customStatus.key}` : incident.status);
                     }}
                     sx={{
                       backgroundColor: statusInfo.bg,

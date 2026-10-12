@@ -936,18 +936,20 @@ export const IncidentRoutingEditor = ({
       <Paper
         variant="outlined"
         sx={{
-          p: 1.5,
+          p: borderless ? 0 : 1.5,
           borderRadius: 1.5,
-          borderColor:
-            workflowHealth.status === 'automated'
+          borderColor: borderless
+            ? 'transparent'
+            : workflowHealth.status === 'automated'
               ? 'hsl(var(--severity-low) / 0.35)'
               : workflowHealth.status === 'hook_missing'
                 ? 'hsl(var(--severity-medium) / 0.35)'
                 : workflowHealth.status === 'execution_error'
                   ? 'hsl(var(--destructive) / 0.35)'
                   : 'hsl(var(--border))',
-          bgcolor:
-            workflowHealth.status === 'automated'
+          bgcolor: borderless
+            ? 'transparent'
+            : workflowHealth.status === 'automated'
               ? 'hsl(var(--severity-low) / 0.05)'
               : workflowHealth.status === 'hook_missing'
                 ? 'hsl(var(--severity-medium) / 0.05)'

@@ -4417,21 +4417,9 @@ function UsecaseDetailContent({
       <Box sx={{
         p: 3,
         borderRadius: 2,
-        border: detailIsBlocked
-          ? '1px solid hsl(var(--destructive) / 0.5)'
-          : effectiveEnabled
-            ? '1px solid hsl(var(--severity-low))'
-            : CARD_BORDER,
-        bgcolor: detailIsBlocked
-          ? 'hsl(var(--destructive) / 0.04)'
-          : effectiveEnabled
-            ? 'hsl(var(--severity-low) / 0.04)'
-            : CARD_BG,
-        boxShadow: detailIsBlocked
-          ? '0 2px 8px hsl(var(--destructive) / 0.08)'
-          : effectiveEnabled
-            ? '0 2px 8px hsl(var(--severity-low) / 0.08)'
-            : 'none',
+        border: 'none',
+        bgcolor: 'transparent',
+        boxShadow: 'none',
         mb: 3,
       }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2.5 }}>

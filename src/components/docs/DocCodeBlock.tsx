@@ -105,6 +105,7 @@ export function DocCodeBlock({ children, text, language }: DocCodeBlockProps) {
           fontSize: '0.8125rem',
           lineHeight: 1.7,
           fontFamily: 'JetBrains Mono, monospace',
+          backgroundColor: isDark ? '#16191D' : '#FFFFFF',
           color: isDark ? 'rgba(255, 255, 255, 0.87)' : 'rgba(0, 0, 0, 0.85)',
           '& code': {
             backgroundColor: 'transparent',

@@ -40,7 +40,7 @@ export const ConditionalDashboardLayout = () => {
   return (
     <>
       <LandingNavbar />
-      <Box sx={{ pt: '72px', mr: { xs: 0, md: 'var(--ask-ai-panel-width, 0px)' }, transition: 'margin 0.35s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+      <Box sx={{ pt: '72px', mr: { xs: 0, md: 'var(--ask-ai-panel-width, 0px)' }, transition: 'margin 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
         <Outlet />
       </Box>
     </>

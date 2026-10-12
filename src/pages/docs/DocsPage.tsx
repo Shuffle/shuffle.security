@@ -348,7 +348,7 @@ const DocsPage = ({
             minWidth: 0,
             ml: { xs: 0, md: `${SIDEBAR_WIDTH_MD}px`, xl: `${SIDEBAR_WIDTH_XL}px` },
             mr: { xs: 0, md: 'var(--ask-ai-panel-width, 0px)' },
-            transition: 'margin 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+            transition: 'margin 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             minHeight: 'calc(100vh - 64px)',
           }}
         >

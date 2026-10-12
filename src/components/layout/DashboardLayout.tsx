@@ -119,7 +119,7 @@ export const DashboardLayout = ({ children, defaultCollapsed }: DashboardLayoutP
             boxSizing: 'border-box',
             backgroundColor: 'hsl(var(--background))',
             color: 'hsl(var(--foreground))',
-            transition: 'margin 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+            transition: 'margin 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             marginLeft: { 
               xs: 0, 
               sm: `${(sidebarCollapsed ? collapsedWidth : drawerWidth) + 16}px`,

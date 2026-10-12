@@ -304,7 +304,7 @@ export const MergeIncidentDialog = ({
                         }}
                       >
                         {/* Severity dot */}
-                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: sevColor, flexShrink: 0 }} />
+                        <Box title={`${sevLabel}, ${statLabel}`} sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: sevColor, flexShrink: 0 }} />
 
                         {/* Content */}
                         <Box sx={{ flex: 1, minWidth: 0 }}>

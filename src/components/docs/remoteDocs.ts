@@ -24,7 +24,8 @@ const cachedList: Record<string, RemoteDocEntry[]> = {};
 const inflight: Record<string, Promise<RemoteDocEntry[]> | null> = {};
 
 // Partial hard-coded docs list so the sidebar keeps working when the network is down.
-const FALLBACK_DOCS: RemoteDocEntry[] = [
+// Also used to tell "known page failed to load" apart from "page does not exist".
+export const KNOWN_DOCS: RemoteDocEntry[] = [
   'getting_started', 'about', 'tenants', 'features', 'API',
   'workflows', 'apps', 'AI',
   'incidents', 'vulnerabilities', 'detection',
@@ -32,7 +33,7 @@ const FALLBACK_DOCS: RemoteDocEntry[] = [
 ].map((name) => ({ name }) as RemoteDocEntry);
 
 const withFallback = (folder: string | undefined, list: RemoteDocEntry[]) =>
-  list.length === 0 && (!folder || folder === 'docs') ? FALLBACK_DOCS : list;
+  list.length === 0 && (!folder || folder === 'docs') ? KNOWN_DOCS : list;
 
 export const fetchDocsList = async (
   resetCache = false,

@@ -2016,8 +2016,15 @@ const IncidentsPage = () => {
     if (changes.status) parts.push(`status to ${changes.customStatus || ocsfStatus?.label}`);
     if (changes.severity) parts.push(`severity to ${changes.customSeverity || sevOpt?.label}`);
     if (changes.assignee !== undefined) parts.push(changes.assignee ? `assignee to ${changes.assignee}` : 'removed assignee');
+    if (changes.tlp) parts.push(`TLP to ${changes.tlp}`);
+    if (changes.tags) {
+      const list = changes.tags.values.join(', ') || 'none';
+      parts.push(changes.tags.mode === 'add' ? `added tags ${list}` : changes.tags.mode === 'remove' ? `removed tags ${list}` : `replaced tags with ${list}`);
+    }
+    if (changes.customField) parts.push(`${changes.customField.key} to ${changes.customField.value || 'empty'}`);
 
-    const results = await Promise.all(selectedIncidentsList.map(async (incident) => {
+    const targets = selectedIncidentsList;
+    const results = await Promise.all(targets.map(async (incident) => {
       const rawOCSF = (incident.rawOCSF || {}) as any;
       const customAttrs = rawOCSF.metadata?.extensions?.custom_attributes || {};
       const prevLifecycle = { ...(customAttrs.lifecycle || {}) };
@@ -2027,22 +2034,49 @@ const IncidentsPage = () => {
       if (changes.severity) {
         if (changes.customSeverity) prevLifecycle.severity = changes.customSeverity; else delete prevLifecycle.severity;
       }
-      const activityItem: ActivityItem = {
-        id: `bulk-${Date.now()}-${incident.id}`,
-        type: 'status',
-        user: currentUsername,
-        timestamp: Date.now(),
-        content: `Bulk edit: ${parts.join(', ')}`,
-        details: {},
-        attachments: [],
-      };
+      const now = Date.now();
+      const newActivity: ActivityItem[] = [];
+      if (parts.length > 0) {
+        newActivity.push({
+          id: `bulk-${now}-${incident.id}`,
+          type: 'status',
+          user: currentUsername,
+          timestamp: now,
+          content: `Bulk edit: ${parts.join(', ')}`,
+          details: {},
+          attachments: [],
+        });
+      }
+      if (changes.comment) {
+        newActivity.push({
+          id: `bulk-comment-${now}-${incident.id}`,
+          type: 'comment' as ActivityItem['type'],
+          user: currentUsername,
+          timestamp: now + 1,
+          content: changes.comment,
+          details: {},
+          attachments: [],
+        });
+      }
+
+      let nextTags: string[] | undefined;
+      if (changes.tags) {
+        const cur: string[] = Array.isArray(rawOCSF.types) ? rawOCSF.types : (incident.labels || []);
+        const vals = changes.tags.values;
+        nextTags = changes.tags.mode === 'add'
+          ? Array.from(new Set([...cur, ...vals]))
+          : changes.tags.mode === 'remove'
+            ? cur.filter(t => !vals.includes(t))
+            : [...vals];
+      }
+
       const updated: any = {
         ...rawOCSF,
         class_uid: 2005,
         class_name: 'Incident Finding',
         finding_uid: rawOCSF.finding_uid || incident.id,
         title: rawOCSF.title || incident.title,
-        activity: [...(rawOCSF.activity || []), activityItem],
+        activity: [...(rawOCSF.activity || []), ...newActivity],
         metadata: {
           ...rawOCSF.metadata,
           extensions: {
@@ -2051,6 +2085,10 @@ const IncidentsPage = () => {
               ...customAttrs,
               lifecycle: prevLifecycle,
               ...(changes.assignee !== undefined ? { assignee: changes.assignee } : {}),
+              ...(changes.tlp ? { tlp: changes.tlp } : {}),
+              ...(changes.customField ? {
+                customFields: { ...(customAttrs.customFields || {}), [changes.customField.key]: changes.customField.value },
+              } : {}),
             },
           },
         },
@@ -2058,22 +2096,28 @@ const IncidentsPage = () => {
       if (ocsfStatus) { updated.status_id = ocsfStatus.id; updated.status = ocsfStatus.label; }
       if (sevOpt) { updated.severity_id = sevOpt.id; updated.severity = sevOpt.label; }
       if (changes.assignee !== undefined) updated.assignee = changes.assignee;
+      if (nextTags) updated.types = nextTags;
 
       const rawKey = toRawIncidentKey(incident.id);
       const primary = await writeIncidentSafe(rawKey, updated);
       if (incident.sharedOrgs && incident.sharedOrgs.length > 0) {
         Promise.allSettled(incident.sharedOrgs.map(org => writeIncidentSafe(rawKey, updated, org.orgId)));
       }
-      return primary;
+      return { id: incident.id, success: !!primary?.success };
     }));
 
-    const ok = results.filter(r => r.success).length;
-    const failed = results.length - ok;
+    const failedIds = results.filter(r => !r.success).map(r => r.id);
+    const ok = results.length - failedIds.length;
     setIsBulkResolving(false);
-    setBulkEditOpen(false);
     if (ok > 0) toast.success(t(`Updated ${ok} incident${ok !== 1 ? 's' : ''}`));
-    if (failed > 0) toast.warning(t(`Failed to update ${failed} incident${failed !== 1 ? 's' : ''}`));
-    setSelectedIds(new Set());
+    if (failedIds.length > 0) {
+      // Keep only the failed incidents selected so they can be retried.
+      toast.warning(t(`Failed to update ${failedIds.length} incident${failedIds.length !== 1 ? 's' : ''}. They are still selected so you can try again.`));
+      setSelectedIds(new Set(failedIds));
+    } else {
+      setBulkEditOpen(false);
+      setSelectedIds(new Set());
+    }
     await fetchItems();
   }, [selectedIds, selectedIncidentsList, currentUsername, fetchItems]);
 
@@ -4002,8 +4046,16 @@ const IncidentsPage = () => {
         open={bulkEditOpen}
         onClose={() => setBulkEditOpen(false)}
         onApply={handleBulkEdit}
-        count={selectedIds.size}
-        users={users}
+        onResolveRequest={() => { setBulkEditOpen(false); setBulkResolveDialogOpen(true); }}
+        incidents={selectedIncidentsList.map(i => ({
+          status: i.status,
+          severity: i.severity,
+          assignee: i.assignee,
+          tlp: i.tlp,
+          labels: i.labels,
+          lifecycle: i.lifecycle,
+          customFields: (i.rawOCSF as any)?.metadata?.extensions?.custom_attributes?.customFields,
+        }))}
         isLoading={isBulkResolving}
       />
 

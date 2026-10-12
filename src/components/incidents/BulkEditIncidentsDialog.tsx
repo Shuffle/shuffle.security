@@ -1,10 +1,15 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Checkbox,
-  FormControlLabel, MenuItem, TextField, Typography,
+  FormControlLabel, TextField, Typography, ToggleButton, ToggleButtonGroup, Autocomplete,
 } from '@mui/material';
-import { statusConfig } from '@/config/incidentConfig';
-import { BUILTIN_SEVERITIES, getCustomStatuses, getCustomSeverities, getSeverityLabel } from '@/config/lifecycleOverrides';
+import {
+  TimelineStatusDropdown, TimelineSeverityDropdown, TimelineAssigneeDropdown,
+  TimelineTagsEditor, TimelineTlpDropdown,
+} from '@/components/incidents/TimelineAttributeComponents';
+import { getCustomStatus, getCustomSeverity } from '@/config/lifecycleOverrides';
+
+export type TagMode = 'add' | 'remove' | 'replace';
 
 export interface BulkEditChanges {
   /** Built-in status key to save. */
@@ -15,110 +20,170 @@ export interface BulkEditChanges {
   customSeverity?: string;
   /** Empty string means unassign. */
   assignee?: string;
+  tlp?: string;
+  tags?: { mode: TagMode; values: string[] };
+  customField?: { key: string; value: string };
+  comment?: string;
+}
+
+/** Minimal incident shape the dialog needs to preview changes. */
+export interface BulkEditIncident {
+  status: string;
+  severity: string;
+  assignee: string | null;
+  tlp?: string;
+  labels?: string[];
+  lifecycle?: { status?: string; severity?: string };
+  customFields?: Record<string, unknown>;
 }
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onApply: (changes: BulkEditChanges) => void;
-  count: number;
-  users: { username: string }[];
+  /** Called when Resolved is picked: resolving has its own dialog. */
+  onResolveRequest?: () => void;
+  incidents: BulkEditIncident[];
   isLoading?: boolean;
 }
 
-// Resolved and Merged have their own flows (resolve dialog, merge dialog).
-const EXCLUDED_STATUSES = new Set(['resolved', 'merged']);
+const splitCustom = (v: string, lookup: (k: string) => { base: string } | undefined) => {
+  if (!v.startsWith('custom:')) return { base: v, custom: undefined as string | undefined };
+  const key = v.slice(7);
+  const c = lookup(key);
+  return c ? { base: c.base, custom: key } : { base: '', custom: undefined };
+};
 
-export function BulkEditIncidentsDialog({ open, onClose, onApply, count, users, isLoading }: Props) {
-  const [useStatus, setUseStatus] = useState(false);
-  const [useSeverity, setUseSeverity] = useState(false);
-  const [useAssignee, setUseAssignee] = useState(false);
-  const [status, setStatus] = useState('');
-  const [severity, setSeverity] = useState('');
+export function BulkEditIncidentsDialog({ open, onClose, onApply, onResolveRequest, incidents, isLoading }: Props) {
+  const [on, setOn] = useState<Record<string, boolean>>({});
+  const [status, setStatus] = useState('new');
+  const [severity, setSeverity] = useState('medium');
   const [assignee, setAssignee] = useState('');
+  const [tlp, setTlp] = useState('TLP:AMBER');
+  const [tagMode, setTagMode] = useState<TagMode>('add');
+  const [tags, setTags] = useState<string[]>([]);
+  const [cfKey, setCfKey] = useState('');
+  const [cfValue, setCfValue] = useState('');
+  const [comment, setComment] = useState('');
 
   useEffect(() => {
     if (!open) return;
-    setUseStatus(false); setUseSeverity(false); setUseAssignee(false);
-    setStatus(''); setSeverity(''); setAssignee('');
+    setOn({}); setStatus('new'); setSeverity('medium'); setAssignee(''); setTlp('TLP:AMBER');
+    setTagMode('add'); setTags([]); setCfKey(''); setCfValue(''); setComment('');
   }, [open]);
 
-  const statusOptions = [
-    ...Object.entries(statusConfig)
-      .filter(([k, c]) => !c.hidden && !EXCLUDED_STATUSES.has(k))
-      .map(([k, c]) => ({ value: k, label: c.label })),
-    ...getCustomStatuses()
-      .filter(c => !EXCLUDED_STATUSES.has(c.base))
-      .map(c => ({ value: `custom:${c.key}`, label: c.label })),
-  ];
-  const severityOptions = [
-    ...BUILTIN_SEVERITIES.map(s => ({ value: s as string, label: getSeverityLabel(s) })),
-    ...getCustomSeverities().map(c => ({ value: `custom:${c.key}`, label: c.label })),
-  ];
+  const toggle = (k: string) => (v: boolean) => setOn(p => ({ ...p, [k]: v }));
+
+  const customFieldKeys = useMemo(() => {
+    const s = new Set<string>();
+    incidents.forEach(i => Object.keys(i.customFields || {}).forEach(k => s.add(k)));
+    return Array.from(s).sort();
+  }, [incidents]);
+
+  // Count how many selected incidents each checked field would actually change.
+  const willChange = (field: string): number => {
+    const st = splitCustom(status, getCustomStatus);
+    const sv = splitCustom(severity, getCustomSeverity);
+    return incidents.filter(i => {
+      switch (field) {
+        case 'status': return i.status !== st.base || (i.lifecycle?.status || undefined) !== st.custom;
+        case 'severity': return i.severity !== sv.base || (i.lifecycle?.severity || undefined) !== sv.custom;
+        case 'assignee': return (i.assignee || '') !== assignee;
+        case 'tlp': return (i.tlp || '') !== tlp;
+        case 'tags': {
+          const cur = i.labels || [];
+          if (tagMode === 'add') return tags.some(t => !cur.includes(t));
+          if (tagMode === 'remove') return tags.some(t => cur.includes(t));
+          return cur.length !== tags.length || cur.some(t => !tags.includes(t));
+        }
+        case 'customField': return String(i.customFields?.[cfKey] ?? '') !== cfValue;
+        default: return true;
+      }
+    }).length;
+  };
 
   const canApply =
-    (useStatus && !!status) || (useSeverity && !!severity) || useAssignee;
+    on.status || on.severity || on.assignee || on.tlp ||
+    (on.tags && (tags.length > 0 || tagMode === 'replace')) ||
+    (on.customField && !!cfKey.trim()) ||
+    (on.comment && !!comment.trim());
 
   const handleApply = () => {
     const changes: BulkEditChanges = {};
-    if (useStatus && status) {
-      if (status.startsWith('custom:')) {
-        const key = status.slice(7);
-        const c = getCustomStatuses().find(x => x.key === key);
-        if (c) { changes.status = c.base; changes.customStatus = c.key; }
-      } else changes.status = status;
+    if (on.status) {
+      const s = splitCustom(status, getCustomStatus);
+      if (s.base) { changes.status = s.base; changes.customStatus = s.custom; }
     }
-    if (useSeverity && severity) {
-      if (severity.startsWith('custom:')) {
-        const key = severity.slice(7);
-        const c = getCustomSeverities().find(x => x.key === key);
-        if (c) { changes.severity = c.base; changes.customSeverity = c.key; }
-      } else changes.severity = severity;
+    if (on.severity) {
+      const s = splitCustom(severity, getCustomSeverity);
+      if (s.base) { changes.severity = s.base; changes.customSeverity = s.custom; }
     }
-    if (useAssignee) changes.assignee = assignee;
+    if (on.assignee) changes.assignee = assignee;
+    if (on.tlp) changes.tlp = tlp;
+    if (on.tags) changes.tags = { mode: tagMode, values: tags };
+    if (on.customField && cfKey.trim()) changes.customField = { key: cfKey.trim(), value: cfValue };
+    if (on.comment && comment.trim()) changes.comment = comment.trim();
     onApply(changes);
   };
 
-  const row = (label: string, checked: boolean, setChecked: (v: boolean) => void, control: React.ReactNode) => (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+  const total = incidents.length;
+  const row = (key: string, label: string, control: React.ReactNode, preview = true) => (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, minHeight: 36 }}>
       <FormControlLabel
-        sx={{ width: 140, m: 0 }}
-        control={<Checkbox size="small" checked={checked} onChange={e => setChecked(e.target.checked)} />}
+        sx={{ width: 150, m: 0, flexShrink: 0, height: 36 }}
+        control={<Checkbox size="small" checked={!!on[key]} onChange={e => toggle(key)(e.target.checked)} />}
         label={label}
       />
-      <Box sx={{ flex: 1, opacity: checked ? 1 : 0.5 }}>{control}</Box>
+      <Box sx={{ flex: 1, minWidth: 0, pt: '6px', opacity: on[key] ? 1 : 0.5, pointerEvents: on[key] ? 'auto' : 'none' }}>
+        {control}
+        {preview && on[key] && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+            {willChange(key)} of {total} will change
+          </Typography>
+        )}
+      </Box>
     </Box>
   );
-
-  const selectSx = { '& .MuiInputBase-root': { height: 36 } };
-  const menuProps = { MenuProps: { sx: { zIndex: 9999 } } };
 
   return (
     <Dialog open={open} onClose={isLoading ? undefined : onClose} maxWidth="sm" fullWidth
       PaperProps={{ sx: { backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' } }}>
-      <DialogTitle>Bulk edit {count} incident{count !== 1 ? 's' : ''}</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: '8px !important' }}>
+      <DialogTitle>Bulk edit {total} incident{total !== 1 ? 's' : ''}</DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
         <Typography variant="body2" color="text.secondary">
-          Choose the fields to change. Only checked fields are updated. To resolve incidents, use the Resolve button.
+          Choose the fields to change. Only checked fields are updated.
         </Typography>
-        {row('Status', useStatus, setUseStatus,
-          <TextField select fullWidth size="small" value={status} disabled={!useStatus} sx={selectSx}
-            SelectProps={menuProps} onChange={e => setStatus(e.target.value)} label="New status">
-            {statusOptions.map(o => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
-          </TextField>)}
-        {row('Severity', useSeverity, setUseSeverity,
-          <TextField select fullWidth size="small" value={severity} disabled={!useSeverity} sx={selectSx}
-            SelectProps={menuProps} onChange={e => setSeverity(e.target.value)} label="New severity">
-            {severityOptions.map(o => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
-          </TextField>)}
-        {row('Assignee', useAssignee, setUseAssignee,
-          <TextField select fullWidth size="small" value={assignee} disabled={!useAssignee} sx={selectSx}
-            SelectProps={{ ...menuProps, displayEmpty: true }} onChange={e => setAssignee(e.target.value)}
-            InputLabelProps={{ shrink: true }} label="New assignee">
-            <MenuItem value="">Unassigned</MenuItem>
-            <MenuItem value="AI Agent">AI Agent</MenuItem>
-            {users.map(u => <MenuItem key={u.username} value={u.username}>{u.username}</MenuItem>)}
-          </TextField>)}
+        {row('status', 'Status',
+          <TimelineStatusDropdown value={status} onChange={setStatus}
+            onResolveRequest={onResolveRequest} />)}
+        {row('severity', 'Severity', <TimelineSeverityDropdown value={severity} onChange={setSeverity} />)}
+        {row('assignee', 'Assignee', <TimelineAssigneeDropdown value={assignee} onChange={setAssignee} />)}
+        {row('tlp', 'TLP', <TimelineTlpDropdown value={tlp} onChange={setTlp} />)}
+        {row('tags', 'Tags',
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <ToggleButtonGroup size="small" exclusive value={tagMode} onChange={(_, v) => v && setTagMode(v)}
+              sx={{ '& .MuiToggleButton-root': { height: 28, px: 1.5, textTransform: 'none', fontSize: '0.75rem' } }}>
+              <ToggleButton value="add">Add</ToggleButton>
+              <ToggleButton value="remove">Remove</ToggleButton>
+              <ToggleButton value="replace">Replace all</ToggleButton>
+            </ToggleButtonGroup>
+            <TimelineTagsEditor
+              tags={tags}
+              onAddTag={t => setTags(p => (p.includes(t) ? p : [...p, t]))}
+              onDeleteTag={t => setTags(p => p.filter(x => x !== t))}
+            />
+          </Box>)}
+        {row('customField', 'Custom field',
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Autocomplete freeSolo size="small" options={customFieldKeys} inputValue={cfKey}
+              onInputChange={(_, v) => setCfKey(v)} sx={{ flex: 1 }}
+              slotProps={{ popper: { sx: { zIndex: 9999 } } }}
+              renderInput={p => <TextField {...p} placeholder="Field name" />} />
+            <TextField size="small" placeholder="Value" value={cfValue} onChange={e => setCfValue(e.target.value)} sx={{ flex: 1 }} />
+          </Box>)}
+        {row('comment', 'Comment',
+          <TextField size="small" fullWidth multiline minRows={2} placeholder="Why are these incidents being changed?"
+            value={comment} onChange={e => setComment(e.target.value)} />, false)}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={isLoading} sx={{ height: 36 }}>Cancel</Button>

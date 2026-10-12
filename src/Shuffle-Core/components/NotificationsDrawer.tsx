@@ -41,6 +41,10 @@ import { navigateToShuffleCore, isShuffleCoreUrl } from '@/lib/authHandoff';
 import { fetchWorkflowsCached, fetchOrgCached } from '../views/appsFetchCache';
 import { SegmentedControl } from './ui/segmented-control';
 import { useDrawerLayer } from '@/Shuffle-Core/drawerLayer';
+import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
+import { useNavigate } from '@/lib/router-compat';
+import { normalizeStatus, statusConfig } from '@/config/incidentConfig';
+import { mapOCSFStatus } from '@/config/ocsfIncidentSchema';
 
 export const NOTIFICATIONS_OPEN_EVENT = 'notifications:open';
 
@@ -75,7 +79,45 @@ export interface NotificationsDrawerProps {
   maxWidth?: number;
 }
 
-type ScopeValue = 'workflows' | 'agents';
+type ScopeValue = 'workflows' | 'agents' | 'personal';
+
+interface AssignedCase {
+  id: string;
+  title: string;
+  status: string;
+  updated?: number;
+}
+
+const CLOSED_STATUSES = new Set(['resolved', 'merged']);
+
+/** Open incidents assigned to the given user, newest first. Reads up to 4 pages. */
+const fetchAssignedOpenCases = async (username: string): Promise<AssignedCase[]> => {
+  const me = username.trim().toLowerCase();
+  if (!me) return [];
+  const out: AssignedCase[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 4; page++) {
+    const resp = await getDatastoreByCategory(DATASTORE_CATEGORIES.INCIDENTS, cursor);
+    const list = resp.data || resp.items || [];
+    for (const item of list) {
+      try {
+        const data = JSON.parse(item.value);
+        const attrs = data?.metadata?.extensions?.custom_attributes || {};
+        const assignee = String(attrs.assignee || data.assignee || '').trim().toLowerCase();
+        if (assignee !== me) continue;
+        const status = normalizeStatus(data.status || mapOCSFStatus(data.status_id || 1));
+        if (CLOSED_STATUSES.has(status)) continue;
+        const title = data.title || data.finding_info?.title || data.finding_info_list?.[0]?.title || item.key;
+        out.push({ id: item.key, title: String(title), status, updated: item.edited || item.created });
+      } catch {
+        /* skip unparseable incidents */
+      }
+    }
+    if (!resp.cursor || list.length === 0) break;
+    cursor = resp.cursor;
+  }
+  return out.sort((a, b) => (b.updated || 0) - (a.updated || 0));
+};
 
 const isAgentNotification = (n: ExecutionNotification): boolean => {
   if (n.agent_id || n.agent_name) return true;
@@ -142,6 +184,11 @@ const NotificationsDrawer = ({
   const [clearing, setClearing] = useState(false);
   // Notification workflow configuration (org defaults)
   const [orgId, setOrgId] = useState<string>('');
+  const [userId, setUserId] = useState<string>('');
+  const [username, setUsername] = useState<string>('');
+  const [assignedCases, setAssignedCases] = useState<AssignedCase[]>([]);
+  const [assignedLoading, setAssignedLoading] = useState(false);
+  const navigate = useNavigate();
   const [orgDefaults, setOrgDefaults] = useState<Record<string, any>>({});
   const [workflows, setWorkflows] = useState<Array<{ id: string; name: string }>>([]);
   const [notificationWorkflow, setNotificationWorkflow] = useState<string>('');
@@ -164,6 +211,10 @@ const NotificationsDrawer = ({
         if (!infoResp.ok) return;
         const info = await infoResp.json();
         const activeOrg = String(info?.active_org?.id || info?.org_id || '');
+        if (!cancelled) {
+          setUserId(String(info?.id || info?.user_id || ''));
+          setUsername(String(info?.username || ''));
+        }
         if (!activeOrg || cancelled) return;
         setOrgId(activeOrg);
 
@@ -333,9 +384,34 @@ const NotificationsDrawer = ({
     [items, agentIds],
   );
 
+  // Personal notifications: flagged personal by the backend, or addressed to this user.
+  const personalItems = useMemo(() => {
+    const seen = new Set<string>();
+    const isMine = (n: ExecutionNotification) =>
+      n.personal === true || (!!userId && String(n.user_id || '') === userId);
+    return [...items, ...agentItems].filter((n) => {
+      if (!isMine(n)) return false;
+      const key = String(n.id || '');
+      if (key && seen.has(key)) return false;
+      if (key) seen.add(key);
+      return true;
+    });
+  }, [items, agentItems, userId]);
+
+  useEffect(() => {
+    if (!open || !username) return;
+    let cancelled = false;
+    setAssignedLoading(true);
+    fetchAssignedOpenCases(username)
+      .then((list) => { if (!cancelled) setAssignedCases(list); })
+      .catch(() => { if (!cancelled) setAssignedCases([]); })
+      .finally(() => { if (!cancelled) setAssignedLoading(false); });
+    return () => { cancelled = true; };
+  }, [open, username]);
+
   const counts = useMemo(
-    () => ({ workflows: workflowItems.length, agents: agentItems.length }),
-    [workflowItems, agentItems],
+    () => ({ workflows: workflowItems.length, agents: agentItems.length, personal: personalItems.length }),
+    [workflowItems, agentItems, personalItems],
   );
 
   const matchesScope = useCallback(
@@ -352,9 +428,14 @@ const NotificationsDrawer = ({
     [agentItems, matchesScope],
   );
 
+  const personalVisible = useMemo(
+    () => personalItems.filter(matchesScope),
+    [personalItems, matchesScope],
+  );
+
   const visible = useMemo(
-    () => (scope === 'agents' ? agentVisible : workflowVisible),
-    [scope, agentVisible, workflowVisible],
+    () => (scope === 'agents' ? agentVisible : scope === 'personal' ? personalVisible : workflowVisible),
+    [scope, agentVisible, workflowVisible, personalVisible],
   );
 
   const filtering = query.trim().length > 0 || !showRead;
@@ -530,6 +611,7 @@ const NotificationsDrawer = ({
               options={[
                 { value: 'workflows', label: 'Workflows', count: pillCount(workflowVisible.length, counts.workflows) },
                 { value: 'agents', label: 'Agents', count: pillCount(agentVisible.length, counts.agents) },
+                { value: 'personal', label: 'Personal', count: pillCount(personalVisible.length, counts.personal) },
               ]}
             />
             <Tooltip title={showRead ? 'Hiding read notifications' : 'Showing all notifications'} arrow>
@@ -595,6 +677,60 @@ const NotificationsDrawer = ({
             </Typography>
           )}
 
+          {scope === 'personal' && (
+            <Box sx={{ mb: 3 }}>
+              <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', mb: 1 }}>
+                Open assigned cases{assignedCases.length > 0 ? ` (${assignedCases.length})` : ''}
+              </Typography>
+              {assignedLoading && assignedCases.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1.5 }}>
+                  <CircularProgress size={14} sx={{ color: 'hsl(var(--muted-foreground))' }} />
+                  <Typography sx={{ fontSize: '0.8125rem', color: 'hsl(var(--muted-foreground))' }}>Loading assigned cases...</Typography>
+                </Box>
+              ) : assignedCases.length === 0 ? (
+                <Typography sx={{ fontSize: '0.8125rem', color: 'hsl(var(--muted-foreground))', py: 1.5 }}>
+                  No open cases are assigned to you.
+                </Typography>
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {assignedCases.map((c) => {
+                    const cfg = statusConfig[c.status];
+                    return (
+                      <Box
+                        key={c.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => { onClose(); navigate(`/incidents/${encodeURIComponent(c.id)}`); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { onClose(); navigate(`/incidents/${encodeURIComponent(c.id)}`); } }}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1.5,
+                          borderRadius: '14px',
+                          p: 2,
+                          cursor: 'pointer',
+                          bgcolor: 'hsl(var(--muted) / 0.25)',
+                          transition: 'background-color 0.15s ease',
+                          '&:hover': { bgcolor: 'hsl(var(--muted) / 0.45)' },
+                        }}
+                      >
+                        <Typography sx={{ flex: 1, minWidth: 0, fontSize: '0.875rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.title}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: cfg?.color || 'hsl(var(--muted-foreground))', flexShrink: 0 }}>
+                          {cfg?.label || c.status.replace(/_/g, ' ')}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
+              <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', mt: 3 }}>
+                Personal notifications
+              </Typography>
+            </Box>
+          )}
+
           {!loading && !error && visible.length === 0 && (
             <Box
               sx={{
@@ -613,8 +749,10 @@ const NotificationsDrawer = ({
                 }}
               >
                 {filtering
-                  ? `0/${scope === 'agents' ? counts.agents : counts.workflows} notifications shown`
-                  : 'No notifications found'}
+                  ? `0/${counts[scope]} notifications shown`
+                  : scope === 'personal'
+                    ? 'You have no personal notifications. Notifications addressed only to you will show up here.'
+                    : 'No notifications found'}
               </Typography>
               {filtering && (
                 <Button

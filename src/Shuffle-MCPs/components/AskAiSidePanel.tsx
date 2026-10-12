@@ -207,8 +207,9 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   const [contentReady, setContentReady] = useState(false);
   useEffect(() => {
     if (!isVisible) {
-      setContentReady(false);
-      return;
+      // Keep content mounted until the slide-out has finished.
+      const closeTimer = window.setTimeout(() => setContentReady(false), 320);
+      return () => window.clearTimeout(closeTimer);
     }
     const timer = window.setTimeout(() => setContentReady(true), 280);
     return () => window.clearTimeout(timer);

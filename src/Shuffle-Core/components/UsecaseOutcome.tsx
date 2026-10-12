@@ -261,8 +261,8 @@ export function UsecaseOutcomeSection({
       sx={{
         p: 2.5,
         borderRadius: 2,
-        border: `1px solid ${BORDER}`,
-        bgcolor: CARD,
+        border: 'none',
+        bgcolor: 'transparent',
         mb: 3,
       }}
     >

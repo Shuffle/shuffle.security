@@ -3511,7 +3511,7 @@ function AssignEscalateOutcomeBlock({ flow, workflows }: { flow: Usecase; workfl
 
   if (loading) {
     return (
-      <Box sx={{ p: 2.5, borderRadius: 2, border: `1px solid ${BORDER}`, bgcolor: CARD, mb: 3 }}>
+      <Box sx={{ p: 2.5, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
         <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: MUTED, letterSpacing: 0.6, mb: 1 }}>
           Outcome · last 30 days
         </Typography>
@@ -3527,7 +3527,7 @@ function AssignEscalateOutcomeBlock({ flow, workflows }: { flow: Usecase; workfl
 
   if (!matchedWorkflowId) {
     return (
-      <Box sx={{ p: 2.5, borderRadius: 2, border: `1px solid ${BORDER}`, bgcolor: CARD, mb: 3 }}>
+      <Box sx={{ p: 2.5, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
         <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: MUTED, letterSpacing: 0.6, mb: 1 }}>
           Outcome · last 30 days
         </Typography>
@@ -4293,7 +4293,6 @@ function UsecaseDetailContent({
   // Self-contained color tokens with fallbacks so the standalone build
   // (where host CSS may not define --card/--border/etc.) still renders
   // proper surfaces and accent colors instead of going transparent/flat.
-  const CARD_BG = 'hsl(var(--card, 0 0% 13%))';
   const CARD_BORDER = '1px solid hsl(var(--border, 0 0% 20%))';
   const FG = 'hsl(var(--foreground, 0 0% 100%))';
   const MUTED = 'hsl(var(--muted-foreground, 0 0% 60%))';
@@ -4417,21 +4416,9 @@ function UsecaseDetailContent({
       <Box sx={{
         p: 3,
         borderRadius: 2,
-        border: detailIsBlocked
-          ? '1px solid hsl(var(--destructive) / 0.5)'
-          : effectiveEnabled
-            ? '1px solid hsl(var(--severity-low))'
-            : CARD_BORDER,
-        bgcolor: detailIsBlocked
-          ? 'hsl(var(--destructive) / 0.04)'
-          : effectiveEnabled
-            ? 'hsl(var(--severity-low) / 0.04)'
-            : CARD_BG,
-        boxShadow: detailIsBlocked
-          ? '0 2px 8px hsl(var(--destructive) / 0.08)'
-          : effectiveEnabled
-            ? '0 2px 8px hsl(var(--severity-low) / 0.08)'
-            : 'none',
+        border: 'none',
+        bgcolor: 'transparent',
+        boxShadow: 'none',
         mb: 3,
       }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2.5 }}>

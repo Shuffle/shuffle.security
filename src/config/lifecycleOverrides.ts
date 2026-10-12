@@ -215,3 +215,18 @@ export function severityFilterColor(f: string): string | undefined {
   }
   return getSeverityColorFn(f);
 }
+export function statusFilterColor(f: string): string | undefined {
+  if (f.startsWith('custom:')) {
+    const c = getCustomStatus(f.slice(7));
+    return c ? c.color || statusConfig[c.base]?.color : undefined;
+  }
+  return statusConfig[f]?.color;
+}
+export function statusFilterBg(f: string): string | undefined {
+  if (f.startsWith('custom:')) {
+    const c = getCustomStatus(f.slice(7));
+    if (!c) return undefined;
+    return c.color ? `${c.color}26` : statusConfig[c.base]?.bg;
+  }
+  return statusConfig[f]?.bg;
+}

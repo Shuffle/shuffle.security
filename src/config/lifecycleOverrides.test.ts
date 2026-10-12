@@ -79,4 +79,20 @@ describe('custom lists', () => {
     expect(m.getActiveCustomSeverity('p1', 'critical')?.label).toBe('P1');
     expect(m.getActiveCustomSeverity('p1', 'high')).toBeUndefined();
   });
+
+  it('filters: built-in matches custom-based incidents, custom matches only itself', async () => {
+    const m = await import('./lifecycleOverrides');
+    applyLifecycleOverrides({
+      statuses: { builtin: {}, custom: [{ key: '', label: 'Awaiting Customer', base: 'on_hold' }] },
+      severities: { builtin: {}, custom: [{ key: '', label: 'P1', base: 'critical' }] },
+    });
+    const custom = { status: 'on_hold', severity: 'critical', lifecycle: { status: 'awaiting_customer', severity: 'p1' } };
+    const plain = { status: 'on_hold', severity: 'critical' };
+    expect(m.matchesStatusFilter(custom, 'on_hold')).toBe(true);
+    expect(m.matchesStatusFilter(custom, 'custom:awaiting_customer')).toBe(true);
+    expect(m.matchesStatusFilter(plain, 'custom:awaiting_customer')).toBe(false);
+    expect(m.matchesSeverityFilter(custom, 'custom:p1')).toBe(true);
+    expect(m.matchesSeverityFilter(plain, 'custom:p1')).toBe(false);
+    expect(m.statusFilterLabel('custom:awaiting_customer')).toBe('Awaiting Customer');
+  });
 });

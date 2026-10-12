@@ -177,7 +177,7 @@ type SortKey = 'title' | 'severity' | 'status' | 'assignee' | 'created' | 'edite
 
 // Status and severity colors now imported from shared config
 import { statusConfig, severityColors, severityOrder, getSeverityColor } from '@/config/incidentConfig';
-import { statusFilterLabel, severityFilterLabel, severityFilterColor, matchesStatusFilter, matchesSeverityFilter } from '@/config/lifecycleOverrides';
+import { statusFilterColor, statusFilterBg, statusFilterLabel, severityFilterLabel, severityFilterColor, matchesStatusFilter, matchesSeverityFilter } from '@/config/lifecycleOverrides';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
 /**
@@ -3510,10 +3510,10 @@ const IncidentsPage = () => {
                     onDelete={() => { setFilters(prev => ({ ...prev, status: null })); setNegatedFilters(prev => { const next = new Set(prev); next.delete('status'); return next; }); }}
                     sx={{ 
                       cursor: 'pointer',
-                      backgroundColor: negatedFilters.has('status') ? 'rgba(239, 68, 68, 0.15)' : (statusConfig[filters.status]?.bg || 'rgba(148, 163, 184, 0.1)'),
-                      color: negatedFilters.has('status') ? '#f87171' : (statusConfig[filters.status]?.color || '#94a3b8'),
+                      backgroundColor: negatedFilters.has('status') ? 'rgba(239, 68, 68, 0.15)' : (statusFilterBg(filters.status) || 'rgba(148, 163, 184, 0.1)'),
+                      color: negatedFilters.has('status') ? '#f87171' : (statusFilterColor(filters.status) || '#94a3b8'),
                       fontWeight: 500,
-                      '& .MuiChip-deleteIcon': { color: negatedFilters.has('status') ? '#f87171' : (statusConfig[filters.status]?.color || '#94a3b8') },
+                      '& .MuiChip-deleteIcon': { color: negatedFilters.has('status') ? '#f87171' : (statusFilterColor(filters.status) || '#94a3b8') },
                     }}
                   />
                 )

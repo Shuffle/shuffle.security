@@ -416,19 +416,8 @@ export const MarkdownRenderer = ({
           fontSize: '0.875rem',
           fontFamily: 'JetBrains Mono, monospace',
         },
-        '& pre': {
-          backgroundColor: (t) => t.palette.mode === 'dark' ? '#0D0D0D' : '#f5f5f5',
-          border: '1px solid',
-          borderColor: 'divider',
-          borderRadius: 2,
-          p: 3,
-          overflow: 'auto',
-          '& code': {
-            backgroundColor: 'transparent',
-            p: 0,
-            color: 'text.primary',
-          },
-        },
+        // Fenced code blocks render through DocCodeBlock (see the `pre`
+        // component override below); no generic pre styling here.
         '& ul, & ol': {
           color: 'text.secondary',
           pl: 3,

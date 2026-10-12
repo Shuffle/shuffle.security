@@ -4812,7 +4812,7 @@ function UsecaseDetailContent({
             ? { component: Link, to: flow.customAction.href }
             : null;
         return (
-          <Box sx={{ p: 2.5, borderRadius: 2, border: CARD_BORDER, bgcolor: CARD_BG, mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+          <Box sx={{ p: 2.5, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
                 {flow.customAction.label}
@@ -4860,7 +4860,7 @@ function UsecaseDetailContent({
             })
           : null;
         return slot ? (
-          <Box sx={{ p: 2.5, borderRadius: 2, border: CARD_BORDER, bgcolor: CARD_BG, mb: 3 }}>
+          <Box sx={{ p: 2.5, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
             {slot}
           </Box>
         ) : null;
@@ -4876,7 +4876,7 @@ function UsecaseDetailContent({
         const alluvialEligible = useAlluvialDiagram && ALLUVIAL_ELIGIBLE_FLOW_IDS.has(flow.id);
         const showAlluvial = alluvialEligible && connectionViewMode === 'source_destination';
         return (
-      <Box sx={{ p: 3, borderRadius: 2, border: CARD_BORDER, bgcolor: CARD_BG, mb: 3, position: 'relative' }}>
+      <Box sx={{ p: 3, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3, position: 'relative' }}>
         {alluvialEligible && (() => {
           const nextMode = connectionViewMode === 'source_destination' ? 'line' : 'source_destination';
           const tooltip = nextMode === 'line' ? 'Switch to Line view' : 'Switch to Source / Destination view';
@@ -5353,7 +5353,7 @@ function UsecaseDetailContent({
       )}
 
       {flow.id === 'case_management_communication_1' && (
-        <Box sx={{ p: 2.5, borderRadius: 2, border: CARD_BORDER, bgcolor: CARD_BG, mb: 3 }}>
+        <Box sx={{ p: 2.5, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 2, flexWrap: 'wrap' }}>
             <Box>
               <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: FG }}>
@@ -5428,7 +5428,7 @@ function UsecaseDetailContent({
         const allLinked = allLinkedForSet;
         if (allLinked.length === 0) {
           return (
-            <Box sx={{ p: 3, borderRadius: 2, border: CARD_BORDER, bgcolor: CARD_BG, mb: 3 }}>
+            <Box sx={{ p: 3, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 2, flexWrap: 'wrap' }}>
                 <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: MUTED, letterSpacing: '0.06em' }}>
                   Linked Workflows (0)
@@ -5453,7 +5453,7 @@ function UsecaseDetailContent({
               ? `Matched on label "${flow.automationLabel}"`
               : 'Matched on label "Forward Tickets"';
         return (
-          <Box sx={{ p: 3, borderRadius: 2, border: CARD_BORDER, bgcolor: CARD_BG, mb: 3 }}>
+          <Box sx={{ p: 3, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 2, flexWrap: 'wrap' }}>
               <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: MUTED, letterSpacing: '0.06em' }}>
                 Linked Workflows ({allLinked.length})
@@ -5660,7 +5660,7 @@ function UsecaseDetailContent({
       })()}
 
       {((showImage && flow.referenceImage) || flow.video || flow.blogpost) && (
-        <Box sx={{ p: 3, borderRadius: 2, border: CARD_BORDER, bgcolor: CARD_BG, mb: 3 }}>
+        <Box sx={{ p: 3, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
           <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: MUTED, letterSpacing: '0.06em', mb: 1.5 }}>
             Resources
           </Typography>

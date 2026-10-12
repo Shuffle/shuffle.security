@@ -7,7 +7,7 @@
  * of a built-in "base" state, so everything saved stays a built-in key/id.
  * With no overrides, behaviour is identical to the defaults.
  */
-import { statusConfig, STATUS_SYNONYMS, severityColors, registerSeverityColorOverride } from './incidentConfig';
+import { statusConfig, STATUS_SYNONYMS, severityColors, registerSeverityColorOverride, getSeverityColor as getSeverityColorFn } from './incidentConfig';
 
 export const BUILTIN_SEVERITIES = ['critical', 'high', 'medium', 'low', 'informational'] as const;
 
@@ -185,4 +185,48 @@ export function getActiveCustomStatus(key: string | undefined, status: string | 
 export function getActiveCustomSeverity(key: string | undefined, severity: string | undefined): CustomState | undefined {
   const c = getCustomSeverity(key);
   return c && severity && c.base === resolveSeverity(severity) ? c : undefined;
+}
+
+/**
+ * Filter values: built-in keys ("on_hold") or custom keys prefixed "custom:".
+ * A built-in filter also matches incidents in a custom state based on it.
+ */
+type FilterableIncident = { status: string; severity: string; lifecycle?: { status?: string; severity?: string } };
+export function matchesStatusFilter(i: FilterableIncident, f: string): boolean {
+  if (f.startsWith('custom:')) return getActiveCustomStatus(i.lifecycle?.status, i.status)?.key === f.slice(7);
+  return i.status === f;
+}
+export function matchesSeverityFilter(i: FilterableIncident, f: string): boolean {
+  if (f.startsWith('custom:')) return getActiveCustomSeverity(i.lifecycle?.severity, i.severity)?.key === f.slice(7);
+  return i.severity === f;
+}
+export function statusFilterLabel(f: string): string {
+  if (f.startsWith('custom:')) return getCustomStatus(f.slice(7))?.label || f.slice(7);
+  return statusConfig[f]?.label || f.replace(/_/g, ' ');
+}
+export function severityFilterLabel(f: string): string {
+  if (f.startsWith('custom:')) return getCustomSeverity(f.slice(7))?.label || f.slice(7);
+  return getSeverityLabel(f);
+}
+export function severityFilterColor(f: string): string | undefined {
+  if (f.startsWith('custom:')) {
+    const c = getCustomSeverity(f.slice(7));
+    return c ? c.color || getSeverityColorFn(c.base) : undefined;
+  }
+  return getSeverityColorFn(f);
+}
+export function statusFilterColor(f: string): string | undefined {
+  if (f.startsWith('custom:')) {
+    const c = getCustomStatus(f.slice(7));
+    return c ? c.color || statusConfig[c.base]?.color : undefined;
+  }
+  return statusConfig[f]?.color;
+}
+export function statusFilterBg(f: string): string | undefined {
+  if (f.startsWith('custom:')) {
+    const c = getCustomStatus(f.slice(7));
+    if (!c) return undefined;
+    return c.color ? `${c.color}26` : statusConfig[c.base]?.bg;
+  }
+  return statusConfig[f]?.bg;
 }

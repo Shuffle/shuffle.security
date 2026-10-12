@@ -171,6 +171,8 @@ export interface AutomationReadinessCardProps {
   onEnableAll?: () => void | Promise<void>;
   enableAllLabel?: string;
   atTop?: boolean;
+  /** Render flat on the surrounding background: no border, no tinted background. */
+  borderless?: boolean;
   sx?: SxProps<Theme>;
 }
 
@@ -185,6 +187,7 @@ export const AutomationReadinessCard: React.FC<AutomationReadinessCardProps> = (
   onEnableAll,
   enableAllLabel = 'Enable all',
   atTop,
+  borderless,
   sx,
 }) => {
   const total = explicitTotalCount ?? items.length;
@@ -198,12 +201,14 @@ export const AutomationReadinessCard: React.FC<AutomationReadinessCardProps> = (
         mb: atTop ? 2 : 0,
         p: 1.5,
         borderRadius: 2,
-        bgcolor: isAllActive ? 'hsl(var(--severity-low) / 0.04)' : 'transparent',
-        border: isAllActive
-          ? '1px solid hsl(var(--severity-low))'
-          : atTop
-            ? '1px solid hsl(var(--primary) / 0.5)'
-            : '1px solid hsl(var(--border))',
+        bgcolor: !borderless && isAllActive ? 'hsl(var(--severity-low) / 0.04)' : 'transparent',
+        border: borderless
+          ? 'none'
+          : isAllActive
+            ? '1px solid hsl(var(--severity-low))'
+            : atTop
+              ? '1px solid hsl(var(--primary) / 0.5)'
+              : '1px solid hsl(var(--border))',
         boxShadow: 'none',
         display: 'flex',
         flexDirection: 'column',

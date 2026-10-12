@@ -8,6 +8,7 @@
  */
 import React, { useState } from 'react';
 import { useTheme } from '@mui/material';
+import { toast } from 'sonner';
 import {
   useThreatIntelAutomationStatus,
   ThreatIntelAutomationStatus,
@@ -44,6 +45,29 @@ export const ThreatIntelReadinessBanner: React.FC<ThreatIntelReadinessBannerProp
     userInfo = undefined;
   }
   const [internalDrawerId, setInternalDrawerId] = useState<string | null>(null);
+  const isLoggedIn = !!userInfo;
+
+  // Enabling automations requires a signed-in session. Without one the
+  // underlying API calls fail silently, so guard up front and surface any
+  // unexpected failure instead of leaving the spinner hanging.
+  const guardAction = (fn?: () => void | Promise<void>, label?: string) => {
+    if (!fn) return undefined;
+    return async () => {
+      if (!isLoggedIn) {
+        toast.error('Sign in to enable automations', {
+          description: 'You need an active session before automation settings can be changed.',
+        });
+        return;
+      }
+      try {
+        await fn();
+      } catch (error: any) {
+        toast.error(`Could not ${label ? `${label} ` : ''}update automation`, {
+          description: error?.message || 'The request failed. Please try again.',
+        });
+      }
+    };
+  };
 
   const handleOpenUsecase = (flowId: string) => {
     if (onOpenUsecase) {
@@ -61,8 +85,8 @@ export const ThreatIntelReadinessBanner: React.FC<ThreatIntelReadinessBannerProp
     busy: check.busy,
     tooltip: check.tooltip,
     checks: check.parts,
-    onEnable: check.enable,
-    onDisable: check.disable,
+    onEnable: guardAction(check.enable, 'enable'),
+    onDisable: guardAction(check.disable, 'disable'),
     onOpenUsecase: check.usecaseId ? () => handleOpenUsecase(check.usecaseId!) : undefined,
   }));
 
@@ -74,9 +98,10 @@ export const ThreatIntelReadinessBanner: React.FC<ThreatIntelReadinessBannerProp
         allActive={status.allActive}
         isLoading={status.isLoading}
         isEnablingAll={status.isEnablingAll}
-        onEnableAll={status.enableAll}
+        onEnableAll={guardAction(status.enableAll, 'enable all')}
         enableAllLabel="Enable all"
         atTop={atTop}
+        borderless
       />
       <UsecaseDrawer
         open={!!internalDrawerId}
@@ -85,7 +110,7 @@ export const ThreatIntelReadinessBanner: React.FC<ThreatIntelReadinessBannerProp
         globalUrl={API_CONFIG.baseUrl}
         userdata={userInfo as any}
         isLoaded={true}
-        isLoggedIn={!!userInfo}
+        isLoggedIn={isLoggedIn}
         theme={resolvedTheme}
       />
     </>

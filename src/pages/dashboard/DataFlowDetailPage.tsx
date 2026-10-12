@@ -605,12 +605,9 @@ export const UsecaseDetailContent = ({
             bgcolor: 'hsl(var(--card))',
             mb: 3,
           }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 2, flexWrap: 'wrap' }}>
+            <Box sx={{ mb: 1.5 }}>
               <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Linked Workflows ({linkedWorkflows.length})
-              </Typography>
-              <Typography sx={{ fontSize: '0.7rem', color: 'hsl(var(--muted-foreground))' }}>
-                Matched on label "{flow.automationLabel}"
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>

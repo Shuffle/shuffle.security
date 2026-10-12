@@ -5409,19 +5409,13 @@ function UsecaseDetailContent({
         // toggle Forward Tickets, but it is the workflow that does the actual
         // forwarding, so showing it makes the wiring obvious.
         const forwardTicketsWorkflows = forwardTicketsForLW;
-        // Notifications: append the org's defaults.notification_workflow if not
-        // already covered by tag/name matching.
-        const notifWorkflows = notifForLW;
         const allLinked = allLinkedForSet;
         if (allLinked.length === 0) {
           return (
             <Box sx={{ p: 3, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ mb: 1.5 }}>
                 <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: MUTED, letterSpacing: '0.06em' }}>
                   Linked Workflows (0)
-                </Typography>
-                <Typography sx={{ fontSize: '0.72rem', color: MUTED }}>
-                  {flow.automationLabel ? `Matched on label "${flow.automationLabel}"` : ''}
                 </Typography>
               </Box>
               <Typography sx={{ fontSize: '0.82rem', color: MUTED }}>
@@ -5432,21 +5426,11 @@ function UsecaseDetailContent({
             </Box>
           );
         }
-        const labelHint = forwardTicketsWorkflows.length > 0 && flow.automationLabel
-          ? `Matched on "${flow.automationLabel}" and "Forward Tickets"`
-          : notifWorkflows.length > 0
-            ? 'Matched on org default notification workflow'
-            : flow.automationLabel
-              ? `Matched on label "${flow.automationLabel}"`
-              : 'Matched on label "Forward Tickets"';
         return (
           <Box sx={{ p: 3, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 2, flexWrap: 'wrap' }}>
+            <Box sx={{ mb: 1.5 }}>
               <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: MUTED, letterSpacing: '0.06em' }}>
                 Linked Workflows ({allLinked.length})
-              </Typography>
-              <Typography sx={{ fontSize: '0.72rem', color: MUTED }}>
-                {labelHint}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>

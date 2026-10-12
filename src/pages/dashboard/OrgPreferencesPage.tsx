@@ -22,6 +22,7 @@ import {
 import { SIDEBAR_NAV } from '@/config/sidebarNav';
 import { TaskStatusesEditor } from '@/components/settings/TaskStatusesEditor';
 import { SlaEditor } from '@/components/settings/SlaEditor';
+import { LifecycleEditor } from '@/components/settings/LifecycleEditor';
 import { DefaultEnvironmentSelector } from '@/components/settings/DefaultEnvironmentSelector';
 
 import { useAuth } from '@/context/AuthContext';
@@ -426,6 +427,30 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
             </Typography>
           </Box>
           <SlaEditor />
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.5,
+            bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+              Lifecycle States
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
+              Rename, recolour or hide the built-in incident statuses and severities, or add your own.
+              Custom states are based on a built-in state, which is what gets saved, so automatic
+              mapping, SLA targets and automations keep working.
+            </Typography>
+          </Box>
+          <LifecycleEditor />
         </Paper>
 
         {/*

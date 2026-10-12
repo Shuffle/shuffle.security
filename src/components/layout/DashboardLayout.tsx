@@ -12,6 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { loadAgentToolsFromDatastore } from '@/lib/agentTools';
 import { IosWebViewNavHeader } from './IosWebViewNavHeader';
 import { MobilePageTitleHider } from './MobilePageTitleHider';
+import { useLifecycleConfig } from '@/hooks/useLifecycleConfig';
 
 const drawerWidth = 260;
 const collapsedWidth = 64;
@@ -24,6 +25,8 @@ interface DashboardLayoutProps {
 
 export const DashboardLayout = ({ children, defaultCollapsed }: DashboardLayoutProps) => {
   const location = useLocation();
+  // Applies tenant status/severity overrides to the shared incident config.
+  useLifecycleConfig();
   const { orgMismatchWarning, dismissOrgMismatch, setActiveOrg, userInfo } = useAuth();
   const isOnboarding = location.pathname === '/onboarding' || location.pathname.startsWith('/onboarding/');
 

@@ -9,6 +9,7 @@ export const statusConfig: Record<string, {
   bg: string; 
   label: string;
   id: number; // OCSF status_id
+  hidden?: boolean; // tenant override: hide from pickers
 }> = {
   new: { 
     icon: Clock, 
@@ -134,6 +135,8 @@ export const severityColors: Record<string, string> = {
  */
 export const getSeverityColor = (severity: string): string => {
   const normalized = (severity || 'medium').toLowerCase();
+  const override = severityColorOverride?.(normalized);
+  if (override) return override;
   const key = normalized === 'informational' ? 'info' : normalized;
   return `hsl(var(--severity-${key}, var(--severity-medium)))`;
 };
@@ -170,4 +173,10 @@ export const getOCSFStatus = (canonicalStatus: string): { label: string; id: num
   if (config) return { label: config.label, id: config.id };
   // Unknown status — preserve the raw string, don't force a mapping
   return { label: canonicalStatus.replace(/_/g, ' '), id: 0 };
+};
+
+// Set by lifecycleOverrides.ts to avoid a circular import.
+let severityColorOverride: ((sev: string) => string | undefined) | null = null;
+export const registerSeverityColorOverride = (fn: (sev: string) => string | undefined) => {
+  severityColorOverride = fn;
 };

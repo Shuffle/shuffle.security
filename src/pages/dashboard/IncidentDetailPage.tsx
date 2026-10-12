@@ -150,6 +150,14 @@ import {
 } from "@/config/ocsfIncidentSchema";
 import { normalizeStatus } from "@/config/incidentConfig";
 import {
+  getCustomStatus,
+  getCustomStatuses,
+  getCustomSeverity,
+  getCustomSeverities,
+  getSeverityLabel,
+} from "@/config/lifecycleOverrides";
+import { useLifecycleConfig } from "@/hooks/useLifecycleConfig";
+import {
   ResolveIncidentDialog,
   ResolutionData,
   RESOLUTION_REASONS,
@@ -1635,6 +1643,12 @@ const IncidentDetailPage = () => {
   }, [currentIncidentTitle, rawId]);
   const [editedMessage, setEditedMessage] = useState("");
   const [editedSeverity, setEditedSeverity] = useState("");
+  // Tenant custom lifecycle states (see /admin/preferences). The built-in
+  // base status/severity is what gets saved; the custom key is stored
+  // alongside in custom_attributes.lifecycle.
+  useLifecycleConfig();
+  const [editedLifecycle, setEditedLifecycle] = useState<{ status?: string; severity?: string }>({});
+  const initLifecycleRef = useRef("{}");
 
   const handleManualSeverityChange = useCallback(
     (nextSeverity: string) => {
@@ -1659,6 +1673,60 @@ const IncidentDetailPage = () => {
     },
     [editedSeverity, incident?.severity, currentUsername],
   );
+  const activeCustomStatus =
+    editedLifecycle.status && getCustomStatus(editedLifecycle.status)?.base === editedStatus
+      ? getCustomStatus(editedLifecycle.status)
+      : undefined;
+  const activeCustomSeverity =
+    editedLifecycle.severity && getCustomSeverity(editedLifecycle.severity)?.base === editedSeverity
+      ? getCustomSeverity(editedLifecycle.severity)
+      : undefined;
+  const statusSelectValue = activeCustomStatus ? `custom:${activeCustomStatus.key}` : editedStatus;
+  const severitySelectValue = activeCustomSeverity ? `custom:${activeCustomSeverity.key}` : editedSeverity;
+  const customStatusLabel = (val: string): string | undefined =>
+    val.startsWith("custom:") ? getCustomStatus(val.slice(7))?.label : undefined;
+  const onStatusSelect = (val: string) => {
+    if (val.startsWith("custom:")) {
+      const c = getCustomStatus(val.slice(7));
+      if (!c) return;
+      setEditedLifecycle((p) => ({ ...p, status: c.key }));
+      if (c.base === "resolved") {
+        setShowResolveDialog(true);
+        return;
+      }
+      handleManualStatusChange(c.base);
+      return;
+    }
+    setEditedLifecycle((p) => ({ ...p, status: undefined }));
+    if (val === "resolved") {
+      setShowResolveDialog(true);
+      return;
+    }
+    handleManualStatusChange(val);
+  };
+  const onSeveritySelect = (val: string) => {
+    if (val.startsWith("custom:")) {
+      const c = getCustomSeverity(val.slice(7));
+      if (!c) return;
+      setEditedLifecycle((p) => ({ ...p, severity: c.key }));
+      handleManualSeverityChange(c.base);
+      return;
+    }
+    setEditedLifecycle((p) => ({ ...p, severity: undefined }));
+    handleManualSeverityChange(val);
+  };
+  const customStatusMenuItems = getCustomStatuses().map((c) => (
+    <MenuItem key={`custom:${c.key}`} value={`custom:${c.key}`} sx={{ fontSize: "0.8rem", gap: 1 }}>
+      <Box component="span" sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: c.color || statusConfig[c.base]?.color }} />
+      {c.label}
+    </MenuItem>
+  ));
+  const customSeverityMenuItems = getCustomSeverities().map((c) => (
+    <MenuItem key={`custom:${c.key}`} value={`custom:${c.key}`} sx={{ color: c.color || getSeverityColor(c.base) }}>
+      {c.label}
+    </MenuItem>
+  ));
+
   const [editedAssignee, setEditedAssignee] = useState("");
   const [editedTlp, setEditedTlp] = useState("TLP:AMBER");
   const [editedReferences, setEditedReferences] = useState<string[]>([]);
@@ -5581,6 +5649,15 @@ const IncidentDetailPage = () => {
           );
 
           setEditedCustomFields(flattenedCustomFields);
+          {
+            const lc = (customAttrs as any)?.lifecycle;
+            const next = {
+              ...(typeof lc?.status === "string" && lc.status ? { status: lc.status } : {}),
+              ...(typeof lc?.severity === "string" && lc.severity ? { severity: lc.severity } : {}),
+            };
+            initLifecycleRef.current = JSON.stringify(next);
+            setEditedLifecycle(next);
+          }
           setEditedLabels(parsed.labels || []);
           setActivity(mergePendingActivity(parsed.activity || []));
           const loadedTasks =
@@ -7435,6 +7512,13 @@ const IncidentDetailPage = () => {
     const severityOption = severityOptions.find(
       (s) => s.value === effectiveSeverity,
     );
+    // Only keep a custom state while its base still matches what is saved.
+    const lifecycleToSave: { status?: string; severity?: string } = {};
+    if (editedLifecycle.status && getCustomStatus(editedLifecycle.status)?.base === effectiveStatus)
+      lifecycleToSave.status = editedLifecycle.status;
+    if (editedLifecycle.severity && getCustomSeverity(editedLifecycle.severity)?.base === effectiveSeverity)
+      lifecycleToSave.severity = editedLifecycle.severity;
+    initLifecycleRef.current = JSON.stringify(editedLifecycle);
     const { label: statusLabel, id: statusId } = getOCSFStatus(effectiveStatus);
 
     // Get existing finding info from list (new) or direct (legacy)
@@ -7482,6 +7566,7 @@ const IncidentDetailPage = () => {
                 tlp: editedTlp,
                 assignee: editedAssignee.trim() || "", // Sync metadata assignee with top-level
                 customFields: editedCustomFields,
+                lifecycle: lifecycleToSave,
                 stakeholders: editedStakeholders,
                 // Mirror observables and tasks here — the loader prefers this path first,
                 // so a stale legacy value would otherwise win over the
@@ -7723,6 +7808,7 @@ const IncidentDetailPage = () => {
     editedReferences,
     editedObservables,
     editedCustomFields,
+    editedLifecycle,
     editedLabels,
     editedStakeholders,
     activity,
@@ -7803,6 +7889,8 @@ const IncidentDetailPage = () => {
     if (labelsJsonRef.current !== init.labels) changedFields.push("labels");
     if (stakeholdersJsonRef.current !== init.stakeholders)
       changedFields.push("stakeholders");
+    if (JSON.stringify(editedLifecycle) !== initLifecycleRef.current)
+      changedFields.push("lifecycle");
     const hasChanges = changedFields.length > 0;
 
     if (hasChanges) {
@@ -7829,6 +7917,7 @@ const IncidentDetailPage = () => {
     editedReferences,
     editedObservables,
     editedCustomFields,
+    editedLifecycle,
     editedLabels,
     editedStakeholders,
     tasks,
@@ -18032,15 +18121,8 @@ const IncidentDetailPage = () => {
                 {/* Status dropdown */}
                 <FormControl size="small" variant="standard">
                   <Select
-                    value={editedStatus}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "resolved") {
-                        setShowResolveDialog(true);
-                        return;
-                      }
-                      handleManualStatusChange(val);
-                    }}
+                    value={statusSelectValue}
+                    onChange={(e) => onStatusSelect(String(e.target.value))}
                     disableUnderline
                     sx={{
                       fontSize: "0.7rem",
@@ -18063,6 +18145,8 @@ const IncidentDetailPage = () => {
                       },
                     }}
                     renderValue={(val) => {
+                      const customLabel = customStatusLabel(String(val));
+                      if (customLabel) return customLabel;
                       if (!statusConfig[val])
                         return `⚠ ${val.replace(/_/g, " ")}`;
                       return statusConfig[val].label;
@@ -18103,6 +18187,7 @@ const IncidentDetailPage = () => {
                           </MenuItem>
                         );
                       })}
+                    {customStatusMenuItems}
                   </Select>
                 </FormControl>
 
@@ -18113,9 +18198,12 @@ const IncidentDetailPage = () => {
                 {/* Severity dropdown */}
                 <FormControl size="small" variant="standard">
                   <Select
-                    value={editedSeverity}
-                    onChange={(e) =>
-                      handleManualSeverityChange(e.target.value)
+                    value={severitySelectValue}
+                    onChange={(e) => onSeveritySelect(String(e.target.value))}
+                    renderValue={(val) =>
+                      String(val).startsWith("custom:")
+                        ? getCustomSeverity(String(val).slice(7))?.label || String(val)
+                        : getSeverityLabel(String(val))
                     }
                     disableUnderline
                     sx={{
@@ -18142,11 +18230,12 @@ const IncidentDetailPage = () => {
                       },
                     }}
                   >
-                    <MenuItem value="critical">Critical</MenuItem>
-                    <MenuItem value="high">High</MenuItem>
-                    <MenuItem value="medium">Medium</MenuItem>
-                    <MenuItem value="low">Low</MenuItem>
-                    <MenuItem value="informational">Informational</MenuItem>
+                    <MenuItem value="critical">{getSeverityLabel("critical")}</MenuItem>
+                    <MenuItem value="high">{getSeverityLabel("high")}</MenuItem>
+                    <MenuItem value="medium">{getSeverityLabel("medium")}</MenuItem>
+                    <MenuItem value="low">{getSeverityLabel("low")}</MenuItem>
+                    <MenuItem value="informational">{getSeverityLabel("informational")}</MenuItem>
+                    {customSeverityMenuItems}
                   </Select>
                 </FormControl>
 
@@ -19212,9 +19301,12 @@ const IncidentDetailPage = () => {
                         }}
                       >
                         <Select
-                          value={editedSeverity}
-                          onChange={(e) =>
-                            handleManualSeverityChange(e.target.value)
+                          value={severitySelectValue}
+                          onChange={(e) => onSeveritySelect(String(e.target.value))}
+                          renderValue={(val) =>
+                            String(val).startsWith("custom:")
+                              ? getCustomSeverity(String(val).slice(7))?.label || String(val)
+                              : getSeverityLabel(String(val))
                           }
                           disableUnderline
                           sx={{
@@ -19241,32 +19333,33 @@ const IncidentDetailPage = () => {
                             value="critical"
                             sx={{ color: getSeverityColor("critical") }}
                           >
-                            Critical
+                            {getSeverityLabel("critical")}
                           </MenuItem>
                           <MenuItem
                             value="high"
                             sx={{ color: getSeverityColor("high") }}
                           >
-                            High
+                            {getSeverityLabel("high")}
                           </MenuItem>
                           <MenuItem
                             value="medium"
                             sx={{ color: getSeverityColor("medium") }}
                           >
-                            Medium
+                            {getSeverityLabel("medium")}
                           </MenuItem>
                           <MenuItem
                             value="low"
                             sx={{ color: getSeverityColor("low") }}
                           >
-                            Low
+                            {getSeverityLabel("low")}
                           </MenuItem>
                           <MenuItem
                             value="informational"
                             sx={{ color: getSeverityColor("informational") }}
                           >
-                            Informational
+                            {getSeverityLabel("informational")}
                           </MenuItem>
+                          {customSeverityMenuItems}
                         </Select>
                       </FormControl>
                       <FormControl
@@ -19286,15 +19379,8 @@ const IncidentDetailPage = () => {
                         }}
                       >
                         <Select
-                          value={editedStatus}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === "resolved") {
-                              setShowResolveDialog(true);
-                              return;
-                            }
-                            handleManualStatusChange(val);
-                          }}
+                          value={statusSelectValue}
+                          onChange={(e) => onStatusSelect(String(e.target.value))}
                           disableUnderline
                           sx={{
                             fontSize: "0.78rem",
@@ -19317,6 +19403,7 @@ const IncidentDetailPage = () => {
                             },
                           }}
                           renderValue={(val) =>
+                            customStatusLabel(String(val)) ||
                             statusConfig[val]?.label ||
                             String(val).replace(/_/g, " ")
                           }
@@ -19342,6 +19429,7 @@ const IncidentDetailPage = () => {
                                 </MenuItem>
                               );
                             })}
+                          {customStatusMenuItems}
                         </Select>
                       </FormControl>
                       <FormControl

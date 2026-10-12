@@ -25,8 +25,8 @@ const inflight: Record<string, Promise<RemoteDocEntry[]> | null> = {};
 
 // Partial hard-coded docs list so the sidebar keeps working when the network is down.
 const FALLBACK_DOCS: RemoteDocEntry[] = [
-  'getting_started', 'about', 'tenants', 'features', 'api',
-  'workflows', 'apps', 'ai',
+  'getting_started', 'about', 'tenants', 'features', 'API',
+  'workflows', 'apps', 'AI',
   'incidents', 'vulnerabilities', 'detection',
   'architecture', 'configuration', 'extensions', 'troubleshooting',
 ].map((name) => ({ name }) as RemoteDocEntry);

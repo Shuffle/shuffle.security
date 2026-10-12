@@ -4293,7 +4293,6 @@ function UsecaseDetailContent({
   // Self-contained color tokens with fallbacks so the standalone build
   // (where host CSS may not define --card/--border/etc.) still renders
   // proper surfaces and accent colors instead of going transparent/flat.
-  const CARD_BG = 'hsl(var(--card, 0 0% 13%))';
   const CARD_BORDER = '1px solid hsl(var(--border, 0 0% 20%))';
   const FG = 'hsl(var(--foreground, 0 0% 100%))';
   const MUTED = 'hsl(var(--muted-foreground, 0 0% 60%))';

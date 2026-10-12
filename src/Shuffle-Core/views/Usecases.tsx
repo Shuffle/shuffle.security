@@ -3198,9 +3198,6 @@ function AiIncidentHandlingPromptsBlock() {
         <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: MUTED, letterSpacing: 0.6, mb: 1 }}>
           AI Agent prompts
         </Typography>
-        <Typography sx={{ fontSize: '0.85rem', color: MUTED, mb: 1.5 }}>
-          "Run AI Agent" is not enabled on the Incidents category. Enable it from the Automations dialog to hand off new incidents to the agent.
-        </Typography>
         <Button
           component={Link}
           to="/incidents"

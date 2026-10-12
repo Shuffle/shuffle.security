@@ -828,7 +828,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
             transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
             transition: isResizing
               ? 'none'
-              : 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), width 0.2s ease',
+              : 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), width 0.2s ease',
             pointerEvents: isVisible ? 'auto' : 'none',
             visibility: isVisible ? 'visible' : 'hidden',
             boxSizing: 'border-box',

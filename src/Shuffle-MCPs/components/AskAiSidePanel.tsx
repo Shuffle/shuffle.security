@@ -1105,8 +1105,17 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
         )}
 
         {/* Tab Panel: Run (AgentUI) */}
-        {safeActiveTab === 'run' && (
-          <>
+        {safeActiveTab === 'run' && contentReady && (
+          <Box
+            sx={{
+              display: 'contents',
+              '@keyframes askAiContentFadeIn': {
+                from: { opacity: 0 },
+                to: { opacity: 1 },
+              },
+              animation: 'askAiContentFadeIn 0.25s ease',
+            }}
+          >
             {/* Missing Config Banner for Support Users */}
             {context.missingConfig && (
               <Box

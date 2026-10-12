@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { deploymentLoginRedirect } from './deploymentLoginRedirect';
+import { deploymentLoginRedirect, isHostDeploymentRequested } from './deploymentLoginRedirect';
 
 const signedOut = { authenticated: false, loading: false, dialog: false, requested: false };
 
 describe('monitor deployment sign-in access', () => {
+  it('recognizes deployment intent from direct URLs and router-serialized links', () => {
+    expect(isHostDeploymentRequested('true')).toBe(true);
+    expect(isHostDeploymentRequested('"true"')).toBe(true);
+    expect(isHostDeploymentRequested('false')).toBe(false);
+    expect(isHostDeploymentRequested(null)).toBe(false);
+  });
+
   it('redirects signed-out embedded deployment to sign in with deployment preserved', () => {
     expect(deploymentLoginRedirect({ ...signedOut, dialog: true })).toBe('/login?view=%2Fmonitors%3Fadd_host%3Dtrue');
   });

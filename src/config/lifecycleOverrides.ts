@@ -175,3 +175,14 @@ export function setCustomLists(o: LifecycleOverrides) {
   customSeverityList = o.severities.custom;
   customSeverityMap = Object.fromEntries(o.severities.custom.map((c) => [c.key, c]));
 }
+
+/** Custom status stored on an incident, only while its base still matches the real status. */
+export function getActiveCustomStatus(key: string | undefined, status: string | undefined): CustomState | undefined {
+  const c = getCustomStatus(key);
+  return c && status && c.base === status ? c : undefined;
+}
+/** Custom severity stored on an incident, only while its base still matches the real severity. */
+export function getActiveCustomSeverity(key: string | undefined, severity: string | undefined): CustomState | undefined {
+  const c = getCustomSeverity(key);
+  return c && severity && c.base === resolveSeverity(severity) ? c : undefined;
+}

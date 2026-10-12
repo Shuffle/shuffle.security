@@ -144,6 +144,7 @@ interface TaskItem {
 }
 
 interface DisplayIncident {
+  lifecycle?: { status?: string; severity?: string };
   id: string;
   title?: string;
   source?: string;
@@ -345,6 +346,7 @@ const parseIncidentFromDatastore = (item: { key: string; value: string; category
       
       return {
         id: item.key, // Always use datastore key as the canonical ID
+        lifecycle: (customAttrs as any)?.lifecycle,
         title: resolveTitle(ocsf.title, data, ocsf.supporting_data, ocsf.desc),
         source: normalizeSourceLabel(meaningfulString(ocsf.product?.name) || meaningfulString(ocsf.types?.[0])),
         severity: mapOCSFSeverity(ocsf.severity_id || 3),
@@ -375,6 +377,7 @@ const parseIncidentFromDatastore = (item: { key: string; value: string; category
       
       return {
         id: item.key, // Always use datastore key as the canonical ID
+        lifecycle: (customAttrs as any)?.lifecycle,
         title: resolveTitle(findingInfo?.title, legacyData, legacyData.supporting_data, legacyData.desc, legacyData.message),
         source: normalizeSourceLabel(meaningfulString(legacyData.metadata?.product?.name) || meaningfulString(findingInfo?.types?.[0])),
         severity: mapOCSFSeverity(legacyData.severity_id),
@@ -399,6 +402,7 @@ const parseIncidentFromDatastore = (item: { key: string; value: string; category
       const tasks = data.tasks || [];
       return {
         id: item.key, // Always use datastore key as the canonical ID
+        lifecycle: (data as any)?.lifecycle,
         title: resolveTitle(data.title, data, data.supporting_data, data.desc, data.message),
         source: normalizeSourceLabel(meaningfulString(data.source)),
         severity: (data.severity || 'medium').toLowerCase(),

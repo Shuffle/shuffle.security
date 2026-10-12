@@ -97,8 +97,9 @@ const UsecasesPage = (props: UsecasesPageProps = {}) => {
     }
     if (flowId === 'case_management_incident_routing_1') {
       // Same component used on /preferences — single source of truth so
-      // changes apply in both places.
-      return <IncidentRoutingEditor forceShow />;
+      // changes apply in both places. The drawer has no paper of its own,
+      // so the editor drops its card styling here too.
+      return <IncidentRoutingEditor forceShow borderless />;
     }
     if (flowId === 'case_management_schedules_notifications_1') {
       return (

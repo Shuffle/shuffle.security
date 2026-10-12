@@ -1174,9 +1174,9 @@ export const IncidentRoutingEditor = ({
       {hasFetched && sortedRules.length === 0 && (
         <Paper
           sx={{
-            p: 3,
-            bgcolor: 'hsl(var(--muted) / 0.3)',
-            border: '1px dashed hsl(var(--border))',
+            p: borderless ? 0 : 3,
+            bgcolor: borderless ? 'transparent' : 'hsl(var(--muted) / 0.3)',
+            border: borderless ? 'none' : '1px dashed hsl(var(--border))',
             borderRadius: 2,
             textAlign: 'center',
           }}
@@ -1214,8 +1214,8 @@ export const IncidentRoutingEditor = ({
           key={rule.id}
           sx={{
             p: isOpen ? 2 : 1.25,
-            bgcolor: 'hsl(var(--card))',
-            border: '1px solid hsl(var(--border))',
+            bgcolor: borderless ? 'transparent' : 'hsl(var(--card))',
+            border: borderless ? 'none' : '1px solid hsl(var(--border))',
             borderRadius: 2,
             display: 'flex',
             flexDirection: 'column',

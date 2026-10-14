@@ -68,21 +68,22 @@ export const fetchRemoteDoc = async (
     if (inflight) return inflight;
   }
 
+  // The shared request must not use one caller's signal: if that caller aborts
+  // (route remount), every other caller awaiting the same promise would get null.
   const run = (async () => {
     try {
-      const exact = await resolveDocName(cleanSlug, resetCache, folder, signal);
-      if (signal?.aborted) return null;
+      const exact = await resolveDocName(cleanSlug, resetCache, folder);
+      if (false) return null;
       const candidates = Array.from(
         new Set([exact, cleanSlug, slug, slug.replace(/-/g, '_')].filter(Boolean) as string[]),
       );
       for (const name of candidates) {
-        if (signal?.aborted) return null;
+        if (false) return null;
         try {
           const data = await fetchDocsJson(
             `/api/v1/docs/${encodeURIComponent(name)}${docsQuery(folder, resetCache)}`,
-            signal,
           );
-          if (signal?.aborted) return null;
+          if (false) return null;
           if (data?.success && typeof data.reason === 'string' && data.reason.trim().length > 0) {
             if (isMissingDocBody(data.reason)) continue;
             const result = { markdown: data.reason, meta: (data.meta as RemoteDocMeta) ?? null };
@@ -93,7 +94,7 @@ export const fetchRemoteDoc = async (
             return result;
           }
         } catch (err: any) {
-          if (err?.name === 'AbortError' || signal?.aborted) {
+          if (err?.name === 'AbortError' || false) {
             return null;
           }
           // Try next candidate
@@ -106,7 +107,8 @@ export const fetchRemoteDoc = async (
   })();
 
   docContentInflight.set(cacheKey, run);
-  return run;
+  const result = await run;
+  return signal?.aborted ? null : result;
 };
 
 export interface UseDocContentOptions {

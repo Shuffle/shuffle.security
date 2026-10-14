@@ -78,16 +78,10 @@ export const fetchRemoteDoc = async (
       for (const name of candidates) {
         if (signal?.aborted) return null;
         try {
-          const res = await fetch(
-            getApiUrl(`/api/v1/docs/${encodeURIComponent(name)}${docsQuery(folder, resetCache)}`),
-            {
-              credentials: 'include',
-              headers: { ...getAuthHeader() },
-              signal,
-            },
+          const data = await fetchDocsJson(
+            `/api/v1/docs/${encodeURIComponent(name)}${docsQuery(folder, resetCache)}`,
+            signal,
           );
-          if (!res.ok) continue;
-          const data = await res.json();
           if (signal?.aborted) return null;
           if (data?.success && typeof data.reason === 'string' && data.reason.trim().length > 0) {
             if (isMissingDocBody(data.reason)) continue;

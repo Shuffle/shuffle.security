@@ -113,22 +113,12 @@ export const fetchDocMarkdown = async (
   folder?: string,
   signal?: AbortSignal,
 ): Promise<string | null> => {
-  try {
-    const res = await fetch(
-      getApiUrl(`/api/v1/docs/${encodeURIComponent(name)}${docsQuery(folder, resetCache)}`),
-      {
-        credentials: 'include',
-        headers: { ...getAuthHeader() },
-        signal,
-      },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data?.success && typeof data.reason === 'string' && data.reason.trim().length > 0) {
-      return data.reason as string;
-    }
-  } catch {
-    // ignore
+  const data = await fetchDocsJson(
+    `/api/v1/docs/${encodeURIComponent(name)}${docsQuery(folder, resetCache)}`,
+    signal,
+  );
+  if (data?.success && typeof data.reason === 'string' && data.reason.trim().length > 0) {
+    return data.reason as string;
   }
   return null;
 };

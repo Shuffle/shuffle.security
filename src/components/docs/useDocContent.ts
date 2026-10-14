@@ -65,7 +65,10 @@ export const fetchRemoteDoc = async (
     const cached = docContentCache.get(cacheKey);
     if (cached) return cached;
     const inflight = docContentInflight.get(cacheKey);
-    if (inflight) return inflight;
+    if (inflight) {
+      const shared = await inflight;
+      return signal?.aborted ? null : shared;
+    }
   }
 
   // The shared request must not use one caller's signal: if that caller aborts
@@ -73,18 +76,15 @@ export const fetchRemoteDoc = async (
   const run = (async () => {
     try {
       const exact = await resolveDocName(cleanSlug, resetCache, folder);
-      if (false) return null;
       const candidates = Array.from(
         new Set([exact, cleanSlug, slug, slug.replace(/-/g, '_')].filter(Boolean) as string[]),
       );
       for (const name of candidates) {
-        if (false) return null;
-        try {
+          try {
           const data = await fetchDocsJson(
             `/api/v1/docs/${encodeURIComponent(name)}${docsQuery(folder, resetCache)}`,
           );
-          if (false) return null;
-          if (data?.success && typeof data.reason === 'string' && data.reason.trim().length > 0) {
+              if (data?.success && typeof data.reason === 'string' && data.reason.trim().length > 0) {
             if (isMissingDocBody(data.reason)) continue;
             const result = { markdown: data.reason, meta: (data.meta as RemoteDocMeta) ?? null };
             docContentCache.set(cacheKey, result);
@@ -93,10 +93,7 @@ export const fetchRemoteDoc = async (
             }
             return result;
           }
-        } catch (err: any) {
-          if (err?.name === 'AbortError' || false) {
-            return null;
-          }
+        } catch {
           // Try next candidate
         }
       }

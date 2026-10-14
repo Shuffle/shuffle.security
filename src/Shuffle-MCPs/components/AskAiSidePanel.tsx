@@ -456,13 +456,6 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
     return new URLSearchParams(s).get('authorization');
   }, [search]);
 
-  const hasAgentRun = Boolean(
-    lastRunInfo?.executionId ||
-    lastRunInfo?.input ||
-    activeExecutionId ||
-    urlExecutionId ||
-    (runResetKey === 0 && effectiveStorageKey && getPageContextChoice(effectiveStorageKey)?.executionId)
-  );
 
   const handleEscalateToSupport = useCallback(() => {
     const savedChoice = effectiveStorageKey ? getPageContextChoice(effectiveStorageKey) : null;
@@ -943,18 +936,13 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
           {/* Header Action Controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
             <Tooltip
-              title={
-                hasAgentRun
-                  ? 'Talk to support'
-                  : 'Run an agent first to provide context for support'
-              }
+              title="Talk to support"
               arrow
               placement="bottom"
             >
-              <span style={{ display: 'inline-flex', cursor: hasAgentRun ? 'pointer' : 'not-allowed' }}>
+              <span style={{ display: 'inline-flex', cursor: 'pointer' }}>
                 <Button
                   onClick={handleEscalateToSupport}
-                  disabled={!hasAgentRun}
                   size="small"
                   variant="outlined"
                   sx={{
@@ -968,17 +956,12 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                     whiteSpace: 'nowrap',
                     borderRadius: '6px',
                     borderColor: 'hsl(var(--border))',
-                    color: hasAgentRun ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
+                    color: 'hsl(var(--foreground))',
                     bgcolor: 'transparent',
                     '&:hover': {
                       borderColor: 'hsl(var(--primary))',
                       bgcolor: 'hsl(var(--muted))',
                       color: 'hsl(var(--primary))',
-                    },
-                    '&.Mui-disabled': {
-                      borderColor: 'hsl(var(--border) / 0.5)',
-                      color: 'hsl(var(--muted-foreground) / 0.6)',
-                      opacity: 0.6,
                     },
                   }}
                 >

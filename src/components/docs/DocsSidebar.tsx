@@ -5,6 +5,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from '@/lib/router-compat';
 import {
+  alpha,
   Box,
   Collapse,
   List,
@@ -363,7 +364,7 @@ export const DocsSidebar = ({
                     ml: 1.75,
                     pl: 1.25,
                     borderLeft: '1px solid',
-                    borderColor: hasActiveDoc ? 'rgba(255, 102, 0, 0.28)' : 'divider',
+                    borderColor: (theme) => hasActiveDoc ? alpha(theme.palette.primary.main, 0.28) : theme.palette.divider,
                     mt: 0.4,
                     mb: 0.75,
                     transition: 'border-color 150ms ease',
@@ -398,9 +399,9 @@ export const DocsSidebar = ({
                                 },
                               },
                               '&.Mui-selected': {
-                                backgroundColor: 'rgba(255, 102, 0, 0.08)',
+                                backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
                                 '&:hover': {
-                                  backgroundColor: 'rgba(255, 102, 0, 0.14)',
+                                  backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.14),
                                 },
                                 '& .doc-label': {
                                   color: 'primary.main',

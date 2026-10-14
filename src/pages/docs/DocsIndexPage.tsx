@@ -48,7 +48,7 @@ export default function DocsIndexPage() {
         <Container maxWidth={false} sx={{ maxWidth: 1200, py: { xs: 4, md: 6 }, px: { xs: 2, sm: 3, lg: 5 } }}>
           <Typography component="h1" sx={{ fontSize: 32, fontWeight: 700, letterSpacing: 0, mb: 1.5 }}>Shuffle Security Documentation</Typography>
           <Typography sx={{ color: 'text.secondary', lineHeight: 1.7, mb: 4 }}>Setup, integrations, incident response, and automation.</Typography>
-          <TextField fullWidth value={query} onChange={(event) => setQuery(event.target.value)} label="Find documentation" placeholder="Search topics, such as workflows or configuration" type="search" size="small" sx={{ maxWidth: 720, mb: 4, '& .MuiOutlinedInput-root': { bgcolor: 'hsl(var(--card))' } }} />
+          <TextField fullWidth value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find documentation" slotProps={{ htmlInput: { 'aria-label': 'Find documentation' } }} type="search" size="small" sx={{ maxWidth: 720, mb: 4, '& .MuiOutlinedInput-root': { bgcolor: 'hsl(var(--card))' } }} />
           {!query.trim() && (
             <Box component="section" aria-labelledby="docs-start-title" sx={{ mb: 5 }}>
               <Typography id="docs-start-title" component="h2" sx={{ fontSize: 18, fontWeight: 600, mb: 2 }}>Start here</Typography>

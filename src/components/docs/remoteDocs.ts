@@ -49,7 +49,7 @@ export const fetchDocsList = async (
 // Shuffle backend so documentation still loads.
 const DOCS_FALLBACK_BASE = 'https://uk.shuffler.io';
 
-const fetchDocsJson = async (
+export const fetchDocsJson = async (
   path: string,
   signal?: AbortSignal,
 ): Promise<any | null> => {

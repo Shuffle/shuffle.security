@@ -456,13 +456,6 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
     return new URLSearchParams(s).get('authorization');
   }, [search]);
 
-  const hasAgentRun = Boolean(
-    lastRunInfo?.executionId ||
-    lastRunInfo?.input ||
-    activeExecutionId ||
-    urlExecutionId ||
-    (runResetKey === 0 && effectiveStorageKey && getPageContextChoice(effectiveStorageKey)?.executionId)
-  );
 
   const handleEscalateToSupport = useCallback(() => {
     const savedChoice = effectiveStorageKey ? getPageContextChoice(effectiveStorageKey) : null;

@@ -64,6 +64,15 @@ const toLabel = (name: string) =>
 // Documents that should not clutter the sidebar (consolidated or special purpose)
 const HIDDEN_DOC_SLUGS = new Set(['triggers', 'liquid', 'onboarding']);
 
+/** Shared by the sidebar and the /docs index so both list the same pages. */
+export const toVisibleDocs = (list: Array<{ name: string; read_time?: number }>, folder?: string) => {
+  const isDocsFolder = !folder || folder === 'docs';
+  return list
+    .filter((d) => d?.name && (!isDocsFolder || !HIDDEN_DOC_SLUGS.has(docSlug(d.name))))
+    .map((d) => ({ name: d.name, slug: docSlug(d.name), label: toLabel(d.name), read_time: d.read_time }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+};
+
 export const DocsSidebar = ({
   onNavigate,
   activeSlug: propActiveSlug,
@@ -137,16 +146,7 @@ export const DocsSidebar = ({
     let cancelled = false;
     (async () => {
       const list = await fetchDocsList(false, folder);
-      const isDocsFolder = !folder || folder === 'docs';
-      const mapped: RemoteDoc[] = list
-        .filter((d) => d?.name && (!isDocsFolder || !HIDDEN_DOC_SLUGS.has(docSlug(d.name))))
-        .map((d) => ({
-          name: d.name,
-          slug: docSlug(d.name),
-          label: toLabel(d.name),
-          read_time: d.read_time,
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label));
+      const mapped: RemoteDoc[] = toVisibleDocs(list, folder);
       if (!cancelled) setRemoteDocs(mapped);
     })();
     return () => {

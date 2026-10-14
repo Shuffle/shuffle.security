@@ -44,6 +44,32 @@ export const fetchDocsList = async (
   return withFallback(folder, await fetchDocsListRaw(resetCache, folder, signal, key));
 };
 
+// Docs-only fallback backend. When the local / primary backend is unreachable
+// (offline dev, self-hosted without the docs API), retry against the public
+// Shuffle backend so documentation still loads.
+const DOCS_FALLBACK_BASE = 'https://uk.shuffler.io';
+
+const fetchDocsJson = async (
+  path: string,
+  signal?: AbortSignal,
+): Promise<any | null> => {
+  const bases = [getApiUrl(path), `${DOCS_FALLBACK_BASE}${path}`];
+  for (const url of bases) {
+    try {
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: { ...getAuthHeader() },
+        signal,
+      });
+      if (!res.ok) continue;
+      return await res.json();
+    } catch {
+      // try next base
+    }
+  }
+  return null;
+};
+
 const fetchDocsListRaw = async (
   resetCache: boolean,
   folder: string | undefined,
@@ -55,18 +81,10 @@ const fetchDocsListRaw = async (
 
   const run = (async () => {
     try {
-      const res = await fetch(getApiUrl(`/api/v1/docs${docsQuery(folder, resetCache)}`), {
-        credentials: 'include',
-        headers: { ...getAuthHeader() },
-        signal,
-      });
-      if (!res.ok) return cachedList[key] ?? [];
-      const data = await res.json();
+      const data = await fetchDocsJson(`/api/v1/docs${docsQuery(folder, resetCache)}`, signal);
       if (!data?.success || !Array.isArray(data.list)) return cachedList[key] ?? [];
       cachedList[key] = (data.list as RemoteDocEntry[]).filter((d) => d?.name);
       return cachedList[key];
-    } catch {
-      return cachedList[key] ?? [];
     } finally {
       inflight[key] = null;
     }
@@ -95,22 +113,12 @@ export const fetchDocMarkdown = async (
   folder?: string,
   signal?: AbortSignal,
 ): Promise<string | null> => {
-  try {
-    const res = await fetch(
-      getApiUrl(`/api/v1/docs/${encodeURIComponent(name)}${docsQuery(folder, resetCache)}`),
-      {
-        credentials: 'include',
-        headers: { ...getAuthHeader() },
-        signal,
-      },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data?.success && typeof data.reason === 'string' && data.reason.trim().length > 0) {
-      return data.reason as string;
-    }
-  } catch {
-    // ignore
+  const data = await fetchDocsJson(
+    `/api/v1/docs/${encodeURIComponent(name)}${docsQuery(folder, resetCache)}`,
+    signal,
+  );
+  if (data?.success && typeof data.reason === 'string' && data.reason.trim().length > 0) {
+    return data.reason as string;
   }
   return null;
 };

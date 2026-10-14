@@ -363,7 +363,7 @@ export const DocsSidebar = ({
                     ml: 1.75,
                     pl: 1.25,
                     borderLeft: '1px solid',
-                    borderColor: hasActiveDoc ? 'rgba(255, 102, 0, 0.28)' : 'divider',
+                    borderColor: hasActiveDoc ? 'hsl(var(--primary) / 0.28)' : 'divider',
                     mt: 0.4,
                     mb: 0.75,
                     transition: 'border-color 150ms ease',
@@ -398,9 +398,9 @@ export const DocsSidebar = ({
                                 },
                               },
                               '&.Mui-selected': {
-                                backgroundColor: 'rgba(255, 102, 0, 0.08)',
+                                backgroundColor: 'hsl(var(--primary) / 0.08)',
                                 '&:hover': {
-                                  backgroundColor: 'rgba(255, 102, 0, 0.14)',
+                                  backgroundColor: 'hsl(var(--primary) / 0.14)',
                                 },
                                 '& .doc-label': {
                                   color: 'primary.main',

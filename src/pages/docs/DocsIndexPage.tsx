@@ -67,7 +67,7 @@ export default function DocsIndexPage() {
     return groupRemoteDocs(entries);
   }, [docs]);
   return (
-    <Box sx={{ minHeight: '100vh', color: 'text.primary' }}>
+    <Box className="docs-page-scope" sx={{ minHeight: '100vh', color: 'text.primary' }}>
       <LandingNavbar />
       <Box sx={{ height: 64 }} />
       <Box component="aside" aria-label="Documentation navigation" sx={{ display: { xs: 'none', md: 'block' }, position: 'fixed', top: 64, left: 0, height: 'calc(100vh - 64px)', width: { md: 260, xl: 280 }, bgcolor: 'background.default' }}>

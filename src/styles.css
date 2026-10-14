@@ -217,6 +217,11 @@
     --muted: 0 0% 16%;
     --muted-foreground: 0 0% 50%;
 
+    /* Docs pages: brighter grey text in dark mode for readability */
+    .docs-page-scope {
+      --muted-foreground: 0 0% 62%;
+    }
+
     /* Accent = subtle hover surface (NOT orange). Orange lives in --primary. */
     --accent: 0 0% 20%;
     --accent-foreground: 0 0% 100%;

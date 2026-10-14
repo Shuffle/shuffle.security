@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { algoliasearch } from 'algoliasearch';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
-import { resolveDocName, fetchDocsList, docSlug } from '@/components/docs/remoteDocs';
+import { resolveDocName, fetchDocsList, fetchDocsJson, docSlug } from '@/components/docs/remoteDocs';
 import { extractHeadings, stripInContentToc, extractDocTitleAndBody, type TocHeading } from './tocUtils';
 
 export interface Contributor {

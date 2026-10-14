@@ -18,7 +18,8 @@
 ---
 
 ## Documentation Rules
-See `docs/AGENTS.md` for documentation voice, GitHub-first rules and editorial comments.
+See `docs/AGENTS.md` for documentation rules.
+- `/docs` uses a grouped discovery page; article routes retain DocsPage to avoid loading an article at the index.
 
 ---
 

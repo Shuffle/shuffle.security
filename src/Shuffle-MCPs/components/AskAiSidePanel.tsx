@@ -308,14 +308,6 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   const effectiveDefaultInput = controlledDefaultInput ?? defaultInput ?? agentUIProps?.defaultInput;
   const effectiveAutoSubmit = controlledAutoSubmit ?? agentUIProps?.autoSubmit;
 
-  const isBetaRoute =
-    context.isBeta === true ||
-    currentPathname.startsWith('/incidents') ||
-    currentPathname.startsWith('/incidents-simple') ||
-    currentPathname.startsWith('/cases') ||
-    currentPathname.startsWith('/alerts') ||
-    currentPathname.startsWith('/tickets') ||
-    currentPathname.startsWith('/docs');
 
   const handleTabChange = useCallback(
     (nextTab: AgentRunDrawerTab) => {
@@ -946,23 +938,6 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                     (context.buttonLabelFn ? context.buttonLabelFn(entityTitle) : context.buttonLabel) ||
                     'Ask Shuffle'}
             </Typography>
-            <Box
-              sx={{
-                fontSize: '0.66rem',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-                px: 0.75,
-                py: 0.2,
-                borderRadius: '4px',
-                bgcolor: isBetaRoute ? 'hsla(var(--primary) / 0.12)' : 'hsl(var(--muted))',
-                color: isBetaRoute ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-                border: isBetaRoute ? '1px solid hsla(var(--primary) / 0.26)' : '1px solid hsl(var(--border))',
-                flexShrink: 0,
-              }}
-            >
-              {isBetaRoute ? 'Beta' : (isLoggedIn ? (isSupport ? 'Support' : 'Agent') : 'Guest')}
-            </Box>
           </Box>
 
           {/* Header Action Controls */}

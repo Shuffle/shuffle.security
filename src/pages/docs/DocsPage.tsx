@@ -186,7 +186,7 @@ const DocsPage = ({
   const showDesktopToc = isLgUp && (containerWidth === null || containerWidth >= 860);
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Box className="docs-page-scope" sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <LandingNavbar onMobileMenuClick={() => setMobileOpen(true)} />
 
       {/* Spacer for fixed navbar */}

@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Box, Button, Container, TextField, Typography } from '@mui/material';
 import { Link } from '@/lib/router-compat';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
-import { DocsSidebar } from '@/components/docs/DocsSidebar';
-import { docSlug, fetchDocsList, KNOWN_DOCS, type RemoteDocEntry } from '@/components/docs/remoteDocs';
-import { getDocDisplayLabel, groupRemoteDocs } from '@/components/docs/docGroups';
+import { DocsSidebar, toVisibleDocs } from '@/components/docs/DocsSidebar';
+import { fetchDocsList, KNOWN_DOCS, type RemoteDocEntry } from '@/components/docs/remoteDocs';
+import { groupRemoteDocs } from '@/components/docs/docGroups';
 import { liteClient } from 'algoliasearch/lite';
 import { algoliaDocToItem, type AlgoliaDocHit, type DocItem } from '@/Shuffle-Core';
 
@@ -61,10 +61,7 @@ export default function DocsIndexPage() {
     return () => { cancelled = true; };
   }, []);
   const groups = useMemo(() => {
-    const entries = docs.filter((doc) => docSlug(doc.name) !== 'index').map((doc) => ({
-      ...doc, slug: docSlug(doc.name), label: getDocDisplayLabel(docSlug(doc.name), doc.name),
-    }));
-    return groupRemoteDocs(entries);
+    return groupRemoteDocs(toVisibleDocs(docs));
   }, [docs]);
   return (
     <Box className="docs-page-scope" sx={{ minHeight: '100vh', color: 'text.primary' }}>

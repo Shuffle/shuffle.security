@@ -82,11 +82,14 @@ export function buildSampleIncidents(now = Date.now(), days = 365) {
     const n = dayVolume(days - d, dayTs, 6, r);
     for (let i = 0; i < n; i++) {
       const ageDays = d;
+      // Keep unhandled incidents rare in the past: anything open past its
+      // resolve window counts as an SLA breach, so old days are almost
+      // always fully handled and breaches stay low overall.
       const status = ageDays > 14
-        ? weighted(r, [['resolved', 98], ['on_hold', 1], ['in_progress', 1]])
+        ? weighted(r, [['resolved', 995], ['on_hold', 3], ['in_progress', 2]])
         : ageDays > 2
-          ? weighted(r, [['resolved', 70], ['in_progress', 20], ['new', 5], ['on_hold', 5]])
-          : weighted(r, [['new', 55], ['in_progress', 35], ['resolved', 10]]);
+          ? weighted(r, [['resolved', 85], ['in_progress', 8], ['new', 3], ['on_hold', 4]])
+          : weighted(r, [['new', 55], ['in_progress', 30], ['resolved', 15]]);
       const severity = weighted(r, [['informational', 10], ['low', 30], ['medium', 35], ['high', 18], ['critical', 7]]);
       // Fresh incidents have not been triaged yet and sit inside their respond
       // window; only a small tail lingers and breaches.

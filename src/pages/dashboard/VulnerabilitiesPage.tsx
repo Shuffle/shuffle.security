@@ -29,6 +29,7 @@ import { AddVulnerabilityDialog } from '@/components/vulnerabilities/AddVulnerab
 import { CategoryAutomationsDialog } from '@shuffleio/shuffle-core';
 import { useDatastore } from '@/hooks/useDatastore';
 import { DATASTORE_CATEGORIES, CategoryAutomation } from '@/Shuffle-Core/datastore';
+import { ListPaginationBar, ListLoadMoreButton } from '@/components/common/ListPagination';
 import { IconActionButton } from '@/components/common/IconActionButton';
 import { useHostMonitorCount } from '@/hooks/useHostMonitorCount';
 
@@ -214,7 +215,7 @@ const AuthenticatedVulnerabilitiesView = () => {
   const navigate = useNavigate();
 
 
-  const { vulnerabilities, severityCounts, isLoading, isRefreshing, refresh } = useVulnerabilities();
+  const { vulnerabilities, severityCounts, isLoading, isRefreshing, refresh, hasMore, fetchNextPage } = useVulnerabilities();
   const { authenticatedApps } = useAppAuth();
   const hostMonitorCount = useHostMonitorCount();
   const hasHostMonitors = (hostMonitorCount ?? 0) >= 1;
@@ -363,6 +364,8 @@ const AuthenticatedVulnerabilitiesView = () => {
             <VulnTable
               vulnerabilities={filtered}
               isLoading={isLoading}
+              hasMore={hasMore}
+              onLoadMore={fetchNextPage}
               onRemediate={handleRemediate}
               emptyIcon={<Shield size={48} className="text-muted-foreground/50 mx-auto mb-4" />}
               emptyTitle="No vulnerabilities found"
@@ -437,6 +440,8 @@ const AuthenticatedVulnerabilitiesView = () => {
 interface VulnTableProps {
   vulnerabilities: Vulnerability[];
   isLoading: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => Promise<unknown> | void;
   onRemediate: () => void;
   emptyIcon: React.ReactNode;
   emptyTitle: string;
@@ -457,11 +462,15 @@ interface VulnTableProps {
 
 const SEVERITY_ORDER: Record<VulnSeverity, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 
+const VULNS_PER_PAGE = 50;
+
 type SortKey = 'severity' | 'title' | 'category' | 'source' | 'status' | 'first_seen';
 
 const VulnTable = ({
   vulnerabilities,
   isLoading,
+  hasMore = false,
+  onLoadMore,
   onRemediate,
   emptyIcon,
   emptyTitle,
@@ -480,6 +489,9 @@ const VulnTable = ({
   onSourceChange,
 }: VulnTableProps) => {
   const navigate = useNavigate();
+  const [currentPage, setCurrentPage] = useState(1);
+  // Reset to page 1 when the filtered/sorted set changes size (filters applied).
+  useEffect(() => { setCurrentPage(1); }, [severityFilter, categoryFilter, statusFilter, sourceFilter, sortKey, sortDir]);
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -587,7 +599,7 @@ const VulnTable = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sorted.map(vuln => (
+          {sorted.slice((currentPage - 1) * VULNS_PER_PAGE, currentPage * VULNS_PER_PAGE).map(vuln => (
             <TableRow
               key={vuln.id}
               className="cursor-pointer hover:bg-muted/30"
@@ -645,6 +657,21 @@ const VulnTable = ({
         </TableBody>
 
       </Table>
+      {hasMore && onLoadMore && currentPage >= Math.ceil(sorted.length / VULNS_PER_PAGE) && (
+        <Box sx={{ pb: 2 }}>
+          <ListLoadMoreButton onLoadMore={onLoadMore} isLoading={isLoading} />
+        </Box>
+      )}
+      <ListPaginationBar
+        currentPage={currentPage}
+        totalItems={sorted.length}
+        itemsPerPage={VULNS_PER_PAGE}
+        onPageChange={setCurrentPage}
+        hasMore={hasMore}
+        isLoading={isLoading}
+        onLoadMore={onLoadMore}
+        loadMoreTitle="Load more vulnerabilities"
+      />
     </div>
   );
 };

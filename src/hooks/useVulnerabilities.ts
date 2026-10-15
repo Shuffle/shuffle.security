@@ -178,7 +178,7 @@ interface UseVulnerabilitiesOptions {
 }
 
 export const useVulnerabilities = ({ tab = 'assets' }: UseVulnerabilitiesOptions = {}) => {
-  const { items, isLoading, isRefreshing, hasFetched, error, fetchItems } = useDatastore({ category: DATASTORE_CATEGORY });
+  const { items, isLoading, isRefreshing, hasFetched, error, fetchItems, hasMore, fetchNextPage } = useDatastore({ category: DATASTORE_CATEGORY });
   const [hasInitialFetch, setHasInitialFetch] = useState(false);
 
   useEffect(() => {
@@ -218,5 +218,7 @@ export const useVulnerabilities = ({ tab = 'assets' }: UseVulnerabilitiesOptions
     hasFetched,
     error,
     refresh: fetchItems,
+    hasMore,
+    fetchNextPage,
   };
 };

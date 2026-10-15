@@ -1212,10 +1212,10 @@ const AgentActivityList = ({
               resolved[key] = fb;
             } else {
               try {
-                const hit = await Promise.race([
+                const hit = (await Promise.race([
                   resolveApp(name),
-                  new Promise((r) => setTimeout(() => r(null), 4000)),
-                ]);
+                  new Promise<null>((r) => setTimeout(() => r(null), 4000)),
+                ])) as { image?: string } | null;
                 if (hit?.image) resolved[key] = hit.image;
               } catch { /* skip */ }
             }

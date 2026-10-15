@@ -63,3 +63,4 @@ See `docs/AGENTS.md` for documentation rules.
 <!-- LOVABLE:BEGIN -->
 - Shared overlay layers track opening order on owned portal roots; accessibility hiding is not closing, papers are not surfaces, and app theme markers keep embedded hosts untouched.
 <!-- LOVABLE:END -->
+- Signed-out /dashboard (src/pages/dashboard/GuestDashboardPage.tsx) renders the real dashboards with sample data by temporarily answering dashboard API paths in the host app (src/lib/dashboardSampleData.ts); the shared libraries stay unaware of demo mode. Both dashboards use DashboardHeaderBar so the header never drifts.

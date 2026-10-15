@@ -8,6 +8,8 @@
  * returns a cleanup function that restores the original fetch.
  */
 
+import { DEFAULT_SLA_CONFIG } from '@/hooks/useSlaConfig';
+
 export const SAMPLE_ORG_ID = 'sample-org';
 const DAY = 86_400_000;
 
@@ -33,10 +35,48 @@ const dayVolume = (dayIndexFromStart: number, ts: number, base: number, r: () =>
   return Math.max(0, Math.round(base * weekend * trend * (0.7 + r() * 0.6)));
 };
 
+export interface SampleIncident { status: string; severity: string; createdTs: number; respondedTs?: number; resolvedTs?: number }
+
+const INCIDENT_TITLES = [
+  'Suspicious sign-in from new country', 'Phishing email reported by user', 'Malware detected on endpoint',
+  'Impossible travel for account', 'Brute force against VPN gateway', 'Outbound traffic to known C2 domain',
+  'Privilege escalation on server', 'Mass file deletion on file share', 'Disabled EDR agent', 'New admin account created',
+];
+const ASSIGNEES = ['Ingrid Hansen', 'Marcus Lee', 'Priya Nair', 'Jonas Berg', 'AI Agent'];
+const SEV_ID: Record<string, number> = { informational: 1, low: 2, medium: 3, high: 4, critical: 5 };
+
+/** Sample incidents in the datastore list format used by the report export. */
+export function buildSampleIncidentList() {
+  const r = rng(29);
+  const keys = buildSampleIncidents().slice(-1500).map((inc, i) => ({
+    key: `sample-incident-${i}`,
+    created: Math.floor(inc.createdTs / 1000),
+    value: JSON.stringify({
+      finding_info: { title: pick(r, INCIDENT_TITLES) },
+      severity: inc.severity[0].toUpperCase() + inc.severity.slice(1),
+      severity_id: SEV_ID[inc.severity] || 3,
+      status: inc.status,
+      created_time: inc.createdTs,
+      assignee: { name: inc.status === 'new' ? '' : pick(r, ASSIGNEES) },
+    }),
+  }));
+  return { success: true, keys, cursor: '' };
+}
+
+function buildSampleAppAuth() {
+  const apps = ['Microsoft Defender', 'CrowdStrike Falcon', 'Jira', 'Slack', 'Gmail', 'VirusTotal', 'Qualys', 'Okta'];
+  const now = Date.now();
+  return { success: true, data: apps.map((name, i) => ({
+    app: { name }, label: `${name} production`, active: i !== 5,
+    validation: { valid: i !== 5 }, edited: Math.floor((now - i * 9 * DAY) / 1000),
+  })) };
+}
+
 // ── Incidents (Security overview) ─────────────────────────────────────────
 export function buildSampleIncidents(now = Date.now(), days = 365) {
   const r = rng(11);
-  const out: { status: string; severity: string; createdTs: number }[] = [];
+  const out: SampleIncident[] = [];
+  const MIN = 60_000;
   for (let d = days - 1; d >= 0; d--) {
     const dayTs = now - d * DAY;
     const n = dayVolume(days - d, dayTs, 6, r);
@@ -47,11 +87,14 @@ export function buildSampleIncidents(now = Date.now(), days = 365) {
         : ageDays > 2
           ? weighted(r, [['resolved', 55], ['in_progress', 30], ['new', 10], ['on_hold', 5]])
           : weighted(r, [['new', 55], ['in_progress', 35], ['resolved', 10]]);
-      out.push({
-        status,
-        severity: weighted(r, [['informational', 10], ['low', 30], ['medium', 35], ['high', 18], ['critical', 7]]),
-        createdTs: dayTs - Math.floor(r() * DAY),
-      });
+      const severity = weighted(r, [['informational', 10], ['low', 30], ['medium', 35], ['high', 18], ['critical', 7]]);
+      const createdTs = dayTs - Math.floor(r() * DAY);
+      const target = DEFAULT_SLA_CONFIG[severity as keyof typeof DEFAULT_SLA_CONFIG] || DEFAULT_SLA_CONFIG.fallback;
+      // Mostly on time, with a realistic share of late responses and fixes.
+      const late = (share: number) => (r() < share ? 1.2 + r() * 2.5 : 0.15 + r() * 0.8);
+      const respondedTs = status === 'new' ? undefined : Math.min(now, createdTs + target.respondMinutes * MIN * late(0.12));
+      const resolvedTs = status === 'resolved' ? Math.min(now, createdTs + target.resolveMinutes * MIN * late(0.15)) : undefined;
+      out.push({ status, severity, createdTs, respondedTs, resolvedTs });
     }
   }
   return out;
@@ -177,6 +220,8 @@ export function buildSampleAgentRuns(now = Date.now(), count = 100) {
 type Responder = (url: URL, init?: RequestInit) => unknown | undefined;
 
 const RESPONDERS: Responder[] = [
+  (u) => (/\/api\/v1\/orgs\/[^/]+\/list_cache$/.test(u.pathname) ? buildSampleIncidentList() : undefined),
+  (u) => (u.pathname.endsWith('/api/v1/apps/authentication') ? buildSampleAppAuth() : undefined),
   (u) => (/\/api\/v1\/orgs\/[^/]+\/stats$/.test(u.pathname) ? buildSampleStats() : undefined),
   (u) => (u.pathname.endsWith('/api/v1/notifications') ? { success: true, notifications: buildSampleNotifications() } : undefined),
   (u) => (u.pathname.endsWith('/api/v1/getenvironments') ? buildSampleEnvironments() : undefined),

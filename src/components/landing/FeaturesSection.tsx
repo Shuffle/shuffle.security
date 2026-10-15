@@ -743,7 +743,7 @@ const IncidentManagementVisual = () => {
           >
             <Box sx={{ p: 2, borderRadius: 2, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 1 }}>
-                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, noWrap: true, overflow: 'hidden', textOverflow: 'ellipsis' }}>{inc.title}</Typography>
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inc.title}</Typography>
                 <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
                   <Box sx={{ py: 0.25, px: 1, borderRadius: 1, background: `${inc.sevColor}20`, border: `1px solid ${inc.sevColor}40` }}>
                     <Typography sx={{ color: inc.sevColor, fontSize: '0.7rem', fontWeight: 700 }}>{inc.sev}</Typography>

@@ -17,13 +17,13 @@ import { AutomationDashboard } from '@/components/dashboard/AutomationDashboard'
 import { AgentsDashboard } from '@/components/dashboard/AgentsDashboard';
 import { VulnerabilitiesDashboard } from '@/components/dashboard/VulnerabilitiesDashboard';
 import { DashboardHeaderBar } from '@/components/dashboard/DashboardHeaderBar';
-import { SAMPLE_ORG_ID, buildSampleIncidents, buildSampleVulns, installDashboardSampleFetch } from '@/lib/dashboardSampleData';
+import { SAMPLE_ORG_ID, SAMPLE_HOST_COUNT, buildSampleIncidents, buildSampleVulns, installDashboardSampleFetch } from '@/lib/dashboardSampleData';
 
 const GuestDashboardPage = () => {
   const queryClient = useQueryClient();
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<DashboardTab>('security');
-  const [days, setDays] = useState('30');
+  const [days, setDays] = useState('90');
   const [customRange, setCustomRange] = useState<{ fromMs: number; toMs: number } | null>(null);
   const [mode, setMode] = useState<'workflows' | 'apps'>('workflows');
   const [gran, setGran] = useState<'daily' | 'monthly'>('daily');
@@ -53,7 +53,7 @@ const GuestDashboardPage = () => {
     return c;
   }, []);
 
-  const dayCount = parseInt(days, 10) || 30;
+  const dayCount = parseInt(days, 10) || 90;
   const onRangeSelect = (fromMs: number, toMs: number) => setCustomRange({ fromMs, toMs });
   const rangeLabel = customRange
     ? `${new Date(customRange.fromMs).toLocaleDateString()} - ${new Date(customRange.toMs).toLocaleDateString()}`
@@ -116,7 +116,7 @@ const GuestDashboardPage = () => {
           orgName: 'Sample tenant', rangeLabel,
           incidents: { total: incidents.length, byStatus, bySeverity },
           vulnerabilities: vulnSeverityCounts,
-          monitors: { hostCount: 13, runningSensors: 4 },
+          monitors: { hostCount: SAMPLE_HOST_COUNT, runningSensors: 4 },
         },
       });
     } finally {
@@ -193,7 +193,7 @@ const GuestDashboardPage = () => {
         <DashboardOverview
           incidents={incidents}
           vulnSeverityCounts={vulnSeverityCounts}
-          monitorHostCount={13}
+          monitorHostCount={SAMPLE_HOST_COUNT}
           runningSensorCount={4}
           days={dayCount}
           gran={gran}

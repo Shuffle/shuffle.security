@@ -160,7 +160,12 @@ const GuestDashboardPage = () => {
         onRefresh={() => setRefreshKey(k => k + 1)}
       />
 
-      <ExportReportDialog open={exportOpen} rangeLabel={rangeLabel} onClose={() => setExportOpen(false)} onExport={handleExport} />
+      {/* display:none wrapper: the dialog portals to <body> anyway, but its
+          theme wrapper otherwise renders a zero-height flex child between the
+          header bar and the content, adding 24px of gap on each side. */}
+      <Box sx={{ display: 'none' }}>
+        <ExportReportDialog open={exportOpen} rangeLabel={rangeLabel} onClose={() => setExportOpen(false)} onExport={handleExport} />
+      </Box>
 
       <Box ref={dashboardRef}>
       {ready && (tab === 'agents' ? (

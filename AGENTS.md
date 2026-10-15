@@ -9,7 +9,7 @@
 ### 2. Shuffle Security Logo
 - **Entities & Products**: **Shuffle Security** specifically.
 - **Usage**: Used on the Shuffle Security web application, web navigation header, web landing pages, footer, and sidebar product switcher to clearly distinguish Shuffle Security from other Shuffle products.
-- **Logo Component**: [`ShuffleLogo`](src/components/common/ShuffleLogo.tsx) / [`ShuffleSecurityLogo`](src/components/common/ShuffleLogo.tsx) rendering the geometric vector "S" badge (`d="M14 14h28v6H20v16h16v-10h-8v-6h14v22H14V14z"`).
+- **Logo Component**: [`ShuffleLogo`](src/components/common/ShuffleLogo.tsx) / [`ShuffleSecurityLogo`](src/components/common/ShuffleLogo.tsx) rendering the geometric vector "S" badge.
 
 ### 3. Agent & AI Logo
 - **Entities & Products**: "Agents", "Shuffle AI", "Shuffle Agents", agent executions, and subagent views.
@@ -57,10 +57,9 @@ See `docs/AGENTS.md` for documentation rules.
 - /api/v* on this site is a 307 redirect to the tenant's regional backend (src/routes/api.$version.$.ts, region from subdomain, then the shuffle-region cookie, then OpenID state) — the app has no API of its own.
 - Sidebar region flags use RegionFlagImage with hosted image assets and the shared resolved region code, so rendering never depends on emoji fonts.
 - MonitorsView owns deployment sign-in gating for both embedded dialogs and `add_host=true` links, preserving the deployment destination through the existing login `view` parameter so shared-library callers cannot silently bypass the redirect.
-- Read src/Shuffle-Core/AGENTS.md first.
+- Read src/Shuffle-Core/AGENTS.md first. Some subdirectories (e.g. src/pages/dashboard) have their own AGENTS.md; read it before changing files there.
 
 
 <!-- LOVABLE:BEGIN -->
 - Shared overlay layers track opening order on owned portal roots; accessibility hiding is not closing, papers are not surfaces, and app theme markers keep embedded hosts untouched.
 <!-- LOVABLE:END -->
-- Signed-out /dashboard (src/pages/dashboard/GuestDashboardPage.tsx) renders the real dashboards with sample data by temporarily answering dashboard API paths in the host app (src/lib/dashboardSampleData.ts); the shared libraries stay unaware of demo mode. Both dashboards use DashboardHeaderBar so the header never drifts.

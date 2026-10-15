@@ -5811,8 +5811,9 @@ export interface UsecasesPageProps {
    */
   renderEndpointSlot?: (params: { flowId: string; flowLabel: string; side: 'source' | 'destination' }) => React.ReactNode;
   /**
-   * Optional host slot rendered above the Outcome block in the detail view.
-   * Use it to inject a full configuration UI (e.g. Incident Routing editor).
+   * Optional host slot rendered below the Source / Destination chart and
+   * above the Outcome block in the detail view. Use it to inject a full
+   * configuration UI (e.g. Incident Routing editor, readiness banner).
    */
   renderUsecaseDetailSlot?: (params: { flowId: string; flowLabel: string; onOpenModal?: (modal: string) => void }) => React.ReactNode;
   /**

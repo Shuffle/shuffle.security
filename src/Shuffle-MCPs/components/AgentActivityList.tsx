@@ -1203,19 +1203,21 @@ const AgentActivityList = ({
           const key = normToolKey(name);
           iconAttemptsRef.current.add(key);
           if (!resolved[key]) {
-            try {
-              const hit = await resolveApp(name);
-              if (hit?.image) {
-                resolved[key] = hit.image;
-              } else {
-                // Catalog lookup unavailable (e.g. Algolia rate-limited) —
-                // fall back to the static public image map.
-                const fb = publicAppImage(name);
-                if (fb) resolved[key] = fb;
-              }
-            } catch {
-              const fb = publicAppImage(name);
-              if (fb) resolved[key] = fb;
+            // Static public image first — instant and immune to catalog
+            // rate limits. Only uncovered names hit the catalog lookup,
+            // which is raced with a timeout so one slow lookup cannot
+            // stall the whole loop.
+            const fb = publicAppImage(name);
+            if (fb) {
+              resolved[key] = fb;
+            } else {
+              try {
+                const hit = await Promise.race([
+                  resolveApp(name),
+                  new Promise((r) => setTimeout(() => r(null), 4000)),
+                ]);
+                if (hit?.image) resolved[key] = hit.image;
+              } catch { /* skip */ }
             }
           }
           await new Promise((r) => setTimeout(r, 120));

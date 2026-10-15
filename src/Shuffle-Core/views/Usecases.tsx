@@ -4837,21 +4837,6 @@ function UsecaseDetailContent({
         );
       })()}
 
-      {(() => {
-        const slot = renderUsecaseDetailSlot
-          ? renderUsecaseDetailSlot({
-              flowId: flow.id,
-              flowLabel: flow.label,
-              onOpenModal: () => setActionModalOpen(true),
-            })
-          : null;
-        return slot ? (
-          <Box sx={{ p: 2.5, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
-            {slot}
-          </Box>
-        ) : null;
-      })()}
-
       {/* Outcome block moved below Source → Destination (see after the
           connection-path block). */}
 

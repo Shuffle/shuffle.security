@@ -1184,7 +1184,6 @@ const AgentActivityList = ({
     return () => { iconMountedRef.current = false; };
   }, []);
   useEffect(() => {
-    // TEMP-DEBUG
     if (!runs.length) return;
     const missing = new Set<string>();
     for (const run of runs) {

@@ -452,7 +452,7 @@ export const AutomationDashboard = ({
       )}
 
       {/* KPI tiles */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' }, gap: 1.5 }}>
         <KpiTile
           icon={AlertCircle}
           glow={NEON.magenta}

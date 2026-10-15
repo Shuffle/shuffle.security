@@ -1194,10 +1194,11 @@ interface UsecasesPageConfig {
    *  (e.g. the Webhook ingestion button on SIEM/EDR alert sources) using
    *  the exact same component already mounted elsewhere in the app. */
   renderEndpointSlot?: (params: { flowId: string; flowLabel: string; side: 'source' | 'destination' }) => React.ReactNode;
-  /** Optional host slot rendered above the Outcome block in the usecase
-   *  detail view. Lets the host inject a full configuration component for
-   *  a usecase (e.g. the Incident Routing editor) instead of bundling it
-   *  into Shuffle-Core. */
+  /** Optional host slot rendered below the Source / Destination chart and
+   *  above the Outcome block in the usecase detail view. Lets the host
+   *  inject a full configuration component for a usecase (e.g. the Incident
+   *  Routing editor or the vulnerability readiness banner) instead of
+   *  bundling it into Shuffle-Core. */
   renderUsecaseDetailSlot?: (params: { flowId: string; flowLabel: string; onOpenModal?: (modal: string) => void }) => React.ReactNode;
   /** Optional host slot that renders an inline modal for a usecase whose
    *  `customAction.modal` key matches. Lets the host embed dialogs (e.g.
@@ -4837,21 +4838,6 @@ function UsecaseDetailContent({
         );
       })()}
 
-      {(() => {
-        const slot = renderUsecaseDetailSlot
-          ? renderUsecaseDetailSlot({
-              flowId: flow.id,
-              flowLabel: flow.label,
-              onOpenModal: () => setActionModalOpen(true),
-            })
-          : null;
-        return slot ? (
-          <Box sx={{ p: 2.5, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
-            {slot}
-          </Box>
-        ) : null;
-      })()}
-
       {/* Outcome block moved below Source → Destination (see after the
           connection-path block). */}
 
@@ -5296,6 +5282,21 @@ function UsecaseDetailContent({
             )}
           </Box>
         );
+      })()}
+
+      {(() => {
+        const slot = renderUsecaseDetailSlot
+          ? renderUsecaseDetailSlot({
+              flowId: flow.id,
+              flowLabel: flow.label,
+              onOpenModal: () => setActionModalOpen(true),
+            })
+          : null;
+        return slot ? (
+          <Box sx={{ p: 2.5, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
+            {slot}
+          </Box>
+        ) : null;
       })()}
 
       {flow.id !== 'case_management_incident_routing_1' && flow.id !== 'case_management_schedules_notifications_1' && flow.id !== 'case_management_asset_management_monitors_1' && (
@@ -5810,8 +5811,9 @@ export interface UsecasesPageProps {
    */
   renderEndpointSlot?: (params: { flowId: string; flowLabel: string; side: 'source' | 'destination' }) => React.ReactNode;
   /**
-   * Optional host slot rendered above the Outcome block in the detail view.
-   * Use it to inject a full configuration UI (e.g. Incident Routing editor).
+   * Optional host slot rendered below the Source / Destination chart and
+   * above the Outcome block in the detail view. Use it to inject a full
+   * configuration UI (e.g. Incident Routing editor, readiness banner).
    */
   renderUsecaseDetailSlot?: (params: { flowId: string; flowLabel: string; onOpenModal?: (modal: string) => void }) => React.ReactNode;
   /**

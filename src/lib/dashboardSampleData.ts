@@ -82,18 +82,32 @@ export function buildSampleIncidents(now = Date.now(), days = 365) {
     const n = dayVolume(days - d, dayTs, 6, r);
     for (let i = 0; i < n; i++) {
       const ageDays = d;
+      // Anything open past its resolve window counts as an SLA breach, so
+      // the open backlog sits in the last few days: older days are mostly
+      // handled with a light trickle of in-flight work, and breaches stay
+      // low overall.
       const status = ageDays > 14
-        ? weighted(r, [['resolved', 92], ['on_hold', 4], ['in_progress', 4]])
+        ? weighted(r, [['resolved', 999], ['in_progress', 1]])
         : ageDays > 2
-          ? weighted(r, [['resolved', 55], ['in_progress', 30], ['new', 10], ['on_hold', 5]])
-          : weighted(r, [['new', 55], ['in_progress', 35], ['resolved', 10]]);
+          ? weighted(r, [['resolved', 96], ['in_progress', 2], ['new', 1], ['on_hold', 1]])
+          : ageDays > 0
+            ? weighted(r, [['resolved', 90], ['in_progress', 6], ['new', 2], ['on_hold', 2]])
+            : weighted(r, [['new', 60], ['in_progress', 35], ['resolved', 5]]);
       const severity = weighted(r, [['informational', 10], ['low', 30], ['medium', 35], ['high', 18], ['critical', 7]]);
-      const createdTs = dayTs - Math.floor(r() * DAY);
       const target = DEFAULT_SLA_CONFIG[severity as keyof typeof DEFAULT_SLA_CONFIG] || DEFAULT_SLA_CONFIG.fallback;
-      // Mostly on time, with a realistic share of late responses and fixes.
-      const late = (share: number) => (r() < share ? 1.2 + r() * 2.5 : 0.15 + r() * 0.8);
-      const respondedTs = status === 'new' ? undefined : Math.min(now, createdTs + target.respondMinutes * MIN * late(0.12));
-      const resolvedTs = status === 'resolved' ? Math.min(now, createdTs + target.resolveMinutes * MIN * late(0.15)) : undefined;
+      // Unhandled incidents sit inside their SLA window: fresh "new" ones
+      // are inside the respond target and in-progress ones inside the
+      // resolve target, so only a small tail lingers past it and breaches.
+      const createdTs = status === 'new' && ageDays <= 2
+        ? dayTs - Math.floor(r() * (r() < 0.9 ? target.respondMinutes * MIN * 0.9 : DAY))
+        : status === 'in_progress' && ageDays <= 2
+          ? dayTs - Math.floor(r() * (r() < 0.85 ? target.resolveMinutes * MIN * 0.8 : DAY))
+          : dayTs - Math.floor(r() * DAY);
+      // SLA breaches should be rare: almost everyone responds and resolves
+      // inside the target, with a small overshoot when they are late.
+      const late = (share: number) => (r() < share ? 1.1 + r() * 0.5 : 0.15 + r() * 0.8);
+      const respondedTs = status === 'new' ? undefined : Math.min(now, createdTs + target.respondMinutes * MIN * late(0.05));
+      const resolvedTs = status === 'resolved' ? Math.min(now, createdTs + target.resolveMinutes * MIN * late(0.06)) : undefined;
       out.push({ status, severity, createdTs, respondedTs, resolvedTs });
     }
   }

@@ -1194,10 +1194,11 @@ interface UsecasesPageConfig {
    *  (e.g. the Webhook ingestion button on SIEM/EDR alert sources) using
    *  the exact same component already mounted elsewhere in the app. */
   renderEndpointSlot?: (params: { flowId: string; flowLabel: string; side: 'source' | 'destination' }) => React.ReactNode;
-  /** Optional host slot rendered above the Outcome block in the usecase
-   *  detail view. Lets the host inject a full configuration component for
-   *  a usecase (e.g. the Incident Routing editor) instead of bundling it
-   *  into Shuffle-Core. */
+  /** Optional host slot rendered below the Source / Destination chart and
+   *  above the Outcome block in the usecase detail view. Lets the host
+   *  inject a full configuration component for a usecase (e.g. the Incident
+   *  Routing editor or the vulnerability readiness banner) instead of
+   *  bundling it into Shuffle-Core. */
   renderUsecaseDetailSlot?: (params: { flowId: string; flowLabel: string; onOpenModal?: (modal: string) => void }) => React.ReactNode;
   /** Optional host slot that renders an inline modal for a usecase whose
    *  `customAction.modal` key matches. Lets the host embed dialogs (e.g.

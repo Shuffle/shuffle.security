@@ -114,7 +114,7 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
           ? `Ask Shuffle (${contextHint})`
           : 'Ask Shuffle • Context-aware assistant';
 
-  return (
+  const content = (
     <Box
       className={themeScope?.scopeClassName}
       sx={{

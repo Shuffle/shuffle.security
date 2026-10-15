@@ -390,3 +390,64 @@ export const drawTable = (pdf: jsPDF, table: ReportTable, rangeLabel: string) =>
     y += h;
   }
 };
+
+export interface ReportPdfOptions {
+  /** Cover heading under the Shuffle Security wordmark. */
+  title?: string;
+  /** Organisation name printed on the cover. */
+  orgName?: string;
+  /** Range label printed on the cover and above every table. */
+  rangeLabel: string;
+  tables: ReportTable[];
+  filename?: string;
+}
+
+/**
+ * Build a report PDF from pre-built tables — the generic entry point used by
+ * surfaces outside the dashboards. The dashboard flow keeps using
+ * buildDashboardPdf so its captured charts and raw stats page stay identical.
+ */
+export const buildReportPdf = async ({
+  title = 'Organization report',
+  orgName = '',
+  rangeLabel,
+  tables,
+  filename,
+}: ReportPdfOptions): Promise<void> => {
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+
+  pdf.setFillColor(255, 102, 0);
+  pdf.rect(0, 0, pageW, 6, 'F');
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(28);
+  pdf.setTextColor(20, 20, 20);
+  pdf.text('Shuffle Security', M, pageH / 2 - 30);
+  pdf.setFontSize(18);
+  pdf.setTextColor(80, 80, 80);
+  pdf.text(title, M, pageH / 2 - 4);
+
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(11);
+  pdf.setTextColor(120, 120, 120);
+  let y = pageH / 2 + 24;
+  if (orgName) {
+    pdf.text(`Organization: ${orgName}`, M, y);
+    y += 16;
+  }
+  pdf.text(`Range: ${rangeLabel}`, M, y);
+  y += 16;
+  pdf.text(`Generated: ${new Date().toLocaleString()}`, M, y);
+
+  for (const table of tables) drawTable(pdf, table, rangeLabel);
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  pdf.save(filename || `shuffle-report-${stamp}.pdf`);
+};
+
+/** Sections offered in the picker; sub-tenants only apply when children exist. */
+export const visibleReportSections = (hasChildTenants: boolean): ReportSectionDef[] =>
+  REPORT_SECTIONS.filter((s) => s.id !== 'subtenants' || hasChildTenants);
+

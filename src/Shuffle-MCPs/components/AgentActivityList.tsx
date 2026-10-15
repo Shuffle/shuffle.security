@@ -71,6 +71,7 @@ import { navigateToShuffleCore } from '@/Shuffle-MCPs/navigation';
 
 import { diagnoseOutputWarning } from '@/Shuffle-MCPs/agentDiagnosis';
 import { fetchAppsViaApiConfig } from '@/Shuffle-Core/appsCache';
+import { resolveApp } from '@/Shuffle-MCPs/resolveApp';
 import { collectLlmImageAttachments } from '@/Shuffle-MCPs/agentAttachments';
 import { toast } from '@/Shuffle-Core/toast';
 import { Pencil, StopCircle, AlertTriangle } from 'lucide-react';

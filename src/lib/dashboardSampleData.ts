@@ -83,17 +83,22 @@ export function buildSampleIncidents(now = Date.now(), days = 365) {
     for (let i = 0; i < n; i++) {
       const ageDays = d;
       const status = ageDays > 14
-        ? weighted(r, [['resolved', 92], ['on_hold', 4], ['in_progress', 4]])
+        ? weighted(r, [['resolved', 98], ['on_hold', 1], ['in_progress', 1]])
         : ageDays > 2
-          ? weighted(r, [['resolved', 55], ['in_progress', 30], ['new', 10], ['on_hold', 5]])
+          ? weighted(r, [['resolved', 70], ['in_progress', 20], ['new', 5], ['on_hold', 5]])
           : weighted(r, [['new', 55], ['in_progress', 35], ['resolved', 10]]);
       const severity = weighted(r, [['informational', 10], ['low', 30], ['medium', 35], ['high', 18], ['critical', 7]]);
-      const createdTs = dayTs - Math.floor(r() * DAY);
+      // Fresh incidents have not been triaged yet and sit inside their respond
+      // window; only a small tail lingers and breaches.
+      const createdTs = status === 'new' && ageDays <= 2
+        ? dayTs - Math.floor(r() * (r() < 0.85 ? 45 * MIN : DAY))
+        : dayTs - Math.floor(r() * DAY);
       const target = DEFAULT_SLA_CONFIG[severity as keyof typeof DEFAULT_SLA_CONFIG] || DEFAULT_SLA_CONFIG.fallback;
-      // Mostly on time, with a realistic share of late responses and fixes.
-      const late = (share: number) => (r() < share ? 1.2 + r() * 2.5 : 0.15 + r() * 0.8);
-      const respondedTs = status === 'new' ? undefined : Math.min(now, createdTs + target.respondMinutes * MIN * late(0.12));
-      const resolvedTs = status === 'resolved' ? Math.min(now, createdTs + target.resolveMinutes * MIN * late(0.15)) : undefined;
+      // SLA breaches should be rare: almost everyone responds and resolves
+      // inside the target, with a small overshoot when they are late.
+      const late = (share: number) => (r() < share ? 1.1 + r() * 0.5 : 0.15 + r() * 0.8);
+      const respondedTs = status === 'new' ? undefined : Math.min(now, createdTs + target.respondMinutes * MIN * late(0.05));
+      const resolvedTs = status === 'resolved' ? Math.min(now, createdTs + target.resolveMinutes * MIN * late(0.06)) : undefined;
       out.push({ status, severity, createdTs, respondedTs, resolvedTs });
     }
   }

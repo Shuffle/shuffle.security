@@ -657,6 +657,165 @@ const VulnAutomationVisual = () => {
   );
 };
 
+const ReportingVisual = () => {
+  const sections = [
+    { label: 'Dashboard charts and stats', checked: true },
+    { label: 'Tenant details', checked: true },
+    { label: 'Incidents', checked: true },
+    { label: 'Workflows and runs', checked: false },
+    { label: 'Apps', checked: false },
+    { label: 'Vulnerabilities', checked: false },
+    { label: 'Runtime locations', checked: false },
+  ];
+  return (
+    <Box
+      sx={{
+        p: 4,
+        borderRadius: 4,
+        background: 'linear-gradient(145deg, rgba(245, 158, 11, 0.06) 0%, rgba(245, 158, 11, 0.01) 100%)',
+        border: '1px solid rgba(245, 158, 11, 0.15)',
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem' }}>Export report</Typography>
+        <Typography sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>Time range: 90 days</Typography>
+      </Box>
+      <Stack spacing={1.25}>
+        {sections.map((s, i) => (
+          <motion.div
+            key={s.label}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.07 }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.5, borderRadius: 2, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box sx={{ width: 16, height: 16, borderRadius: 1, border: `1px solid ${s.checked ? '#f59e0b' : 'hsl(var(--border))'}`, background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {s.checked && <Box sx={{ width: 8, height: 8, backgroundColor: '#f59e0b', borderRadius: 0.5 }} />}
+                </Box>
+                <Typography sx={{ fontSize: '0.85rem' }}>{s.label}</Typography>
+              </Box>
+              <Typography sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+                {s.checked ? 'Included' : 'Skipped'}
+              </Typography>
+            </Box>
+          </motion.div>
+        ))}
+      </Stack>
+      <Box sx={{ mt: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+        <Box sx={{ py: 1, px: 3, borderRadius: 2, background: '#FF6600' }}>
+          <Typography sx={{ color: 'white', fontSize: '0.85rem', fontWeight: 600 }}>Generate PDF</Typography>
+        </Box>
+        <Typography sx={{ color: 'text.secondary', fontSize: '0.75rem', textAlign: 'right' }}>
+          Pulled live from your tenant<br />when the report is built
+        </Typography>
+      </Box>
+    </Box>
+  );
+};
+
+const IncidentManagementVisual = () => {
+  const incidents = [
+    { title: 'Phishing email with malicious attachment', sev: 'Critical', sevColor: '#ef4444', status: 'In Progress', statusColor: '#FF6600', meta: '12 observables · 3 IOCs' },
+    { title: 'Impossible travel sign-in detected', sev: 'High', sevColor: '#f97316', status: 'New', statusColor: '#3b82f6', meta: 'SLA: 45 minutes left' },
+    { title: 'Suspicious PowerShell execution', sev: 'Medium', sevColor: '#f59e0b', status: 'Resolved', statusColor: '#22c55e', meta: 'Merged with 2 related incidents' },
+  ];
+  return (
+    <Box
+      sx={{
+        p: 4,
+        borderRadius: 4,
+        background: 'linear-gradient(145deg, rgba(59, 130, 246, 0.06) 0%, rgba(59, 130, 246, 0.01) 100%)',
+        border: '1px solid rgba(59, 130, 246, 0.15)',
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem' }}>Incident queue</Typography>
+        <Typography sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>29 open · 13 SLA breaches</Typography>
+      </Box>
+      <Stack spacing={1.5}>
+        {incidents.map((inc, i) => (
+          <motion.div
+            key={inc.title}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+          >
+            <Box sx={{ p: 2, borderRadius: 2, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 1 }}>
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inc.title}</Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                  <Box sx={{ py: 0.25, px: 1, borderRadius: 1, background: `${inc.sevColor}20`, border: `1px solid ${inc.sevColor}40` }}>
+                    <Typography sx={{ color: inc.sevColor, fontSize: '0.7rem', fontWeight: 700 }}>{inc.sev}</Typography>
+                  </Box>
+                  <Box sx={{ py: 0.25, px: 1, borderRadius: 1, background: `${inc.statusColor}20`, border: `1px solid ${inc.statusColor}40` }}>
+                    <Typography sx={{ color: inc.statusColor, fontSize: '0.7rem', fontWeight: 700 }}>{inc.status}</Typography>
+                  </Box>
+                </Box>
+              </Box>
+              <Typography sx={{ color: 'text.secondary', fontSize: '0.78rem' }}>{inc.meta}</Typography>
+            </Box>
+          </motion.div>
+        ))}
+      </Stack>
+      <Box sx={{ mt: 2.5, p: 1.75, borderRadius: 2, background: 'rgba(255, 102, 0, 0.08)', border: '1px solid rgba(255, 102, 0, 0.2)' }}>
+        <Typography sx={{ color: '#FF6600', fontSize: '0.75rem' }}>
+          AI Agent suggests: Disable account and reset password · awaiting your approval
+        </Typography>
+      </Box>
+    </Box>
+  );
+};
+
+const VulnManagementVisual = () => {
+  const groups = [
+    { label: 'Critical', count: 23, color: '#ef4444', share: 0.05 },
+    { label: 'High', count: 87, color: '#f97316', share: 0.2 },
+    { label: 'Medium', count: 210, color: '#f59e0b', share: 0.48 },
+    { label: 'Low', count: 117, color: '#64748b', share: 0.27 },
+  ];
+  return (
+    <Box
+      sx={{
+        p: 4,
+        borderRadius: 4,
+        background: 'linear-gradient(145deg, rgba(239, 68, 68, 0.06) 0%, rgba(239, 68, 68, 0.01) 100%)',
+        border: '1px solid rgba(239, 68, 68, 0.15)',
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem' }}>Findings inventory</Typography>
+        <Typography sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>437 findings · 22 hosts</Typography>
+      </Box>
+      <Stack spacing={1.5}>
+        {groups.map((g, i) => (
+          <motion.div
+            key={g.label}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.08 }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography sx={{ color: g.color, fontSize: '0.8rem', fontWeight: 600, width: 64 }}>{g.label}</Typography>
+              <Box sx={{ flex: 1, height: 10, borderRadius: 1, background: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+                <Box sx={{ width: `${Math.round(g.share * 100)}%`, height: '100%', background: `${g.color}99`, borderRadius: 1 }} />
+              </Box>
+              <Typography sx={{ color: 'text.secondary', fontSize: '0.8rem', width: 34, textAlign: 'right' }}>{g.count}</Typography>
+            </Box>
+          </motion.div>
+        ))}
+      </Stack>
+      <Box sx={{ mt: 2.5, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        {['Deduplicated', 'Asset context', 'Threat intel matches', 'Exportable'].map((chip) => (
+          <Box key={chip} sx={{ py: 0.5, px: 1.5, borderRadius: 1.5, background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
+            <Typography sx={{ color: '#ef4444', fontSize: '0.7rem', fontWeight: 600 }}>{chip}</Typography>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+};
+
 const features: Omit<FeatureSectionProps, 'reverse'>[] = [
   {
     icon: null,
@@ -751,6 +910,55 @@ const features: Omit<FeatureSectionProps, 'reverse'>[] = [
     ],
     color: '#f43f5e',
     visual: <VulnAutomationVisual />,
+    link: '/vulnerabilities',
+    linkLabel: 'Open Vulnerability Management',
+  },
+  {
+    icon: null,
+    title: 'Reporting &',
+    highlight: 'Executive Dashboards',
+    description: 'Numbers leadership understands. Live dashboards for security operations, automation, agents and vulnerabilities, with SLA tracking throughout — and a report builder that turns it all into a PDF your auditors and board will actually read.',
+    bullets: [
+      'Dedicated dashboards for incidents, vulnerabilities, automation and agent activity',
+      'SLA breach tracking per severity, per day, against your own respond and resolve targets',
+      'Analyst hours saved and executions run, estimated from your automation activity',
+      'Multi-section PDF export: tick exactly the parts you need, pulled live from your tenant',
+    ],
+    color: '#f59e0b',
+    visual: <ReportingVisual />,
+    link: '/dashboard',
+    linkLabel: 'Explore the Dashboards',
+  },
+  {
+    icon: null,
+    title: 'Incident',
+    highlight: 'Management',
+    description: 'Alerts and cases unified as incidents. Automatic enrichment of every observable with threat intelligence, full timelines, email thread context, merging of duplicates, and an AI Agent that triages and proposes actions for your approval.',
+    bullets: [
+      'Alerts and cases consolidated as OCSF incidents with severity and status tracking',
+      'Automatic enrichment of observables and IOCs with threat intelligence',
+      'Merge duplicates, keep full timelines, email threads and stakeholder context',
+      'Per-severity respond and resolve SLA targets with breach tracking',
+      'AI Agent triage with one-click approvals on suggested response actions',
+    ],
+    color: '#3b82f6',
+    visual: <IncidentManagementVisual />,
+    link: '/incidents',
+    linkLabel: 'See Incident Management',
+  },
+  {
+    icon: null,
+    title: 'Vulnerability',
+    highlight: 'Management',
+    description: 'Every finding in one inventory. Ingest from any scanner and from host monitors, see each finding with its asset context, deduplicate the noise, and track work from discovery to resolution — with exportable evidence for auditors.',
+    bullets: [
+      'Central inventory of findings from Qualys, Tenable, Wiz, Defender and host monitors',
+      'Asset context on every finding: host, installed software and exposure',
+      'Deduplicate, filter and track findings from discovery to resolution',
+      'Export findings and remediation status for auditors and leadership',
+    ],
+    color: '#ef4444',
+    visual: <VulnManagementVisual />,
     link: '/vulnerabilities',
     linkLabel: 'Open Vulnerability Management',
   },

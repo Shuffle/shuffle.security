@@ -26,6 +26,7 @@ import {
   PowerOff,
 } from 'lucide-react';
 import AppSearchDrawer from './AppSearchDrawer';
+import { addSelectedChartApp } from './chartAppSelection';
 import { useAppDetailOptional } from '@shuffleio/shuffle-mcps';
 import { getApiUrl, getAuthHeader } from '@shuffleio/shuffle-mcps';
 import type { ShuffleCoreHostProps } from '../types/host-props';
@@ -1144,6 +1145,7 @@ export default function UsecaseAlluvialDiagram({
   const [searchOpen, setSearchOpen] = useState<'left' | 'right' | null>(null);
   // Track apps manually added to the destination via "+ Add" (bypasses category matching)
   const [manualDestApps, setManualDestApps] = useState<Set<string>>(new Set());
+  const [manualSourceApps, setManualSourceApps] = useState<Set<string>>(new Set());
   const pendingTogglesRef = useRef<Map<string, boolean>>(new Map());
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Cache Algolia icons for guest-added apps (name → icon URL)
@@ -1818,6 +1820,7 @@ export default function UsecaseAlluvialDiagram({
       // Only show apps that match the usecase's source category from the user's apps
       const categoryApps = allApps.filter(a =>
         !isShuffleInternalApp(a.name) && (
+          manualSourceApps.has(normalizeAppName(a.name)) ||
           matchesCategory(a.name, categoryToFilter) ||
           (isVulnFlow && (matchesCategory(a.name, 'asset_management') || isVulnScannerApp(a.name)))
         )
@@ -1852,7 +1855,7 @@ export default function UsecaseAlluvialDiagram({
       return prependWebhook(filtered);
     }
     return prependWebhook(
-      allApps.filter(a => matchesCategory(a.name, sourceCategory) && !hiddenApps.has(a.name.toLowerCase())).map(a => ({
+      allApps.filter(a => (matchesCategory(a.name, sourceCategory) || manualSourceApps.has(normalizeAppName(a.name))) && !hiddenApps.has(a.name.toLowerCase())).map(a => ({
         ...a,
         isEnabled: true,
         isBlocked: isSourceBlocked,
@@ -1860,7 +1863,7 @@ export default function UsecaseAlluvialDiagram({
         actionUrl: sourceActionUrl,
       }))
     );
-  }, [allApps, sourceCategory, highlightCategory, ingestAppNames, vulnAppNames, isVulnFlow, isLoggedIn, guestSourceNames, guestAppIcons, hiddenApps, webhookNode, lockSource, shouldOmitSource, isForwardTicketsFlow, usecaseLabel, ingestHealth, forwardHealth]);
+  }, [manualSourceApps, allApps, sourceCategory, highlightCategory, ingestAppNames, vulnAppNames, isVulnFlow, isLoggedIn, guestSourceNames, guestAppIcons, hiddenApps, webhookNode, lockSource, shouldOmitSource, isForwardTicketsFlow, usecaseLabel, ingestHealth, forwardHealth]);
 
   // Target/destination apps: user-selectable
   const targetApps = useMemo(() => {
@@ -2639,156 +2642,34 @@ export default function UsecaseAlluvialDiagram({
             .filter(a => a.id !== 'webhook-ingestion' && a.name !== 'Webhook')
             .map(a => ({ name: a.name, icon: a.icon, hasValidAuth: a.hasValidAuth, isActiveOnly: a.isActiveOnly }));
         })()}
-        onAddToCanvas={isLoggedIn ? ({ name: addedAppName, icon: addedIcon, algoliaId }: { name: string; icon: string; algoliaId?: string | null }) => {
-          const side = searchOpen || 'right';
+        onQuickSelect={(app) => {
+          const side = searchOpen;
+          if (!side) return;
+          if (!isLoggedIn) {
+            addGuestApp(side, app);
+            return;
+          }
 
-          // Ensure app exists in allApps so it renders on the canvas
-          setAllApps(prev => {
-            const exists = prev.some(a => normalizeAppName(a.name) === normalizeAppName(addedAppName));
-            if (exists) {
-              return prev.map(a =>
-                normalizeAppName(a.name) === normalizeAppName(addedAppName)
-                  ? { ...a, hasValidAuth: true, icon: addedIcon || a.icon }
-                  : a
-              );
-            }
-            return [...prev, { id: algoliaId || addedAppName, name: addedAppName, icon: addedIcon || '', hasValidAuth: true, isActiveOnly: false }];
+          const existing = allApps.find(a => normalizeAppName(a.name) === normalizeAppName(app.name));
+          const hasValidAuth = existing?.hasValidAuth ?? false;
+          setAllApps(prev => addSelectedChartApp(prev, app));
+          setHiddenApps(prev => {
+            const next = new Set(prev);
+            next.delete(app.name.toLowerCase());
+            return next;
           });
-
-          // Activate app in background
-          if (algoliaId) {
-            (async () => {
-              try {
-                const configRes = await fetch(getApiUrl(`/api/v1/apps/${encodeURIComponent(algoliaId)}/config`), {
-                  credentials: 'include', headers: { ...getAuthHeader() },
-                });
-                if (configRes.ok) {
-                  const data = await configRes.json();
-                  if (data.id) {
-                    await fetch(getApiUrl(`/api/v1/apps/${data.id}/activate`), {
-                      method: 'POST', credentials: 'include', headers: { ...getAuthHeader() },
-                    });
-                  }
-                }
-              } catch {}
-            })();
-          }
-
-          if (side === 'left' && (highlightCategory || isVulnFlow)) {
-            handleToggleSync(addedAppName, true);
-            setHiddenApps(prev => { const next = new Set(prev); next.delete(addedAppName.toLowerCase()); return next; });
-            toast.success(`${addedAppName.replace(/_/g, ' ')} added to ingestion sources`);
+          if (side === 'left') {
+            setManualSourceApps(prev => new Set(prev).add(normalizeAppName(app.name)));
+            if (hasValidAuth && (highlightCategory || isVulnFlow)) {
+              handleToggleSync(existing?.name || app.name, true);
+            }
           } else {
-            // Optimistic UI: show immediately on the destination column,
-            // then push the FULL desired destination app list to the backend
-            // and verify the workflow picked it up.
-            setManualDestApps(prev => { const next = new Set(prev); next.add(normalizeAppName(addedAppName)); return next; });
-            setHiddenApps(prev => { const next = new Set(prev); next.delete(addedAppName.toLowerCase()); return next; });
-            if (isNotificationFlow || isForwardTicketsContext) {
-              handleToggleDestinationApp(addedAppName, true);
+            setManualDestApps(prev => new Set(prev).add(normalizeAppName(app.name)));
+            if (hasValidAuth && (isNotificationFlow || isForwardTicketsContext)) {
+              handleToggleDestinationApp(existing?.name || app.name, true);
             }
           }
-          setSearchOpen(null);
-        } : undefined}
-        onQuickSelect={!isLoggedIn ? (app: any) => {
-          if (searchOpen) addGuestApp(searchOpen, app);
-        } : undefined}
-        onSelectOverride={isLoggedIn ? (app: any) => {
-          // Check if this app is already authenticated
-          const matchedApp = allApps.find(a => 
-            normalizeAppName(a.name) === normalizeAppName(app.name) && a.hasValidAuth
-          );
-          if (!matchedApp) return false; // Not authenticated — open detail drawer
-
-          // Backfill icon from Algolia if the API didn't provide one
-          if (!matchedApp.icon && app.icon) {
-            matchedApp.icon = app.icon;
-          }
-
-          // Already authenticated: add to the workflow directly
-          if (searchOpen === 'left' && (highlightCategory || isVulnFlow)) {
-            // Add to ingestion sources
-            handleToggleSync(matchedApp.name, true);
-            // Also unhide if it was hidden
-            setHiddenApps(prev => {
-              const next = new Set(prev);
-              next.delete(matchedApp.name.toLowerCase());
-              return next;
-            });
-            toast.success(`${matchedApp.name.replace(/_/g, ' ')} added to ingestion sources`);
-          } else if (searchOpen === 'right') {
-            setHiddenApps(prev => {
-              const next = new Set(prev);
-              next.delete(matchedApp.name.toLowerCase());
-              return next;
-            });
-            setManualDestApps(prev => { const next = new Set(prev); next.add(normalizeAppName(matchedApp.name)); return next; });
-            if (isNotificationFlow || isForwardTicketsContext) {
-              // Activate the app in the tenant first (no-op if already active),
-              // then push the FULL desired destination app list and verify.
-              (async () => {
-                try {
-                  if (matchedApp.id) {
-                    await fetch(getApiUrl(`/api/v1/apps/${matchedApp.id}/activate`), {
-                      method: 'POST', credentials: 'include', headers: { ...getAuthHeader() },
-                    });
-                  }
-                } catch {}
-                handleToggleDestinationApp(matchedApp.name, true);
-              })();
-            }
-          }
-          setSearchOpen(null);
-          return true; // Handled — don't open detail drawer
-        } : undefined}
-        onDetailClose={isLoggedIn ? async (appName: string) => {
-          // After authenticating, re-check if app is now valid and auto-add
-          try {
-            const res = await fetchAppsCached(getApiUrl('/api/v1/apps/authentication'), {
-              credentials: 'include',
-              headers: getAuthHeader(),
-            });
-            if (!res.ok) return;
-            const result = await res.json();
-            const authData: AuthAppEntry[] = result.data || result;
-            const deduped = deduplicateAuthApps(authData);
-            const match = deduped.find(d => normalizeAppName(d.app.name) === normalizeAppName(appName));
-            if (!match?.hasValidAuth) return;
-
-            // Update allApps with the new/updated app
-            const newNode: AppNode = {
-              id: match.app.id,
-              name: match.app.name,
-              icon: match.bestImage || match.app.large_image || '',
-              hasValidAuth: true,
-              isActiveOnly: false,
-            };
-            setAllApps(prev => {
-              const exists = prev.some(a => normalizeAppName(a.name) === normalizeAppName(appName));
-              if (exists) {
-                return prev.map(a => normalizeAppName(a.name) === normalizeAppName(appName) ? { ...a, ...newNode } : a);
-              }
-              return [...prev, newNode];
-            });
-
-            // Auto-add to the correct side
-            const side = searchOpen || 'right';
-            if (side === 'left' && (highlightCategory || isVulnFlow)) {
-              handleToggleSync(match.app.name, true);
-              setHiddenApps(prev => { const n = new Set(prev); n.delete(match.app.name.toLowerCase()); return n; });
-              toast.success(`${match.app.name.replace(/_/g, ' ')} authenticated & added to ingestion`);
-            } else {
-              setHiddenApps(prev => { const n = new Set(prev); n.delete(match.app.name.toLowerCase()); return n; });
-              setManualDestApps(prev => { const next = new Set(prev); next.add(normalizeAppName(match.app.name)); return next; });
-              if (isNotificationFlow || isForwardTicketsContext) {
-                handleToggleDestinationApp(match.app.name, true);
-                toast.success(`${match.app.name.replace(/_/g, ' ')} authenticated & added to destination`);
-              }
-            }
-          } catch (err) {
-            console.error('[AlluvialDiagram] post-auth check failed:', err);
-          }
-        } : undefined}
+        }}
       />
 
 

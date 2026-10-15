@@ -7,7 +7,7 @@
 import { Box, Typography, Skeleton, Tooltip as MuiTooltip, useTheme } from '@mui/material';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, type LucideIcon } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -454,3 +454,62 @@ export const EmptyState = ({ text, ctaLabel, onCta }: { text: string; ctaLabel?:
     </Box>
   );
 };
+
+/**
+ * Per-chart series visibility, remembered in the browser (localStorage).
+ * `defaultHidden` applies only until the user changes the chart once.
+ */
+export function useSeriesVisibility(chartId: string, defaultHidden: string[] = []) {
+  const storageKey = `shuffle-chart-series:${chartId}`;
+  const [hidden, setHidden] = useState<string[]>(defaultHidden);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setHidden(parsed.filter((x) => typeof x === 'string'));
+      }
+    } catch { /* ignore */ }
+  }, [storageKey]);
+  const toggle = useCallback((key: string) => {
+    setHidden((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      try { window.localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, [storageKey]);
+  const isHidden = useCallback((key: string) => hidden.includes(key), [hidden]);
+  return { hidden, isHidden, toggle };
+}
+
+/** Clickable chart legend: clicking an entry hides or shows that series. */
+export function SeriesLegend({ items, isHidden, onToggle }: {
+  items: { key: string; label: string; color: string }[];
+  isHidden: (key: string) => boolean;
+  onToggle: (key: string) => void;
+}) {
+  return (
+    <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+      {items.map(({ key, label, color }) => {
+        const off = isHidden(key);
+        return (
+          <MuiTooltip key={key} title={off ? `Show ${label}` : `Hide ${label}`}>
+            <Box
+              component="button"
+              type="button"
+              onClick={() => onToggle(key)}
+              aria-pressed={!off}
+              sx={{
+                display: 'flex', alignItems: 'center', gap: 0.5, p: 0, border: 0, background: 'none',
+                cursor: 'pointer', opacity: off ? 0.45 : 1, font: 'inherit',
+              }}
+            >
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: off ? 'transparent' : color, border: `1px solid ${color}` }} />
+              <Typography sx={{ fontSize: '0.68rem', color: 'hsl(var(--muted-foreground))', fontWeight: 500, textDecoration: off ? 'line-through' : 'none' }}>{label}</Typography>
+            </Box>
+          </MuiTooltip>
+        );
+      })}
+    </Box>
+  );
+}

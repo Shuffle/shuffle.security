@@ -61,6 +61,7 @@ import singulAgentIcon from '../assets/singul-agent-icon.png';
 
 import { useWorkflowHealth } from '@/hooks/useWorkflowHealth';
 import { toast } from '../toast';
+import { runSignedInAction } from '../actionAccess';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -359,6 +360,7 @@ function AppBubble({
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [webhookOptimistic, setWebhookOptimistic] = useState<boolean | null>(null);
+  const [signInHref, setSignInHref] = useState<string | null>(null);
   const popoverOpen = Boolean(anchorEl);
 
   const displayName = (app.name || '').replace(/[_\-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
@@ -714,6 +716,12 @@ function AppBubble({
               size="small"
               startIcon={webhookEnabled ? <BlockIcon size={14} /> : <CheckCircleOutlineIcon size={14} />}
               onClick={async () => {
+                if (!runSignedInAction(!isSample, () => {}, () => {
+                  const destination = typeof window !== 'undefined'
+                    ? `${window.location.pathname}${window.location.search}`
+                    : '/usecases';
+                  setSignInHref(`/login?view=${encodeURIComponent(destination)}`);
+                })) return;
                 const willBeEnabled = !webhookEnabled;
                 setWebhookOptimistic(willBeEnabled);
                 setAnchorEl(null);
@@ -753,6 +761,16 @@ function AppBubble({
             >
               {webhookEnabled ? 'Disable Webhook' : 'Enable Webhook'}
             </Button>
+            {signInHref && (
+              <Box role="alert" sx={{ mt: 1, pt: 1, borderTop: '1px solid hsl(var(--border))' }}>
+                <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--foreground))', mb: 0.5 }}>
+                  You need to be logged in to {webhookEnabled ? 'disable' : 'enable'} this webhook.
+                </Typography>
+                <Button component={Link as any} to={signInHref} size="small" sx={{ textTransform: 'none', color: 'hsl(var(--primary))' }}>
+                  Sign in
+                </Button>
+              </Box>
+            )}
           </>
         ) : (
           /* Regular app popover */

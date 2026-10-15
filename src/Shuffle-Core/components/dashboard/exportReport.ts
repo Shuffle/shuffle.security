@@ -53,6 +53,8 @@ export interface ReportContext {
   toMs: number;
   orgId?: string;
   userdata?: any;
+  /** Datastore category holding incidents. */
+  incidentsCategory: string;
 }
 
 const MAX_ROWS = 1000;
@@ -157,7 +159,7 @@ export const buildSectionTable = async (id: ReportSectionId, ctx: ReportContext)
       };
     }
     case 'incidents': {
-      const items = await fetchDatastoreList('/api/v1/orgs/' + encodeURIComponent(ctx.orgId || org.id || '') + '/list_cache?category=incidents&top=100');
+      const items = await fetchDatastoreList(`/api/v1/orgs/${encodeURIComponent(ctx.orgId || org.id || '')}/list_cache?category=${encodeURIComponent(ctx.incidentsCategory)}&top=50`, 40);
       const seen = new Set<string>();
       const rows: { ms: number; row: string[] }[] = [];
       for (const item of items) {

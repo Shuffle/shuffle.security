@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Box, ButtonBase, Tooltip, Typography } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material';
 import AgentIcon from '@/Shuffle-Core/components/AgentIcon';

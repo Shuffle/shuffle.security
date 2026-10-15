@@ -4,7 +4,7 @@ import { routeMeta } from '@/lib/routeMeta';
 import MonitorsPage from '@/pages/dashboard/MonitorsPage';
 import { useAuth } from '@/context/AuthContext';
 import { useSearchParams } from '@/lib/router-compat';
-import { isHostDeploymentRequested } from '@/Shuffle-Core/views/monitors/MonitorsView';
+import { isHostDeploymentRequested } from '@/Shuffle-Core/views/monitors/deploymentLoginRedirect';
 
 const GuestMonitorsPage = lazy(() => import('@/pages/dashboard/GuestMonitorsPage'));
 

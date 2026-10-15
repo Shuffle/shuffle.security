@@ -51,6 +51,7 @@ import { Route as CondAppsAppnameRouteImport } from './routes/_cond.apps.$appnam
 import { Route as CondFormsIndexRouteImport } from './routes/_cond.forms.index'
 import { Route as CondFormsIdRouteImport } from './routes/_cond.forms.$id'
 import { Route as CondInfrastructureIndexRouteImport } from './routes/_cond.infrastructure.index'
+import { Route as CondMonitorsIndexRouteImport } from './routes/_cond.monitors.index'
 import { Route as CondUsecasesIndexRouteImport } from './routes/_cond.usecases.index'
 import { Route as CondVulnerabilitiesIndexRouteImport } from './routes/_cond.vulnerabilities.index'
 import { Route as CondVulnerabilitiesSplatRouteImport } from './routes/_cond.vulnerabilities.$'
@@ -86,7 +87,6 @@ import { Route as DashIncidentsTemplatesRouteImport } from './routes/_dash.incid
 import { Route as DashIncidentsThreatFeedsRouteImport } from './routes/_dash.incidents.threat-feeds'
 import { Route as DashJobsIndexRouteImport } from './routes/_dash.jobs.index'
 import { Route as DashJobsIdRouteImport } from './routes/_dash.jobs.$id'
-import { Route as DashMonitorsIndexRouteImport } from './routes/_dash.monitors.index'
 import { Route as DashMonitorsResponseRouteImport } from './routes/_dash.monitors.response'
 import { Route as DashMonitorsTerminalRouteImport } from './routes/_dash.monitors.terminal'
 import { Route as DashPackagesSplatRouteImport } from './routes/_dash.packages.$'
@@ -317,6 +317,11 @@ const CondInfrastructureIndexRoute = CondInfrastructureIndexRouteImport.update({
   path: '/infrastructure/',
   getParentRoute: () => CondRoute,
 } as any)
+const CondMonitorsIndexRoute = CondMonitorsIndexRouteImport.update({
+  id: '/monitors/',
+  path: '/monitors/',
+  getParentRoute: () => CondRoute,
+} as any)
 const CondUsecasesIndexRoute = CondUsecasesIndexRouteImport.update({
   id: '/usecases/',
   path: '/usecases/',
@@ -499,11 +504,6 @@ const DashJobsIndexRoute = DashJobsIndexRouteImport.update({
 const DashJobsIdRoute = DashJobsIdRouteImport.update({
   id: '/jobs/$id',
   path: '/jobs/$id',
-  getParentRoute: () => DashRoute,
-} as any)
-const DashMonitorsIndexRoute = DashMonitorsIndexRouteImport.update({
-  id: '/monitors/',
-  path: '/monitors/',
   getParentRoute: () => DashRoute,
 } as any)
 const DashMonitorsResponseRoute = DashMonitorsResponseRouteImport.update({
@@ -704,6 +704,7 @@ export interface FileRoutesByFullPath {
   '/agents/': typeof CondAgentsIndexRoute
   '/forms/': typeof CondFormsIndexRoute
   '/infrastructure/': typeof CondInfrastructureIndexRoute
+  '/monitors/': typeof CondMonitorsIndexRoute
   '/usecases/': typeof CondUsecasesIndexRoute
   '/vulnerabilities/': typeof CondVulnerabilitiesIndexRoute
   '/admin/': typeof DashAdminIndexRoute
@@ -714,7 +715,6 @@ export interface FileRoutesByFullPath {
   '/incidents-simple/': typeof DashIncidentsSimpleIndexRoute
   '/incidents/': typeof DashIncidentsIndexRoute
   '/jobs/': typeof DashJobsIndexRoute
-  '/monitors/': typeof DashMonitorsIndexRoute
   '/tickets/': typeof DashTicketsIndexRoute
   '/workflows/': typeof DashWorkflowsIndexRoute
   '/onboarding/': typeof OnboardingOnboardingIndexRoute
@@ -803,6 +803,7 @@ export interface FileRoutesByTo {
   '/agents': typeof CondAgentsIndexRoute
   '/forms': typeof CondFormsIndexRoute
   '/infrastructure': typeof CondInfrastructureIndexRoute
+  '/monitors': typeof CondMonitorsIndexRoute
   '/usecases': typeof CondUsecasesIndexRoute
   '/vulnerabilities': typeof CondVulnerabilitiesIndexRoute
   '/admin': typeof DashAdminIndexRoute
@@ -813,7 +814,6 @@ export interface FileRoutesByTo {
   '/incidents-simple': typeof DashIncidentsSimpleIndexRoute
   '/incidents': typeof DashIncidentsIndexRoute
   '/jobs': typeof DashJobsIndexRoute
-  '/monitors': typeof DashMonitorsIndexRoute
   '/tickets': typeof DashTicketsIndexRoute
   '/workflows': typeof DashWorkflowsIndexRoute
   '/onboarding': typeof OnboardingOnboardingIndexRoute
@@ -906,6 +906,7 @@ export interface FileRoutesById {
   '/_cond/agents/': typeof CondAgentsIndexRoute
   '/_cond/forms/': typeof CondFormsIndexRoute
   '/_cond/infrastructure/': typeof CondInfrastructureIndexRoute
+  '/_cond/monitors/': typeof CondMonitorsIndexRoute
   '/_cond/usecases/': typeof CondUsecasesIndexRoute
   '/_cond/vulnerabilities/': typeof CondVulnerabilitiesIndexRoute
   '/_dash/admin/': typeof DashAdminIndexRoute
@@ -916,7 +917,6 @@ export interface FileRoutesById {
   '/_dash/incidents-simple/': typeof DashIncidentsSimpleIndexRoute
   '/_dash/incidents/': typeof DashIncidentsIndexRoute
   '/_dash/jobs/': typeof DashJobsIndexRoute
-  '/_dash/monitors/': typeof DashMonitorsIndexRoute
   '/_dash/tickets/': typeof DashTicketsIndexRoute
   '/_dash/workflows/': typeof DashWorkflowsIndexRoute
   '/_onboarding/onboarding/': typeof OnboardingOnboardingIndexRoute
@@ -1007,6 +1007,7 @@ export interface FileRouteTypes {
     | '/agents/'
     | '/forms/'
     | '/infrastructure/'
+    | '/monitors/'
     | '/usecases/'
     | '/vulnerabilities/'
     | '/admin/'
@@ -1017,7 +1018,6 @@ export interface FileRouteTypes {
     | '/incidents-simple/'
     | '/incidents/'
     | '/jobs/'
-    | '/monitors/'
     | '/tickets/'
     | '/workflows/'
     | '/onboarding/'
@@ -1106,6 +1106,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/forms'
     | '/infrastructure'
+    | '/monitors'
     | '/usecases'
     | '/vulnerabilities'
     | '/admin'
@@ -1116,7 +1117,6 @@ export interface FileRouteTypes {
     | '/incidents-simple'
     | '/incidents'
     | '/jobs'
-    | '/monitors'
     | '/tickets'
     | '/workflows'
     | '/onboarding'
@@ -1208,6 +1208,7 @@ export interface FileRouteTypes {
     | '/_cond/agents/'
     | '/_cond/forms/'
     | '/_cond/infrastructure/'
+    | '/_cond/monitors/'
     | '/_cond/usecases/'
     | '/_cond/vulnerabilities/'
     | '/_dash/admin/'
@@ -1218,7 +1219,6 @@ export interface FileRouteTypes {
     | '/_dash/incidents-simple/'
     | '/_dash/incidents/'
     | '/_dash/jobs/'
-    | '/_dash/monitors/'
     | '/_dash/tickets/'
     | '/_dash/workflows/'
     | '/_onboarding/onboarding/'
@@ -1555,6 +1555,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CondInfrastructureIndexRouteImport
       parentRoute: typeof CondRoute
     }
+    '/_cond/monitors/': {
+      id: '/_cond/monitors/'
+      path: '/monitors'
+      fullPath: '/monitors/'
+      preLoaderRoute: typeof CondMonitorsIndexRouteImport
+      parentRoute: typeof CondRoute
+    }
     '/_cond/usecases/': {
       id: '/_cond/usecases/'
       path: '/usecases'
@@ -1800,13 +1807,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashJobsIdRouteImport
       parentRoute: typeof DashRoute
     }
-    '/_dash/monitors/': {
-      id: '/_dash/monitors/'
-      path: '/monitors'
-      fullPath: '/monitors/'
-      preLoaderRoute: typeof DashMonitorsIndexRouteImport
-      parentRoute: typeof DashRoute
-    }
     '/_dash/monitors/response': {
       id: '/_dash/monitors/response'
       path: '/monitors/response'
@@ -1974,6 +1974,7 @@ interface CondRouteChildren {
   CondAgentsIndexRoute: typeof CondAgentsIndexRoute
   CondFormsIndexRoute: typeof CondFormsIndexRoute
   CondInfrastructureIndexRoute: typeof CondInfrastructureIndexRoute
+  CondMonitorsIndexRoute: typeof CondMonitorsIndexRoute
   CondUsecasesIndexRoute: typeof CondUsecasesIndexRoute
   CondVulnerabilitiesIndexRoute: typeof CondVulnerabilitiesIndexRoute
   CondUsecasesFlowIdDetailsRoute: typeof CondUsecasesFlowIdDetailsRoute
@@ -1990,6 +1991,7 @@ const CondRouteChildren: CondRouteChildren = {
   CondAgentsIndexRoute: CondAgentsIndexRoute,
   CondFormsIndexRoute: CondFormsIndexRoute,
   CondInfrastructureIndexRoute: CondInfrastructureIndexRoute,
+  CondMonitorsIndexRoute: CondMonitorsIndexRoute,
   CondUsecasesIndexRoute: CondUsecasesIndexRoute,
   CondVulnerabilitiesIndexRoute: CondVulnerabilitiesIndexRoute,
   CondUsecasesFlowIdDetailsRoute: CondUsecasesFlowIdDetailsRoute,
@@ -2044,7 +2046,6 @@ interface DashRouteChildren {
   DashIncidentsSimpleIndexRoute: typeof DashIncidentsSimpleIndexRoute
   DashIncidentsIndexRoute: typeof DashIncidentsIndexRoute
   DashJobsIndexRoute: typeof DashJobsIndexRoute
-  DashMonitorsIndexRoute: typeof DashMonitorsIndexRoute
   DashTicketsIndexRoute: typeof DashTicketsIndexRoute
   DashWorkflowsIndexRoute: typeof DashWorkflowsIndexRoute
   DashInfrastructureFlowsFlowIdRoute: typeof DashInfrastructureFlowsFlowIdRoute
@@ -2098,7 +2099,6 @@ const DashRouteChildren: DashRouteChildren = {
   DashIncidentsSimpleIndexRoute: DashIncidentsSimpleIndexRoute,
   DashIncidentsIndexRoute: DashIncidentsIndexRoute,
   DashJobsIndexRoute: DashJobsIndexRoute,
-  DashMonitorsIndexRoute: DashMonitorsIndexRoute,
   DashTicketsIndexRoute: DashTicketsIndexRoute,
   DashWorkflowsIndexRoute: DashWorkflowsIndexRoute,
   DashInfrastructureFlowsFlowIdRoute: DashInfrastructureFlowsFlowIdRoute,

@@ -501,6 +501,21 @@ export const AutomationDashboard = ({
           delay={0.15}
           onClick={async () => await navigateToShuffleCore(getShuffleCoreWorkflowUrl(), { newTab: true })}
         />
+        <KpiTile
+          icon={Clock}
+          glow={NEON.amber}
+          value={queuedAutomation}
+          label="Queued Automation"
+          isLoading={queueLoading}
+          delay={0.2}
+          onClick={async () => {
+            if (typeof window !== 'undefined' && isShuffleSecurityUrl(window.location.href)) {
+              window.location.href = '/admin?tab=locations';
+            } else {
+              await navigateToShuffleCore(getShuffleCoreUrl('/admin?admin_tab=locations'), { newTab: true });
+            }
+          }}
+        />
       </Box>
 
       {/* Hero chart */}

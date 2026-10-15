@@ -1179,6 +1179,7 @@ const AgentActivityList = ({
   const iconMountedRef = useRef(true);
   useEffect(() => () => { iconMountedRef.current = false; }, []);
   useEffect(() => {
+    // TEMP-DEBUG
     if (!runs.length) return;
     const missing = new Set<string>();
     for (const run of runs) {
@@ -1187,6 +1188,7 @@ const AgentActivityList = ({
         if (!appIcons[key] && !iconAttemptsRef.current.has(key)) missing.add(t.name);
       }
     }
+    console.log('[icon-fb] effect runs=', runs.length, 'appIcons=', Object.keys(appIcons).length, 'missing=', [...missing].join(','));
     if (missing.size === 0) return;
     (async () => {
       const names = [...missing];

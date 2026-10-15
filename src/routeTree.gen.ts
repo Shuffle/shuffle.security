@@ -25,9 +25,9 @@ import { Route as ShuffleCoreRouteImport } from './routes/shuffle-core'
 import { Route as ShuffleCoreDemoRouteImport } from './routes/shuffle-core-demo'
 import { Route as ShuffleMcpDemoRouteImport } from './routes/shuffle-mcp-demo'
 import { Route as ShuffleMcpsRouteImport } from './routes/shuffle-mcps'
+import { Route as CondAgentRouteImport } from './routes/_cond.agent'
 import { Route as CondDashboardRouteImport } from './routes/_cond.dashboard'
 import { Route as CondSearchRouteImport } from './routes/_cond.search'
-import { Route as DashAgentRouteImport } from './routes/_dash.agent'
 import { Route as DashDashboardViewRouteImport } from './routes/_dash.dashboard-view'
 import { Route as DashOrganizationsRouteImport } from './routes/_dash.organizations'
 import { Route as DashPreferencesRouteImport } from './routes/_dash.preferences'
@@ -46,9 +46,11 @@ import { Route as LoginOpenidRouteImport } from './routes/login.openid'
 import { Route as LoginSsoRouteImport } from './routes/login.sso'
 import { Route as Oauth2AuthorizeRouteImport } from './routes/oauth2.authorize'
 import { Route as PasswordresetKeyRouteImport } from './routes/passwordreset.$key'
+import { Route as CondAgentsIndexRouteImport } from './routes/_cond.agents.index'
 import { Route as CondAppsAppnameRouteImport } from './routes/_cond.apps.$appname'
 import { Route as CondFormsIndexRouteImport } from './routes/_cond.forms.index'
 import { Route as CondFormsIdRouteImport } from './routes/_cond.forms.$id'
+import { Route as CondInfrastructureIndexRouteImport } from './routes/_cond.infrastructure.index'
 import { Route as CondUsecasesIndexRouteImport } from './routes/_cond.usecases.index'
 import { Route as CondVulnerabilitiesIndexRouteImport } from './routes/_cond.vulnerabilities.index'
 import { Route as CondVulnerabilitiesSplatRouteImport } from './routes/_cond.vulnerabilities.$'
@@ -59,7 +61,6 @@ import { Route as DashAdminPreferencesRouteImport } from './routes/_dash.admin.p
 import { Route as DashAdminRuntimeLocationsRouteImport } from './routes/_dash.admin.runtime-locations'
 import { Route as DashAdminTenantsRouteImport } from './routes/_dash.admin.tenants'
 import { Route as DashAdminUsersRouteImport } from './routes/_dash.admin.users'
-import { Route as DashAgentsIndexRouteImport } from './routes/_dash.agents.index'
 import { Route as DashAgentsExecutionIdRouteImport } from './routes/_dash.agents.$executionId'
 import { Route as DashAlertsIndexRouteImport } from './routes/_dash.alerts.index'
 import { Route as DashAlertsIdRouteImport } from './routes/_dash.alerts.$id'
@@ -83,7 +84,6 @@ import { Route as DashIncidentsObservablesRouteImport } from './routes/_dash.inc
 import { Route as DashIncidentsResponseActionsRouteImport } from './routes/_dash.incidents.response-actions'
 import { Route as DashIncidentsTemplatesRouteImport } from './routes/_dash.incidents.templates'
 import { Route as DashIncidentsThreatFeedsRouteImport } from './routes/_dash.incidents.threat-feeds'
-import { Route as DashInfrastructureIndexRouteImport } from './routes/_dash.infrastructure.index'
 import { Route as DashJobsIndexRouteImport } from './routes/_dash.jobs.index'
 import { Route as DashJobsIdRouteImport } from './routes/_dash.jobs.$id'
 import { Route as DashMonitorsIndexRouteImport } from './routes/_dash.monitors.index'
@@ -187,6 +187,11 @@ const ShuffleMcpsRoute = ShuffleMcpsRouteImport.update({
   path: '/shuffle-mcps',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CondAgentRoute = CondAgentRouteImport.update({
+  id: '/agent',
+  path: '/agent',
+  getParentRoute: () => CondRoute,
+} as any)
 const CondDashboardRoute = CondDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -196,11 +201,6 @@ const CondSearchRoute = CondSearchRouteImport.update({
   id: '/search',
   path: '/search',
   getParentRoute: () => CondRoute,
-} as any)
-const DashAgentRoute = DashAgentRouteImport.update({
-  id: '/agent',
-  path: '/agent',
-  getParentRoute: () => DashRoute,
 } as any)
 const DashDashboardViewRoute = DashDashboardViewRouteImport.update({
   id: '/dashboard-view',
@@ -292,6 +292,11 @@ const PasswordresetKeyRoute = PasswordresetKeyRouteImport.update({
   path: '/passwordreset/$key',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CondAgentsIndexRoute = CondAgentsIndexRouteImport.update({
+  id: '/agents/',
+  path: '/agents/',
+  getParentRoute: () => CondRoute,
+} as any)
 const CondAppsAppnameRoute = CondAppsAppnameRouteImport.update({
   id: '/apps/$appname',
   path: '/apps/$appname',
@@ -305,6 +310,11 @@ const CondFormsIndexRoute = CondFormsIndexRouteImport.update({
 const CondFormsIdRoute = CondFormsIdRouteImport.update({
   id: '/forms/$id',
   path: '/forms/$id',
+  getParentRoute: () => CondRoute,
+} as any)
+const CondInfrastructureIndexRoute = CondInfrastructureIndexRouteImport.update({
+  id: '/infrastructure/',
+  path: '/infrastructure/',
   getParentRoute: () => CondRoute,
 } as any)
 const CondUsecasesIndexRoute = CondUsecasesIndexRouteImport.update({
@@ -358,11 +368,6 @@ const DashAdminTenantsRoute = DashAdminTenantsRouteImport.update({
 const DashAdminUsersRoute = DashAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
-  getParentRoute: () => DashRoute,
-} as any)
-const DashAgentsIndexRoute = DashAgentsIndexRouteImport.update({
-  id: '/agents/',
-  path: '/agents/',
   getParentRoute: () => DashRoute,
 } as any)
 const DashAgentsExecutionIdRoute = DashAgentsExecutionIdRouteImport.update({
@@ -486,11 +491,6 @@ const DashIncidentsThreatFeedsRoute =
     path: '/incidents/threat-feeds',
     getParentRoute: () => DashRoute,
   } as any)
-const DashInfrastructureIndexRoute = DashInfrastructureIndexRouteImport.update({
-  id: '/infrastructure/',
-  path: '/infrastructure/',
-  getParentRoute: () => DashRoute,
-} as any)
 const DashJobsIndexRoute = DashJobsIndexRouteImport.update({
   id: '/jobs/',
   path: '/jobs/',
@@ -639,9 +639,9 @@ export interface FileRoutesByFullPath {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/agent': typeof CondAgentRoute
   '/dashboard': typeof CondDashboardRoute
   '/search': typeof CondSearchRoute
-  '/agent': typeof DashAgentRoute
   '/dashboard-view': typeof DashDashboardViewRoute
   '/organizations': typeof DashOrganizationsRoute
   '/preferences': typeof DashPreferencesRoute
@@ -701,18 +701,18 @@ export interface FileRoutesByFullPath {
   '/onboarding/welcome': typeof OnboardingOnboardingWelcomeRoute
   '/api/$version/$': typeof ApiVersionSplatRoute
   '/login/$url/mfa-setup': typeof LoginUrlMfaSetupRoute
+  '/agents/': typeof CondAgentsIndexRoute
   '/forms/': typeof CondFormsIndexRoute
+  '/infrastructure/': typeof CondInfrastructureIndexRoute
   '/usecases/': typeof CondUsecasesIndexRoute
   '/vulnerabilities/': typeof CondVulnerabilitiesIndexRoute
   '/admin/': typeof DashAdminIndexRoute
-  '/agents/': typeof DashAgentsIndexRoute
   '/alerts/': typeof DashAlertsIndexRoute
   '/assets/': typeof DashAssetsIndexRoute
   '/cases/': typeof DashCasesIndexRoute
   '/detection/': typeof DashDetectionIndexRoute
   '/incidents-simple/': typeof DashIncidentsSimpleIndexRoute
   '/incidents/': typeof DashIncidentsIndexRoute
-  '/infrastructure/': typeof DashInfrastructureIndexRoute
   '/jobs/': typeof DashJobsIndexRoute
   '/monitors/': typeof DashMonitorsIndexRoute
   '/tickets/': typeof DashTicketsIndexRoute
@@ -738,9 +738,9 @@ export interface FileRoutesByTo {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/agent': typeof CondAgentRoute
   '/dashboard': typeof CondDashboardRoute
   '/search': typeof CondSearchRoute
-  '/agent': typeof DashAgentRoute
   '/dashboard-view': typeof DashDashboardViewRoute
   '/organizations': typeof DashOrganizationsRoute
   '/preferences': typeof DashPreferencesRoute
@@ -800,18 +800,18 @@ export interface FileRoutesByTo {
   '/onboarding/welcome': typeof OnboardingOnboardingWelcomeRoute
   '/api/$version/$': typeof ApiVersionSplatRoute
   '/login/$url/mfa-setup': typeof LoginUrlMfaSetupRoute
+  '/agents': typeof CondAgentsIndexRoute
   '/forms': typeof CondFormsIndexRoute
+  '/infrastructure': typeof CondInfrastructureIndexRoute
   '/usecases': typeof CondUsecasesIndexRoute
   '/vulnerabilities': typeof CondVulnerabilitiesIndexRoute
   '/admin': typeof DashAdminIndexRoute
-  '/agents': typeof DashAgentsIndexRoute
   '/alerts': typeof DashAlertsIndexRoute
   '/assets': typeof DashAssetsIndexRoute
   '/cases': typeof DashCasesIndexRoute
   '/detection': typeof DashDetectionIndexRoute
   '/incidents-simple': typeof DashIncidentsSimpleIndexRoute
   '/incidents': typeof DashIncidentsIndexRoute
-  '/infrastructure': typeof DashInfrastructureIndexRoute
   '/jobs': typeof DashJobsIndexRoute
   '/monitors': typeof DashMonitorsIndexRoute
   '/tickets': typeof DashTicketsIndexRoute
@@ -841,9 +841,9 @@ export interface FileRoutesById {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/_cond/agent': typeof CondAgentRoute
   '/_cond/dashboard': typeof CondDashboardRoute
   '/_cond/search': typeof CondSearchRoute
-  '/_dash/agent': typeof DashAgentRoute
   '/_dash/dashboard-view': typeof DashDashboardViewRoute
   '/_dash/organizations': typeof DashOrganizationsRoute
   '/_dash/preferences': typeof DashPreferencesRoute
@@ -903,18 +903,18 @@ export interface FileRoutesById {
   '/_onboarding/onboarding/welcome': typeof OnboardingOnboardingWelcomeRoute
   '/api/$version/$': typeof ApiVersionSplatRoute
   '/login/$url/mfa-setup': typeof LoginUrlMfaSetupRoute
+  '/_cond/agents/': typeof CondAgentsIndexRoute
   '/_cond/forms/': typeof CondFormsIndexRoute
+  '/_cond/infrastructure/': typeof CondInfrastructureIndexRoute
   '/_cond/usecases/': typeof CondUsecasesIndexRoute
   '/_cond/vulnerabilities/': typeof CondVulnerabilitiesIndexRoute
   '/_dash/admin/': typeof DashAdminIndexRoute
-  '/_dash/agents/': typeof DashAgentsIndexRoute
   '/_dash/alerts/': typeof DashAlertsIndexRoute
   '/_dash/assets/': typeof DashAssetsIndexRoute
   '/_dash/cases/': typeof DashCasesIndexRoute
   '/_dash/detection/': typeof DashDetectionIndexRoute
   '/_dash/incidents-simple/': typeof DashIncidentsSimpleIndexRoute
   '/_dash/incidents/': typeof DashIncidentsIndexRoute
-  '/_dash/infrastructure/': typeof DashInfrastructureIndexRoute
   '/_dash/jobs/': typeof DashJobsIndexRoute
   '/_dash/monitors/': typeof DashMonitorsIndexRoute
   '/_dash/tickets/': typeof DashTicketsIndexRoute
@@ -942,9 +942,9 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/agent'
     | '/dashboard'
     | '/search'
-    | '/agent'
     | '/dashboard-view'
     | '/organizations'
     | '/preferences'
@@ -1004,18 +1004,18 @@ export interface FileRouteTypes {
     | '/onboarding/welcome'
     | '/api/$version/$'
     | '/login/$url/mfa-setup'
+    | '/agents/'
     | '/forms/'
+    | '/infrastructure/'
     | '/usecases/'
     | '/vulnerabilities/'
     | '/admin/'
-    | '/agents/'
     | '/alerts/'
     | '/assets/'
     | '/cases/'
     | '/detection/'
     | '/incidents-simple/'
     | '/incidents/'
-    | '/infrastructure/'
     | '/jobs/'
     | '/monitors/'
     | '/tickets/'
@@ -1041,9 +1041,9 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/agent'
     | '/dashboard'
     | '/search'
-    | '/agent'
     | '/dashboard-view'
     | '/organizations'
     | '/preferences'
@@ -1103,18 +1103,18 @@ export interface FileRouteTypes {
     | '/onboarding/welcome'
     | '/api/$version/$'
     | '/login/$url/mfa-setup'
+    | '/agents'
     | '/forms'
+    | '/infrastructure'
     | '/usecases'
     | '/vulnerabilities'
     | '/admin'
-    | '/agents'
     | '/alerts'
     | '/assets'
     | '/cases'
     | '/detection'
     | '/incidents-simple'
     | '/incidents'
-    | '/infrastructure'
     | '/jobs'
     | '/monitors'
     | '/tickets'
@@ -1143,9 +1143,9 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/_cond/agent'
     | '/_cond/dashboard'
     | '/_cond/search'
-    | '/_dash/agent'
     | '/_dash/dashboard-view'
     | '/_dash/organizations'
     | '/_dash/preferences'
@@ -1205,18 +1205,18 @@ export interface FileRouteTypes {
     | '/_onboarding/onboarding/welcome'
     | '/api/$version/$'
     | '/login/$url/mfa-setup'
+    | '/_cond/agents/'
     | '/_cond/forms/'
+    | '/_cond/infrastructure/'
     | '/_cond/usecases/'
     | '/_cond/vulnerabilities/'
     | '/_dash/admin/'
-    | '/_dash/agents/'
     | '/_dash/alerts/'
     | '/_dash/assets/'
     | '/_dash/cases/'
     | '/_dash/detection/'
     | '/_dash/incidents-simple/'
     | '/_dash/incidents/'
-    | '/_dash/infrastructure/'
     | '/_dash/jobs/'
     | '/_dash/monitors/'
     | '/_dash/tickets/'
@@ -1373,6 +1373,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShuffleMcpsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_cond/agent': {
+      id: '/_cond/agent'
+      path: '/agent'
+      fullPath: '/agent'
+      preLoaderRoute: typeof CondAgentRouteImport
+      parentRoute: typeof CondRoute
+    }
     '/_cond/dashboard': {
       id: '/_cond/dashboard'
       path: '/dashboard'
@@ -1386,13 +1393,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/search'
       preLoaderRoute: typeof CondSearchRouteImport
       parentRoute: typeof CondRoute
-    }
-    '/_dash/agent': {
-      id: '/_dash/agent'
-      path: '/agent'
-      fullPath: '/agent'
-      preLoaderRoute: typeof DashAgentRouteImport
-      parentRoute: typeof DashRoute
     }
     '/_dash/dashboard-view': {
       id: '/_dash/dashboard-view'
@@ -1520,6 +1520,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PasswordresetKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_cond/agents/': {
+      id: '/_cond/agents/'
+      path: '/agents'
+      fullPath: '/agents/'
+      preLoaderRoute: typeof CondAgentsIndexRouteImport
+      parentRoute: typeof CondRoute
+    }
     '/_cond/apps/$appname': {
       id: '/_cond/apps/$appname'
       path: '/apps/$appname'
@@ -1539,6 +1546,13 @@ declare module '@tanstack/react-router' {
       path: '/forms/$id'
       fullPath: '/forms/$id'
       preLoaderRoute: typeof CondFormsIdRouteImport
+      parentRoute: typeof CondRoute
+    }
+    '/_cond/infrastructure/': {
+      id: '/_cond/infrastructure/'
+      path: '/infrastructure'
+      fullPath: '/infrastructure/'
+      preLoaderRoute: typeof CondInfrastructureIndexRouteImport
       parentRoute: typeof CondRoute
     }
     '/_cond/usecases/': {
@@ -1609,13 +1623,6 @@ declare module '@tanstack/react-router' {
       path: '/admin/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof DashAdminUsersRouteImport
-      parentRoute: typeof DashRoute
-    }
-    '/_dash/agents/': {
-      id: '/_dash/agents/'
-      path: '/agents'
-      fullPath: '/agents/'
-      preLoaderRoute: typeof DashAgentsIndexRouteImport
       parentRoute: typeof DashRoute
     }
     '/_dash/agents/$executionId': {
@@ -1777,13 +1784,6 @@ declare module '@tanstack/react-router' {
       path: '/incidents/threat-feeds'
       fullPath: '/incidents/threat-feeds'
       preLoaderRoute: typeof DashIncidentsThreatFeedsRouteImport
-      parentRoute: typeof DashRoute
-    }
-    '/_dash/infrastructure/': {
-      id: '/_dash/infrastructure/'
-      path: '/infrastructure'
-      fullPath: '/infrastructure/'
-      preLoaderRoute: typeof DashInfrastructureIndexRouteImport
       parentRoute: typeof DashRoute
     }
     '/_dash/jobs/': {
@@ -1965,12 +1965,15 @@ declare module '@tanstack/react-router' {
 }
 
 interface CondRouteChildren {
+  CondAgentRoute: typeof CondAgentRoute
   CondDashboardRoute: typeof CondDashboardRoute
   CondSearchRoute: typeof CondSearchRoute
   CondAppsAppnameRoute: typeof CondAppsAppnameRoute
   CondFormsIdRoute: typeof CondFormsIdRoute
   CondVulnerabilitiesSplatRoute: typeof CondVulnerabilitiesSplatRoute
+  CondAgentsIndexRoute: typeof CondAgentsIndexRoute
   CondFormsIndexRoute: typeof CondFormsIndexRoute
+  CondInfrastructureIndexRoute: typeof CondInfrastructureIndexRoute
   CondUsecasesIndexRoute: typeof CondUsecasesIndexRoute
   CondVulnerabilitiesIndexRoute: typeof CondVulnerabilitiesIndexRoute
   CondUsecasesFlowIdDetailsRoute: typeof CondUsecasesFlowIdDetailsRoute
@@ -1978,12 +1981,15 @@ interface CondRouteChildren {
 }
 
 const CondRouteChildren: CondRouteChildren = {
+  CondAgentRoute: CondAgentRoute,
   CondDashboardRoute: CondDashboardRoute,
   CondSearchRoute: CondSearchRoute,
   CondAppsAppnameRoute: CondAppsAppnameRoute,
   CondFormsIdRoute: CondFormsIdRoute,
   CondVulnerabilitiesSplatRoute: CondVulnerabilitiesSplatRoute,
+  CondAgentsIndexRoute: CondAgentsIndexRoute,
   CondFormsIndexRoute: CondFormsIndexRoute,
+  CondInfrastructureIndexRoute: CondInfrastructureIndexRoute,
   CondUsecasesIndexRoute: CondUsecasesIndexRoute,
   CondVulnerabilitiesIndexRoute: CondVulnerabilitiesIndexRoute,
   CondUsecasesFlowIdDetailsRoute: CondUsecasesFlowIdDetailsRoute,
@@ -1993,7 +1999,6 @@ const CondRouteChildren: CondRouteChildren = {
 const CondRouteWithChildren = CondRoute._addFileChildren(CondRouteChildren)
 
 interface DashRouteChildren {
-  DashAgentRoute: typeof DashAgentRoute
   DashDashboardViewRoute: typeof DashDashboardViewRoute
   DashOrganizationsRoute: typeof DashOrganizationsRoute
   DashPreferencesRoute: typeof DashPreferencesRoute
@@ -2032,14 +2037,12 @@ interface DashRouteChildren {
   DashWorkflowsIdRoute: typeof DashWorkflowsIdRoute
   DashWorkflowsDebugRoute: typeof DashWorkflowsDebugRoute
   DashAdminIndexRoute: typeof DashAdminIndexRoute
-  DashAgentsIndexRoute: typeof DashAgentsIndexRoute
   DashAlertsIndexRoute: typeof DashAlertsIndexRoute
   DashAssetsIndexRoute: typeof DashAssetsIndexRoute
   DashCasesIndexRoute: typeof DashCasesIndexRoute
   DashDetectionIndexRoute: typeof DashDetectionIndexRoute
   DashIncidentsSimpleIndexRoute: typeof DashIncidentsSimpleIndexRoute
   DashIncidentsIndexRoute: typeof DashIncidentsIndexRoute
-  DashInfrastructureIndexRoute: typeof DashInfrastructureIndexRoute
   DashJobsIndexRoute: typeof DashJobsIndexRoute
   DashMonitorsIndexRoute: typeof DashMonitorsIndexRoute
   DashTicketsIndexRoute: typeof DashTicketsIndexRoute
@@ -2050,7 +2053,6 @@ interface DashRouteChildren {
 }
 
 const DashRouteChildren: DashRouteChildren = {
-  DashAgentRoute: DashAgentRoute,
   DashDashboardViewRoute: DashDashboardViewRoute,
   DashOrganizationsRoute: DashOrganizationsRoute,
   DashPreferencesRoute: DashPreferencesRoute,
@@ -2089,14 +2091,12 @@ const DashRouteChildren: DashRouteChildren = {
   DashWorkflowsIdRoute: DashWorkflowsIdRoute,
   DashWorkflowsDebugRoute: DashWorkflowsDebugRoute,
   DashAdminIndexRoute: DashAdminIndexRoute,
-  DashAgentsIndexRoute: DashAgentsIndexRoute,
   DashAlertsIndexRoute: DashAlertsIndexRoute,
   DashAssetsIndexRoute: DashAssetsIndexRoute,
   DashCasesIndexRoute: DashCasesIndexRoute,
   DashDetectionIndexRoute: DashDetectionIndexRoute,
   DashIncidentsSimpleIndexRoute: DashIncidentsSimpleIndexRoute,
   DashIncidentsIndexRoute: DashIncidentsIndexRoute,
-  DashInfrastructureIndexRoute: DashInfrastructureIndexRoute,
   DashJobsIndexRoute: DashJobsIndexRoute,
   DashMonitorsIndexRoute: DashMonitorsIndexRoute,
   DashTicketsIndexRoute: DashTicketsIndexRoute,

@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Box, ButtonBase, Tooltip, Typography } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material';
 import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
@@ -59,6 +60,16 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
 }) => {
   const themeScope = useShuffleMcpTheme();
 
+  // The floating button must sit at the document root. Without the portal it
+  // is trapped inside this widget's `isolation: isolate` wrapper, and any
+  // page content stacked after it (cards, frosted papers) paints over it,
+  // making the button look transparent.
+  const [portalTarget, setPortalTarget] = React.useState<HTMLElement | null>(null);
+  React.useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
+
+
   const currentPath = pathname !== undefined
     ? pathname
     : (typeof window !== 'undefined' ? window.location.pathname : '');
@@ -103,7 +114,7 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
           ? `Ask Shuffle (${contextHint})`
           : 'Ask Shuffle • Context-aware assistant';
 
-  return (
+  const content = (
     <Box
       className={themeScope?.scopeClassName}
       sx={{
@@ -208,6 +219,8 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
       </Tooltip>
     </Box>
   );
+
+  return portalTarget ? createPortal(content, portalTarget) : content;
 };
 
 export default AskAiButton;

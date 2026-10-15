@@ -88,7 +88,7 @@ export const allocateSurfaceLayer = (
   if (existing) {
     return existing.zIndex;
   }
-  const currentTop = getTopSurfaceZIndex(base);
+  const currentTop = Math.max(getTopSurfaceZIndex(base), ...stack.map((r) => r.zIndex));
   const nextZ = currentTop + SURFACE_STEP;
   stack.push({ id, element, zIndex: nextZ, type: 'surface' });
   syncGlobalCounter(base);
@@ -161,175 +161,108 @@ export const useDrawerLayer = (open: boolean, base: number = DRAWER_LAYER_BASE):
 /* Automatically ensures that NEW surfaces ALWAYS open OVER OLD surfaces.     */
 /* -------------------------------------------------------------------------- */
 
-const isSurfaceElement = (el: Element): boolean => {
-  if (!(el instanceof HTMLElement)) return false;
-  return (
-    el.classList.contains('MuiDialog-root') ||
-    el.classList.contains('MuiDrawer-root') ||
-    (el.classList.contains('MuiModal-root') &&
-      !el.classList.contains('MuiPopover-root') &&
-      !el.classList.contains('MuiMenu-root')) ||
-    el.getAttribute('role') === 'dialog' ||
-    el.getAttribute('role') === 'alertdialog' ||
-    Boolean(el.closest('[data-radix-portal]'))
-  );
-};
+// Only portal roots own a layer; MUI dialog papers are not separate surfaces.
+const MUI_SURFACE_SELECTOR = '.MuiDialog-root, .MuiDrawer-root.MuiModal-root, .MuiModal-root:not(.MuiPopover-root):not(.MuiMenu-root)';
+const SURFACE_SELECTOR = `${MUI_SURFACE_SELECTOR}, [role="dialog"], [role="alertdialog"]`;
+const POPUP_SELECTOR = '.MuiPopover-root, .MuiMenu-root, .MuiAutocomplete-popper, .MuiPopper-root:not(.MuiTooltip-popper), [data-radix-popper-content-wrapper]';
+const TOOLTIP_SELECTOR = '.MuiTooltip-popper, [role="tooltip"]';
+const OVERLAY_SELECTOR = `${SURFACE_SELECTOR}, ${POPUP_SELECTOR}, ${TOOLTIP_SELECTOR}`;
+const SHUFFLE_SCOPE_SELECTOR = '.shuffle-core-scope, .shuffle-mcp-scope, .shuffle-app-overlay, [data-shuffle-layer]';
+const OWN_PANEL_SELECTOR = ':scope > .MuiPaper-root, :scope > .MuiDialog-container > .MuiPaper-root, :scope > [role="dialog"], :scope > [role="alertdialog"], :scope > [role="tooltip"], :scope > .MuiTooltip-tooltip';
 
-const isChildPopupElement = (el: Element): boolean => {
-  if (!(el instanceof HTMLElement)) return false;
-  return (
-    el.classList.contains('MuiPopover-root') ||
-    el.classList.contains('MuiMenu-root') ||
-    el.classList.contains('MuiAutocomplete-popper') ||
-    Boolean(el.closest('[data-radix-popper-content-wrapper]')) ||
-    (el.classList.contains('MuiPopper-root') && !el.classList.contains('MuiTooltip-popper'))
-  );
-};
-
-/**
- * True only for overlays that belong to Shuffle-Core / Shuffle-MCPs. Their MUI
- * surfaces/popups stamp a `.shuffle-core-scope` / `.shuffle-mcp-scope` class on
- * their paper; Radix portals are exclusively ours. Host apps embedding the
- * published packages (e.g. shaffuru) render their own dialogs, menus and
- * tooltips — this global observer must never rewrite their z-index.
- *
- * When any Shuffle surface (drawer, dialog) is active, child popups (e.g.
- * Autocomplete poppers, menus) are also treated as Shuffle-owned so they never
- * end up hidden behind active drawers.
- */
-const SHUFFLE_SCOPE_SELECTOR = '.shuffle-core-scope, .shuffle-mcp-scope, [data-shuffle-layer]';
-
-const OWN_PANEL_SELECTOR = [
-  ':scope > .MuiPaper-root',
-  ':scope > .MuiDialog-container > .MuiPaper-root',
-  ':scope > [role="dialog"]',
-  ':scope > [role="alertdialog"]',
-  ':scope > [role="tooltip"]',
-  ':scope > .MuiTooltip-tooltip',
-].join(', ');
-
-const hasShuffleScopedPanel = (el: HTMLElement): boolean => {
-  const panels = el.querySelectorAll<HTMLElement>(OWN_PANEL_SELECTOR);
-  for (let i = 0; i < panels.length; i++) {
-    if (panels[i].matches(SHUFFLE_SCOPE_SELECTOR)) return true;
-  }
-  return false;
-};
+const isSurfaceElement = (el: HTMLElement): boolean =>
+  el.matches(SURFACE_SELECTOR) &&
+  (el.matches(MUI_SURFACE_SELECTOR) || !el.parentElement?.closest(MUI_SURFACE_SELECTOR));
 
 const isShuffleOwnedOverlay = (el: HTMLElement): boolean =>
   el.matches(SHUFFLE_SCOPE_SELECTOR) ||
-  hasShuffleScopedPanel(el) ||
-  el.closest('[data-radix-portal]') !== null ||
-  (getOverlayStack().some((r) => r.type === 'surface') && isChildPopupElement(el));
-
-const isTooltipElement = (el: Element): boolean => {
-  if (!(el instanceof HTMLElement)) return false;
-  return el.classList.contains('MuiTooltip-popper') || el.getAttribute('role') === 'tooltip';
-};
+  Array.from(el.querySelectorAll<HTMLElement>(OWN_PANEL_SELECTOR)).some((panel) => panel.matches(SHUFFLE_SCOPE_SELECTOR)) ||
+  (el.matches('[data-radix-popper-content-wrapper]') &&
+    Array.from(el.children).some((child) => child.matches(SHUFFLE_SCOPE_SELECTOR)));
 
 const isElementOpen = (el: HTMLElement): boolean => {
-  if (el.getAttribute('aria-hidden') === 'true') return false;
-  if (el.getAttribute('data-state') === 'closed') return false;
-  if (el.classList.contains('MuiModal-hidden')) return false;
-  const style = el.style;
-  if (style.display === 'none' || style.visibility === 'hidden') return false;
-  return true;
+  // MUI aria-hides an underlying OPEN modal when a child opens. Do not release it.
+  if (!el.matches(MUI_SURFACE_SELECTOR) && el.getAttribute('aria-hidden') === 'true') return false;
+  if (el.getAttribute('data-state') === 'closed' || el.classList.contains('MuiModal-hidden')) return false;
+  return el.style.display !== 'none' && el.style.visibility !== 'hidden';
 };
 
 let observerInstance: MutationObserver | null = null;
+let cleanupObserver: (() => void) | null = null;
+
+export const uninstallGlobalOverlayAutoLayer = (): void => {
+  cleanupObserver?.();
+  cleanupObserver = null;
+  observerInstance?.disconnect();
+  observerInstance = null;
+  delete getStore()[AUTO_LAYER_KEY];
+};
 
 export const installGlobalOverlayAutoLayer = (): void => {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  if (typeof window === 'undefined' || typeof document === 'undefined' || !document.body) return;
   const store = getStore();
   if (store[AUTO_LAYER_KEY]) return;
   store[AUTO_LAYER_KEY] = true;
 
-  const handleElementOpen = (el: HTMLElement) => {
-    // Only ever manage Shuffle's own overlays — never the host app's dialogs,
-    // menus or tooltips (covers all three paths below in one place).
-    if (!isShuffleOwnedOverlay(el)) {
-      if (el.dataset.shuffleLayerZ) handleElementClose(el);
-      return;
+  const originals = new Map<HTMLElement, { value: string; priority: string }>();
+  const writeLayer = (el: HTMLElement, zIndex: number) => {
+    if (!originals.has(el)) {
+      originals.set(el, { value: el.style.getPropertyValue('z-index'), priority: el.style.getPropertyPriority('z-index') });
     }
-    if (isSurfaceElement(el)) {
-      let layerId = el.dataset.shuffleLayerId;
-      if (!layerId) {
-        layerId = 'dom_' + Math.random().toString(36).substring(2, 9);
-        el.dataset.shuffleLayerId = layerId;
-      }
-      const targetZ = allocateSurfaceLayer(layerId, el);
-      if (el.dataset.shuffleLayerZ !== String(targetZ) || el.style.zIndex !== String(targetZ)) {
-        el.dataset.shuffleLayerZ = String(targetZ);
-        el.style.setProperty('z-index', String(targetZ), 'important');
-      }
-
-      // Radix / custom dialog portals: also elevate dialog content container
-      const dialogContent = el.querySelector<HTMLElement>('[role="dialog"], [role="alertdialog"]');
-      if (dialogContent && dialogContent !== el) {
-        if (dialogContent.style.zIndex !== String(targetZ)) {
-          dialogContent.style.setProperty('z-index', String(targetZ), 'important');
-        }
-      }
-      return;
-    }
-
-    if (isChildPopupElement(el)) {
-      const topZ = getTopSurfaceZIndex();
-      const popupZ = topZ + POPUP_OFFSET;
-      if (el.dataset.shuffleLayerZ !== String(popupZ) || el.style.zIndex !== String(popupZ)) {
-        el.dataset.shuffleLayerZ = String(popupZ);
-        el.style.setProperty('z-index', String(popupZ), 'important');
-      }
-      return;
-    }
-
-    if (isTooltipElement(el)) {
-      const topZ = getTopSurfaceZIndex();
-      const tooltipZ = topZ + TOOLTIP_OFFSET;
-      if (el.dataset.shuffleLayerZ !== String(tooltipZ) || el.style.zIndex !== String(tooltipZ)) {
-        el.dataset.shuffleLayerZ = String(tooltipZ);
-        el.style.setProperty('z-index', String(tooltipZ), 'important');
-      }
-      return;
+    const value = String(zIndex);
+    el.dataset.shuffleLayerZ = value;
+    if (el.style.zIndex !== value || el.style.getPropertyPriority('z-index') !== 'important') {
+      el.style.setProperty('z-index', value, 'important');
     }
   };
 
   const handleElementClose = (el: HTMLElement) => {
-    const layerId = el.dataset.shuffleLayerId;
-    if (layerId) {
-      releaseOverlayLayer(layerId);
-      delete el.dataset.shuffleLayerId;
-    } else {
-      releaseOverlayLayer(el);
+    // Only undo elements this installation actually managed.
+    const original = originals.get(el);
+    if (!original) return;
+    releaseOverlayLayer(el);
+    delete el.dataset.shuffleLayerId;
+    if (el.style.zIndex === el.dataset.shuffleLayerZ) {
+      if (original.value) el.style.setProperty('z-index', original.value, original.priority);
+      else el.style.removeProperty('z-index');
     }
-    if (el.dataset.shuffleLayerZ) {
-      if (el.style.zIndex === el.dataset.shuffleLayerZ) el.style.removeProperty('z-index');
-      delete el.dataset.shuffleLayerZ;
+    originals.delete(el);
+    delete el.dataset.shuffleLayerZ;
+  };
+
+  const handleElementOpen = (el: HTMLElement) => {
+    if (!isShuffleOwnedOverlay(el)) {
+      handleElementClose(el);
+      return;
+    }
+    const stack = getOverlayStack();
+    let record = stack.find((r) => r.element === el);
+    if (!record) {
+      const id = 'dom_' + Math.random().toString(36).substring(2, 9);
+      if (isSurfaceElement(el)) {
+        const zIndex = allocateSurfaceLayer(id, el);
+        writeLayer(el, zIndex);
+      } else {
+        const tooltip = el.matches(TOOLTIP_SELECTOR);
+        const top = Math.max(getTopSurfaceZIndex(), ...stack.map((r) => r.zIndex));
+        record = { id, element: el, zIndex: top + (tooltip ? TOOLTIP_OFFSET : POPUP_OFFSET), type: tooltip ? 'tooltip' : 'popup' };
+        stack.push(record);
+        writeLayer(el, record.zIndex);
+      }
+      el.dataset.shuffleLayerId = id;
+    } else {
+      // Keep opening order, even if the underlying drawer re-renders or aria-hidden changes.
+      writeLayer(el, record.zIndex);
     }
   };
 
   const scanNode = (node: Node) => {
     if (!(node instanceof HTMLElement)) return;
-    if (isSurfaceElement(node) || isChildPopupElement(node) || isTooltipElement(node)) {
-      if (isElementOpen(node)) {
-        handleElementOpen(node);
-      } else {
-        handleElementClose(node);
-      }
-    }
-    // Scan direct children for nested portals or wrappers
-    const children = node.children;
-    for (let i = 0; i < children.length; i++) {
-      const child = children[i];
-      if (child instanceof HTMLElement) {
-        if (isSurfaceElement(child) || isChildPopupElement(child) || isTooltipElement(child)) {
-          if (isElementOpen(child)) {
-            handleElementOpen(child);
-          } else {
-            handleElementClose(child);
-          }
-        }
-      }
+    const candidates = [node, ...Array.from(node.querySelectorAll<HTMLElement>(OVERLAY_SELECTOR))];
+    for (const el of candidates) {
+      if (!isSurfaceElement(el) && !el.matches(POPUP_SELECTOR) && !el.matches(TOOLTIP_SELECTOR)) continue;
+      if (el.isConnected && isElementOpen(el)) handleElementOpen(el);
+      else handleElementClose(el);
     }
   };
 
@@ -337,56 +270,27 @@ export const installGlobalOverlayAutoLayer = (): void => {
     for (const m of mutations) {
       if (m.type === 'childList') {
         m.addedNodes.forEach(scanNode);
-        m.removedNodes.forEach((node) => {
-          if (node instanceof HTMLElement) {
-            handleElementClose(node);
-          }
-        });
-      } else if (m.type === 'attributes') {
-        const target = m.target;
-        if (target instanceof HTMLElement) {
-          scanNode(target);
+        m.removedNodes.forEach(scanNode);
+        // Portals sometimes mount their empty root before their scoped paper.
+        if (m.target instanceof HTMLElement) {
+          const root = m.target.closest<HTMLElement>(OVERLAY_SELECTOR);
+          if (root) scanNode(root);
         }
+      } else if (m.target instanceof HTMLElement) {
+        scanNode(m.target);
       }
     }
   });
-
-  const body = document.body;
-  if (body) {
-    observerInstance.observe(body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['class', 'style', 'aria-hidden', 'data-state'],
-    });
-
-    // Scan initial open elements in document.body
-    Array.from(body.children).forEach(scanNode);
-  }
-
-  // When clicking an open surface that is partially covered, bring it forward
-  document.addEventListener(
-    'pointerdown',
-    (e) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      const surface = target.closest<HTMLElement>(
-        '.MuiDialog-root, .MuiDrawer-root, .MuiModal-root:not(.MuiPopover-root):not(.MuiMenu-root), [role="dialog"], [role="alertdialog"]'
-      );
-      if (!surface || !surface.dataset.shuffleLayerId) return;
-      const currentZ = Number(surface.dataset.shuffleLayerZ || 0);
-      const topZ = getTopSurfaceZIndex();
-      if (currentZ > 0 && currentZ < topZ) {
-        const newZ = bringSurfaceToFront(surface.dataset.shuffleLayerId);
-        surface.dataset.shuffleLayerZ = String(newZ);
-        surface.style.setProperty('z-index', String(newZ), 'important');
-      }
-    },
-    true
-  );
+  observerInstance.observe(document.body, {
+    childList: true, subtree: true, attributes: true,
+    attributeFilter: ['class', 'style', 'aria-hidden', 'data-state'],
+  });
+  Array.from(document.body.children).forEach(scanNode);
+  // Never promote an old parent on pointerdown: it would cover its children.
+  cleanupObserver = () => {
+    observerInstance?.disconnect();
+    for (const el of Array.from(originals.keys())) handleElementClose(el);
+  };
 };
 
-// Automatically self-initialize in browser environments on import
-if (typeof window !== 'undefined') {
-  installGlobalOverlayAutoLayer();
-}
+if (typeof window !== 'undefined') installGlobalOverlayAutoLayer();

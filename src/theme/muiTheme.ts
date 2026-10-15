@@ -87,6 +87,7 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
       },
     },
     MuiDrawer: {
+      defaultProps: { className: 'shuffle-app-overlay' },
       styleOverrides: {
         paper: {
           backgroundColor: drawerBg,
@@ -97,6 +98,7 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
       },
     },
     MuiDialog: {
+      defaultProps: { className: 'shuffle-app-overlay' },
       styleOverrides: {
         root: { zIndex: 10010 },
         paper: {
@@ -111,6 +113,7 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
       },
     },
     MuiMenu: {
+      defaultProps: { className: 'shuffle-app-overlay' },
       styleOverrides: {
         root: { zIndex: 10040 },
         paper: {
@@ -122,6 +125,7 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
       },
     },
     MuiPopover: {
+      defaultProps: { className: 'shuffle-app-overlay' },
       styleOverrides: {
         root: { zIndex: 10040 },
         paper: {
@@ -133,9 +137,10 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
       },
     },
     MuiAutocomplete: {
-      defaultProps: { slotProps: { popper: { sx: { zIndex: 10040 } } } },
+      defaultProps: { slotProps: { popper: { className: 'shuffle-app-overlay', sx: { zIndex: 10040 } } } },
     },
     MuiPopper: {
+      defaultProps: { className: 'shuffle-app-overlay' },
       styleOverrides: {
         root: { zIndex: 10040 },
       },
@@ -154,7 +159,7 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
         // rendering UNDER the panel that owns the trigger. Setting the
         // baseline popper z-index to 10050 fixes tooltips globally.
         slotProps: {
-          popper: { sx: { zIndex: 10050 } },
+          popper: { className: 'shuffle-app-overlay', sx: { zIndex: 10050 } },
         },
       },
       styleOverrides: {

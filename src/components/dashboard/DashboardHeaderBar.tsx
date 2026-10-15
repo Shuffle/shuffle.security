@@ -96,17 +96,19 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
             ))}
           </Select>
         </FormControl>
-        <Box sx={{ alignSelf: 'flex-end', opacity: isAutomation ? 1 : 0.5, pointerEvents: isAutomation ? 'auto' : 'none' }}>
-          <SegmentedControl
-            ariaLabel="Mode"
-            value={mode}
-            onChange={(v) => onModeChange(v as 'workflows' | 'apps')}
-            options={[
-              { value: 'workflows', label: 'Workflows', disabled: !isAutomation },
-              { value: 'apps', label: 'Apps', disabled: !isAutomation },
-            ]}
-          />
-        </Box>
+        {isAutomation && (
+          <Box sx={{ alignSelf: 'flex-end' }}>
+            <SegmentedControl
+              ariaLabel="Mode"
+              value={mode}
+              onChange={(v) => onModeChange(v as 'workflows' | 'apps')}
+              options={[
+                { value: 'workflows', label: 'Workflows' },
+                { value: 'apps', label: 'Apps' },
+              ]}
+            />
+          </Box>
+        )}
         <Box sx={{ alignSelf: 'flex-end' }}>
           <SegmentedControl
             ariaLabel="Granularity"

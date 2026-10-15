@@ -227,7 +227,9 @@ export const DashboardOverview = ({
       if (s === 'resolved' || s === 'closed') rows[idx].Resolved++;
       else if (s === 'inprogress') rows[idx]['In Progress']++;
       else rows[idx].New++;
-      if (slaTargets && isSlaBreached(inc, slaTargets, now)) rows[idx]['SLA Breached']++;
+      // Only unhandled incidents from this day that are past their target, so
+      // the breach line can never exceed the open (New + In Progress) count.
+      if (slaTargets && s !== 'resolved' && s !== 'closed' && isSlaBreached(inc, slaTargets, now)) rows[idx]['SLA Breached']++;
     }
     return rows;
   }, [incidents, trendBuckets, slaTargets]);

@@ -2213,6 +2213,8 @@ const InfrastructureContent = () => {
   // Load saved positions and handle overrides from datastore on mount
   useEffect(() => {
     const loadData = async () => {
+      // Signed out (sample view): no tenant to load saved layout from.
+      if (!userInfo) { setPositionsLoaded(true); return; }
       try {
       const [posResult, handleResult, waypointResult, enabledResult, agenticResult, disabledAppsResult] = await Promise.all([
         getDatastoreItem(POSITION_CACHE_KEY, DATASTORE_CATEGORIES.INFRASTRUCTURE),

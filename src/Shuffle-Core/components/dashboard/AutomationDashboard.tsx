@@ -151,6 +151,8 @@ export const AutomationDashboard = ({
 
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [queuedAutomation, setQueuedAutomation] = useState<number>(0);
+  const [queueLoading, setQueueLoading] = useState<boolean>(true);
   const [selectedStat, setSelectedStat] = useState<string>(() => {
     if (typeof window === 'undefined') return '';
     try { return localStorage.getItem('shuffle-automation-custom-stat') || ''; } catch { return ''; }

@@ -30,7 +30,7 @@ export const ListPaginationBar = ({
   loadMoreTitle = 'Load more',
 }: ListPaginationBarProps) => {
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
-  if (totalItems <= itemsPerPage && !hasMore) return null;
+  if (totalItems <= itemsPerPage) return null;
 
   const atEnd = currentPage >= totalPages;
   const canLoadMoreFromServer = atEnd && hasMore && !!onLoadMore;

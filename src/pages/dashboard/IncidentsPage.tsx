@@ -1,4 +1,5 @@
 import { readTenantStamp, isTenantGhost, type TenantStamp } from '@/utils/tenantAuthority';
+import { ListPaginationBar, ListLoadMoreButton } from '@/components/common/ListPagination';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Search as SearchIcon, X as CloseIcon, Plus as AddIcon, RefreshCw as RefreshIcon, Play as PlayArrowIcon, Rocket as RocketLaunchIcon, EyeOff as VisibilityOffIcon, AlertTriangle as WarningAmberIcon, Download as DownloadIcon, Calendar as CalendarTodayIcon, MoreVertical as MoreVerticalIcon, Users as UsersIcon } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore, useDeferredValue } from 'react';
 import { useSearchParams, useNavigate } from '@/lib/router-compat';
@@ -3826,20 +3827,7 @@ const IncidentsPage = () => {
           
           {/* Load more from server when on last page - only if client-side filters aren't already hiding loaded items */}
           {hasMore && currentPage >= Math.ceil(sortedIncidents.length / ITEMS_PER_PAGE) && sortedIncidents.length >= datastoreItems.length && (!filters.org || filters.org.length === 0 || filters.org.includes(currentOrgId || '')) && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-              <Button
-                variant="outlined"
-                onClick={fetchNextPage}
-                disabled={isLoading}
-                sx={{ 
-                  height: 36, minWidth: 140,
-                  borderColor: 'hsl(var(--border))',
-                  '&:hover': { borderColor: 'hsl(var(--primary))' },
-                }}
-              >
-                {isLoading ? <CircularProgress size={20} /> : 'Load More'}
-              </Button>
-            </Box>
+            <ListLoadMoreButton onLoadMore={fetchNextPage} isLoading={isLoading} />
           )}
         </Box>
         
@@ -4178,115 +4166,17 @@ const IncidentsPage = () => {
           </Box>
         </DialogContent>
       </Dialog>
-      {/* Fixed bottom pagination */}
-      {sortedIncidents.length > ITEMS_PER_PAGE && (
-        <Box sx={{
-          position: 'fixed',
-          bottom: 16,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 1,
-          py: 1,
-          px: 2.5,
-          bgcolor: 'hsl(var(--card))',
-          border: '1px solid hsl(var(--border))',
-          borderRadius: 2,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-          zIndex: 20,
-        }}>
-          <IconButton
-            size="small"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage(p => p - 1)}
-            sx={{
-              width: 36, height: 36,
-              border: '1px solid hsl(var(--border))',
-              borderRadius: 1,
-              color: 'hsl(var(--muted-foreground))',
-              '&:hover': { borderColor: 'hsl(var(--primary))', color: 'hsl(var(--primary))' },
-              '&.Mui-disabled': { opacity: 0.3 },
-            }}
-          >
-            <ChevronLeftIcon size={20} />
-          </IconButton>
-
-          {Array.from({ length: Math.ceil(sortedIncidents.length / ITEMS_PER_PAGE) }, (_, i) => i + 1)
-            .filter(page => {
-              const totalPages = Math.ceil(sortedIncidents.length / ITEMS_PER_PAGE);
-              if (totalPages <= 7) return true;
-              if (page === 1 || page === totalPages) return true;
-              if (Math.abs(page - currentPage) <= 1) return true;
-              return false;
-            })
-            .reduce<(number | 'ellipsis')[]>((acc, page, idx, arr) => {
-              if (idx > 0 && page - (arr[idx - 1] as number) > 1) acc.push('ellipsis');
-              acc.push(page);
-              return acc;
-            }, [])
-            .map((item, idx) =>
-              item === 'ellipsis' ? (
-                <Typography key={`e-${idx}`} sx={{ px: 0.5, color: 'hsl(var(--muted-foreground))' }}>…</Typography>
-              ) : (
-                <Button
-                  key={item}
-                  size="small"
-                  onClick={() => setCurrentPage(item as number)}
-                  sx={{
-                    minWidth: 36, height: 36, px: 0,
-                    borderRadius: 1,
-                    fontWeight: currentPage === item ? 700 : 400,
-                    color: currentPage === item ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))',
-                    bgcolor: currentPage === item ? 'hsl(var(--primary))' : 'transparent',
-                    border: currentPage === item ? 'none' : '1px solid hsl(var(--border))',
-                    '&:hover': {
-                      bgcolor: currentPage === item ? 'hsl(var(--primary))' : 'hsl(var(--muted) / 0.5)',
-                    },
-                  }}
-                >
-                  {item}
-                </Button>
-              )
-            )}
-
-          {(() => {
-            const totalPages = Math.ceil(sortedIncidents.length / ITEMS_PER_PAGE);
-            const atEnd = currentPage >= totalPages;
-            // When the user reaches the last loaded page, the next click should
-            // sideload the next cursor batch from the server and advance into it.
-            const canLoadMoreFromServer = atEnd && hasMore;
-            const disabled = atEnd && !canLoadMoreFromServer;
-            return (
-              <IconButton
-                size="small"
-                disabled={disabled || isLoading}
-                onClick={async () => {
-                  if (canLoadMoreFromServer) {
-                    await fetchNextPage();
-                    setCurrentPage(p => p + 1);
-                  } else {
-                    setCurrentPage(p => p + 1);
-                  }
-                }}
-                title={canLoadMoreFromServer ? 'Load older incidents' : 'Next page'}
-                sx={{
-                  width: 36, height: 36,
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 1,
-                  color: canLoadMoreFromServer ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-                  borderColor: canLoadMoreFromServer ? 'hsl(var(--primary))' : 'hsl(var(--border))',
-                  '&:hover': { borderColor: 'hsl(var(--primary))', color: 'hsl(var(--primary))' },
-                  '&.Mui-disabled': { opacity: 0.3 },
-                }}
-              >
-                {isLoading && atEnd ? <CircularProgress size={14} /> : <ChevronRightIcon size={20} />}
-              </IconButton>
-            );
-          })()}
-        </Box>
-      )}
+      {/* Fixed bottom pagination (shared with /vulnerabilities) */}
+      <ListPaginationBar
+        currentPage={currentPage}
+        totalItems={sortedIncidents.length}
+        itemsPerPage={ITEMS_PER_PAGE}
+        onPageChange={setCurrentPage}
+        hasMore={hasMore}
+        isLoading={isLoading}
+        onLoadMore={fetchNextPage}
+        loadMoreTitle="Load older incidents"
+      />
 
     </motion.div>
   );

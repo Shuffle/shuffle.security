@@ -219,6 +219,8 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
       </Tooltip>
     </Box>
   );
+
+  return portalTarget ? createPortal(content, portalTarget) : content;
 };
 
 export default AskAiButton;

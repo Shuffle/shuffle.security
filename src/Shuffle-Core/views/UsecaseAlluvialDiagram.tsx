@@ -26,6 +26,7 @@ import {
   PowerOff,
 } from 'lucide-react';
 import AppSearchDrawer from './AppSearchDrawer';
+import { addSelectedChartApp } from './chartAppSelection';
 import { useAppDetailOptional } from '@shuffleio/shuffle-mcps';
 import { getApiUrl, getAuthHeader } from '@shuffleio/shuffle-mcps';
 import type { ShuffleCoreHostProps } from '../types/host-props';
@@ -2651,18 +2652,7 @@ export default function UsecaseAlluvialDiagram({
 
           const existing = allApps.find(a => normalizeAppName(a.name) === normalizeAppName(app.name));
           const hasValidAuth = existing?.hasValidAuth ?? false;
-          setAllApps(prev => {
-            const match = prev.some(a => normalizeAppName(a.name) === normalizeAppName(app.name));
-            if (match) {
-              return prev.map(a => normalizeAppName(a.name) === normalizeAppName(app.name)
-                ? { ...a, icon: app.icon || a.icon }
-                : a);
-            }
-            return [...prev, {
-              id: app.id || '', name: app.name, icon: app.icon,
-              hasValidAuth: false, isActiveOnly: false,
-            }];
-          });
+          setAllApps(prev => addSelectedChartApp(prev, app));
           setHiddenApps(prev => {
             const next = new Set(prev);
             next.delete(app.name.toLowerCase());

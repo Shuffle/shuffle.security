@@ -94,12 +94,15 @@ export function buildSampleIncidents(now = Date.now(), days = 365) {
             ? weighted(r, [['resolved', 88], ['in_progress', 6], ['new', 2], ['on_hold', 4]])
             : weighted(r, [['new', 55], ['in_progress', 30], ['resolved', 15]]);
       const severity = weighted(r, [['informational', 10], ['low', 30], ['medium', 35], ['high', 18], ['critical', 7]]);
-      // Fresh incidents have not been triaged yet and sit inside their respond
-      // window; only a small tail lingers and breaches.
-      const createdTs = status === 'new' && ageDays <= 2
-        ? dayTs - Math.floor(r() * (r() < 0.85 ? 45 * MIN : DAY))
-        : dayTs - Math.floor(r() * DAY);
       const target = DEFAULT_SLA_CONFIG[severity as keyof typeof DEFAULT_SLA_CONFIG] || DEFAULT_SLA_CONFIG.fallback;
+      // Unhandled incidents sit inside their SLA window: fresh "new" ones
+      // are inside the respond target and in-progress ones inside the
+      // resolve target, so only a small tail lingers past it and breaches.
+      const createdTs = status === 'new' && ageDays <= 2
+        ? dayTs - Math.floor(r() * (r() < 0.9 ? target.respondMinutes * MIN * 0.9 : DAY))
+        : status === 'in_progress' && ageDays <= 2
+          ? dayTs - Math.floor(r() * (r() < 0.85 ? target.resolveMinutes * MIN * 0.8 : DAY))
+          : dayTs - Math.floor(r() * DAY);
       // SLA breaches should be rare: almost everyone responds and resolves
       // inside the target, with a small overshoot when they are late.
       const late = (share: number) => (r() < share ? 1.1 + r() * 0.5 : 0.15 + r() * 0.8);

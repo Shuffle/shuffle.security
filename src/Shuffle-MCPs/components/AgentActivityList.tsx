@@ -1194,8 +1194,11 @@ const AgentActivityList = ({
         iconAttemptsRef.current.add(key);
         try {
           const hit = await resolveApp(name);
+          console.log('[icon-fallback] resolved', name, hit && hit.image);
           if (hit?.image) resolved[key] = hit.image;
-        } catch { /* skip */ }
+        } catch (e) {
+          console.log('[icon-fallback] error', name, String(e));
+        }
       }));
       if (cancelled || Object.keys(resolved).length === 0) return;
       setAppIcons((prev) => ({ ...prev, ...resolved }));

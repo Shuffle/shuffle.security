@@ -379,11 +379,16 @@ export const DashboardOverview = ({
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={32} />
                   <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
                   <RechartsTooltip content={<TooltipContent />} cursor={{ stroke: NEON.violet, strokeOpacity: 0.3, strokeWidth: 1 }} />
+                  {/* New and In Progress are stacked so the top edge is the
+                      open total for the day. SLA Breached is a subset of that
+                      total, so it is drawn on its own and always sits at or
+                      below the top edge. */}
                   {Object.entries(seriesColors).map(([k, c]) => (
                     <Area
                       key={k}
                       type="monotone"
                       dataKey={k}
+                      stackId={k === 'SLA Breached' ? undefined : 'open'}
                       hide={trendSeries.isHidden(k)}
                       stroke={c}
                       strokeWidth={2}

@@ -20,7 +20,7 @@ import {
   Tooltip as RechartsTooltip, BarChart, Bar, RadialBarChart, RadialBar,
   PolarAngleAxis, Cell,
 } from 'recharts';
-import { AlertCircle, RefreshCw, Zap, Workflow, Activity, ExternalLink } from 'lucide-react';
+import { AlertCircle, RefreshCw, Zap, Workflow, Activity, ExternalLink, Clock } from 'lucide-react';
 import { SegmentedControl } from '../ui/segmented-control';
 import { useWorkflows } from '../../hooks/useWorkflows';
 import { getApiUrl, getAuthHeader, getShuffleCoreUrl, getShuffleCoreWorkflowUrl } from '../../api';
@@ -151,6 +151,8 @@ export const AutomationDashboard = ({
 
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [queuedAutomation, setQueuedAutomation] = useState<number>(0);
+  const [queueLoading, setQueueLoading] = useState<boolean>(true);
   const [selectedStat, setSelectedStat] = useState<string>(() => {
     if (typeof window === 'undefined') return '';
     try { return localStorage.getItem('shuffle-automation-custom-stat') || ''; } catch { return ''; }
@@ -214,6 +216,35 @@ export const AutomationDashboard = ({
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [orgId, isLoaded, isLoggedIn, globalUrl]);
+
+  // Sum the execution queue across all running runtime locations.
+  // A location counts as running when it is cloud, or checked in within 300s.
+  useEffect(() => {
+    if (serverside || !isLoaded || !isLoggedIn || !orgId) { setQueueLoading(false); return; }
+    let cancelled = false;
+    setQueueLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(buildUrl('/api/v1/getenvironments'), {
+          credentials: 'include',
+          headers: { ...getAuthHeader(), 'Org-Id': orgId },
+        });
+        if (!res.ok) return;
+        const envs = await res.json();
+        if (cancelled || !Array.isArray(envs)) return;
+        const now = Math.floor(Date.now() / 1000);
+        const total = envs.reduce((sum: number, env: any) => {
+          const running = env?.Type === 'cloud' || ((env?.checkin ?? 0) > 0 && now - (env?.checkin ?? 0) < 300);
+          return running ? sum + Math.max(0, Number(env?.queue) || 0) : sum;
+        }, 0);
+        setQueuedAutomation(total);
+      } catch { /* noop */ } finally {
+        if (!cancelled) setQueueLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, isLoaded, isLoggedIn, globalUrl, refreshKey]);
 
   // External refresh trigger — parent bumps `refreshKey` to re-fetch silently.
   useEffect(() => {
@@ -421,7 +452,7 @@ export const AutomationDashboard = ({
       )}
 
       {/* KPI tiles */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' }, gap: 1.5 }}>
         <KpiTile
           icon={AlertCircle}
           glow={NEON.magenta}
@@ -469,6 +500,21 @@ export const AutomationDashboard = ({
           isLoading={loading || workflowsLoading}
           delay={0.15}
           onClick={async () => await navigateToShuffleCore(getShuffleCoreWorkflowUrl(), { newTab: true })}
+        />
+        <KpiTile
+          icon={Clock}
+          glow={NEON.amber}
+          value={queuedAutomation}
+          label="Queued Automation"
+          isLoading={queueLoading}
+          delay={0.2}
+          onClick={async () => {
+            if (typeof window !== 'undefined' && isShuffleSecurityUrl(window.location.href)) {
+              window.location.href = '/admin?tab=locations';
+            } else {
+              await navigateToShuffleCore(getShuffleCoreUrl('/admin?admin_tab=locations'), { newTab: true });
+            }
+          }}
         />
       </Box>
 

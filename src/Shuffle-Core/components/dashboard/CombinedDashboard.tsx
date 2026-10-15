@@ -31,6 +31,8 @@ import type { ShuffleCoreHostProps } from '../../types/host-props';
 import { useSyncHostBaseUrl } from '../../useSyncHostBaseUrl';
 import { UsecaseDrawer } from '../../views/Usecases';
 import { buildDashboardPdf, captureNode, type DashboardStatsSummary } from './exportDashboardPdf';
+import { buildSectionTable, getChildTenants, REPORT_SECTIONS, type ReportSectionId, type ReportTable } from './exportReport';
+import ExportReportDialog from './ExportReportDialog';
 
 
 type VulnCounts = { critical: number; high: number; medium: number; low: number; info: number };
@@ -280,9 +282,13 @@ const CombinedDashboard = ({
     try { await (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts?.ready; } catch { /* noop */ }
   };
 
-  const handleExportPdf = async () => {
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+
+  const handleExportPdf = async (sections: ReportSectionId[] = ['dashboards']) => {
     if (exporting) return;
+    setExportDialogOpen(false);
     setExporting(true);
+    const includeDashboards = sections.includes('dashboards');
     setExportStatus('Loading dashboard data…');
     const originalTab = tab;
     try {
@@ -295,19 +301,47 @@ const CombinedDashboard = ({
       let securityImage: string | null = null;
       let automationImage: string | null = null;
 
-      setTab('security');
-      setExportStatus('Loading Security Operations…');
-      await waitForDashboardReady();
-      setExportStatus('Capturing Security Operations…');
-      securityImage = await captureCurrent();
+      if (includeDashboards) {
+        setTab('security');
+        setExportStatus('Loading Security Operations…');
+        await waitForDashboardReady();
+        setExportStatus('Capturing Security Operations…');
+        securityImage = await captureCurrent();
 
-      setTab('automation');
-      setExportStatus('Loading Automation…');
-      await waitForDashboardReady();
-      setExportStatus('Capturing Automation…');
-      automationImage = await captureCurrent();
+        setTab('automation');
+        setExportStatus('Loading Automation…');
+        await waitForDashboardReady();
+        setExportStatus('Capturing Automation…');
+        automationImage = await captureCurrent();
 
-      setTab(originalTab);
+        setTab(originalTab);
+      }
+
+      // Data sections — fetched on demand, in the order the dialog lists them.
+      const rangeTo = customRange ? customRange.toMs : Date.now();
+      const rangeFrom = customRange ? customRange.fromMs : rangeTo - (parseInt(days, 10) || 30) * 86_400_000;
+      const tables: ReportTable[] = [];
+      for (const def of REPORT_SECTIONS) {
+        if (def.id === 'dashboards' || !sections.includes(def.id)) continue;
+        setExportStatus(`Loading ${def.label.toLowerCase()}…`);
+        try {
+          const table = await buildSectionTable(def.id, {
+            fromMs: rangeFrom,
+            toMs: rangeTo,
+            orgId: orgId ?? undefined,
+            userdata: host.userdata,
+            incidentsCategory: DATASTORE_CATEGORIES.INCIDENTS,
+          });
+          if (table) tables.push(table);
+        } catch (err) {
+          tables.push({
+            title: def.label,
+            note: `This section could not be loaded: ${err instanceof Error ? err.message : 'unknown error'}.`,
+            columns: [{ header: 'Status', width: 1 }],
+            rows: [],
+          });
+        }
+      }
 
       // Stats summary derived from the same data the dashboards render.
       const byStatus: Record<string, number> = {};
@@ -326,7 +360,7 @@ const CombinedDashboard = ({
       };
 
       setExportStatus('Generating PDF…');
-      await buildDashboardPdf({ securityImage, automationImage, stats });
+      await buildDashboardPdf({ securityImage, automationImage, stats, includeStats: includeDashboards, tables });
     } finally {
       setExporting(false);
       setExportStatus('');
@@ -426,11 +460,11 @@ const CombinedDashboard = ({
             <RefreshIcon size={16} />
           </IconButton>
         </MuiTooltip>
-        <MuiTooltip title={exporting ? (exportStatus || 'Generating PDF…') : 'Download dashboard as PDF'}>
+        <MuiTooltip title={exporting ? (exportStatus || 'Generating PDF…') : 'Export report as PDF'}>
           <span>
             <IconButton
               size="small"
-              onClick={handleExportPdf}
+              onClick={() => setExportDialogOpen(true)}
               disabled={exporting}
               sx={{ color: 'hsl(var(--muted-foreground))', alignSelf: 'flex-end', width: 36, height: 36, borderRadius: '8px' }}
             >
@@ -530,6 +564,14 @@ const CombinedDashboard = ({
           </Typography>
         </Box>
       )}
+
+      <ExportReportDialog
+        open={exportDialogOpen}
+        rangeLabel={customRangeLabel ?? `Last ${days} days`}
+        hasChildTenants={getChildTenants(host.userdata).length > 0}
+        onClose={() => setExportDialogOpen(false)}
+        onExport={(sections) => { void handleExportPdf(sections); }}
+      />
 
       {/* Inline usecase drawer — opens in-place from the Security Operations
        *  setup CTAs instead of redirecting to /usecases. Receives the SAME

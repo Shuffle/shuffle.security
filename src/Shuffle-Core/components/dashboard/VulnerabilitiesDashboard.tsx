@@ -33,6 +33,8 @@ import {
   bucketIndexOf,
   useChartRangeDrag,
   ReferenceArea,
+  useSeriesVisibility,
+  SeriesLegend,
   type Granularity,
 } from './_shared';
 import { ChartShimmer } from './ChartShimmer';
@@ -219,6 +221,7 @@ export const VulnerabilitiesDashboard = ({
   }, [rows]);
 
   const drag = useChartRangeDrag(buckets, onRangeSelect);
+  const trendSeries = useSeriesVisibility('vuln-findings-over-time');
 
   const BarList = ({ items, color }: { items: { name: string; value: number }[]; color: string }) => {
     const max = items[0]?.value || 1;
@@ -255,16 +258,11 @@ export const VulnerabilitiesDashboard = ({
         accent={NEON.magenta}
         delay={0.2}
         action={
-          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-            {SEV_ORDER.map((s) => (
-              <Box key={s} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: SEV_COLOR[s] }} />
-                <Typography sx={{ fontSize: '0.68rem', color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
+          <SeriesLegend
+            items={SEV_ORDER.map((s) => ({ key: s, label: s.charAt(0).toUpperCase() + s.slice(1), color: SEV_COLOR[s] }))}
+            isHidden={trendSeries.isHidden}
+            onToggle={trendSeries.toggle}
+          />
         }
       >
         <Box sx={{ height: 260 }}>
@@ -290,6 +288,7 @@ export const VulnerabilitiesDashboard = ({
                     key={s}
                     type="monotone"
                     dataKey={s}
+                    hide={trendSeries.isHidden(s)}
                     name={s.charAt(0).toUpperCase() + s.slice(1)}
                     stroke={SEV_COLOR[s]}
                     strokeWidth={2}

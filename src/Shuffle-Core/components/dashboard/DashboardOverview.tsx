@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { format, subDays, startOfDay } from 'date-fns';
 import { useNavigate } from '@/lib/router-compat';
-import { NEON, TooltipContent, KpiTile, Panel, EmptyState, buildBuckets, buildBucketsBetween, bucketIndexOf, useChartRangeDrag, ReferenceArea, type Granularity } from './_shared';
+import { NEON, TooltipContent, KpiTile, Panel, EmptyState, buildBuckets, buildBucketsBetween, bucketIndexOf, useChartRangeDrag, ReferenceArea, useSeriesVisibility, SeriesLegend, type Granularity } from './_shared';
 import { ChartShimmer } from './ChartShimmer';
 import { useSyncHostBaseUrl } from '../../useSyncHostBaseUrl';
 
@@ -244,6 +244,7 @@ export const DashboardOverview = ({
   const trendHasData = trendData.some(d => d.New || d['In Progress'] || d.Resolved);
 
   const trendDrag = useChartRangeDrag(trendBuckets, onRangeSelect);
+  const trendSeries = useSeriesVisibility('incident-activity', ['SLA Breached']);
 
   const vulnTotal =
     vulnSeverityCounts.critical + vulnSeverityCounts.high + vulnSeverityCounts.medium +
@@ -353,14 +354,11 @@ export const DashboardOverview = ({
           accent={NEON.magenta}
           delay={0.2}
           action={
-            <Box sx={{ display: 'flex', gap: 1.5 }}>
-              {Object.entries(seriesColors).map(([label, color]) => (
-                <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color }} />
-                  <Typography sx={{ fontSize: '0.68rem', color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>{label}</Typography>
-                </Box>
-              ))}
-            </Box>
+            <SeriesLegend
+              items={Object.entries(seriesColors).map(([label, color]) => ({ key: label, label, color }))}
+              isHidden={trendSeries.isHidden}
+              onToggle={trendSeries.toggle}
+            />
           }
         >
           <Box sx={{ height: 260 }}>
@@ -386,6 +384,7 @@ export const DashboardOverview = ({
                       key={k}
                       type="monotone"
                       dataKey={k}
+                      hide={trendSeries.isHidden(k)}
                       stroke={c}
                       strokeWidth={2}
                       fill={`url(#ov-grad-${k.replace(/\s/g, '')})`}

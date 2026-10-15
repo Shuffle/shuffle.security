@@ -25,7 +25,7 @@ import { SegmentedControl } from '../ui/segmented-control';
 import { useWorkflows } from '../../hooks/useWorkflows';
 import { getApiUrl, getAuthHeader, getShuffleCoreUrl, getShuffleCoreWorkflowUrl } from '../../api';
 import { navigateToShuffleCore, isShuffleSecurityUrl } from '@/lib/authHandoff';
-import { NEON, TooltipContent, KpiTile, Panel, EmptyState, buildBuckets, buildBucketsBetween, bucketIndexOf, useChartRangeDrag, ReferenceArea } from './_shared';
+import { NEON, TooltipContent, KpiTile, Panel, EmptyState, buildBuckets, buildBucketsBetween, bucketIndexOf, useChartRangeDrag, ReferenceArea, useSeriesVisibility, SeriesLegend } from './_shared';
 import { useSyncHostBaseUrl } from '../../useSyncHostBaseUrl';
 
 import type { ShuffleCoreHostProps } from '../../types/host-props';
@@ -396,6 +396,7 @@ export const AutomationDashboard = ({
   // Click-drag a range on any time-series chart to zoom the dashboard.
   const activityDrag = useChartRangeDrag(buckets, onRangeSelect);
   const statsDrag = useChartRangeDrag(buckets, onRangeSelect);
+  const activitySeries = useSeriesVisibility('automation-activity');
 
 
   if (loading) {
@@ -540,14 +541,11 @@ export const AutomationDashboard = ({
           accent={NEON.green}
           delay={0.2}
           action={
-            <Box sx={{ display: 'flex', gap: 1.5 }}>
-              {([['Successful', NEON.green], ['Failed', NEON.red]] as const).map(([label, color]) => (
-                <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color }} />
-                  <Typography sx={{ fontSize: '0.68rem', color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>{label}</Typography>
-                </Box>
-              ))}
-            </Box>
+            <SeriesLegend
+              items={[{ key: 'success', label: 'Successful', color: NEON.green }, { key: 'failed', label: 'Failed', color: NEON.red }]}
+              isHidden={activitySeries.isHidden}
+              onToggle={activitySeries.toggle}
+            />
           }
         >
           <Box sx={{ height: 260 }}>
@@ -579,8 +577,8 @@ export const AutomationDashboard = ({
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={32} />
                   <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
                   <RechartsTooltip content={<TooltipContent />} cursor={{ stroke: NEON.violet, strokeOpacity: 0.3, strokeWidth: 1 }} />
-                  <Area type="monotone" dataKey="success" stroke={NEON.green} strokeWidth={2} fill="url(#auto-grad-success)" name="Successful" isAnimationActive={false} />
-                  <Area type="monotone" dataKey="failed" stroke={NEON.red} strokeWidth={2} fill="url(#auto-grad-failed)" name="Failed" isAnimationActive={false} />
+                  <Area type="monotone" dataKey="success" hide={activitySeries.isHidden('success')} stroke={NEON.green} strokeWidth={2} fill="url(#auto-grad-success)" name="Successful" isAnimationActive={false} />
+                  <Area type="monotone" dataKey="failed" hide={activitySeries.isHidden('failed')} stroke={NEON.red} strokeWidth={2} fill="url(#auto-grad-failed)" name="Failed" isAnimationActive={false} />
                   {activityDrag.refArea && (
                     <ReferenceArea x1={activityDrag.refArea.x1} x2={activityDrag.refArea.x2} stroke="hsl(var(--primary))" strokeOpacity={0.4} fill="hsl(var(--primary))" fillOpacity={0.12} />
                   )}

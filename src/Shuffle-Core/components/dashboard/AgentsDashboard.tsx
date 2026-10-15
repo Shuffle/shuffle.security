@@ -31,6 +31,8 @@ import {
   bucketIndexOf,
   useChartRangeDrag,
   ReferenceArea,
+  useSeriesVisibility,
+  SeriesLegend,
   type Granularity,
 } from './_shared';
 import { ChartShimmer } from './ChartShimmer';
@@ -203,6 +205,7 @@ export const AgentsDashboard = ({
   }, [scoped]);
 
   const drag = useChartRangeDrag(buckets, onRangeSelect);
+  const runSeries = useSeriesVisibility('agent-runs-over-time');
   const hasData = scoped.length > 0;
 
   return (
@@ -242,7 +245,20 @@ export const AgentsDashboard = ({
         />
       </Box>
 
-      <Panel title="Agent runs over time">
+      <Panel
+        title="Agent runs over time"
+        action={
+          <SeriesLegend
+            items={[
+              { key: 'finished', label: 'Finished', color: NEON.green },
+              { key: 'pending', label: 'In progress', color: NEON.cyan },
+              { key: 'failed', label: 'Failed', color: NEON.red },
+            ]}
+            isHidden={runSeries.isHidden}
+            onToggle={runSeries.toggle}
+          />
+        }
+      >
         {loading ? (
           <ChartShimmer height={260} variant="bars" />
         ) : !hasData ? (
@@ -255,9 +271,9 @@ export const AgentsDashboard = ({
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} />
                 <RechartsTooltip content={<TooltipContent />} cursor={{ fill: 'hsl(var(--muted) / 0.25)' }} />
-                <Bar dataKey="finished" name="Finished" stackId="a" fill={NEON.green} radius={[0, 0, 0, 0]} />
-                <Bar dataKey="pending" name="In progress" stackId="a" fill={NEON.cyan} />
-                <Bar dataKey="failed" name="Failed" stackId="a" fill={NEON.red} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="finished" hide={runSeries.isHidden('finished')} name="Finished" stackId="a" fill={NEON.green} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="pending" hide={runSeries.isHidden('pending')} name="In progress" stackId="a" fill={NEON.cyan} />
+                <Bar dataKey="failed" hide={runSeries.isHidden('failed')} name="Failed" stackId="a" fill={NEON.red} radius={[4, 4, 0, 0]} />
                 {drag.refArea && (
                   <ReferenceArea x1={drag.refArea.x1} x2={drag.refArea.x2} strokeOpacity={0.3} fill="hsl(var(--primary) / 0.15)" />
                 )}

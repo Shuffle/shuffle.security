@@ -1169,6 +1169,38 @@ const AgentActivityList = ({
     return () => { cancelled = true; };
   }, []);
 
+  // Public-catalog fallback: /api/v1/apps only covers the tenant's activated
+  // apps, so signed-out (and private-org) viewers get bare initials. Resolve
+  // the remaining tool icons through resolveApp — its final pass is the
+  // public Algolia `appsearch` index, the same lookup the app catalog uses.
+  const iconAttemptsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!runs.length) return;
+    const missing = new Set<string>();
+    for (const run of runs) {
+      for (const t of getRunTools(run)) {
+        const key = normToolKey(t.name);
+        if (!appIcons[key] && !iconAttemptsRef.current.has(key)) missing.add(t.name);
+      }
+    }
+    if (missing.size === 0) return;
+    let cancelled = false;
+    (async () => {
+      const resolved: Record<string, string> = {};
+      await Promise.all([...missing].map(async (name) => {
+        const key = normToolKey(name);
+        iconAttemptsRef.current.add(key);
+        try {
+          const hit = await resolveApp(name);
+          if (hit?.image) resolved[key] = hit.image;
+        } catch { /* skip */ }
+      }));
+      if (cancelled || Object.keys(resolved).length === 0) return;
+      setAppIcons((prev) => ({ ...prev, ...resolved }));
+    })();
+    return () => { cancelled = true; };
+  }, [runs, appIcons]);
+
   // Enrich each visible run with full execution details (results, decisions,
   // execution_argument). The search endpoint sometimes already returns the
   // full payload — in that case we skip the sideload entirely and only fetch

@@ -25,9 +25,9 @@ import { Route as ShuffleCoreRouteImport } from './routes/shuffle-core'
 import { Route as ShuffleCoreDemoRouteImport } from './routes/shuffle-core-demo'
 import { Route as ShuffleMcpDemoRouteImport } from './routes/shuffle-mcp-demo'
 import { Route as ShuffleMcpsRouteImport } from './routes/shuffle-mcps'
+import { Route as CondDashboardRouteImport } from './routes/_cond.dashboard'
 import { Route as CondSearchRouteImport } from './routes/_cond.search'
 import { Route as DashAgentRouteImport } from './routes/_dash.agent'
-import { Route as DashDashboardRouteImport } from './routes/_dash.dashboard'
 import { Route as DashDashboardViewRouteImport } from './routes/_dash.dashboard-view'
 import { Route as DashOrganizationsRouteImport } from './routes/_dash.organizations'
 import { Route as DashPreferencesRouteImport } from './routes/_dash.preferences'
@@ -187,6 +187,11 @@ const ShuffleMcpsRoute = ShuffleMcpsRouteImport.update({
   path: '/shuffle-mcps',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CondDashboardRoute = CondDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => CondRoute,
+} as any)
 const CondSearchRoute = CondSearchRouteImport.update({
   id: '/search',
   path: '/search',
@@ -195,11 +200,6 @@ const CondSearchRoute = CondSearchRouteImport.update({
 const DashAgentRoute = DashAgentRouteImport.update({
   id: '/agent',
   path: '/agent',
-  getParentRoute: () => DashRoute,
-} as any)
-const DashDashboardRoute = DashDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
   getParentRoute: () => DashRoute,
 } as any)
 const DashDashboardViewRoute = DashDashboardViewRouteImport.update({
@@ -639,9 +639,9 @@ export interface FileRoutesByFullPath {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/dashboard': typeof CondDashboardRoute
   '/search': typeof CondSearchRoute
   '/agent': typeof DashAgentRoute
-  '/dashboard': typeof DashDashboardRoute
   '/dashboard-view': typeof DashDashboardViewRoute
   '/organizations': typeof DashOrganizationsRoute
   '/preferences': typeof DashPreferencesRoute
@@ -738,9 +738,9 @@ export interface FileRoutesByTo {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/dashboard': typeof CondDashboardRoute
   '/search': typeof CondSearchRoute
   '/agent': typeof DashAgentRoute
-  '/dashboard': typeof DashDashboardRoute
   '/dashboard-view': typeof DashDashboardViewRoute
   '/organizations': typeof DashOrganizationsRoute
   '/preferences': typeof DashPreferencesRoute
@@ -841,9 +841,9 @@ export interface FileRoutesById {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/_cond/dashboard': typeof CondDashboardRoute
   '/_cond/search': typeof CondSearchRoute
   '/_dash/agent': typeof DashAgentRoute
-  '/_dash/dashboard': typeof DashDashboardRoute
   '/_dash/dashboard-view': typeof DashDashboardViewRoute
   '/_dash/organizations': typeof DashOrganizationsRoute
   '/_dash/preferences': typeof DashPreferencesRoute
@@ -942,9 +942,9 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/dashboard'
     | '/search'
     | '/agent'
-    | '/dashboard'
     | '/dashboard-view'
     | '/organizations'
     | '/preferences'
@@ -1041,9 +1041,9 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/dashboard'
     | '/search'
     | '/agent'
-    | '/dashboard'
     | '/dashboard-view'
     | '/organizations'
     | '/preferences'
@@ -1143,9 +1143,9 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/_cond/dashboard'
     | '/_cond/search'
     | '/_dash/agent'
-    | '/_dash/dashboard'
     | '/_dash/dashboard-view'
     | '/_dash/organizations'
     | '/_dash/preferences'
@@ -1373,6 +1373,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShuffleMcpsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_cond/dashboard': {
+      id: '/_cond/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof CondDashboardRouteImport
+      parentRoute: typeof CondRoute
+    }
     '/_cond/search': {
       id: '/_cond/search'
       path: '/search'
@@ -1385,13 +1392,6 @@ declare module '@tanstack/react-router' {
       path: '/agent'
       fullPath: '/agent'
       preLoaderRoute: typeof DashAgentRouteImport
-      parentRoute: typeof DashRoute
-    }
-    '/_dash/dashboard': {
-      id: '/_dash/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashDashboardRouteImport
       parentRoute: typeof DashRoute
     }
     '/_dash/dashboard-view': {
@@ -1965,6 +1965,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface CondRouteChildren {
+  CondDashboardRoute: typeof CondDashboardRoute
   CondSearchRoute: typeof CondSearchRoute
   CondAppsAppnameRoute: typeof CondAppsAppnameRoute
   CondFormsIdRoute: typeof CondFormsIdRoute
@@ -1977,6 +1978,7 @@ interface CondRouteChildren {
 }
 
 const CondRouteChildren: CondRouteChildren = {
+  CondDashboardRoute: CondDashboardRoute,
   CondSearchRoute: CondSearchRoute,
   CondAppsAppnameRoute: CondAppsAppnameRoute,
   CondFormsIdRoute: CondFormsIdRoute,
@@ -1992,7 +1994,6 @@ const CondRouteWithChildren = CondRoute._addFileChildren(CondRouteChildren)
 
 interface DashRouteChildren {
   DashAgentRoute: typeof DashAgentRoute
-  DashDashboardRoute: typeof DashDashboardRoute
   DashDashboardViewRoute: typeof DashDashboardViewRoute
   DashOrganizationsRoute: typeof DashOrganizationsRoute
   DashPreferencesRoute: typeof DashPreferencesRoute
@@ -2050,7 +2051,6 @@ interface DashRouteChildren {
 
 const DashRouteChildren: DashRouteChildren = {
   DashAgentRoute: DashAgentRoute,
-  DashDashboardRoute: DashDashboardRoute,
   DashDashboardViewRoute: DashDashboardViewRoute,
   DashOrganizationsRoute: DashOrganizationsRoute,
   DashPreferencesRoute: DashPreferencesRoute,

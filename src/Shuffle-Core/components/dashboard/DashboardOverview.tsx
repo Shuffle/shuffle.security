@@ -74,7 +74,10 @@ export interface OverviewProps extends ShuffleCoreHostProps {
   slaTargets?: SlaTargets;
 }
 
+// Resolved first so it sits at the bottom of the stack; the top edge is
+// every incident created in that bucket.
 const STATUS_COLORS = {
+  Resolved: NEON.green,
   New: NEON.cyan,
   'In Progress': NEON.orange,
 };

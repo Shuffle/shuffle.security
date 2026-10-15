@@ -71,6 +71,8 @@ import { navigateToShuffleCore } from '@/Shuffle-MCPs/navigation';
 
 import { diagnoseOutputWarning } from '@/Shuffle-MCPs/agentDiagnosis';
 import { fetchAppsViaApiConfig } from '@/Shuffle-Core/appsCache';
+import { resolveApp } from '@/Shuffle-MCPs/resolveApp';
+import { publicAppImage } from '@/Shuffle-Core/publicAppImages';
 import { collectLlmImageAttachments } from '@/Shuffle-MCPs/agentAttachments';
 import { toast } from '@/Shuffle-Core/toast';
 import { Pencil, StopCircle, AlertTriangle } from 'lucide-react';
@@ -1168,6 +1170,67 @@ const AgentActivityList = ({
       .catch(() => { /* icons are non-critical — fall back to initials */ });
     return () => { cancelled = true; };
   }, []);
+
+  // Public-catalog fallback: /api/v1/apps only covers the tenant's activated
+  // apps, so signed-out (and private-org) viewers get bare initials. Resolve
+  // the remaining tool icons through resolveApp — its final pass is the
+  // public Algolia `appsearch` index, the same lookup the app catalog uses.
+  const iconAttemptsRef = useRef<Set<string>>(new Set());
+  const iconMountedRef = useRef(true);
+  useEffect(() => {
+    // Re-armed on every effect run so React's double-invoked effects
+    // (mount, cleanup, re-run) do not permanently clear the flag.
+    iconMountedRef.current = true;
+    return () => { iconMountedRef.current = false; };
+  }, []);
+  useEffect(() => {
+    if (!runs.length) return;
+    const missing = new Set<string>();
+    for (const run of runs) {
+      for (const t of getRunTools(run)) {
+        const key = normToolKey(t.name);
+        if (!appIcons[key] && !iconAttemptsRef.current.has(key)) missing.add(t.name);
+      }
+    }
+    if (missing.size === 0) return;
+    (async () => {
+      const names = [...missing];
+      const resolved: Record<string, string> = {};
+      // Sequential lookups with a retry round: Algolia rate-limits
+      // concurrent bursts, and a failed lookup is not cached, so a second
+      // pass after a short wait can still succeed. The loop deliberately
+      // outlives this effect's deps (runs updates re-fire it) — only actual
+      // unmount stops it.
+      for (let pass = 0; pass < 2; pass++) {
+        for (const name of names) {
+          const key = normToolKey(name);
+          iconAttemptsRef.current.add(key);
+          if (!resolved[key]) {
+            // Static public image first — instant and immune to catalog
+            // rate limits. Only uncovered names hit the catalog lookup,
+            // which is raced with a timeout so one slow lookup cannot
+            // stall the whole loop.
+            const fb = publicAppImage(name);
+            if (fb) {
+              resolved[key] = fb;
+            } else {
+              try {
+                const hit = (await Promise.race([
+                  resolveApp(name),
+                  new Promise<null>((r) => setTimeout(() => r(null), 4000)),
+                ])) as { image?: string } | null;
+                if (hit?.image) resolved[key] = hit.image;
+              } catch { /* skip */ }
+            }
+          }
+          await new Promise((r) => setTimeout(r, 120));
+        }
+        if (pass === 0) await new Promise((r) => setTimeout(r, 2000));
+      }
+      if (!iconMountedRef.current || Object.keys(resolved).length === 0) return;
+      setAppIcons((prev) => ({ ...prev, ...resolved }));
+    })();
+  }, [runs, appIcons]);
 
   // Enrich each visible run with full execution details (results, decisions,
   // execution_argument). The search endpoint sometimes already returns the

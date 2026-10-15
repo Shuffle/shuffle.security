@@ -29,7 +29,7 @@ See `docs/AGENTS.md` for documentation rules.
 - **NEVER, EVER USE ICONS OR EMOJIS. UNDER ANY CIRCUMSTANCES.**
 - **No Emojis Anywhere**:
   - Never use emojis in documentation (`.md`), comments, code, UI text, or component properties.
-  - No camera emojis, checkmarks, warning/alert emojis, tools, packages, locks, shields, or any Unicode pictorial characters.
+  - No Unicode pictorial characters of any kind.
   - Instead of checkmark emojis, write plain text: `Passed`, `Verified`, or `Done`.
 - **No Decorative Icons in Components or Documentation**:
   - Do not use emoji characters or decorative icons in UI components, cards, lists, badges, or buttons (e.g., never do `icon: "..."`).
@@ -43,7 +43,7 @@ See `docs/AGENTS.md` for documentation rules.
 ### 1. Action Bar & Modal Header Control Consistency
 - **Uniformity of Control Types**: Never mix full-text buttons (`<Button>`) into compact icon toolbars or modal header action bars.
 - When a modal header, card header, or toolbar uses compact icon buttons (e.g., `<IconButton size="small">` with 18px icons for settings, close, route toggles), **all adjacent utility actions MUST also be identical compact `<IconButton size="small">` components** with matching dimensions (`size="small"`, `p: 0.75`, `borderRadius: 1.5`, `border: '1px solid hsl(var(--border))'`) and paired with an informative `<Tooltip>`.
-- **Never insert full-text buttons into compact header toolbars**: Do not place buttons like `<Button>Routing rules</Button>` inside a row of icon buttons. This causes jarring size discrepancies, awkward line-wrapping (e.g. "Routing \n rules"), and bloats header height.
+- **Never insert full-text buttons into compact header toolbars**: Do not place buttons like `<Button>Routing rules</Button>` inside a row of icon buttons. It causes size mismatches and line-wrapping.
 
 ### 2. Strict Sizing & Proportions ("Match Your Neighbors")
 - **Control Sizing Harmony**: Never introduce a control that is disproportionately larger or taller than neighboring controls. A button or input must match the exact height scale of adjacent elements (typically 28px - 32px for compact headers, 36px for standard forms).

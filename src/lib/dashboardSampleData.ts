@@ -41,14 +41,18 @@ const INCIDENT_TITLES = [
   'Suspicious sign-in from new country', 'Phishing email reported by user', 'Malware detected on endpoint',
   'Impossible travel for account', 'Brute force against VPN gateway', 'Outbound traffic to known C2 domain',
   'Privilege escalation on server', 'Mass file deletion on file share', 'Disabled EDR agent', 'New admin account created',
+  'Credential stuffing against customer portal', 'Suspicious PowerShell execution', 'MFA fatigue push attempts',
+  'Unusual data upload to cloud storage', 'Ransomware note detected on share', 'Lateral movement over SMB',
+  'Leaked API key found in public repository', 'Inbox forwarding rule to external address', 'Port scan from internal host',
+  'Expired certificate on public service',
 ];
-const ASSIGNEES = ['Ingrid Hansen', 'Marcus Lee', 'Priya Nair', 'Jonas Berg', 'AI Agent'];
+const ASSIGNEES = ['Ingrid Hansen', 'Marcus Lee', 'Priya Nair', 'Jonas Berg', 'Sofia Martins', 'Daniel Okafor', 'Elin Strand', 'AI Agent'];
 const SEV_ID: Record<string, number> = { informational: 1, low: 2, medium: 3, high: 4, critical: 5 };
 
 /** Sample incidents in the datastore list format used by the report export. */
 export function buildSampleIncidentList() {
   const r = rng(29);
-  const keys = buildSampleIncidents().slice(-1500).map((inc, i) => ({
+  const keys = buildSampleIncidents().slice(-3000).map((inc, i) => ({
     key: `sample-incident-${i}`,
     created: Math.floor(inc.createdTs / 1000),
     value: JSON.stringify({
@@ -64,11 +68,12 @@ export function buildSampleIncidentList() {
 }
 
 function buildSampleAppAuth() {
-  const apps = ['Microsoft Defender', 'CrowdStrike Falcon', 'Jira', 'Slack', 'Gmail', 'VirusTotal', 'Qualys', 'Okta'];
+  const apps = ['Microsoft Defender', 'CrowdStrike Falcon', 'Jira', 'Slack', 'Gmail', 'VirusTotal', 'Qualys', 'Okta',
+    'Microsoft Teams', 'AbuseIPDB', 'Splunk', 'ServiceNow', 'Tenable', 'Wiz', 'AWS', 'Outlook'];
   const now = Date.now();
   return { success: true, data: apps.map((name, i) => ({
-    app: { name }, label: `${name} production`, active: i !== 5,
-    validation: { valid: i !== 5 }, edited: Math.floor((now - i * 9 * DAY) / 1000),
+    app: { name }, label: `${name} production`, active: i !== 5 && i !== 12,
+    validation: { valid: i !== 5 && i !== 12 }, edited: Math.floor((now - i * 9 * DAY) / 1000),
   })) };
 }
 
@@ -79,7 +84,7 @@ export function buildSampleIncidents(now = Date.now(), days = 365) {
   const MIN = 60_000;
   for (let d = days - 1; d >= 0; d--) {
     const dayTs = now - d * DAY;
-    const n = dayVolume(days - d, dayTs, 6, r);
+    const n = dayVolume(days - d, dayTs, 10, r);
     for (let i = 0; i < n; i++) {
       const ageDays = d;
       // Anything open past its resolve window counts as an SLA breach, so
@@ -115,11 +120,14 @@ export function buildSampleIncidents(now = Date.now(), days = 365) {
 }
 
 // ── Vulnerabilities ────────────────────────────────────────────────────────
-const HOSTS = ['web-prod-01', 'web-prod-02', 'api-gw-eu', 'db-primary', 'db-replica-2', 'build-runner-3', 'vpn-edge', 'mail-relay', 'hr-laptop-114', 'fin-laptop-027', 'k8s-node-a7', 'k8s-node-b2', 'jump-host'];
+const HOSTS = ['web-prod-01', 'web-prod-02', 'web-prod-03', 'api-gw-eu', 'api-gw-us', 'db-primary', 'db-replica-2', 'build-runner-3', 'build-runner-4', 'vpn-edge', 'mail-relay', 'hr-laptop-114', 'fin-laptop-027', 'sales-laptop-212', 'dev-laptop-089', 'k8s-node-a7', 'k8s-node-b2', 'k8s-node-c4', 'jump-host', 'backup-01', 'dc-01', 'dc-02'];
+/** Host monitor count shown on the sample dashboard, one per sample host. */
+export const SAMPLE_HOST_COUNT = HOSTS.length;
 const SOURCES = ['Host Monitor', 'OSV', 'Tenable', 'Qualys', 'GitHub Dependabot', 'Wiz'];
-const PACKAGES = ['openssl', 'log4j-core', 'curl', 'glibc', 'nginx', 'openssh', 'libxml2', 'sudo', 'python3-urllib3', 'node-lodash', 'tar', 'zlib'];
+const PACKAGES = ['openssl', 'log4j-core', 'curl', 'glibc', 'nginx', 'openssh', 'libxml2', 'sudo', 'python3-urllib3', 'node-lodash', 'tar', 'zlib',
+  'spring-core', 'jackson-databind', 'apache-httpd', 'postgresql', 'node-express', 'golang-x-net', 'xz-utils', 'linux-kernel', 'git', 'docker-ce'];
 
-export function buildSampleVulns(now = Date.now(), count = 100) {
+export function buildSampleVulns(now = Date.now(), count = 350) {
   const r = rng(29);
   const keys = [];
   for (let i = 0; i < count; i++) {
@@ -180,11 +188,12 @@ export function buildSampleStats(now = Date.now(), days = 365) {
 
 export function buildSampleNotifications(now = Date.now()) {
   const r = rng(53);
-  const titles = ['Workflow failed: Phishing triage', 'App authentication expired: Microsoft 365', 'High queue on runtime location', 'Workflow failed: EDR isolate host', 'Rate limit reached: VirusTotal'];
-  return Array.from({ length: 38 }, (_, i) => ({
+  const titles = ['Workflow failed: Phishing triage', 'App authentication expired: Microsoft 365', 'High queue on runtime location', 'Workflow failed: EDR isolate host', 'Rate limit reached: VirusTotal',
+    'Workflow failed: Ticket sync Jira', 'Runtime location stopped checking in: Legacy lab', 'App authentication expired: Okta', 'Schedule skipped: Daily email report'];
+  return Array.from({ length: 120 }, (_, i) => ({
     id: `n-${i}`,
     title: pick(r, titles),
-    created_at: Math.floor((now - Math.floor(r() * 30) * DAY) / 1000),
+    created_at: Math.floor((now - Math.floor(r() * 90) * DAY) / 1000),
     read: r() > 0.4,
   }));
 }
@@ -195,22 +204,24 @@ export function buildSampleEnvironments(now = Date.now()) {
     { Name: 'Cloud', Type: 'cloud', queue: 14, checkin: sec, running_ip: '' },
     { Name: 'Oslo datacenter', Type: 'onprem', queue: 37, checkin: sec - 20 },
     { Name: 'Frankfurt DMZ', Type: 'onprem', queue: 6, checkin: sec - 45 },
+    { Name: 'Toronto office', Type: 'onprem', queue: 11, checkin: sec - 30 },
     { Name: 'Legacy lab', Type: 'onprem', queue: 120, checkin: sec - 86_400 },
   ];
 }
 
 export function buildSampleWorkflows() {
-  const names = ['Phishing triage', 'EDR isolate host', 'IOC enrichment', 'Vulnerability ingestion', 'Ticket sync Jira', 'Daily email report', 'User offboarding', 'Firewall block IP', 'SIEM alert forwarding', 'Threat feed import', 'Slack escalation', 'Asset inventory sync'];
+  const names = ['Phishing triage', 'EDR isolate host', 'IOC enrichment', 'Vulnerability ingestion', 'Ticket sync Jira', 'Daily email report', 'User offboarding', 'Firewall block IP', 'SIEM alert forwarding', 'Threat feed import', 'Slack escalation', 'Asset inventory sync',
+    'Suspicious login response', 'Malware sandbox analysis', 'Weekly vulnerability report', 'Disable compromised account', 'Teams incident channel', 'ServiceNow ticket sync', 'Cloud misconfiguration alerts', 'Certificate expiry check'];
   return names.map((name, i) => ({ id: `sample-wf-${i}`, name, is_valid: true, org_id: SAMPLE_ORG_ID }));
 }
 
 // ── Agent runs ────────────────────────────────────────────────────────────
 const AGENT_TOOLS = ['virustotal', 'microsoft_defender', 'crowdstrike_falcon', 'jira', 'slack', 'abuseipdb', 'okta', 'shuffle_datastore'];
 
-export function buildSampleAgentRuns(now = Date.now(), count = 100) {
+export function buildSampleAgentRuns(now = Date.now(), count = 400) {
   const r = rng(71);
   return Array.from({ length: count }, (_, i) => {
-    const start = Math.floor((now - Math.floor(r() * r() * 45 * DAY)) / 1000);
+    const start = Math.floor((now - Math.floor(r() * r() * 120 * DAY)) / 1000);
     const status = weighted(r, [['FINISHED', 78], ['FAILURE', 8], ['WAITING', 9], ['EXECUTING', 3], ['ABORTED', 2]]);
     const duration = 8 + Math.floor(r() * 140);
     const decisions = Array.from({ length: 1 + Math.floor(r() * 5) }, () => ({

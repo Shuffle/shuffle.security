@@ -1224,6 +1224,7 @@ const AgentActivityList = ({
         }
         if (pass === 0) await new Promise((r) => setTimeout(r, 2000));
       }
+      console.log('[icon-fb] loop done, resolved=', Object.keys(resolved).length, JSON.stringify(resolved)); // TEMP-DEBUG
       if (!iconMountedRef.current || Object.keys(resolved).length === 0) return;
       setAppIcons((prev) => ({ ...prev, ...resolved }));
     })();

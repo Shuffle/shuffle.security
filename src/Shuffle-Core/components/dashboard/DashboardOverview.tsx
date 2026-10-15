@@ -34,11 +34,16 @@ import { useSyncHostBaseUrl } from '../../useSyncHostBaseUrl';
 
 import type { ShuffleCoreHostProps } from '../../types/host-props';
 import { fetchIocEntries, sumIocEntries } from '../../utils/iocFeedTotals';
+import { isSlaBreached, type SlaTargets } from '../../utils/slaBreach';
 
 interface OverviewIncident {
   status: string;
   severity: string;
   createdTs: number;
+  /** First response time (ms), when known. */
+  respondedTs?: number;
+  /** Resolution time (ms), when known. */
+  resolvedTs?: number;
 }
 
 export interface OverviewProps extends ShuffleCoreHostProps {
@@ -64,6 +69,9 @@ export interface OverviewProps extends ShuffleCoreHostProps {
    *  usecase in-place via the host (typically by rendering <UsecaseDrawer>)
    *  instead of redirecting to /usecases or to shuffle.security. */
   onOpenUsecase?: (flowId: string) => void;
+  /** Per-severity respond/resolve targets in minutes. When set, the
+   *  dashboard shows SLA breaches in Incident Activity and as a tile. */
+  slaTargets?: SlaTargets;
 }
 
 const STATUS_COLORS = {
@@ -86,6 +94,7 @@ export const DashboardOverview = ({
   customRange,
   onRangeSelect,
   onOpenUsecase,
+  slaTargets,
   // Standard Shuffle-Core host props — accepted for API consistency across
   // components mounted in multiple places. Not currently consumed because this
   // surface is purely presentational over host-supplied data.
@@ -208,7 +217,8 @@ export const DashboardOverview = ({
   );
 
   const trendData = useMemo(() => {
-    const rows = trendBuckets.map(b => ({ date: b.label, New: 0, 'In Progress': 0, Resolved: 0 }));
+    const now = Date.now();
+    const rows = trendBuckets.map(b => ({ date: b.label, New: 0, 'In Progress': 0, Resolved: 0, 'SLA Breached': 0 }));
     for (const inc of incidents) {
       if (!inc.createdTs) continue;
       const idx = bucketIndexOf(trendBuckets, inc.createdTs);
@@ -217,9 +227,17 @@ export const DashboardOverview = ({
       if (s === 'resolved' || s === 'closed') rows[idx].Resolved++;
       else if (s === 'inprogress') rows[idx]['In Progress']++;
       else rows[idx].New++;
+      if (slaTargets && isSlaBreached(inc, slaTargets, now)) rows[idx]['SLA Breached']++;
     }
     return rows;
-  }, [incidents, trendBuckets]);
+  }, [incidents, trendBuckets, slaTargets]);
+
+  const openBreachCount = useMemo(() => {
+    if (!slaTargets) return 0;
+    const now = Date.now();
+    return incidents.filter(i => i.status !== 'resolved' && i.status !== 'closed' && isSlaBreached(i, slaTargets, now)).length;
+  }, [incidents, slaTargets]);
+  const seriesColors: Record<string, string> = slaTargets ? { ...STATUS_COLORS, 'SLA Breached': NEON.red } : STATUS_COLORS;
 
   const trendHasData = trendData.some(d => d.New || d['In Progress'] || d.Resolved);
 
@@ -251,7 +269,7 @@ export const DashboardOverview = ({
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: slaTargets ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)' },
           gap: 1.5,
           mb: 1.5,
         }}
@@ -284,6 +302,17 @@ export const DashboardOverview = ({
             : navigate('/incidents?severity=critical,high')}
           delay={0.05}
         />
+        {slaTargets && (
+          <KpiTile
+            icon={AlertTriangle}
+            glow={NEON.red}
+            value={incidentsHasMore && openBreachCount > 0 ? `${openBreachCount}+` : openBreachCount}
+            label="Open SLA Breaches"
+            isLoading={incidentsLoading}
+            onClick={() => navigate('/incidents')}
+            delay={0.08}
+          />
+        )}
         <KpiTile
           icon={Radar}
           glow={NEON.cyan}
@@ -323,7 +352,7 @@ export const DashboardOverview = ({
           delay={0.2}
           action={
             <Box sx={{ display: 'flex', gap: 1.5 }}>
-              {Object.entries(STATUS_COLORS).map(([label, color]) => (
+              {Object.entries(seriesColors).map(([label, color]) => (
                 <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color }} />
                   <Typography sx={{ fontSize: '0.68rem', color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>{label}</Typography>
@@ -339,7 +368,7 @@ export const DashboardOverview = ({
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} {...trendDrag.chartProps}>
                   <defs>
-                    {Object.entries(STATUS_COLORS).map(([k, c]) => (
+                    {Object.entries(seriesColors).map(([k, c]) => (
                       <linearGradient key={k} id={`ov-grad-${k.replace(/\s/g, '')}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={c} stopOpacity={0.55} />
                         <stop offset="100%" stopColor={c} stopOpacity={0} />
@@ -350,7 +379,7 @@ export const DashboardOverview = ({
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={32} />
                   <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
                   <RechartsTooltip content={<TooltipContent />} cursor={{ stroke: NEON.violet, strokeOpacity: 0.3, strokeWidth: 1 }} />
-                  {Object.entries(STATUS_COLORS).map(([k, c]) => (
+                  {Object.entries(seriesColors).map(([k, c]) => (
                     <Area
                       key={k}
                       type="monotone"

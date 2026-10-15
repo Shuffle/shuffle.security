@@ -4910,21 +4910,8 @@ function UsecaseDetailContent({
             usecaseLabel={flowDisplayLabel}
             isLoggedIn={isAuthenticated}
             workflows={workflows}
-            // Keep the AppBubble's built-in mini popover (Visit / Enable Sync
-            // / Remove). Only the "+" Add buttons delegate to the host below.
-            // Reuse the same AppSearchDrawer wiring (setAddToolFor) the
-            // default Source/Destination "+" tile uses, so adding a tool
-            // from the alluvial goes through the same workflows/generate
-            // pipeline with toast + cache invalidation.
-            onAddTool={(side) => {
-              const isLeft = side === 'left';
-              setAddToolFor({
-                side: isLeft ? 'source' : 'destination',
-                categoryId: isLeft ? flow.source! : flow.target!,
-                multiDest: !isLeft && (MULTI_DEST_FLOW_IDS.has(flow.id) || USECASE_IDS_WITH_FORWARD_TICKETS_CONTEXT.has(flow.id)),
-              });
-              return true;
-            }}
+            // The chart owns selection so its + picker updates chart nodes
+            // directly, rather than handing off to the configuration drawer.
           />
         ) : (
         (() => {

@@ -57,6 +57,8 @@ export interface AutomationDashboardProps extends ShuffleCoreHostProps {
   customRange?: { fromMs: number; toMs: number } | null;
   /** Called when the user click-drags on a chart to pick a range. */
   onRangeSelect?: (fromMs: number, toMs: number) => void;
+  /** Estimated analyst minutes saved per successful app run. Defaults to 2. */
+  minutesSavedPerAppRun?: number;
 }
 
 /** Time-range options shared with parents that render the Last filter themselves. */
@@ -144,6 +146,7 @@ export const AutomationDashboard = ({
   hideRefresh,
   customRange,
   onRangeSelect,
+  minutesSavedPerAppRun = 2,
 }: AutomationDashboardProps) => {
   useSyncHostBaseUrl(globalUrl);
   const orgId = orgIdProp ?? userdata?.active_org?.id ?? null;
@@ -298,6 +301,10 @@ export const AutomationDashboard = ({
   }, [buckets, filtered, successKey, failedKey]);
 
   const totalSuccess = chartData.reduce((s, d) => s + d.success, 0);
+  const successfulAppRuns = useMemo(() => bucketed('app_executions').reduce((a, b) => a + b, 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [buckets, filtered]);
+  const hoursSaved = Math.round((successfulAppRuns * minutesSavedPerAppRun) / 60);
   const totalFailed = chartData.reduce((s, d) => s + d.failed, 0);
   const total = totalSuccess + totalFailed;
   const successRate = total > 0 ? Math.round((totalSuccess / total) * 100) : 0;
@@ -452,7 +459,7 @@ export const AutomationDashboard = ({
       )}
 
       {/* KPI tiles */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' }, gap: 1.5 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(6, 1fr)' }, gap: 1.5 }}>
         <KpiTile
           icon={AlertCircle}
           glow={NEON.magenta}
@@ -515,6 +522,14 @@ export const AutomationDashboard = ({
               await navigateToShuffleCore(getShuffleCoreUrl('/admin?admin_tab=locations'), { newTab: true });
             }
           }}
+        />
+        <KpiTile
+          icon={Clock}
+          glow={NEON.green}
+          value={formatCompact(hoursSaved)}
+          label="Analyst Hours Saved (est.)"
+          isLoading={loading}
+          delay={0.25}
         />
       </Box>
 

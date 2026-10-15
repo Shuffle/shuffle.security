@@ -2,11 +2,16 @@
  * Signed-out /dashboard — the real dashboards and header bar, fed with
  * sample data so visitors can explore every view before signing in.
  */
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@/lib/router-compat';
-import type { DashboardTab } from '@/Shuffle-Core';
+import {
+  ExportReportDialog, REPORT_SECTIONS, buildSectionTable, buildDashboardPdf, captureNode,
+  type DashboardTab, type ReportSectionId, type ReportTable,
+} from '@/Shuffle-Core';
+import { DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
+import { DEFAULT_SLA_CONFIG } from '@/hooks/useSlaConfig';
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview';
 import { AutomationDashboard } from '@/components/dashboard/AutomationDashboard';
 import { AgentsDashboard } from '@/components/dashboard/AgentsDashboard';
@@ -23,6 +28,9 @@ const GuestDashboardPage = () => {
   const [mode, setMode] = useState<'workflows' | 'apps'>('workflows');
   const [gran, setGran] = useState<'daily' | 'monthly'>('daily');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportStatus, setExportStatus] = useState('');
+  const dashboardRef = useRef<HTMLDivElement>(null);
 
   // Answer dashboard API calls with sample data while this page is open.
   useLayoutEffect(() => {
@@ -47,6 +55,74 @@ const GuestDashboardPage = () => {
 
   const dayCount = parseInt(days, 10) || 30;
   const onRangeSelect = (fromMs: number, toMs: number) => setCustomRange({ fromMs, toMs });
+  const rangeLabel = customRange
+    ? `${new Date(customRange.fromMs).toLocaleDateString()} - ${new Date(customRange.toMs).toLocaleDateString()}`
+    : `Last ${dayCount} days`;
+
+  // Same report as the signed-in dashboard export, built from the sample data.
+  const handleExport = async (sections: ReportSectionId[]) => {
+    setExportOpen(false);
+    const originalTab = tab;
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const capture = async () => {
+      if (!dashboardRef.current) return null;
+      try { return await captureNode(dashboardRef.current); } catch { return null; }
+    };
+    try {
+      let securityImage: string | null = null;
+      let automationImage: string | null = null;
+      const includeDashboards = sections.includes('dashboards');
+      if (includeDashboards) {
+        setExportStatus('Capturing Security Operations');
+        setTab('security'); await wait(1500); securityImage = await capture();
+        setExportStatus('Capturing Automation');
+        setTab('automation'); await wait(1500); automationImage = await capture();
+        setTab(originalTab);
+      }
+      const toMs = customRange ? customRange.toMs : Date.now();
+      const fromMs = customRange ? customRange.fromMs : toMs - dayCount * 86_400_000;
+      const userdata = {
+        username: 'demo@shuffle.security',
+        active_org: { id: SAMPLE_ORG_ID, name: 'Sample tenant', region: 'eu', subscription_type: 'Sample' },
+      };
+      const tables: ReportTable[] = [];
+      for (const def of REPORT_SECTIONS) {
+        if (def.id === 'dashboards' || !sections.includes(def.id)) continue;
+        setExportStatus(`Loading ${def.label.toLowerCase()}`);
+        try {
+          const table = await buildSectionTable(def.id, {
+            fromMs, toMs, orgId: SAMPLE_ORG_ID, userdata, incidentsCategory: DATASTORE_CATEGORIES.INCIDENTS,
+          });
+          if (table) tables.push(table);
+        } catch (err) {
+          tables.push({
+            title: def.label,
+            note: `This section could not be loaded: ${err instanceof Error ? err.message : 'unknown error'}.`,
+            columns: [{ header: 'Status', width: 1 }],
+            rows: [],
+          });
+        }
+      }
+      const byStatus: Record<string, number> = {};
+      const bySeverity: Record<string, number> = {};
+      incidents.forEach((i) => {
+        byStatus[i.status] = (byStatus[i.status] || 0) + 1;
+        bySeverity[i.severity] = (bySeverity[i.severity] || 0) + 1;
+      });
+      setExportStatus('Generating PDF');
+      await buildDashboardPdf({
+        securityImage, automationImage, includeStats: includeDashboards, tables,
+        stats: {
+          orgName: 'Sample tenant', rangeLabel,
+          incidents: { total: incidents.length, byStatus, bySeverity },
+          vulnerabilities: vulnSeverityCounts,
+          monitors: { hostCount: 13, runningSensors: 4 },
+        },
+      });
+    } finally {
+      setExportStatus('');
+    }
+  };
 
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', px: { xs: 2, md: 4 }, py: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -60,9 +136,14 @@ const GuestDashboardPage = () => {
             Sign in to see the dashboard for your own tenant.
           </Typography>
         </Box>
-        <Button component={Link} to="/login?view=/dashboard" variant="contained" sx={{ height: 36, textTransform: 'none' }}>
-          Sign in
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button variant="outlined" onClick={() => setExportOpen(true)} disabled={!!exportStatus} sx={{ height: 36, textTransform: 'none' }}>
+            {exportStatus ? `${exportStatus}...` : 'Export report'}
+          </Button>
+          <Button component={Link} to="/login?view=/dashboard" variant="contained" sx={{ height: 36, textTransform: 'none' }}>
+            Sign in
+          </Button>
+        </Box>
       </Box>
 
       <DashboardHeaderBar
@@ -79,6 +160,9 @@ const GuestDashboardPage = () => {
         onRefresh={() => setRefreshKey(k => k + 1)}
       />
 
+      <ExportReportDialog open={exportOpen} rangeLabel={rangeLabel} onClose={() => setExportOpen(false)} onExport={handleExport} />
+
+      <Box ref={dashboardRef}>
       {ready && (tab === 'agents' ? (
         <AgentsDashboard orgId={SAMPLE_ORG_ID} days={dayCount} gran={gran} customRange={customRange} onRangeSelect={onRangeSelect} refreshKey={refreshKey} />
       ) : tab === 'vulnerabilities' ? (
@@ -110,8 +194,10 @@ const GuestDashboardPage = () => {
           gran={gran}
           customRange={customRange}
           onRangeSelect={onRangeSelect}
+          slaTargets={DEFAULT_SLA_CONFIG}
         />
       ))}
+      </Box>
     </Box>
   );
 };

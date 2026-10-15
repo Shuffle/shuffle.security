@@ -8,6 +8,26 @@ interface ChartApp {
   isActiveOnly: boolean;
 }
 
+export function canRemoveChartApp(app: { id: string; name: string }): boolean {
+  return app.id !== 'webhook-ingestion' && app.name.toLowerCase() !== 'webhook';
+}
+
+/** Keep guest removals across URL-driven chart remounts, including sample nodes. */
+export function removeGuestChartApp(params: URLSearchParams, appName: string): URLSearchParams {
+  const next = new URLSearchParams(params);
+  if (!canRemoveChartApp({ id: '', name: appName })) return next;
+  const key = appName.toLowerCase();
+  for (const side of ['source', 'dest']) {
+    const names = (next.get(side) || '').split(',').filter(name => name && name.toLowerCase() !== key);
+    if (names.length) next.set(side, names.join(','));
+    else next.delete(side);
+  }
+  const hidden = new Set((next.get('hidden_apps') || '').split(',').filter(Boolean).map(name => name.toLowerCase()));
+  hidden.add(key);
+  next.set('hidden_apps', [...hidden].join(','));
+  return next;
+}
+
 /** Selection adds a node, never a credential or an authentication claim. */
 export function addSelectedChartApp<T extends ChartApp>(
   apps: T[],

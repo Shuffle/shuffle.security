@@ -26,7 +26,7 @@ import {
   PowerOff,
 } from 'lucide-react';
 import AppSearchDrawer from './AppSearchDrawer';
-import { addSelectedChartApp } from './chartAppSelection';
+import { addSelectedChartApp, canRemoveChartApp, removeGuestChartApp } from './chartAppSelection';
 import { useAppDetailOptional } from '@shuffleio/shuffle-mcps';
 import { getApiUrl, getAuthHeader } from '@shuffleio/shuffle-mcps';
 import type { ShuffleCoreHostProps } from '../types/host-props';
@@ -495,8 +495,10 @@ function AppBubble({
           }}
         />
       )}
-      {isSample && hovered && onRemoveApp && (
-        <Box
+      {isSample && hovered && onRemoveApp && canRemoveChartApp(app) && (
+        <IconButton
+          aria-label={`Remove ${displayName} from chart`}
+          size="small"
           onClick={(e) => {
             e.stopPropagation();
             onRemoveApp(app.name);
@@ -507,6 +509,7 @@ function AppBubble({
             right: -2,
             width: 16,
             height: 16,
+            p: 0,
             borderRadius: '50%',
             backgroundColor: 'hsl(var(--destructive))',
             border: '2px solid hsl(var(--card))',
@@ -521,12 +524,12 @@ function AppBubble({
           <Box
             component="svg"
             viewBox="0 0 24 24"
-            sx={{ width: 8, height: 8, stroke: 'white', strokeWidth: 3, fill: 'none' }}
+            sx={{ width: 8, height: 8, stroke: 'hsl(var(--destructive-foreground))', strokeWidth: 3, fill: 'none' }}
           >
             <line x1="4" y1="4" x2="20" y2="20" />
             <line x1="20" y1="4" x2="4" y2="20" />
           </Box>
-        </Box>
+        </IconButton>
       )}
     </Box>
   );
@@ -912,7 +915,7 @@ function AppBubble({
                     >
                       Open app
                     </Button>
-                    {!isSample && onRemoveApp && (
+                    {!isSample && onRemoveApp && canRemoveChartApp(app) && (
                       <Button
                         size="small"
                         startIcon={<CloseIcon size={14} />}
@@ -1221,6 +1224,9 @@ export default function UsecaseAlluvialDiagram({
     }
     const newParams = new URLSearchParams(searchParams);
     newParams.set(paramKey, names.join(','));
+    const hidden = (newParams.get('hidden_apps') || '').split(',').filter(name => name && name.toLowerCase() !== app.name.toLowerCase());
+    if (hidden.length) newParams.set('hidden_apps', hidden.join(','));
+    else newParams.delete('hidden_apps');
     setSearchParams(newParams, { replace: true });
     // Store the Algolia icon so we can render it
     if (app.icon) {
@@ -1235,24 +1241,17 @@ export default function UsecaseAlluvialDiagram({
   };
 
   // Locally disabled apps (hidden from the diagram)
-  const [hiddenApps, setHiddenApps] = useState<Set<string>>(new Set());
+  const [locallyHiddenApps, setHiddenApps] = useState<Set<string>>(new Set());
+  const hiddenApps = useMemo(() => new Set([
+    ...locallyHiddenApps,
+    ...(!isLoggedIn ? (searchParams.get('hidden_apps') || '').split(',').filter(Boolean).map(name => name.toLowerCase()) : []),
+  ]), [locallyHiddenApps, isLoggedIn, searchParams]);
 
   const handleRemoveApp = useCallback((appName: string) => {
+    if (!canRemoveChartApp({ id: '', name: appName })) return;
     // For guests: also remove from URL params
     if (!isLoggedIn) {
-      const newParams = new URLSearchParams(searchParams);
-      for (const key of ['source', 'dest']) {
-        const current = newParams.get(key);
-        if (current) {
-          const filtered = current.split(',').filter(n => n.toLowerCase() !== appName.toLowerCase());
-          if (filtered.length > 0) {
-            newParams.set(key, filtered.join(','));
-          } else {
-            newParams.delete(key);
-          }
-        }
-      }
-      setSearchParams(newParams, { replace: true });
+      setSearchParams(previous => removeGuestChartApp(previous, appName), { replace: true });
     }
     setHiddenApps(prev => new Set(prev).add(appName.toLowerCase()));
   }, [isLoggedIn, searchParams, setSearchParams]);
@@ -2364,7 +2363,7 @@ export default function UsecaseAlluvialDiagram({
                   isSample={!isLoggedIn}
                   disabled={app.isEnabled === false}
                   usecaseLabel={usecaseLabel}
-                  onRemoveApp={lockSource ? undefined : handleRemoveApp}
+                  onRemoveApp={lockSource || !canRemoveChartApp(app) ? undefined : handleRemoveApp}
                   onToggleSync={isLoggedIn && (highlightCategory || isVulnFlow) ? handleToggleSync : undefined}
                   onVisitApp={handleVisitApp}
                   onPrimaryClick={onBubbleClick ? (name, el, s) => !!onBubbleClick({ appName: name, side: s, anchorEl: el }) : undefined}

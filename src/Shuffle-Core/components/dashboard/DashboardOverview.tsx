@@ -74,7 +74,10 @@ export interface OverviewProps extends ShuffleCoreHostProps {
   slaTargets?: SlaTargets;
 }
 
+// Resolved first so it sits at the bottom of the stack; the top edge is
+// every incident created in that bucket.
 const STATUS_COLORS = {
+  Resolved: NEON.green,
   New: NEON.cyan,
   'In Progress': NEON.orange,
 };
@@ -379,10 +382,10 @@ export const DashboardOverview = ({
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={32} />
                   <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
                   <RechartsTooltip content={<TooltipContent />} cursor={{ stroke: NEON.violet, strokeOpacity: 0.3, strokeWidth: 1 }} />
-                  {/* New and In Progress are stacked so the top edge is the
-                      open total for the day. SLA Breached is a subset of that
-                      total, so it is drawn on its own and always sits at or
-                      below the top edge. */}
+                  {/* Resolved, New and In Progress are stacked so the top edge
+                      is every incident created that day. SLA Breached counts
+                      only the open ones past their target, so it is drawn on
+                      its own and always sits at or below the top edge. */}
                   {Object.entries(seriesColors).map(([k, c]) => (
                     <Area
                       key={k}

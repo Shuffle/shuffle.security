@@ -1176,6 +1176,7 @@ const AgentActivityList = ({
   // public Algolia `appsearch` index, the same lookup the app catalog uses.
   const iconAttemptsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
+    console.log('[icon-fallback] effect fired, runs=', runs.length, 'appIcons=', Object.keys(appIcons).length);
     if (!runs.length) return;
     const missing = new Set<string>();
     for (const run of runs) {

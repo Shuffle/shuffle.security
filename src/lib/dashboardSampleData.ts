@@ -91,8 +91,8 @@ export function buildSampleIncidents(now = Date.now(), days = 365) {
         : ageDays > 2
           ? weighted(r, [['resolved', 96], ['in_progress', 2], ['new', 1], ['on_hold', 1]])
           : ageDays > 0
-            ? weighted(r, [['resolved', 88], ['in_progress', 6], ['new', 2], ['on_hold', 4]])
-            : weighted(r, [['new', 55], ['in_progress', 30], ['resolved', 15]]);
+            ? weighted(r, [['resolved', 90], ['in_progress', 6], ['new', 2], ['on_hold', 2]])
+            : weighted(r, [['new', 60], ['in_progress', 35], ['resolved', 5]]);
       const severity = weighted(r, [['informational', 10], ['low', 30], ['medium', 35], ['high', 18], ['critical', 7]]);
       const target = DEFAULT_SLA_CONFIG[severity as keyof typeof DEFAULT_SLA_CONFIG] || DEFAULT_SLA_CONFIG.fallback;
       // Unhandled incidents sit inside their SLA window: fresh "new" ones

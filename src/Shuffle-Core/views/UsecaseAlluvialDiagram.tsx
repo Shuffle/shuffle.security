@@ -379,12 +379,11 @@ function AppBubble({
   }, [confirmRemoveOpen, popoverOpen]);
 
   const handleClick = (e: React.MouseEvent<HTMLElement>) => {
-    if (isSample) return;
     closeTooltip();
     // Host can hijack the click (e.g. to open the same popover the default
     // Source/Destination tile uses). Webhook bubbles always keep the local
     // popover since the host has no equivalent UX for them.
-    if (!isWebhook && onPrimaryClick && onPrimaryClick(app.name, e.currentTarget, side)) {
+    if (!isSample && !isWebhook && onPrimaryClick && onPrimaryClick(app.name, e.currentTarget, side)) {
       return;
     }
     setAnchorEl(e.currentTarget);
@@ -560,7 +559,7 @@ function AppBubble({
         disableFocusListener
         disableTouchListener
         slotProps={{
-          popper: { sx: { zIndex: 10050 } },
+          popper: { className: 'shuffle-core-scope', sx: { zIndex: 10050 } },
           tooltip: {
             sx: {
               bgcolor: 'hsl(var(--popover))',
@@ -586,7 +585,7 @@ function AppBubble({
           onMouseEnter={openTooltip}
           onMouseLeave={closeTooltip}
           onMouseDown={closeTooltip}
-          onClick={isSample ? undefined : handleClick}
+          onClick={handleClick}
           sx={{ textDecoration: 'none', cursor: 'pointer' }}
         >
           {content}
@@ -595,6 +594,7 @@ function AppBubble({
 
       {/* Popover — webhook or app actions */}
       <Popover
+        className="shuffle-core-scope"
         open={popoverOpen}
         anchorEl={anchorEl}
         onClose={() => {
@@ -759,7 +759,7 @@ function AppBubble({
             {(() => {
               const isDestination = side === 'right';
               const currentLabel = usecaseLabel || 'this usecase';
-              const statusLabel = app.isBlocked
+              const statusLabel = isSample ? 'Example' : app.isBlocked
                 ? 'Blocked'
                 : !isEnabled
                 ? 'Not in use'
@@ -775,7 +775,7 @@ function AppBubble({
                 ? 'hsl(var(--muted))'
                 : (app.hasValidAuth ? 'hsl(var(--severity-low) / 0.12)' : 'hsl(var(--severity-medium) / 0.12)');
 
-              const subtitleText = isDestination
+              const subtitleText = isSample ? 'App integration' : isDestination
                 ? (isNotification
                   ? (isEnabled ? 'Notifications active' : 'Notifications disabled')
                   : (isEnabled ? 'Forwarding active' : 'Not forwarding'))
@@ -852,7 +852,7 @@ function AppBubble({
                     </Box>
                   )}
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    {onToggleSync && (
+                    {!isSample && onToggleSync && (
                       <Button
                         size="small"
                         startIcon={isEnabled ? <PowerOff size={14} /> : <Power size={14} />}
@@ -893,7 +893,7 @@ function AppBubble({
                     >
                       Open app
                     </Button>
-                    {onRemoveApp && (
+                    {!isSample && onRemoveApp && (
                       <Button
                         size="small"
                         startIcon={<CloseIcon size={14} />}

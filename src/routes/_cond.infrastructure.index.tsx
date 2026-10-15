@@ -12,7 +12,7 @@ const InfrastructureRoute = () => {
   if (isLoading) return null;
   if (isAuthenticated) return <InfrastructurePage />;
   return (
-    <GuestSampleView returnPath="/infrastructure" pageName="your infrastructure">
+    <GuestSampleView returnPath="/infrastructure" pageName="the infrastructure for your own tenant">
       <InfrastructurePage />
     </GuestSampleView>
   );

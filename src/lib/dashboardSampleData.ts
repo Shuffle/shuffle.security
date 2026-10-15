@@ -277,3 +277,31 @@ export function installDashboardSampleFetch(): () => void {
   window.fetch = patched;
   return () => { if (window.fetch === patched) window.fetch = original; };
 }
+
+// ── Host monitors ─────────────────────────────────────────────────────────
+const HOST_SOFTWARE = ['Google Chrome', 'Slack', 'Zoom', 'Docker', 'OpenSSL', 'Python 3.11', 'Node.js 20', 'Microsoft Office', '1Password', 'Visual Studio Code', 'nginx', 'PostgreSQL 15'];
+
+/** Sample hosts for the signed-out /monitors page, one per sample host. */
+export function buildSampleMonitorHosts(now = Date.now()) {
+  const r = rng(113);
+  const sec = Math.floor(now / 1000);
+  return HOSTS.map((hostname, i) => {
+    const laptop = hostname.includes('laptop');
+    const os = laptop ? pick(r, ['windows', 'macos']) : hostname.startsWith('dc-') ? 'windows' : 'linux';
+    const offline = r() < 0.12;
+    return {
+      uuid: `sample-host-${i}`,
+      hostname,
+      os,
+      arch: os === 'macos' ? 'arm64' : 'amd64',
+      serial: `SN${(100000 + Math.floor(r() * 899999)).toString()}`,
+      checkin: offline ? sec - Math.floor(2 * 86_400 + r() * 5 * 86_400) : sec - Math.floor(r() * 50),
+      hd_encrypted: r() < 0.86,
+      automatic_screen_lock_enabled: laptop ? r() < 0.8 : false,
+      installed_software: HOST_SOFTWARE.filter(() => r() < 0.5).map((name) => ({ name, version: `${1 + Math.floor(r() * 9)}.${Math.floor(r() * 20)}` })),
+      code_scanner: [],
+      response_actions: r() < 0.7,
+      groupName: laptop ? 'Workstations' : 'Servers',
+    };
+  });
+}

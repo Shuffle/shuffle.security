@@ -1,2 +1,2 @@
 - Signed-out /dashboard (src/pages/dashboard/GuestDashboardPage.tsx) renders the real dashboards with sample data by temporarily answering dashboard API paths in the host app (src/lib/dashboardSampleData.ts); the shared libraries stay unaware of demo mode. Both dashboards use DashboardHeaderBar so the header never drifts.
-- Signed-out /agents and /infrastructure use src/pages/dashboard/GuestSampleView.tsx (same sample fetch as /dashboard) inside the _cond route group.
+- Signed-out /agents, /infrastructure and /monitors use src/pages/dashboard/GuestSampleView.tsx (same sample fetch as /dashboard) inside the _cond route group.

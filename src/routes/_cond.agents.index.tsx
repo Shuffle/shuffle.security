@@ -12,7 +12,7 @@ const AgentsPage = () => {
   if (isLoading) return null;
   if (isAuthenticated) return <AgentsRoute />;
   return (
-    <GuestSampleView returnPath="/agents" pageName="agent activity">
+    <GuestSampleView returnPath="/agents" pageName="agent activity for your own tenant">
       <AgentsRoute />
     </GuestSampleView>
   );

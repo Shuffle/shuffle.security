@@ -159,6 +159,12 @@ export interface MonitorHostTableProps {
   hideHeader?: boolean;
   /** Optional organization ID for datastore posture queries. Falls back to localStorage userinfo/shuffle_user_info. */
   orgId?: string;
+  /**
+   * When set, every action (add host, run action, open terminal or detail
+   * page) calls this instead, so a host can ask the visitor to sign in.
+   * Viewing, sorting and expanding rows still work. Omit for normal use.
+   */
+  onSignInRequired?: () => void;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -171,8 +177,14 @@ export const MonitorHostTable = ({
   subtitle,
   hideHeader = false,
   orgId,
+  onSignInRequired,
 }: MonitorHostTableProps) => {
-  const navigate = useNavigate();
+  const routerNavigate = useNavigate();
+  const navigate: typeof routerNavigate = ((...args: Parameters<typeof routerNavigate>) => {
+    if (onSignInRequired) { onSignInRequired(); return; }
+    return routerNavigate(...args);
+  }) as typeof routerNavigate;
+  const openAddHost = () => { if (onSignInRequired) onSignInRequired(); else setAddHostOpen(true); };
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set());
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState<boolean>(true);
@@ -408,6 +420,7 @@ export const MonitorHostTable = ({
   };
 
   const executeHostAction = async (actionId: string, actionName: string, hostname: string, groupName: string, hostUuid: string, isPredefined = false, skipConfirm = false) => {
+    if (onSignInRequired) { onSignInRequired(); return; }
     const normalized = (isPredefined ? `script:${actionId}` : actionId).trim().toLowerCase();
     if (!skipConfirm && normalized === 'script:disable_rce') {
       setPendingDisableRce({ actionId, actionName, hostname, groupName, hostUuid, isPredefined });
@@ -612,7 +625,7 @@ export const MonitorHostTable = ({
                   variant="outline"
                   className="gap-1.5 h-8 text-xs"
                   style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, fontSize: '0.75rem' }}
-                  onClick={() => setAddHostOpen(true)}
+                  onClick={openAddHost}
                 >
                   <Plus size={13} />
                   Add Host
@@ -690,7 +703,7 @@ export const MonitorHostTable = ({
               <Button
                 size="sm"
                 className="gap-1.5 mt-2"
-                onClick={() => setAddHostOpen(true)}
+                onClick={openAddHost}
               >
                 <Plus size={14} />
                 Add Host
@@ -1063,7 +1076,8 @@ export const MonitorHostTable = ({
                             const segment = hostUrlSegment(host);
                             if (!segment) return;
                             const path = `/monitors/${encodeURIComponent(segment)}`;
-                            if (e.ctrlKey || e.metaKey) window.open(path, '_blank');
+                            if (onSignInRequired) onSignInRequired();
+                            else if (e.ctrlKey || e.metaKey) window.open(path, '_blank');
                             else navigate(path);
                           }}
                         >

@@ -719,7 +719,7 @@ const features: Omit<FeatureSectionProps, 'reverse'>[] = [
     ],
     color: '#0ea5e9',
     visual: <DetectionLoopVisual />,
-    link: '/docs/shuffle-pipelines',
+    link: '/docs/extensions#detection_manager',
     linkLabel: 'Read the Pipelines guide',
   },
   {

@@ -48,6 +48,7 @@ import { useVulnerabilities } from '@/hooks/useVulnerabilities';
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview';
 import { AutomationDashboard } from '@/components/dashboard/AutomationDashboard';
 import { AgentsDashboard } from '@/components/dashboard/AgentsDashboard';
+import { DashboardHeaderBar } from '@/components/dashboard/DashboardHeaderBar';
 import { VulnerabilitiesDashboard } from '@/components/dashboard/VulnerabilitiesDashboard';
 import { AUTOMATION_RANGE_OPTIONS, DASHBOARD_TABS, TAB_LABELS, type DashboardTab } from '@/Shuffle-Core';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -1127,121 +1128,27 @@ const DashboardPage = () => {
           {!setupLoading && (
             <Box sx={{ mb: 2, mt: 3, order: allComplete ? 0 : 2 }}>
               {(() => {
-                const dashboardTabs = (
-                  <FormControl size="small" sx={{ minWidth: 210 }}>
-                    <Select
-                      value={dashboardTab}
-                      onChange={(e) => handleDashboardTabChange(e.target.value as DashboardTab)}
-                      inputProps={{ 'aria-label': 'Dashboard view' }}
-                      sx={{
-                        height: 36,
-                        borderRadius: '999px',
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'hsl(var(--border))' },
-                      }}
-                      MenuProps={{ PaperProps: { sx: { mt: 0.5, borderRadius: '10px' } } }}
-                    >
-                      <ListSubheader sx={{ fontSize: '0.68rem', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 2.4, color: 'hsl(var(--muted-foreground))', bgcolor: 'transparent' }}>
-                        Security
-                      </ListSubheader>
-                      <MenuItem value="security">{TAB_LABELS.security}</MenuItem>
-                      <MenuItem value="vulnerabilities">{TAB_LABELS.vulnerabilities}</MenuItem>
-                      <ListSubheader sx={{ fontSize: '0.68rem', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 2.4, color: 'hsl(var(--muted-foreground))', bgcolor: 'transparent' }}>
-                        Automation
-                      </ListSubheader>
-                      <MenuItem value="automation">{TAB_LABELS.automation}</MenuItem>
-                      <MenuItem value="agents">{TAB_LABELS.agents}</MenuItem>
-                    </Select>
-                  </FormControl>
-                );
                 const handleDashboardRefresh = () => {
                   // Bump key so AutomationDashboard re-fetches; also refresh Security data.
                   setDashboardRefreshKey(k => k + 1);
                   try { fetchIncidents(); } catch { /* noop */ }
                   try { refreshNotifications(); } catch { /* noop */ }
                 };
-                const fmtShort = (ms: number) => {
-                  const d = new Date(ms);
-                  const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
-                  return `${M} ${d.getDate()}`;
-                };
-                const customRangeLabel = dashboardCustomRange
-                  ? `${fmtShort(dashboardCustomRange.fromMs)} → ${fmtShort(dashboardCustomRange.toMs)}`
-                  : null;
-                const sharedControls = (
-                  <>
-                    <FormControl size="small" sx={{ minWidth: customRangeLabel ? 220 : 130 }}>
-                      <InputLabel>Last</InputLabel>
-                      <Select
-                        label="Last"
-                        value={dashboardCustomRange ? '__custom__' : dashboardDays}
-                        onChange={(e) => {
-                          const v = String(e.target.value);
-                          if (v === '__custom__') return;
-                          setDashboardCustomRange(null);
-                          setDashboardDays(v);
-                        }}
-                        renderValue={() => customRangeLabel ?? (AUTOMATION_RANGE_OPTIONS.find(o => o.value === dashboardDays)?.label ?? `${dashboardDays} days`)}
-                        endAdornment={dashboardCustomRange ? (
-                          <IconButton
-                            size="small"
-                            onMouseDown={(e) => { e.stopPropagation(); }}
-                            onClick={(e) => { e.stopPropagation(); setDashboardCustomRange(null); }}
-                            sx={{ mr: 3, p: 0.25, color: 'hsl(var(--muted-foreground))' }}
-                            aria-label="Clear custom range"
-                          >
-                            <CloseIcon size={14} />
-                          </IconButton>
-                        ) : undefined}
-                      >
-                        {customRangeLabel && (
-                          <MenuItem value="__custom__" disabled>{customRangeLabel} (custom)</MenuItem>
-                        )}
-                        {AUTOMATION_RANGE_OPTIONS.map(o => (
-                          <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                    <Box sx={{ alignSelf: 'flex-end', opacity: dashboardTab === 'automation' ? 1 : 0.5, pointerEvents: dashboardTab === 'automation' ? 'auto' : 'none' }}>
-                      <SegmentedControl
-                        ariaLabel="Mode"
-                        value={dashboardMode}
-                        onChange={(v) => setDashboardMode(v as 'workflows' | 'apps')}
-                        options={[
-                          { value: 'workflows', label: 'Workflows', disabled: dashboardTab !== 'automation' },
-                          { value: 'apps', label: 'Apps', disabled: dashboardTab !== 'automation' },
-                        ]}
-                      />
-                    </Box>
-                    <Box sx={{ alignSelf: 'flex-end' }}>
-                      <SegmentedControl
-                        ariaLabel="Granularity"
-                        value={dashboardGran}
-                        onChange={(v) => setDashboardGran(v as 'daily' | 'monthly')}
-                        options={[{ value: 'daily', label: 'Daily' }, { value: 'monthly', label: 'Monthly' }]}
-                      />
-                    </Box>
-                    <MuiTooltip title="Refresh">
-                      <IconButton
-                        size="small"
-                        onClick={handleDashboardRefresh}
-                        sx={{ color: 'hsl(var(--muted-foreground))', alignSelf: 'flex-end', width: 36, height: 36, borderRadius: '8px' }}
-                      >
-                        <RefreshIcon size={16} />
-                      </IconButton>
-                    </MuiTooltip>
-                  </>
-                );
                 const sharedHeader = (
-                  <Box ref={dashboardTabsRef} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 36 }}>
-                      {dashboardTabs}
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                      {sharedControls}
-                    </Box>
-                  </Box>
+                  <DashboardHeaderBar
+                    ref={dashboardTabsRef}
+                    tab={dashboardTab}
+                    onTabChange={handleDashboardTabChange}
+                    days={dashboardDays}
+                    onDaysChange={setDashboardDays}
+                    customRange={dashboardCustomRange}
+                    onClearCustomRange={() => setDashboardCustomRange(null)}
+                    mode={dashboardMode}
+                    onModeChange={setDashboardMode}
+                    gran={dashboardGran}
+                    onGranChange={setDashboardGran}
+                    onRefresh={handleDashboardRefresh}
+                  />
                 );
                 return (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>

@@ -1,35 +1,53 @@
 /**
- * Signed-out /dashboard — renders the real overview charts with sample data
- * so visitors can see the dashboard before creating an account.
+ * Signed-out /dashboard — the real dashboards and header bar, fed with
+ * sample data so visitors can explore every view before signing in.
  */
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import { Box, Typography, Button } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@/lib/router-compat';
+import type { DashboardTab } from '@/Shuffle-Core';
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview';
-
-const DAY = 86_400_000;
-const STATUSES = ['new', 'in_progress', 'resolved', 'resolved', 'on_hold', 'new', 'resolved'];
-const SEVERITIES = ['low', 'medium', 'medium', 'high', 'critical', 'low', 'informational', 'high'];
-
-/** Deterministic sample incidents spread over the last 30 days. */
-export function buildSampleIncidents(now = Date.now(), count = 140) {
-  const out: { status: string; severity: string; createdTs: number }[] = [];
-  for (let i = 0; i < count; i++) {
-    const dayOffset = (i * 7919) % 30;
-    const hourOffset = (i * 104729) % 24;
-    out.push({
-      status: STATUSES[i % STATUSES.length],
-      severity: SEVERITIES[(i * 3) % SEVERITIES.length],
-      createdTs: now - dayOffset * DAY - hourOffset * 3_600_000,
-    });
-  }
-  return out;
-}
-
-const SAMPLE_VULNS = { critical: 7, high: 23, medium: 58, low: 41, info: 12 };
+import { AutomationDashboard } from '@/components/dashboard/AutomationDashboard';
+import { AgentsDashboard } from '@/components/dashboard/AgentsDashboard';
+import { VulnerabilitiesDashboard } from '@/components/dashboard/VulnerabilitiesDashboard';
+import { DashboardHeaderBar } from '@/components/dashboard/DashboardHeaderBar';
+import { SAMPLE_ORG_ID, buildSampleIncidents, buildSampleVulns, installDashboardSampleFetch } from '@/lib/dashboardSampleData';
 
 const GuestDashboardPage = () => {
+  const queryClient = useQueryClient();
+  const [ready, setReady] = useState(false);
+  const [tab, setTab] = useState<DashboardTab>('security');
+  const [days, setDays] = useState('30');
+  const [customRange, setCustomRange] = useState<{ fromMs: number; toMs: number } | null>(null);
+  const [mode, setMode] = useState<'workflows' | 'apps'>('workflows');
+  const [gran, setGran] = useState<'daily' | 'monthly'>('daily');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Answer dashboard API calls with sample data while this page is open.
+  useLayoutEffect(() => {
+    const restore = installDashboardSampleFetch();
+    setReady(true);
+    return () => {
+      restore();
+      // Do not leave sample workflows cached for after sign-in.
+      queryClient.removeQueries({ queryKey: ['workflows'] });
+    };
+  }, [queryClient]);
+
   const incidents = useMemo(() => buildSampleIncidents(), []);
+  const vulnSeverityCounts = useMemo(() => {
+    const c = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+    for (const k of buildSampleVulns().keys) {
+      const sev = JSON.parse(k.value).severity as keyof typeof c;
+      c[sev] += 1;
+    }
+    return c;
+  }, []);
+
+  const dayCount = parseInt(days, 10) || 30;
+  const onRangeSelect = (fromMs: number, toMs: number) => setCustomRange({ fromMs, toMs });
+
   return (
     <Box sx={{ maxWidth: 1400, mx: 'auto', px: { xs: 2, md: 4 }, py: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Box sx={{
@@ -46,14 +64,54 @@ const GuestDashboardPage = () => {
           Sign in
         </Button>
       </Box>
-      <DashboardOverview
-        incidents={incidents}
-        vulnSeverityCounts={SAMPLE_VULNS}
-        monitorHostCount={18}
-        runningSensorCount={4}
-        days={30}
-        gran="daily"
+
+      <DashboardHeaderBar
+        tab={tab}
+        onTabChange={setTab}
+        days={days}
+        onDaysChange={setDays}
+        customRange={customRange}
+        onClearCustomRange={() => setCustomRange(null)}
+        mode={mode}
+        onModeChange={setMode}
+        gran={gran}
+        onGranChange={setGran}
+        onRefresh={() => setRefreshKey(k => k + 1)}
       />
+
+      {ready && (tab === 'agents' ? (
+        <AgentsDashboard orgId={SAMPLE_ORG_ID} days={dayCount} gran={gran} customRange={customRange} onRangeSelect={onRangeSelect} refreshKey={refreshKey} />
+      ) : tab === 'vulnerabilities' ? (
+        <VulnerabilitiesDashboard orgId={SAMPLE_ORG_ID} days={dayCount} gran={gran} customRange={customRange} onRangeSelect={onRangeSelect} refreshKey={refreshKey} />
+      ) : tab === 'automation' ? (
+        <AutomationDashboard
+          orgId={SAMPLE_ORG_ID}
+          displayName="Sample tenant"
+          isLoaded
+          isLoggedIn
+          days={days}
+          onDaysChange={setDays}
+          gran={gran}
+          onGranChange={setGran}
+          mode={mode}
+          onModeChange={setMode}
+          refreshKey={refreshKey}
+          hideRefresh
+          customRange={customRange}
+          onRangeSelect={onRangeSelect}
+        />
+      ) : (
+        <DashboardOverview
+          incidents={incidents}
+          vulnSeverityCounts={vulnSeverityCounts}
+          monitorHostCount={13}
+          runningSensorCount={4}
+          days={dayCount}
+          gran={gran}
+          customRange={customRange}
+          onRangeSelect={onRangeSelect}
+        />
+      ))}
     </Box>
   );
 };

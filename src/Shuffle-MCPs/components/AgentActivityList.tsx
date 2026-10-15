@@ -1176,7 +1176,6 @@ const AgentActivityList = ({
   // public Algolia `appsearch` index, the same lookup the app catalog uses.
   const iconAttemptsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    console.log('[icon-fallback] effect fired, runs=', runs.length, 'appIcons=', Object.keys(appIcons).length);
     if (!runs.length) return;
     const missing = new Set<string>();
     for (const run of runs) {
@@ -1188,18 +1187,26 @@ const AgentActivityList = ({
     if (missing.size === 0) return;
     let cancelled = false;
     (async () => {
+      const names = [...missing];
       const resolved: Record<string, string> = {};
-      await Promise.all([...missing].map(async (name) => {
-        const key = normToolKey(name);
-        iconAttemptsRef.current.add(key);
-        try {
-          const hit = await resolveApp(name);
-          console.log('[icon-fallback] resolved', name, hit && hit.image);
-          if (hit?.image) resolved[key] = hit.image;
-        } catch (e) {
-          console.log('[icon-fallback] error', name, String(e));
+      // Sequential lookups with a retry round: Algolia rate-limits
+      // concurrent bursts, and a failed lookup is not cached, so a second
+      // pass after a short wait can still succeed.
+      for (let pass = 0; pass < 2; pass++) {
+        for (const name of names) {
+          const key = normToolKey(name);
+          iconAttemptsRef.current.add(key);
+          if (!resolved[key]) {
+            try {
+              const hit = await resolveApp(name);
+              if (hit?.image) resolved[key] = hit.image;
+            } catch { /* skip */ }
+          }
+          if (cancelled) return;
+          await new Promise((r) => setTimeout(r, 120));
         }
-      }));
+        if (pass === 0) await new Promise((r) => setTimeout(r, 2000));
+      }
       if (cancelled || Object.keys(resolved).length === 0) return;
       setAppIcons((prev) => ({ ...prev, ...resolved }));
     })();

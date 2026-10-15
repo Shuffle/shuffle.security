@@ -1175,6 +1175,8 @@ const AgentActivityList = ({
   // the remaining tool icons through resolveApp — its final pass is the
   // public Algolia `appsearch` index, the same lookup the app catalog uses.
   const iconAttemptsRef = useRef<Set<string>>(new Set());
+  const iconMountedRef = useRef(true);
+  useEffect(() => () => { iconMountedRef.current = false; }, []);
   useEffect(() => {
     if (!runs.length) return;
     const missing = new Set<string>();
@@ -1185,13 +1187,14 @@ const AgentActivityList = ({
       }
     }
     if (missing.size === 0) return;
-    let cancelled = false;
     (async () => {
       const names = [...missing];
       const resolved: Record<string, string> = {};
       // Sequential lookups with a retry round: Algolia rate-limits
       // concurrent bursts, and a failed lookup is not cached, so a second
-      // pass after a short wait can still succeed.
+      // pass after a short wait can still succeed. The loop deliberately
+      // outlives this effect's deps (runs updates re-fire it) — only actual
+      // unmount stops it.
       for (let pass = 0; pass < 2; pass++) {
         for (const name of names) {
           const key = normToolKey(name);
@@ -1202,15 +1205,13 @@ const AgentActivityList = ({
               if (hit?.image) resolved[key] = hit.image;
             } catch { /* skip */ }
           }
-          if (cancelled) return;
           await new Promise((r) => setTimeout(r, 120));
         }
         if (pass === 0) await new Promise((r) => setTimeout(r, 2000));
       }
-      if (cancelled || Object.keys(resolved).length === 0) return;
+      if (!iconMountedRef.current || Object.keys(resolved).length === 0) return;
       setAppIcons((prev) => ({ ...prev, ...resolved }));
     })();
-    return () => { cancelled = true; };
   }, [runs, appIcons]);
 
   // Enrich each visible run with full execution details (results, decisions,

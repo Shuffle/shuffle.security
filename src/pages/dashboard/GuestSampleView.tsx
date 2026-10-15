@@ -40,7 +40,7 @@ const GuestSampleView = ({ returnPath, pageName, children }: GuestSampleViewProp
           <Box>
             <Typography sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>You are viewing sample data</Typography>
             <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
-              Sign in to see {pageName} for your own tenant.
+              Sign in to see {pageName}.
             </Typography>
           </Box>
           <Button component={Link} to={`/login?view=${returnPath}`} variant="contained" sx={{ height: 36, textTransform: 'none' }}>

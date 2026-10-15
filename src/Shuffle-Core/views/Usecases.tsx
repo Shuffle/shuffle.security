@@ -5298,6 +5298,21 @@ function UsecaseDetailContent({
         );
       })()}
 
+      {(() => {
+        const slot = renderUsecaseDetailSlot
+          ? renderUsecaseDetailSlot({
+              flowId: flow.id,
+              flowLabel: flow.label,
+              onOpenModal: () => setActionModalOpen(true),
+            })
+          : null;
+        return slot ? (
+          <Box sx={{ p: 2.5, borderRadius: 2, border: 'none', bgcolor: 'transparent', mb: 3 }}>
+            {slot}
+          </Box>
+        ) : null;
+      })()}
+
       {flow.id !== 'case_management_incident_routing_1' && flow.id !== 'case_management_schedules_notifications_1' && flow.id !== 'case_management_asset_management_monitors_1' && (
         flow.automationArea === 'notifications'
           ? <NotificationsOutcomeBlock />

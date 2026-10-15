@@ -364,7 +364,7 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
   },
   // ---- Portaled surfaces: stamp scopeClassName and scopeStyle so HSL tokens resolve ----
   MuiDrawer: {
-    defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
+    defaultProps: { className: scopeClassName, slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
       paper: {
         backgroundColor: "hsl(var(--sidebar-background, var(--card)))",
@@ -374,7 +374,7 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
     },
   },
   MuiDialog: {
-    defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
+    defaultProps: { className: scopeClassName, slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
       root: { zIndex: 10010 },
       paper: {
@@ -386,7 +386,7 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
     },
   },
   MuiMenu: {
-    defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
+    defaultProps: { className: scopeClassName, slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
       root: { zIndex: 10040 },
       paper: {
@@ -398,7 +398,7 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
     },
   },
   MuiPopover: {
-    defaultProps: { slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
+    defaultProps: { className: scopeClassName, slotProps: { paper: { className: scopeClassName, style: scopeStyle } } },
     styleOverrides: {
       root: { zIndex: 10040 },
       paper: {
@@ -414,7 +414,7 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
       slotProps: {
         tooltip: { className: scopeClassName, style: scopeStyle },
         // Render above app drawers, dialogs, menus, and popovers.
-        popper: { sx: { zIndex: 10050 } },
+        popper: { className: scopeClassName, sx: { zIndex: 10050 } },
       },
     },
     styleOverrides: {

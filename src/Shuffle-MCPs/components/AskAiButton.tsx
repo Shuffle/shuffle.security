@@ -60,6 +60,16 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
 }) => {
   const themeScope = useShuffleMcpTheme();
 
+  // The floating button must sit at the document root. Without the portal it
+  // is trapped inside this widget's `isolation: isolate` wrapper, and any
+  // page content stacked after it (cards, frosted papers) paints over it,
+  // making the button look transparent.
+  const [portalTarget, setPortalTarget] = React.useState<HTMLElement | null>(null);
+  React.useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
+
+
   const currentPath = pathname !== undefined
     ? pathname
     : (typeof window !== 'undefined' ? window.location.pathname : '');

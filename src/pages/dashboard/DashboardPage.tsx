@@ -56,6 +56,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useSubOrgs } from '@/hooks/useSubOrgs';
 import { ChevronDown, ChevronUp, X as CloseIcon } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { useSlaConfig } from '@/hooks/useSlaConfig';
 
 // ── Setup Step ─────────────────────────────────────────────────────────────────
 
@@ -749,6 +750,7 @@ const DashboardPage = () => {
   const vulnSeverityCounts = isViewingChild ? viewVulnSeverityCounts : vulnSeverityCountsDefault;
   const vulnLoading = isViewingChild ? viewLoading : vulnLoadingDefault;
 
+  const slaConfig = useSlaConfig();
   const overviewIncidents = useMemo(() => {
     const out: { status: string; severity: string; createdTs: number }[] = [];
     const sevMap: Record<number, string> = { 1: 'informational', 2: 'low', 3: 'medium', 4: 'high', 5: 'critical', 6: 'critical' };
@@ -1188,6 +1190,7 @@ const DashboardPage = () => {
                     ) : (
                       <DashboardOverview
                         incidents={overviewIncidents}
+                        slaTargets={slaConfig}
                         incidentsLoading={incidentsLoading}
                         incidentsHasMore={!isViewingChild && incidentsHasMoreDefault}
                         vulnSeverityCounts={vulnSeverityCounts}

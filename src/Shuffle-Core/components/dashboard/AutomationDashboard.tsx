@@ -217,6 +217,35 @@ export const AutomationDashboard = ({
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [orgId, isLoaded, isLoggedIn, globalUrl]);
 
+  // Sum the execution queue across all running runtime locations.
+  // A location counts as running when it is cloud, or checked in within 300s.
+  useEffect(() => {
+    if (serverside || !isLoaded || !isLoggedIn || !orgId) { setQueueLoading(false); return; }
+    let cancelled = false;
+    setQueueLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(buildUrl('/api/v1/getenvironments'), {
+          credentials: 'include',
+          headers: { ...getAuthHeader(), 'Org-Id': orgId },
+        });
+        if (!res.ok) return;
+        const envs = await res.json();
+        if (cancelled || !Array.isArray(envs)) return;
+        const now = Math.floor(Date.now() / 1000);
+        const total = envs.reduce((sum: number, env: any) => {
+          const running = env?.Type === 'cloud' || ((env?.checkin ?? 0) > 0 && now - (env?.checkin ?? 0) < 300);
+          return running ? sum + Math.max(0, Number(env?.queue) || 0) : sum;
+        }, 0);
+        setQueuedAutomation(total);
+      } catch { /* noop */ } finally {
+        if (!cancelled) setQueueLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, isLoaded, isLoggedIn, globalUrl, refreshKey]);
+
   // External refresh trigger — parent bumps `refreshKey` to re-fetch silently.
   useEffect(() => {
     if (refreshKey === undefined) return;

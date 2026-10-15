@@ -194,6 +194,44 @@ export {
   TAB_LABELS,
 } from "./components/dashboard/CombinedDashboard";
 export { AUTOMATION_RANGE_OPTIONS } from "./components/dashboard/AutomationDashboard";
+
+// Report export — section picker, on-demand data loading and PDF assembly.
+// The dashboards use it through CombinedDashboard; any other Shuffle-Core
+// surface or host app can render the picker with its own button and assemble
+// the PDF itself with buildSectionTable + buildReportPdf.
+import ExportReportDialogRaw, {
+  type ExportReportDialogProps,
+} from "./components/dashboard/ExportReportDialog";
+export const ExportReportDialog = withTheme<ExportReportDialogProps>(
+  ExportReportDialogRaw as any,
+  "ExportReportDialog",
+);
+export type { ExportReportDialogProps };
+export { DEFAULT_REPORT_SECTIONS } from "./components/dashboard/ExportReportDialog";
+export {
+  REPORT_SECTIONS,
+  visibleReportSections,
+  buildSectionTable,
+  drawTable,
+  buildReportPdf,
+  getChildTenants,
+} from "./components/dashboard/exportReport";
+export type {
+  ReportSectionId,
+  ReportSectionDef,
+  ReportTable,
+  ReportContext,
+  ReportPdfOptions,
+} from "./components/dashboard/exportReport";
+export {
+  buildDashboardPdf,
+  captureNode,
+} from "./components/dashboard/exportDashboardPdf";
+export type {
+  DashboardStatsSummary,
+  BuildDashboardPdfOptions,
+} from "./components/dashboard/exportDashboardPdf";
+
 export type { ShuffleCoreHostProps } from "./types/host-props";
 
 export default Usecases;

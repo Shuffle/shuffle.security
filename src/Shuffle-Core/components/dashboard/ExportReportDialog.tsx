@@ -1,25 +1,40 @@
 /**
  * ExportReportDialog — lets the user pick which report sections to include
- * in the PDF export. All range-scoped sections use the dashboard's current
- * time range.
+ * in the PDF export. All range-scoped sections use the caller's current time
+ * range.
+ *
+ * Shared surface: the dashboards use it through CombinedDashboard, and any
+ * other Shuffle-Core area (or host app embedding the library) can render it
+ * with its own button and its own PDF assembly step.
  */
 import { useState } from 'react';
 import { Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Typography } from '@mui/material';
-import { REPORT_SECTIONS, type ReportSectionId } from './exportReport';
+import { visibleReportSections, type ReportSectionId } from './exportReport';
 
 export const DEFAULT_REPORT_SECTIONS: ReportSectionId[] = ['dashboards', 'tenant'];
 
-interface ExportReportDialogProps {
+export interface ExportReportDialogProps {
   open: boolean;
-  rangeLabel: string;
-  hasChildTenants: boolean;
+  /** Range printed in the header. Defaults to "the selected range". */
+  rangeLabel?: string;
+  /** Show the sub-tenants section. Defaults to false. */
+  hasChildTenants?: boolean;
+  /** Sections ticked when the dialog opens. Defaults to DEFAULT_REPORT_SECTIONS. */
+  initialSections?: ReportSectionId[];
   onClose: () => void;
   onExport: (sections: ReportSectionId[]) => void;
 }
 
-const ExportReportDialog = ({ open, rangeLabel, hasChildTenants, onClose, onExport }: ExportReportDialogProps) => {
-  const sections = REPORT_SECTIONS.filter((s) => s.id !== 'subtenants' || hasChildTenants);
-  const [selected, setSelected] = useState<ReportSectionId[]>(DEFAULT_REPORT_SECTIONS);
+const ExportReportDialog = ({
+  open,
+  rangeLabel = '',
+  hasChildTenants = false,
+  initialSections,
+  onClose,
+  onExport,
+}: ExportReportDialogProps) => {
+  const sections = visibleReportSections(hasChildTenants);
+  const [selected, setSelected] = useState<ReportSectionId[]>(initialSections ?? DEFAULT_REPORT_SECTIONS);
   const toggle = (id: ReportSectionId) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const allSelected = sections.every((s) => selected.includes(s.id));
@@ -29,7 +44,7 @@ const ExportReportDialog = ({ open, rangeLabel, hasChildTenants, onClose, onExpo
       <DialogTitle sx={{ pb: 0.5 }}>
         <Typography sx={{ fontWeight: 600, fontSize: '1.05rem' }}>Export report</Typography>
         <Typography sx={{ fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))', mt: 0.5 }}>
-          Choose what to include. Time-based sections use the current range: {rangeLabel}.
+          Choose what to include. Time-based sections use {rangeLabel ? `the current range: ${rangeLabel}.` : 'the selected range.'}
         </Typography>
       </DialogTitle>
       <DialogContent sx={{ pt: 1.5 }}>

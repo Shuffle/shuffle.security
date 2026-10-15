@@ -57,6 +57,8 @@ See `docs/AGENTS.md` for documentation rules.
 - /api/v* on this site is a 307 redirect to the tenant's regional backend (src/routes/api.$version.$.ts, region from subdomain, then the shuffle-region cookie, then OpenID state) — the app has no API of its own.
 - Sidebar region flags use RegionFlagImage with hosted image assets and the shared resolved region code, so rendering never depends on emoji fonts.
 - MonitorsView owns deployment sign-in gating for both embedded dialogs and `add_host=true` links, preserving the deployment destination through the existing login `view` parameter so shared-library callers cannot silently bypass the redirect.
+- Read src/Shuffle-Core/AGENTS.md first.
+
 
 <!-- LOVABLE:BEGIN -->
 - Shared overlay layers track opening order on owned portal roots; accessibility hiding is not closing, papers are not surfaces, and app theme markers keep embedded hosts untouched.

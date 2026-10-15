@@ -353,7 +353,7 @@ function AppBubble({
   isVuln?: boolean;
   isNotification?: boolean;
 }) {
-  const [imgFailed, setImgFailed] = useState(false);
+  const [failedIcon, setFailedIcon] = useState<string | null>(null);
   const [hovered, setHovered] = useState(false);
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
@@ -448,12 +448,12 @@ function AppBubble({
         >
           <Webhook size={size * 0.5} />
         </Avatar>
-      ) : app.icon && !imgFailed ? (
+      ) : app.icon && app.icon !== failedIcon ? (
         <Box
           component="img"
           src={app.icon}
           alt={displayName}
-          onError={() => setImgFailed(true)}
+          onError={() => setFailedIcon(app.icon)}
           sx={{
             width: size,
             height: size,
@@ -1172,15 +1172,17 @@ export default function UsecaseAlluvialDiagram({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Cache Algolia icons for guest-added apps (name → icon URL)
   const [guestAppIcons, setGuestAppIcons] = useState<Record<string, string>>({});
+  const guestSourceParam = searchParams.get('source') || '';
+  const guestDestParam = searchParams.get('dest') || '';
 
   // Fetch icons from Algolia for guest apps loaded from URL params
   useEffect(() => {
     if (isLoggedIn) return;
     const allGuestNames = [
-      ...(searchParams.get('source')?.split(',').filter(Boolean) || []),
-      ...(searchParams.get('dest')?.split(',').filter(Boolean) || []),
+      ...guestSourceParam.split(',').filter(Boolean),
+      ...guestDestParam.split(',').filter(Boolean),
     ];
-    const missing = allGuestNames.filter(n => !guestAppIcons[n.toLowerCase()]);
+    const missing = [...new Set(allGuestNames)].filter(n => !guestAppIcons[n.toLowerCase()]);
     if (missing.length === 0) return;
 
     const client = algoliasearch('JNSS5CFDZZ', '33e4e3564f4f060e96e0531957bed552');
@@ -1203,7 +1205,7 @@ export default function UsecaseAlluvialDiagram({
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoggedIn]);
+  }, [isLoggedIn, guestSourceParam, guestDestParam]);
 
   // Guest-selected apps from URL params
   const guestSourceNames = useMemo(() => {
@@ -1815,7 +1817,7 @@ export default function UsecaseAlluvialDiagram({
         .map(name => ({
           id: `guest-${name}`,
           name,
-          icon: guestAppIcons[name.toLowerCase()] || `https://storage.googleapis.com/shuffle_public/app_images/${name.replace(/\s+/g, '_')}.png`,
+          icon: guestAppIcons[name.toLowerCase()] || '',
           hasValidAuth: false,
           isActiveOnly: false,
           isHighlighted: true,
@@ -1893,7 +1895,7 @@ export default function UsecaseAlluvialDiagram({
         .map(name => ({
           id: `guest-${name}`,
           name,
-          icon: guestAppIcons[name.toLowerCase()] || `https://storage.googleapis.com/shuffle_public/app_images/${name.replace(/\s+/g, '_')}.png`,
+          icon: guestAppIcons[name.toLowerCase()] || '',
           hasValidAuth: false,
           isActiveOnly: false,
         }));

@@ -164,7 +164,7 @@ export const useDrawerLayer = (open: boolean, base: number = DRAWER_LAYER_BASE):
 // Only portal roots own a layer; MUI dialog papers are not separate surfaces.
 const MUI_SURFACE_SELECTOR = '.MuiDialog-root, .MuiDrawer-root.MuiModal-root, .MuiModal-root:not(.MuiPopover-root):not(.MuiMenu-root)';
 const SURFACE_SELECTOR = `${MUI_SURFACE_SELECTOR}, [role="dialog"], [role="alertdialog"]`;
-const POPUP_SELECTOR = '.MuiPopover-root, .MuiMenu-root, .MuiAutocomplete-popper, .MuiPopper-root:not(.MuiTooltip-popper), [data-radix-popper-content-wrapper]';
+const POPUP_SELECTOR = '.MuiPopover-root, .MuiMenu-root, .MuiAutocomplete-popper, .MuiPopper-root:not(.MuiTooltip-popper), [data-radix-popper-content-wrapper], [data-shuffle-backdrop]';
 const TOOLTIP_SELECTOR = '.MuiTooltip-popper, [role="tooltip"]';
 const OVERLAY_SELECTOR = `${SURFACE_SELECTOR}, ${POPUP_SELECTOR}, ${TOOLTIP_SELECTOR}`;
 const SHUFFLE_SCOPE_SELECTOR = '.shuffle-core-scope, .shuffle-mcp-scope, .shuffle-app-overlay, [data-shuffle-layer]';
@@ -172,7 +172,7 @@ const OWN_PANEL_SELECTOR = ':scope > .MuiPaper-root, :scope > .MuiDialog-contain
 
 const isSurfaceElement = (el: HTMLElement): boolean =>
   el.matches(SURFACE_SELECTOR) &&
-  (el.matches(MUI_SURFACE_SELECTOR) || !el.parentElement?.closest(MUI_SURFACE_SELECTOR));
+  (el.matches(MUI_SURFACE_SELECTOR) || !el.parentElement?.closest(`${MUI_SURFACE_SELECTOR}, [data-radix-popper-content-wrapper]`));
 
 const isShuffleOwnedOverlay = (el: HTMLElement): boolean =>
   el.matches(SHUFFLE_SCOPE_SELECTOR) ||

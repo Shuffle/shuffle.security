@@ -499,6 +499,7 @@ function AppBubble({
         <IconButton
           aria-label={`Remove ${displayName} from chart`}
           size="small"
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onRemoveApp(app.name);

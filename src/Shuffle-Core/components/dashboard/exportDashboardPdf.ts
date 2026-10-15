@@ -9,6 +9,7 @@
  */
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
+import { drawTable, type ReportTable } from './exportReport';
 
 export interface DashboardStatsSummary {
   orgName: string;
@@ -181,6 +182,10 @@ export interface BuildDashboardPdfOptions {
   automationImage: string | null;
   stats: DashboardStatsSummary;
   filename?: string;
+  /** Include the raw stats page. Defaults to true. */
+  includeStats?: boolean;
+  /** Extra data tables rendered after the dashboard pages. */
+  tables?: ReportTable[];
 }
 
 export const buildDashboardPdf = async ({
@@ -188,6 +193,8 @@ export const buildDashboardPdf = async ({
   automationImage,
   stats,
   filename,
+  includeStats = true,
+  tables = [],
 }: BuildDashboardPdfOptions): Promise<void> => {
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
 
@@ -203,7 +210,7 @@ export const buildDashboardPdf = async ({
   pdf.text('Shuffle Security', PAGE_MARGIN, pageH / 2 - 30);
   pdf.setFontSize(18);
   pdf.setTextColor(80, 80, 80);
-  pdf.text('Org dashboard export', PAGE_MARGIN, pageH / 2 - 4);
+  pdf.text(tables.length > 0 ? 'Organization report' : 'Org dashboard export', PAGE_MARGIN, pageH / 2 - 4);
   pdf.setFontSize(11);
   pdf.setTextColor(120, 120, 120);
   pdf.text(`Organization: ${stats.orgName}`, PAGE_MARGIN, pageH / 2 + 24);
@@ -219,9 +226,13 @@ export const buildDashboardPdf = async ({
     await addImageAsPage(pdf, automationImage, 'Automation');
   }
 
-  pdf.addPage();
-  drawStatsPage(pdf, stats);
+  if (includeStats) {
+    pdf.addPage();
+    drawStatsPage(pdf, stats);
+  }
+
+  for (const table of tables) drawTable(pdf, table, stats.rangeLabel);
 
   const stamp = new Date().toISOString().slice(0, 10);
-  pdf.save(filename || `shuffle-dashboard-${stamp}.pdf`);
+  pdf.save(filename || `shuffle-${tables.length > 0 ? 'report' : 'dashboard'}-${stamp}.pdf`);
 };

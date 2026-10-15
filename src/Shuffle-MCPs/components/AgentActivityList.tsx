@@ -1202,8 +1202,18 @@ const AgentActivityList = ({
           if (!resolved[key]) {
             try {
               const hit = await resolveApp(name);
-              if (hit?.image) resolved[key] = hit.image;
-            } catch { /* skip */ }
+              if (hit?.image) {
+                resolved[key] = hit.image;
+              } else {
+                // Catalog lookup unavailable (e.g. Algolia rate-limited) —
+                // fall back to the static public image map.
+                const fb = publicAppImage(name);
+                if (fb) resolved[key] = fb;
+              }
+            } catch {
+              const fb = publicAppImage(name);
+              if (fb) resolved[key] = fb;
+            }
           }
           await new Promise((r) => setTimeout(r, 120));
         }

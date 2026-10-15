@@ -1177,7 +1177,12 @@ const AgentActivityList = ({
   // public Algolia `appsearch` index, the same lookup the app catalog uses.
   const iconAttemptsRef = useRef<Set<string>>(new Set());
   const iconMountedRef = useRef(true);
-  useEffect(() => () => { iconMountedRef.current = false; }, []);
+  useEffect(() => {
+    // Re-armed on every effect run so React's double-invoked effects
+    // (mount, cleanup, re-run) do not permanently clear the flag.
+    iconMountedRef.current = true;
+    return () => { iconMountedRef.current = false; };
+  }, []);
   useEffect(() => {
     // TEMP-DEBUG
     if (!runs.length) return;

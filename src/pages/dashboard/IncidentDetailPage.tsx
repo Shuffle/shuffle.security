@@ -20075,7 +20075,7 @@ const IncidentDetailPage = () => {
                         status: editedStatus || incident.status,
                         assignee: editedAssignee,
                         activity: activity,
-                        onTogglePause: readOnly || isPublicView ? undefined : handleToggleSlaPause,
+                        onTogglePause: isPublicView ? undefined : handleToggleSlaPause,
                         resolution: (() => {
                           const isResolved =
                             (

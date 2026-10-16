@@ -8,6 +8,26 @@ interface ChartApp {
   isActiveOnly: boolean;
 }
 
+/** Persist selected tools independently from activation/authentication. */
+export function addChartSelection(params: URLSearchParams, side: 'left' | 'right', appName: string): URLSearchParams {
+  const next = new URLSearchParams(params);
+  const param = side === 'left' ? 'source' : 'dest';
+  const names = (next.get(param) || '').split(',').filter(Boolean);
+  if (!names.some(name => normalizeAppName(name) === normalizeAppName(appName))) names.push(appName);
+  next.set(param, names.join(','));
+  const hidden = (next.get('hidden_apps') || '').split(',').filter(name => name && normalizeAppName(name) !== normalizeAppName(appName));
+  if (hidden.length) next.set('hidden_apps', hidden.join(','));
+  else next.delete('hidden_apps');
+  return next;
+}
+
+/** Restore URL selections without claiming they have credentials or activation. */
+export function restoreChartSelections(apps: ChartApp[], names: string[], icons: Record<string, string>): ChartApp[] {
+  return names.reduce<ChartApp[]>((current, name) => addSelectedChartApp(current, {
+    id: null, name, icon: icons[name.toLowerCase()] || '',
+  }), apps);
+}
+
 export function canRemoveChartApp(app: { id: string; name: string }): boolean {
   return app.id !== 'webhook-ingestion' && app.name.toLowerCase() !== 'webhook';
 }

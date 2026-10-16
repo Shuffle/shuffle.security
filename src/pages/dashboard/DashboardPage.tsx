@@ -2,6 +2,7 @@
  * Dashboard Page — CTA-focused setup guide + AI Agent notifications.
  */
 
+import { useSlaControls } from '@/hooks/useSlaControls';
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
   Box,
@@ -751,6 +752,7 @@ const DashboardPage = () => {
   const vulnLoading = isViewingChild ? viewLoading : vulnLoadingDefault;
 
   const slaConfig = useSlaConfig();
+  const slaControls = useSlaControls();
   const overviewIncidents = useMemo(() => {
     const out: { status: string; severity: string; createdTs: number }[] = [];
     const sevMap: Record<number, string> = { 1: 'informational', 2: 'low', 3: 'medium', 4: 'high', 5: 'critical', 6: 'critical' };
@@ -1190,7 +1192,9 @@ const DashboardPage = () => {
                     ) : (
                       <DashboardOverview
                         incidents={overviewIncidents}
-                        slaTargets={slaConfig}
+                        slaTargets={slaControls.incidentSlaEnabled ? slaConfig : undefined}
+                        sloTargetPercent={slaControls.sloEnabled ? slaControls.incidentSloPercent : undefined}
+                        sloSlaTargets={slaConfig}
                         incidentsLoading={incidentsLoading}
                         incidentsHasMore={!isViewingChild && incidentsHasMoreDefault}
                         vulnSeverityCounts={vulnSeverityCounts}

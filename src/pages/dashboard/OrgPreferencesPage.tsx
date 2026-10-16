@@ -22,6 +22,7 @@ import {
 import { SIDEBAR_NAV } from '@/config/sidebarNav';
 import { TaskStatusesEditor } from '@/components/settings/TaskStatusesEditor';
 import { SlaEditor } from '@/components/settings/SlaEditor';
+import { IncidentSlaToggle, TaskSlaEditor, SloEditor } from '@/components/settings/SlaControlsEditor';
 import { LifecycleEditor } from '@/components/settings/LifecycleEditor';
 import { DefaultEnvironmentSelector } from '@/components/settings/DefaultEnvironmentSelector';
 
@@ -426,7 +427,32 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
               MSSP and NIST SP 800-61 guidance — adjust to match your service commitments.
             </Typography>
           </Box>
+          <IncidentSlaToggle />
           <SlaEditor />
+        </Paper>
+
+        <Paper sx={{ p: 2.5, bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)', border: '1px solid hsl(var(--border))', borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+              Task SLA Targets
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
+              How quickly incident tasks must be completed, per task category, measured from when the task was created.
+            </Typography>
+          </Box>
+          <TaskSlaEditor />
+        </Paper>
+
+        <Paper sx={{ p: 2.5, bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)', border: '1px solid hsl(var(--border))', borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+              SLO Targets
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
+              The share of incidents and tasks that should meet their SLA. Shown as attainment on the dashboard.
+            </Typography>
+          </Box>
+          <SloEditor />
         </Paper>
 
         <Paper

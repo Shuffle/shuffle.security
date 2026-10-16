@@ -200,6 +200,7 @@ const GuestDashboardPage = () => {
           customRange={customRange}
           onRangeSelect={onRangeSelect}
           slaTargets={DEFAULT_SLA_CONFIG}
+          sloTargetPercent={95}
         />
       ))}
       </Box>

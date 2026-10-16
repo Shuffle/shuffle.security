@@ -26,7 +26,7 @@ import {
   PowerOff,
 } from 'lucide-react';
 import AppSearchDrawer from './AppSearchDrawer';
-import { addSelectedChartApp, canRemoveChartApp, removeGuestChartApp } from './chartAppSelection';
+import { addChartSelection, restoreChartSelections, addSelectedChartApp, canRemoveChartApp, removeGuestChartApp } from './chartAppSelection';
 import { useAppDetailOptional } from '@shuffleio/shuffle-mcps';
 import { getApiUrl, getAuthHeader } from '@shuffleio/shuffle-mcps';
 import type { ShuffleCoreHostProps } from '../types/host-props';
@@ -1177,7 +1177,6 @@ export default function UsecaseAlluvialDiagram({
 
   // Fetch icons from Algolia for guest apps loaded from URL params
   useEffect(() => {
-    if (isLoggedIn) return;
     const allGuestNames = [
       ...guestSourceParam.split(',').filter(Boolean),
       ...guestDestParam.split(',').filter(Boolean),
@@ -1219,18 +1218,7 @@ export default function UsecaseAlluvialDiagram({
   }, [searchParams]);
 
   const addGuestApp = (side: 'left' | 'right', app: { name: string; icon: string }) => {
-    const paramKey = side === 'left' ? 'source' : 'dest';
-    const current = searchParams.get(paramKey);
-    const names = current ? current.split(',').filter(Boolean) : [];
-    if (!names.some(n => n.toLowerCase() === app.name.toLowerCase())) {
-      names.push(app.name);
-    }
-    const newParams = new URLSearchParams(searchParams);
-    newParams.set(paramKey, names.join(','));
-    const hidden = (newParams.get('hidden_apps') || '').split(',').filter(name => name && name.toLowerCase() !== app.name.toLowerCase());
-    if (hidden.length) newParams.set('hidden_apps', hidden.join(','));
-    else newParams.delete('hidden_apps');
-    setSearchParams(newParams, { replace: true });
+    setSearchParams(previous => addChartSelection(previous, side, app.name), { replace: true });
     // Store the Algolia icon so we can render it
     if (app.icon) {
       setGuestAppIcons(prev => ({ ...prev, [app.name.toLowerCase()]: app.icon }));
@@ -1247,15 +1235,12 @@ export default function UsecaseAlluvialDiagram({
   const [locallyHiddenApps, setHiddenApps] = useState<Set<string>>(new Set());
   const hiddenApps = useMemo(() => new Set([
     ...locallyHiddenApps,
-    ...(!isLoggedIn ? (searchParams.get('hidden_apps') || '').split(',').filter(Boolean).map(name => name.toLowerCase()) : []),
+    ...(searchParams.get('hidden_apps') || '').split(',').filter(Boolean).map(name => name.toLowerCase()),
   ]), [locallyHiddenApps, isLoggedIn, searchParams]);
 
   const handleRemoveApp = useCallback((appName: string) => {
     if (!canRemoveChartApp({ id: '', name: appName })) return;
-    // For guests: also remove from URL params
-    if (!isLoggedIn) {
-      setSearchParams(previous => removeGuestChartApp(previous, appName), { replace: true });
-    }
+    setSearchParams(previous => removeGuestChartApp(previous, appName), { replace: true });
     setHiddenApps(prev => new Set(prev).add(appName.toLowerCase()));
   }, [isLoggedIn, searchParams, setSearchParams]);
 
@@ -1835,12 +1820,15 @@ export default function UsecaseAlluvialDiagram({
 
     const activeSourceAppNames = isVulnFlow ? vulnAppNames : ingestAppNames;
     const categoryToFilter = highlightCategory || (isVulnFlow ? 'vulnerabilities' : undefined);
+    const selectedSourceNames = new Set(guestSourceNames.map(normalizeAppName));
+    const sourceCandidates = restoreChartSelections(allApps, guestSourceNames, guestAppIcons);
 
     if (categoryToFilter && activeSourceAppNames) {
       // Only show apps that match the usecase's source category from the user's apps
-      const categoryApps = allApps.filter(a =>
+      const categoryApps = sourceCandidates.filter(a =>
         !isShuffleInternalApp(a.name) && (
           manualSourceApps.has(normalizeAppName(a.name)) ||
+          selectedSourceNames.has(normalizeAppName(a.name)) ||
           matchesCategory(a.name, categoryToFilter) ||
           (isVulnFlow && (matchesCategory(a.name, 'asset_management') || isVulnScannerApp(a.name)))
         )
@@ -1875,7 +1863,7 @@ export default function UsecaseAlluvialDiagram({
       return prependWebhook(filtered);
     }
     return prependWebhook(
-      allApps.filter(a => (matchesCategory(a.name, sourceCategory) || manualSourceApps.has(normalizeAppName(a.name))) && !hiddenApps.has(a.name.toLowerCase())).map(a => ({
+      sourceCandidates.filter(a => (matchesCategory(a.name, sourceCategory) || manualSourceApps.has(normalizeAppName(a.name)) || selectedSourceNames.has(normalizeAppName(a.name))) && !hiddenApps.has(a.name.toLowerCase())).map(a => ({
         ...a,
         isEnabled: true,
         isBlocked: isSourceBlocked,
@@ -1903,11 +1891,12 @@ export default function UsecaseAlluvialDiagram({
     }
 
     const isMultiCategory = isForwardTicketsFlow || isNotificationFlow;
-    const matched = allApps.filter(a =>
+    const selectedDestNames = new Set(guestDestNames.map(normalizeAppName));
+    const matched = restoreChartSelections(allApps, guestDestNames, guestAppIcons).filter(a =>
       !isShuffleInternalApp(a.name) &&
       (matchesCategory(a.name, targetCategory) ||
         (isMultiCategory && (matchesCategory(a.name, 'communication') || matchesCategory(a.name, 'case_management'))) ||
-        manualDestApps.has(normalizeAppName(a.name))) &&
+        manualDestApps.has(normalizeAppName(a.name)) || selectedDestNames.has(normalizeAppName(a.name))) &&
       !hiddenApps.has(a.name.toLowerCase())
     );
 
@@ -2665,8 +2654,8 @@ export default function UsecaseAlluvialDiagram({
         onQuickSelect={(app) => {
           const side = searchOpen;
           if (!side) return;
+          addGuestApp(side, app);
           if (!isLoggedIn) {
-            addGuestApp(side, app);
             return;
           }
 

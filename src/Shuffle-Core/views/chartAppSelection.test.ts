@@ -1,7 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { addSelectedChartApp, canRemoveChartApp, removeGuestChartApp } from './chartAppSelection';
+import { addChartSelection, restoreChartSelections, addSelectedChartApp, canRemoveChartApp, removeGuestChartApp } from './chartAppSelection';
 
 describe('Alluvial app selection', () => {
+  it('restores manually selected tools after reloading without inventing authentication', () => {
+    const params = addChartSelection(new URLSearchParams('flow=siem'), 'left', 'Gmail');
+    const reloaded = new URLSearchParams(params.toString());
+    const apps = restoreChartSelections([], (reloaded.get('source') || '').split(','), {});
+    expect(reloaded.get('flow')).toBe('siem');
+    expect(apps).toEqual([{ id: '', name: 'Gmail', icon: '', hasValidAuth: false, isActiveOnly: false }]);
+  });
+
+  it('keeps restored destinations separate and preserves real credential status', () => {
+    const params = addChartSelection(new URLSearchParams('source=Gmail'), 'right', 'Slack');
+    const existing = [{ id: 'slack-canonical-id', name: 'Slack', icon: '', hasValidAuth: true, isActiveOnly: false }];
+    expect(params.get('source')).toBe('Gmail');
+    expect(params.get('dest')).toBe('Slack');
+    expect(restoreChartSelections(existing, ['Slack'], {})).toEqual(existing);
+  });
+
+  it('removes persisted selections and allows them to be re-added without duplicates', () => {
+    const removed = removeGuestChartApp(new URLSearchParams('dest=Slack'), 'Slack');
+    const readded = addChartSelection(removed, 'right', 'Slack');
+    expect(readded.get('hidden_apps')).toBeNull();
+    expect(addChartSelection(readded, 'right', 'slack').get('dest')).toBe('Slack');
+  });
   it('removes a guest selection from both sides without requiring sign-in', () => {
     const result = removeGuestChartApp(new URLSearchParams('source=Slack,Gmail&dest=Slack,Jira'), 'slack');
     expect(result.get('source')).toBe('Gmail');

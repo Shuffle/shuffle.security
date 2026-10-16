@@ -5,7 +5,7 @@
  * Two kinds of requirements:
  *  - `app`      : a concrete app we can pre-select right away. Used for
  *                 Shuffle's own internal apps (Shuffle Incidents, Shuffle
- *                 Workflows, Shuffle App Management, Shuffle Datastore, HTTP)
+ *                 Workflows, Shuffle Apps, Shuffle Datastore, HTTP)
  *                 and for vendors named explicitly in the suggestion text.
  *  - `category` : the task needs *some* app of a given type (SIEM, EDR, git,
  *                 email, cloud …) but only the user knows which one. The UI
@@ -33,7 +33,7 @@ const cat = (value: string, label: string): SuggestionAppRequirement => ({ kind:
 // Internal Shuffle apps — always available, so they can be pre-selected.
 const SHUFFLE_INCIDENTS = app('shuffle_incidents', 'Shuffle Incidents');
 const SHUFFLE_WORKFLOWS = app('shuffle_workflows', 'Shuffle Workflows');
-const SHUFFLE_APPS = app('shuffles_app_management', 'Shuffle App Management');
+const SHUFFLE_APPS = app('shuffle_apps', 'Shuffle Apps');
 const SHUFFLE_DATASTORE = app('shuffle_datastore', 'Shuffle Datastore');
 const SHUFFLE_TOOLS = app('shuffle_tools', 'Shuffle Tools');
 const HTTP = app('http', 'HTTP');

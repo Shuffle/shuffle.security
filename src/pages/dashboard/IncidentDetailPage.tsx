@@ -7836,6 +7836,11 @@ const IncidentDetailPage = () => {
     scheduleAdaptiveObservableRefresh,
   ]);
 
+  useEffect(() => {
+    if (slaPauseSaveTick > 0) saveToDatastore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slaPauseSaveTick]);
+
   // Cache stringified complex values to avoid re-serializing on every render
   const tasksJsonRef = useRef("");
   const refsJsonRef = useRef("");
@@ -20070,7 +20075,7 @@ const IncidentDetailPage = () => {
                         status: editedStatus || incident.status,
                         assignee: editedAssignee,
                         activity: activity,
-                        onTogglePause: readOnlySla ? undefined : handleToggleSlaPause,
+                        onTogglePause: readOnly || isPublicView ? undefined : handleToggleSlaPause,
                         resolution: (() => {
                           const isResolved =
                             (

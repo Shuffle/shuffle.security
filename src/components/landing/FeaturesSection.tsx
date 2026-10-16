@@ -604,54 +604,55 @@ const HostMonitorVisual = () => {
   );
 };
 
-const VulnAutomationVisual = () => {
-  const vulns = [
-    { cve: 'CVE-2024-3094', sev: 'Critical', color: '#ef4444', action: 'Auto-patched on 12 hosts' },
-    { cve: 'CVE-2024-21413', sev: 'High', color: '#f97316', action: 'Ticket created in Jira' },
-    { cve: 'CVE-2023-44487', sev: 'Medium', color: '#f59e0b', action: 'Suppressed (not exploitable)' },
+const AutomationControlVisual = () => {
+  const automations = [
+    { label: 'Webhook ingestion', desc: 'Pushes alerts straight into incidents', on: true },
+    { label: 'Enrichment', desc: 'Threat intel on every observable', on: true },
+    { label: 'Assign & Escalate', desc: 'Routes to the on-call analyst', on: true },
+    { label: 'Routing rules', desc: 'Move incidents matching conditions', on: false },
   ];
   return (
     <Box
       sx={{
         p: 4,
         borderRadius: 4,
-        background: 'linear-gradient(145deg, rgba(244, 63, 94, 0.06) 0%, rgba(244, 63, 94, 0.01) 100%)',
-        border: '1px solid rgba(244, 63, 94, 0.15)',
+        background: 'linear-gradient(145deg, rgba(34, 211, 238, 0.06) 0%, rgba(34, 211, 238, 0.01) 100%)',
+        border: '1px solid rgba(34, 211, 238, 0.15)',
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem' }}>Vulnerability Pipeline</Typography>
-        <Typography sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>437 findings · last 24h</Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem' }}>Automation for Incidents</Typography>
+        <Typography sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>3 of 4 enabled</Typography>
       </Box>
       <Stack spacing={1.5}>
-        {vulns.map((v, i) => (
+        {automations.map((a, i) => (
           <motion.div
-            key={v.cve}
+            key={a.label}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
+            transition={{ delay: i * 0.08 }}
           >
-            <Box sx={{ p: 2, borderRadius: 2, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>{v.cve}</Typography>
-                <Box sx={{ py: 0.25, px: 1, borderRadius: 1, background: `${v.color}20`, border: `1px solid ${v.color}40` }}>
-                  <Typography sx={{ color: v.color, fontSize: '0.7rem', fontWeight: 700 }}>{v.sev}</Typography>
+            <Box sx={{ p: 2, borderRadius: 2, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>{a.label}</Typography>
+                <Typography sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>{a.desc}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
+                <Box sx={{ py: 0.25, px: 1, borderRadius: 1, background: a.on ? 'rgba(34, 197, 94, 0.15)' : 'rgba(100, 116, 139, 0.15)', border: `1px solid ${a.on ? 'rgba(34, 197, 94, 0.4)' : 'rgba(100, 116, 139, 0.4)'}` }}>
+                  <Typography sx={{ color: a.on ? '#22c55e' : '#64748b', fontSize: '0.7rem', fontWeight: 700 }}>{a.on ? 'On' : 'Off'}</Typography>
+                </Box>
+                <Box sx={{ width: 34, height: 18, borderRadius: 3, background: a.on ? '#22c55e' : 'hsl(var(--border))', position: 'relative' }}>
+                  <Box sx={{ width: 14, height: 14, borderRadius: '50%', background: 'white', position: 'absolute', top: 2, left: a.on ? 18 : 2 }} />
                 </Box>
               </Box>
-              <Typography sx={{ color: 'text.secondary', fontSize: '0.78rem' }}>→ {v.action}</Typography>
             </Box>
           </motion.div>
         ))}
       </Stack>
-      <Box sx={{ mt: 2.5, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        {['Enrich', 'Prioritize', 'Patch', 'Verify'].map((step, i) => (
-          <Box key={step} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ py: 0.5, px: 1.5, borderRadius: 1.5, background: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.25)' }}>
-              <Typography sx={{ color: '#f43f5e', fontSize: '0.7rem', fontWeight: 600 }}>{step}</Typography>
-            </Box>
-            {i < 3 && <Typography sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>→</Typography>}
-          </Box>
-        ))}
+      <Box sx={{ mt: 2.5, p: 1.75, borderRadius: 2, background: 'rgba(34, 211, 238, 0.08)', border: '1px solid rgba(34, 211, 238, 0.2)', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+        <Typography sx={{ color: '#22d3ee', fontSize: '0.75rem' }}>
+          Run debugger: Ingestion Webhook · Finished · 1.4s · 12 actions ran
+        </Typography>
       </Box>
     </Box>
   );
@@ -899,19 +900,19 @@ const features: Omit<FeatureSectionProps, 'reverse'>[] = [
   },
   {
     icon: null,
-    title: 'Vulnerability',
-    highlight: 'Automation at Scale',
-    description: 'Stop drowning in CVEs. Ingest findings from any scanner, enrich with threat intel and reachability, then route fixes through automated patching or ticketing workflows.',
+    title: 'Full Automation',
+    highlight: 'Control & Transparency',
+    description: 'Automation you can see and steer. Every category has one place that shows exactly which automations are running, routing rules decide where incidents go before anything else happens, and a run debugger digs into every execution step by step.',
     bullets: [
-      'Ingest from Qualys, Tenable, Wiz, Defender and host monitors',
-      'Auto-prioritize using severity, affected assets and exploitability context',
-      'Trigger patch, isolate, ticket or suppression workflows automatically',
-      'Track MTTR per team, asset and severity in one place',
+      'The "Automation for Incidents" and "Automation for Vulnerabilities" panels list every automation per category, with toggles you control',
+      'Routing rules match conditions on incoming incidents and route them to the right tenant, workflow or automation — with a preview of where each one lands',
+      'The workflow run debugger searches, filters and inspects any execution action by action, so you see precisely what ran and why',
+      'No silent magic: every automated decision is visible, logged and reversible',
     ],
-    color: '#f43f5e',
-    visual: <VulnAutomationVisual />,
-    link: '/vulnerabilities',
-    linkLabel: 'Open Vulnerability Management',
+    color: '#22d3ee',
+    visual: <AutomationControlVisual />,
+    link: '/usecases',
+    linkLabel: 'See Automation Control',
   },
   {
     icon: null,

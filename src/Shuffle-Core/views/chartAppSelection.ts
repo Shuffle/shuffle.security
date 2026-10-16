@@ -6,6 +6,11 @@ interface ChartApp {
   icon: string;
   hasValidAuth: boolean;
   isActiveOnly: boolean;
+  isHighlighted?: boolean;
+  isEnabled?: boolean;
+  isBlocked?: boolean;
+  blockReason?: string;
+  actionUrl?: string;
 }
 
 /** Persist selected tools independently from activation/authentication. */

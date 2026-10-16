@@ -132,6 +132,7 @@ export const TaskKanbanBoard = ({
   const taskStatuses = useTaskStatuses();
   const laneKeys = useMemo(() => taskStatuses.map((s) => s.key), [taskStatuses]);
 
+  const taskSla = useSlaControls();
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [hoverLane, setHoverLane] = useState<LaneKey | null>(null);

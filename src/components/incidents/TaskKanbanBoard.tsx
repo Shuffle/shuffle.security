@@ -1,3 +1,5 @@
+import { useSlaControls } from "@/hooks/useSlaControls";
+import { isTaskOverdue } from "@/Shuffle-Core/utils/taskSla";
 import { Plus as AddIcon, Trash as DeleteOutlineIcon, GripVertical as DragIndicatorIcon } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { Box, Typography, Chip, IconButton, TextField, Button, CircularProgress } from '@mui/material';
@@ -450,6 +452,11 @@ export const TaskKanbanBoard = ({
                           >
                             {task.title}
                           </Typography>
+                          {taskSla.taskSlaEnabled && !task.completed && isTaskOverdue(task, taskSla.taskTargets) && (
+                            <Typography variant="caption" sx={{ color: 'hsl(var(--destructive))', fontWeight: 600, flexShrink: 0 }}>
+                              Overdue
+                            </Typography>
+                          )}
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
                             {onAssignAi && (
                               <TaskAiAssignButton

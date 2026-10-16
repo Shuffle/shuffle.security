@@ -1,5 +1,6 @@
 import { Box, Button, CircularProgress, IconButton, Typography } from '@mui/material';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import { getListPage } from './listPaginationState';
 
 /**
  * Shared list pagination + server multi-loading, used by /incidents and
@@ -20,7 +21,7 @@ interface ListPaginationBarProps {
 }
 
 export const ListPaginationBar = ({
-  currentPage,
+  currentPage: requestedPage,
   totalItems,
   itemsPerPage,
   onPageChange,
@@ -30,6 +31,7 @@ export const ListPaginationBar = ({
   loadMoreTitle = 'Load more',
 }: ListPaginationBarProps) => {
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const currentPage = getListPage(requestedPage, totalItems, itemsPerPage);
   if (totalItems <= itemsPerPage) return null;
 
   const atEnd = currentPage >= totalPages;

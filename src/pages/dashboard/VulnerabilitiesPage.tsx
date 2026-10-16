@@ -30,6 +30,7 @@ import { CategoryAutomationsDialog } from '@shuffleio/shuffle-core';
 import { useDatastore } from '@/hooks/useDatastore';
 import { DATASTORE_CATEGORIES, CategoryAutomation } from '@/Shuffle-Core/datastore';
 import { ListPaginationBar, ListLoadMoreButton } from '@/components/common/ListPagination';
+import { getListPage } from '@/components/common/listPaginationState';
 import { IconActionButton } from '@/components/common/IconActionButton';
 import { useHostMonitorCount } from '@/hooks/useHostMonitorCount';
 
@@ -378,6 +379,9 @@ const AuthenticatedVulnerabilitiesView = () => {
               categoryFilter={categoryFilter}
               statusFilter={statusFilter}
               sourceFilter={sourceFilter}
+              searchQuery={searchQuery}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
               onSeverityChange={setSeverityFilter}
               onCategoryChange={setCategoryFilter}
               onStatusChange={setStatusFilter}
@@ -454,6 +458,9 @@ interface VulnTableProps {
   categoryFilter: string;
   statusFilter: string;
   sourceFilter: string;
+  searchQuery: string;
+  dateFrom?: Date;
+  dateTo?: Date;
   onSeverityChange: (v: string) => void;
   onCategoryChange: (v: string) => void;
   onStatusChange: (v: string) => void;
@@ -483,15 +490,20 @@ const VulnTable = ({
   categoryFilter,
   statusFilter,
   sourceFilter,
+  searchQuery,
+  dateFrom,
+  dateTo,
   onSeverityChange,
   onCategoryChange,
   onStatusChange,
   onSourceChange,
 }: VulnTableProps) => {
   const navigate = useNavigate();
-  const [currentPage, setCurrentPage] = useState(1);
-  // Reset to page 1 when the filtered/sorted set changes size (filters applied).
-  useEffect(() => { setCurrentPage(1); }, [severityFilter, categoryFilter, statusFilter, sourceFilter, sortKey, sortDir]);
+  const [requestedPage, setCurrentPage] = useState(1);
+  const currentPage = getListPage(requestedPage, vulnerabilities.length, VULNS_PER_PAGE);
+  // Every filter resets navigation; clamping also covers refreshed/deleted rows.
+  useEffect(() => { setCurrentPage(1); }, [severityFilter, categoryFilter, statusFilter, sourceFilter, searchQuery, dateFrom, dateTo, sortKey, sortDir]);
+  useEffect(() => { setCurrentPage(currentPage); }, [currentPage]);
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) {

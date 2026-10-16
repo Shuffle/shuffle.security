@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Box, Typography, Tooltip } from "@mui/material";
+import { Box, Typography, Tooltip, Button } from "@mui/material";
+import { slaPauseIntervals, pausedBetween, isSlaPaused } from "@/Shuffle-Core/utils/slaPause";
 import {
   useSlaConfig,
   formatSlaDuration,
@@ -29,6 +30,8 @@ export interface SimpleSlaData {
     resolvedBy?: string;
     resolvedAt?: number;
   };
+  /** When provided, shows a Pause / Resume timers control. */
+  onTogglePause?: (pause: boolean) => void;
 }
 
 const normalizeToMs = (timestamp: number | string | undefined): number => {
@@ -59,15 +62,22 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
   assignee,
   activity,
   resolution,
+  onTogglePause,
 }) => {
   const navigate = useNavigate();
   const isAdmin = useIsAdmin();
   const slaConfig = useSlaConfig();
   const [now, setNow] = useState<number>(Date.now());
 
-  const createdMs = useMemo(() => {
+  const rawCreatedMs = useMemo(() => {
     return normalizeToMs(created) || Date.now();
   }, [created]);
+  const pauses = useMemo(() => slaPauseIntervals(activity), [activity]);
+  const timersPaused = isSlaPaused(pauses);
+  // Paused time does not count: shift the start forward by the time paused
+  // before the moment being measured.
+  const pausedUntil = (t: number) => pausedBetween(pauses, rawCreatedMs, t);
+  const createdMs = rawCreatedMs;
 
   const rawSev = (severity || "").toLowerCase();
   const normalizedSev: SlaSeverity =
@@ -158,7 +168,7 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
   let respondProgress: number;
 
   if (isResponded) {
-    const durationMs = Math.max(0, respondedAtMs - createdMs);
+    const durationMs = Math.max(0, respondedAtMs - createdMs - pausedUntil(respondedAtMs));
     if (durationMs <= respondTargetMs) {
       respondState = "met";
       respondBadgeText = "Met";
@@ -172,13 +182,13 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
       respondProgress = 100;
     }
   } else {
-    const deadlineMs = createdMs + respondTargetMs;
+    const deadlineMs = createdMs + respondTargetMs + pausedUntil(now);
     const remainingMs = deadlineMs - now;
     if (remainingMs > 0) {
       respondState = "active";
       respondBadgeText = `${formatRelativeDuration(remainingMs)} left`;
       respondDetailText = `Target ${formatSlaDuration(respondTargetMinutes)}`;
-      const elapsedMs = Math.max(0, now - createdMs);
+      const elapsedMs = Math.max(0, now - createdMs - pausedUntil(now));
       respondProgress = Math.min(
         100,
         Math.max(0, Math.round((elapsedMs / respondTargetMs) * 100)),
@@ -199,7 +209,7 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
   let resolveProgress: number;
 
   if (isResolved) {
-    const durationMs = Math.max(0, resolvedAtMs - createdMs);
+    const durationMs = Math.max(0, resolvedAtMs - createdMs - pausedUntil(resolvedAtMs));
     if (durationMs <= resolveTargetMs) {
       resolveState = "met";
       resolveBadgeText = "Met";
@@ -213,23 +223,23 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
       resolveProgress = 100;
     }
   } else if (canonicalStatus === "on_hold") {
-    const deadlineMs = createdMs + resolveTargetMs;
+    const deadlineMs = createdMs + resolveTargetMs + pausedUntil(now);
     const remainingMs = Math.max(0, deadlineMs - now);
     resolveState = "paused";
     resolveBadgeText = "Paused";
     resolveDetailText = `Target ${formatSlaDuration(resolveTargetMinutes)} · ${formatRelativeDuration(remainingMs)} left`;
     resolveProgress = Math.min(
       100,
-      Math.max(0, Math.round(((now - createdMs) / resolveTargetMs) * 100)),
+      Math.max(0, Math.round(((now - createdMs - pausedUntil(now)) / resolveTargetMs) * 100)),
     );
   } else {
-    const deadlineMs = createdMs + resolveTargetMs;
+    const deadlineMs = createdMs + resolveTargetMs + pausedUntil(now);
     const remainingMs = deadlineMs - now;
     if (remainingMs > 0) {
       resolveState = "active";
       resolveBadgeText = `${formatRelativeDuration(remainingMs)} left`;
       resolveDetailText = `Target ${formatSlaDuration(resolveTargetMinutes)}`;
-      const elapsedMs = Math.max(0, now - createdMs);
+      const elapsedMs = Math.max(0, now - createdMs - pausedUntil(now));
       resolveProgress = Math.min(
         100,
         Math.max(0, Math.round((elapsedMs / resolveTargetMs) * 100)),

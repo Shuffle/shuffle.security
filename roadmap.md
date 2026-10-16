@@ -1,3 +1,0 @@
-- [ ] Verify chart selection finding against intentional direct-add behavior.
-- [ ] Fix and verify vulnerability pagination after date/search filtering.
-- [ ] Resolve verified monitoring findings.

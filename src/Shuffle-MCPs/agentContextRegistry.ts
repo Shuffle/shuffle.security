@@ -106,7 +106,7 @@ export interface PageContextChoice {
   executionId?: string | null;
   authorization?: string | null;
   executionStatus?: string | null;
-  viewMode?: 'start' | 'simple' | 'detailed' | null;
+  viewMode?: 'start' | 'simple' | 'detailed' | 'chat' | null;
   updatedAt: number;
 }
 

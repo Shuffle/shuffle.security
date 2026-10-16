@@ -134,10 +134,14 @@ export const AgentUI = withMcpTheme(AgentUIRaw as React.ComponentType<any>, 'Age
 export type {
   AgentUIProps,
   AgentUIApp,
+  AgentUIView,
   ToolDrawerRenderProps,
   AppDetailDrawerRenderProps,
 } from '@/Shuffle-MCPs/components/AgentUI';
 export { VERIFIED_BUILTIN_APPS } from '@/Shuffle-MCPs/components/AgentUI';
+// Chat tab: events a host showing the workflow can listen to
+export { AGENT_WORKFLOW_CHANGED_EVENT, AGENT_FOCUS_NODE_EVENT } from '@/Shuffle-MCPs/agentChat';
+export type { AgentWorkflowChangedDetail, AgentFocusNodeDetail } from '@/Shuffle-MCPs/agentChat';
 export const AgentPresets = withMcpTheme(AgentPresetsRaw as React.ComponentType<any>, 'AgentPresets');
 export { AGENT_PRESETS } from '@/Shuffle-Core/components/AgentPresets';
 export type { AgentPreset, AgentPresetsProps } from '@/Shuffle-Core/components/AgentPresets';

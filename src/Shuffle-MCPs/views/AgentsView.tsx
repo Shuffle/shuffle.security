@@ -19,7 +19,7 @@ import AgentExecutionDrawer from '@/Shuffle-MCPs/components/AgentExecutionDrawer
 import AgentRunDrawer, { type AgentRunDrawerTab } from '@/Shuffle-MCPs/components/AgentRunDrawer';
 import LocalLLMConfig from '@/Shuffle-Core/components/LocalLLMConfig';
 import type { AgentRun } from '@/Shuffle-MCPs/agentActivity';
-import type { AgentUIApp, AgentUIProps } from '@/Shuffle-MCPs/components/AgentUI';
+import type { AgentUIApp, AgentUIProps, AgentUIView } from '@/Shuffle-MCPs/components/AgentUI';
 import { scheduleAgentRun, updateAgentScheduleConfig } from '@/Shuffle-MCPs/agentActivity';
 import { toast } from '@/Shuffle-Core/toast';
 import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
@@ -147,7 +147,7 @@ const AgentsView = ({
   }, []);
 
   const [selectedRun, setSelectedRun] = useState<AgentRun | null>(null);
-  const [agentView, setAgentView] = useState<'start' | 'simple' | 'detailed'>('start');
+  const [agentView, setAgentView] = useState<AgentUIView>('start');
   const [prefill, setPrefill] = useState<{ input: string; apps: AgentUIApp[]; key: number }>({
     input: '',
     apps: hydratedInitialApps,

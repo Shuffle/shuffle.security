@@ -210,10 +210,11 @@ Reference implementation in production: [`src/Shuffle-MCPs/AppSearchDrawer.tsx`]
 
 ### 4. `<AgentUI />` — start + debug agents
 
-A standalone "What do you want to do?" surface for the Shuffle agent. Two modes in one component:
+A standalone "What do you want to do?" surface for the Shuffle agent. Its tabs are:
 
-1. **Starter** — large hero prompt with attached MCP/app chips. Submits to `/api/v1/agent`.
-2. **Debugger** — compact header + live decision timeline driven by `/api/v1/streams/results`, with question/continuation forms, per-decision raw-JSON inspection, approvals, retries, and reruns.
+1. **Start** — large hero prompt with attached MCP/app chips. Submits to `/api/v1/agent`.
+2. **Simple / Detailed** — compact header + live decision timeline driven by `/api/v1/streams/results`, with question/continuation forms, per-decision raw-JSON inspection, approvals, retries, and reruns.
+3. **Chat** — the same run as a conversation: the user's messages, the steps the agent took (collapsed once done), its questions with one-click replies, credentials to connect, and its answers. The composer starts a run, answers the agent, or continues a finished run.
 
 It switches modes automatically when an execution starts, or when `?execution_id=...&authorization=...` is present in the URL.
 
@@ -250,9 +251,26 @@ Useful props:
 | `compact` / `hideHeroIcon` / `hideAppPicker` / `hideAttach` | `boolean` | Layout switches for embedding |
 | `maxWidth` | `number` | Max width of the centered card. Default `900` |
 | `onRun` | `(info) => void` | Fires whenever a run finishes (success or failure) |
+| `initialView` | `'start' \| 'simple' \| 'detailed' \| 'chat'` | View to open on mount. `'chat'` opens the Chat tab, without the Start form, and keeps the tabs visible before the first run |
+| `workflowId` | `string` | Workflow the agent works on (edit-workflow skill). In Chat it also enables "Revert" and the workflow events below |
 | `className` / `sx` / `contentSx` | `string` / `SxProps` | Style overrides for the root container and inner content column |
 
 Reference page in production: [`src/pages/dashboard/AgentsPage.tsx`](../pages/dashboard/AgentsPage.tsx) (mounted at [`/agents`](https://shuffle.security/agents)).
+
+When the Chat tab changes a workflow it sends window events, so a page showing that workflow can keep its canvas in sync. Without a listener the chat still works.
+
+| Event | `detail` | Sent when |
+|---|---|---|
+| `AGENT_WORKFLOW_CHANGED_EVENT` | `{ workflowId, nodeIds, reverted? }` | An agent edit to the workflow finished, or the user reverted the chat's changes |
+| `AGENT_FOCUS_NODE_EVENT` | `{ workflowId, nodeId }` | The user clicked a changed node in the chat |
+
+```tsx
+import { AGENT_WORKFLOW_CHANGED_EVENT } from 'shuffle-mcps';
+
+window.addEventListener(AGENT_WORKFLOW_CHANGED_EVENT, (e) => {
+  if (e.detail.workflowId === workflow.id) reloadWorkflow();
+});
+```
 
 ### 5. `<AgentRunDrawer />` — Run Agent side panel
 

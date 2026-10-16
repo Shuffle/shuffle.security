@@ -1194,6 +1194,7 @@ const DashboardPage = () => {
                         incidents={overviewIncidents}
                         slaTargets={slaControls.incidentSlaEnabled ? slaConfig : undefined}
                         sloTargetPercent={slaControls.sloEnabled ? slaControls.incidentSloPercent : undefined}
+                        sloSlaTargets={slaConfig}
                         incidentsLoading={incidentsLoading}
                         incidentsHasMore={!isViewingChild && incidentsHasMoreDefault}
                         vulnSeverityCounts={vulnSeverityCounts}

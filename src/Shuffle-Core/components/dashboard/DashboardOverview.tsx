@@ -75,6 +75,8 @@ export interface OverviewProps extends ShuffleCoreHostProps {
   slaTargets?: SlaTargets;
   /** Optional SLO target percent; when set with slaTargets, shows an SLO attainment tile. */
   sloTargetPercent?: number;
+  /** Targets used for SLO attainment when SLA timers are off. Defaults to slaTargets. */
+  sloSlaTargets?: SlaTargets;
 }
 
 // Resolved first so it sits at the bottom of the stack; the top edge is
@@ -102,6 +104,7 @@ export const DashboardOverview = ({
   onOpenUsecase,
   slaTargets,
   sloTargetPercent,
+  sloSlaTargets,
   // Standard Shuffle-Core host props — accepted for API consistency across
   // components mounted in multiple places. Not currently consumed because this
   // surface is purely presentational over host-supplied data.
@@ -247,10 +250,13 @@ export const DashboardOverview = ({
     return incidents.filter(i => i.status !== 'resolved' && i.status !== 'closed' && isSlaBreached(i, slaTargets, now)).length;
   }, [incidents, slaTargets]);
   const sloAttainment = useMemo(
-    () => (slaTargets && sloTargetPercent ? incidentSloAttainment(incidents, slaTargets) : null),
-    [incidents, slaTargets, sloTargetPercent],
+    () => {
+      const t = sloSlaTargets || slaTargets;
+      return t && sloTargetPercent ? incidentSloAttainment(incidents, t) : null;
+    },
+    [incidents, slaTargets, sloSlaTargets, sloTargetPercent],
   );
-  const showSlo = Boolean(slaTargets && sloTargetPercent);
+  const showSlo = Boolean((sloSlaTargets || slaTargets) && sloTargetPercent);
   const seriesColors: Record<string, string> = slaTargets ? { ...STATUS_COLORS, 'SLA Breached': NEON.red } : STATUS_COLORS;
 
   const trendHasData = trendData.some(d => d.New || d['In Progress'] || d.Resolved);

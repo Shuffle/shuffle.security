@@ -162,7 +162,7 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
   }, [isAnyActive]);
 
   // 1. Calculate Respond SLA
-  let respondState: "met" | "breached" | "active";
+  let respondState: "met" | "breached" | "active" | "paused";
   let respondBadgeText: string;
   let respondDetailText: string;
   let respondProgress: number;
@@ -185,8 +185,8 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
     const deadlineMs = createdMs + respondTargetMs + pausedUntil(now);
     const remainingMs = deadlineMs - now;
     if (remainingMs > 0) {
-      respondState = "active";
-      respondBadgeText = `${formatRelativeDuration(remainingMs)} left`;
+      respondState = timersPaused ? "paused" : "active";
+      respondBadgeText = timersPaused ? "Paused" : `${formatRelativeDuration(remainingMs)} left`;
       respondDetailText = `Target ${formatSlaDuration(respondTargetMinutes)}`;
       const elapsedMs = Math.max(0, now - createdMs - pausedUntil(now));
       respondProgress = Math.min(
@@ -222,7 +222,7 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
       resolveDetailText = `Target ${formatSlaDuration(resolveTargetMinutes)} · Took ${formatRelativeDuration(durationMs)} (+${formatRelativeDuration(overdueMs)})`;
       resolveProgress = 100;
     }
-  } else if (canonicalStatus === "on_hold") {
+  } else if (timersPaused || canonicalStatus === "on_hold") {
     const deadlineMs = createdMs + resolveTargetMs + pausedUntil(now);
     const remainingMs = Math.max(0, deadlineMs - now);
     resolveState = "paused";
@@ -550,6 +550,30 @@ export const SimpleSlaOverview: React.FC<SimpleSlaData> = ({
           </Box>
         </Box>
       </Box>
+      {onTogglePause && (isAnyActive || timersPaused) && (
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mt: 1 }}>
+          <Typography sx={{ fontSize: "0.68rem", color: "hsl(var(--muted-foreground))" }}>
+            {timersPaused
+              ? "SLA and SLO timers are paused. Paused time does not count toward targets."
+              : "Pause while waiting on a customer or third party."}
+          </Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => onTogglePause(!timersPaused)}
+            sx={{
+              textTransform: "none",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+              color: "hsl(var(--foreground))",
+              borderColor: "hsl(var(--border))",
+              "&:hover": { borderColor: "hsl(var(--primary) / 0.5)", bgcolor: "hsl(var(--muted) / 0.4)" },
+            }}
+          >
+            {timersPaused ? "Resume timers" : "Pause timers"}
+          </Button>
+        </Box>
+      )}
     </Box>
   );
 };

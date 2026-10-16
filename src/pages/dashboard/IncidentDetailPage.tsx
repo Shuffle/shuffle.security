@@ -1,3 +1,4 @@
+import { SLA_PAUSE_TEXT, SLA_RESUME_TEXT } from '@/Shuffle-Core/utils/slaPause';
 import {
   readTenantStamp,
   isTenantGhost,
@@ -7469,6 +7470,21 @@ const IncidentDetailPage = () => {
     editedObservables,
   ]);
 
+  // SLA pause / resume is recorded as an activity entry, then saved.
+  const [slaPauseSaveTick, setSlaPauseSaveTick] = useState(0);
+  const handleToggleSlaPause = useCallback((pause: boolean) => {
+    setActivity((prev) => [
+      ...prev,
+      {
+        id: `sla-pause-${Date.now()}`,
+        type: "change",
+        user: currentUsername || "Unknown",
+        timestamp: Date.now(),
+        content: pause ? SLA_PAUSE_TEXT : SLA_RESUME_TEXT,
+      } as ActivityItem,
+    ]);
+    setSlaPauseSaveTick((t) => t + 1);
+  }, [currentUsername]);
   const saveToDatastore = useCallback(async () => {
     if (!incident?.id) return;
 
@@ -20054,6 +20070,7 @@ const IncidentDetailPage = () => {
                         status: editedStatus || incident.status,
                         assignee: editedAssignee,
                         activity: activity,
+                        onTogglePause: readOnlySla ? undefined : handleToggleSlaPause,
                         resolution: (() => {
                           const isResolved =
                             (

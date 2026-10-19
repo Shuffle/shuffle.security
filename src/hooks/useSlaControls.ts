@@ -82,6 +82,11 @@ function getSnapshot(): SlaControls {
 }
 const getServerSnapshot = () => DEFAULT_SLA_CONTROLS;
 
+/** Latest known settings (local cache, refreshed from org_settings on load). */
+export function getSlaControls(): SlaControls {
+  return getSnapshot();
+}
+
 let _fetched = false;
 let _inflight: Promise<void> | null = null;
 async function readOrgSettings(): Promise<Record<string, unknown>> {

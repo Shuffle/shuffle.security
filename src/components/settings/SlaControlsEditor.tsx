@@ -8,6 +8,7 @@ import { toast } from '@/lib/toast';
 import {
   DEFAULT_SLA_CONTROLS,
   TASK_SLA_CATEGORIES,
+  getSlaControls,
   mergeSlaControls,
   setSlaControls,
   useSlaControls,
@@ -80,7 +81,7 @@ function useDraft() {
     // Merge over the latest stored settings so saving one section never
     // reverts values another section (or the incident toggle) saved after
     // this draft became dirty.
-    try { await setSlaControls(mergeSlaControls(useSlaControlsStore.getState(), next)); setDirty(false); toast.success(msg); } finally { setSaving(false); }
+    try { await setSlaControls(mergeSlaControls(getSlaControls(), next)); setDirty(false); toast.success(msg); } finally { setSaving(false); }
   };
   return { draft, dirty, saving, update, save };
 }

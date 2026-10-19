@@ -114,7 +114,7 @@ export const TaskSlaEditor = () => {
       if (m <= 0) { toast.error(`${c.label}: enter a value greater than 0`); return; }
       taskTargets[c.value] = m;
     }
-    save({ ...draft, taskTargets }, 'Task SLA targets saved');
+    save({ taskTargets }, 'Task SLA targets saved');
   };
 
   return (
@@ -184,7 +184,7 @@ export const SloEditor = () => {
       const v = draft[k];
       if (!Number.isFinite(v) || v <= 0 || v > 100) { toast.error('SLO targets must be between 1 and 100 percent'); return; }
     }
-    save(draft, 'SLO targets saved');
+    save({}, 'SLO targets saved');
   };
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>

@@ -26,15 +26,8 @@ See `docs/AGENTS.md` for documentation rules.
 ## Strict Visual & Typography Rules
 
 ### ABSOLUTE PROHIBITION ON ICONS AND EMOJIS
-- **NEVER, EVER USE ICONS OR EMOJIS. UNDER ANY CIRCUMSTANCES.**
-- **No Emojis Anywhere**:
-  - Never use emojis in documentation (`.md`), comments, code, UI text, or component properties.
-  - No Unicode pictorial characters of any kind.
-  - Instead of checkmark emojis, write plain text: `Passed`, `Verified`, or `Done`.
-- **No Decorative Icons in Components or Documentation**:
-  - Do not use emoji characters or decorative icons in UI components, cards, lists, badges, or buttons (e.g., never do `icon: "..."`).
-  - Do not create "Icon" or "Icon / Key" columns in documentation tables.
-  - Rely exclusively on clean, plain-text engineering typography, crisp borders, and structured data tables.
+- **NEVER, EVER USE ICONS OR EMOJIS. UNDER ANY CIRCUMSTANCES.** No emojis or Unicode pictorial characters in docs, comments, code, UI text or props; write `Passed`, `Verified` or `Done` instead of checkmarks.
+- No decorative icons in components, cards, lists, badges or buttons (never `icon: "..."`), and no "Icon" columns in doc tables. Use plain-text typography, crisp borders and structured tables.
 
 ---
 

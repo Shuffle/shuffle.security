@@ -72,16 +72,17 @@ const SaveRow = ({ dirty, saving, onSave, label }: { dirty: boolean; saving: boo
 function useDraft() {
   const stored = useSlaControls();
   const [draft, setDraft] = useState<SlaControls>(stored);
+  const [patch, setPatch] = useState<Partial<SlaControls>>({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
-  useEffect(() => { if (!dirty) setDraft(stored); }, [stored, dirty]);
-  const update = (patch: Partial<SlaControls>) => { setDraft((p) => ({ ...p, ...patch })); setDirty(true); };
-  const save = async (next: SlaControls, msg: string) => {
+  useEffect(() => { if (!dirty) { setDraft(stored); setPatch({}); } }, [stored, dirty]);
+  const update = (p: Partial<SlaControls>) => { setDraft((d) => ({ ...d, ...p })); setPatch((prev) => ({ ...prev, ...p })); setDirty(true); };
+  const save = async (extra: Partial<SlaControls>, msg: string) => {
     setSaving(true);
-    // Merge over the latest stored settings so saving one section never
-    // reverts values another section (or the incident toggle) saved after
-    // this draft became dirty.
-    try { await setSlaControls(mergeSlaControls(getSlaControls(), next)); setDirty(false); toast.success(msg); } finally { setSaving(false); }
+    // Save only the fields this section owns, merged over the latest stored
+    // settings, so saving one section never reverts values another section
+    // (or the incident toggle) saved after this editor became dirty.
+    try { await setSlaControls(mergeSlaControls(getSlaControls(), { ...patch, ...extra })); setDirty(false); toast.success(msg); } finally { setSaving(false); }
   };
   return { draft, dirty, saving, update, save };
 }

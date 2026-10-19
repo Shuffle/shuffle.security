@@ -115,12 +115,14 @@ export async function loadSlaControls(): Promise<void> {
 }
 
 /**
- * Merge an editor draft over the latest stored settings. Editors keep a full
- * draft copy; merging at save time means fields the editor never touched keep
- * whatever value another section saved after this draft was created.
+ * Merge an editor's patch over the latest stored settings. Each settings
+ * section only patches the fields it owns, so saving one section never
+ * reverts values another section saved after this editor became dirty.
  */
-export function mergeSlaControls(latest: SlaControls, draft: SlaControls): SlaControls {
-  return normalizeSlaControls({ ...latest, ...draft, taskTargets: { ...latest.taskTargets, ...draft.taskTargets } });
+export function mergeSlaControls(latest: SlaControls, patch: Partial<SlaControls>): SlaControls {
+  const merged: SlaControls = { ...latest, ...patch };
+  if (patch.taskTargets) merged.taskTargets = { ...latest.taskTargets, ...patch.taskTargets };
+  return normalizeSlaControls(merged);
 }
 
 export async function setSlaControls(next: SlaControls) {

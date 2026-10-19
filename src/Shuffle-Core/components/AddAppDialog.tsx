@@ -191,6 +191,7 @@ export const AddAppDialog = ({
   algoliaIndexName = DEFAULT_ALGOLIA_INDEX,
   maxLength = 1024,
   initialInput = '',
+  theme,
 }: AddAppDialogProps) => {
   const dialogZIndex = useOverlayLayer(open);
   // Scope class lets the shared overlay auto-layer recognize this dialog as

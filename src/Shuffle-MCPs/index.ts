@@ -140,8 +140,8 @@ export type {
 } from '@/Shuffle-MCPs/components/AgentUI';
 export { VERIFIED_BUILTIN_APPS } from '@/Shuffle-MCPs/components/AgentUI';
 // Chat tab: events a host showing the workflow can listen to
-export { AGENT_WORKFLOW_CHANGED_EVENT, AGENT_FOCUS_NODE_EVENT } from '@/Shuffle-MCPs/agentChat';
-export type { AgentWorkflowChangedDetail, AgentFocusNodeDetail } from '@/Shuffle-MCPs/agentChat';
+export { AGENT_WORKFLOW_CHANGED_EVENT, AGENT_FOCUS_NODE_EVENT, AGENT_OPEN_EXECUTION_EVENT } from '@/Shuffle-MCPs/agentChat';
+export type { AgentWorkflowChangedDetail, AgentFocusNodeDetail, AgentOpenExecutionDetail } from '@/Shuffle-MCPs/agentChat';
 export const AgentPresets = withMcpTheme(AgentPresetsRaw as React.ComponentType<any>, 'AgentPresets');
 export { AGENT_PRESETS } from '@/Shuffle-Core/components/AgentPresets';
 export type { AgentPreset, AgentPresetsProps } from '@/Shuffle-Core/components/AgentPresets';

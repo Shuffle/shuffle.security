@@ -9,7 +9,10 @@
  *
  * Workflow edits are announced with AGENT_WORKFLOW_CHANGED_EVENT and node
  * links with AGENT_FOCUS_NODE_EVENT, so a host that shows the workflow can
- * reload and highlight it. Without a listener the chat still works fully.
+ * reload and highlight it. Workflow runs the agent starts are shown from the
+ * execution itself, not the agent's words, and announced with
+ * AGENT_OPEN_EXECUTION_EVENT so the host can open its own run view. Without a
+ * listener the chat still works fully.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -18,6 +21,7 @@ import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
 import { toast } from '@/Shuffle-Core/toast';
 import {
   AGENT_FOCUS_NODE_EVENT,
+  AGENT_OPEN_EXECUTION_EVENT,
   AGENT_WORKFLOW_CHANGED_EVENT,
   ASK_FIRST_PREFIX,
   asksForApproval,
@@ -34,22 +38,29 @@ import {
   getField,
   getQuickReplies,
   getResult,
+  getRunIdleSeconds,
+  getRunNodes,
   getStepDuration,
   getStepStatus,
   getWorkflowProblems,
+  getWorkflowRuns,
   isAction,
   isAsk,
   isFinish,
   parseJson,
   toSeconds,
   type AgentFocusNodeDetail,
+  type AgentOpenExecutionDetail,
   type BackendJson,
   type AgentWorkflowChangedDetail,
   type ChatDecision,
   type ChatThreadItem,
+  type ChatWorkflowRun,
 } from '@/Shuffle-MCPs/agentChat';
 
 const STALL_MS = 90 * 1000;
+const RUN_POLL_MS = 3000;
+const RUN_STUCK_SECONDS = 120;
 const AUTH_WATCH_MS = 4000;
 const MODE_STORAGE_KEY = 'shuffle-agent-chat-mode';
 
@@ -113,6 +124,89 @@ const replySx = {
 } as const;
 
 const statusLabel: Record<string, string> = { running: 'Running', waiting: 'Waiting', done: 'Done', failed: 'Failed' };
+const runNodeLabel: Record<string, string> = { done: 'Done', failed: 'Failed', skipped: 'Skipped', running: 'Running', waiting: 'Waiting', 'not run': 'Not run' };
+
+/** A workflow run the agent started, read from the execution itself. */
+const RunCard: React.FC<{
+  run: ChatWorkflowRun;
+  onOpen?: () => void;
+  resolveUrl: (path: string) => string;
+  resolveHeaders: () => Record<string, string>;
+}> = ({ run, onOpen, resolveUrl, resolveHeaders }) => {
+  const [execution, setExecution] = useState<BackendJson>(null);
+  const [failedToLoad, setFailedToLoad] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const runStatus = String(execution?.status || '').toUpperCase();
+  const done = ['FINISHED', 'ABORTED', 'FAILURE'].includes(runStatus);
+
+  useEffect(() => {
+    if (done) return undefined;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const resp = await fetch(resolveUrl('/api/v1/streams/results'), {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', ...resolveHeaders() },
+          body: JSON.stringify({ execution_id: run.executionId, authorization: run.authorization }),
+        });
+        if (!resp.ok) throw new Error(`status ${resp.status}`);
+        const data = await resp.json();
+        if (!cancelled) {
+          setExecution(data);
+          setFailedToLoad(false);
+          setNow(Date.now());
+        }
+      } catch {
+        if (!cancelled) setFailedToLoad(true);
+      }
+    };
+    load();
+    const id = window.setInterval(load, RUN_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [done, run.executionId, run.authorization, resolveUrl, resolveHeaders]);
+
+  const nodes = execution ? getRunNodes(execution) : [];
+  const waitingOn = nodes.find((node) => node.status === 'waiting' || node.status === 'running');
+  const idle = execution && !done ? getRunIdleSeconds(execution, now) : 0;
+  const elapsed = toSeconds(execution?.completed_at || now) - toSeconds(execution?.started_at);
+  const heading = !execution ? 'Workflow run'
+    : runStatus === 'FINISHED' ? `Workflow run finished${elapsed > 0 ? ` in ${formatDuration(elapsed)}` : ''}`
+    : done ? `Workflow run ${runStatus === 'ABORTED' ? 'aborted' : 'failed'}`
+    : `Workflow running${elapsed > 0 ? ` for ${formatDuration(elapsed)}` : ''}`;
+
+  return (
+    <Box sx={{ my: 1, p: 1.25, border: '1px solid hsl(var(--border))', borderRadius: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography sx={{ ...textSx, flex: 1, fontWeight: 600 }}>{heading}</Typography>
+        {!done && execution && <CircularProgress size={11} sx={{ color: 'hsl(var(--primary))' }} />}
+      </Box>
+      {!execution && <Typography sx={{ ...mutedSx, mt: 0.5 }}>{failedToLoad ? 'Could not load this run.' : 'Loading the run...'}</Typography>}
+      {nodes.map((node) => (
+        <Box key={node.id} sx={{ mt: 0.5 }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'baseline' }}>
+            <Typography sx={{ ...textSx, flex: 1 }}>{node.label}</Typography>
+            <Typography sx={{ ...mutedSx, flexShrink: 0, color: node.status === 'failed' ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>
+              {runNodeLabel[node.status]}
+            </Typography>
+          </Box>
+          {node.reason && <Typography sx={{ ...mutedSx, color: 'hsl(var(--destructive))', wordBreak: 'break-word' }}>{node.reason}</Typography>}
+        </Box>
+      ))}
+      {idle > RUN_STUCK_SECONDS && (
+        <Typography sx={{ ...mutedSx, mt: 0.75 }}>
+          No progress for {formatDuration(idle)}.{waitingOn ? ` Still waiting on ${waitingOn.label}.` : ''} The run may be stuck.
+        </Typography>
+      )}
+      {onOpen && (
+        <Button size="small" disableRipple onClick={onOpen} sx={{ ...linkButtonSx, mt: 0.75 }}>Open in debug view</Button>
+      )}
+    </Box>
+  );
+};
 
 export const AgentChatView: React.FC<AgentChatViewProps> = ({
   execution,
@@ -176,6 +270,8 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   if (finishDecision?.run_details?.id && finalAnswer) knownAnswersRef.current[finishDecision.run_details.id] = finalAnswer;
 
   const labels = useMemo(() => getNodeLabels(decisions), [decisions]);
+  const runs = useMemo(() => getWorkflowRuns(decisions), [decisions]);
+  const announcedRunsRef = useRef<{ executionId: string; ids: Set<string> } | null>(null);
   const thread = useMemo(() => buildChatThread({
     prompt: agentData?.original_input,
     decisions,
@@ -238,6 +334,25 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     const detail: AgentWorkflowChangedDetail = { workflowId, nodeIds: fresh.flatMap(getChangedNodeIds) };
     window.dispatchEvent(new CustomEvent(AGENT_WORKFLOW_CHANGED_EVENT, { detail }));
   }, [decisions, executionId, workflowId]);
+
+  // Open runs the agent starts in the host's run view. Runs already in the
+  // agent run when it is first shown are not reopened.
+  const openRun = useCallback((run: ChatWorkflowRun) => {
+    if (!propWorkflowId) return;
+    const detail: AgentOpenExecutionDetail = { workflowId: run.workflowId || propWorkflowId, executionId: run.executionId, authorization: run.authorization };
+    window.dispatchEvent(new CustomEvent(AGENT_OPEN_EXECUTION_EVENT, { detail }));
+  }, [propWorkflowId]);
+
+  useEffect(() => {
+    if (!executionId) return;
+    if (announcedRunsRef.current?.executionId !== executionId) {
+      announcedRunsRef.current = { executionId, ids: new Set(runs.map((run) => run.executionId)) };
+      return;
+    }
+    const fresh = runs.filter((run) => !announcedRunsRef.current!.ids.has(run.executionId));
+    fresh.forEach((run) => announcedRunsRef.current!.ids.add(run.executionId));
+    if (fresh.length > 0) openRun(fresh[fresh.length - 1]);
+  }, [runs, executionId, openRun]);
 
   // Credentials: once the user opened the setup, keep refreshing the org's
   // credentials until they exist, then carry on for them if that was all the
@@ -427,8 +542,12 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     const ends = item.steps.map((s) => toSeconds(s.run_details?.completed_at)).filter(Boolean);
     const duration = starts.length && ends.length ? Math.max(...ends) - Math.min(...starts) : 0;
 
+    const stepIds = new Set(item.steps.map((step) => step.run_details?.id || `${step.i}`));
+    const groupRuns = runs.filter((run) => stepIds.has(run.decisionId));
+
     return (
-      <Box key={item.key} sx={{ my: 1, border: '1px solid hsl(var(--border))', borderRadius: 2, bgcolor: 'hsl(var(--muted) / 0.2)' }}>
+      <React.Fragment key={item.key}>
+      <Box sx={{ my: 1, border: '1px solid hsl(var(--border))', borderRadius: 2, bgcolor: 'hsl(var(--muted) / 0.2)' }}>
         <Box
           role="button"
           tabIndex={0}
@@ -446,6 +565,16 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
         </Box>
         {open && <Box sx={{ px: 1.25, pb: 0.5, borderTop: '1px solid hsl(var(--border))' }}>{item.steps.map(renderStep)}</Box>}
       </Box>
+      {groupRuns.map((run) => (
+        <RunCard
+          key={run.executionId}
+          run={run}
+          onOpen={propWorkflowId && (!run.workflowId || run.workflowId === propWorkflowId) ? () => openRun(run) : undefined}
+          resolveUrl={resolveUrl}
+          resolveHeaders={resolveHeaders}
+        />
+      ))}
+      </React.Fragment>
     );
   };
 

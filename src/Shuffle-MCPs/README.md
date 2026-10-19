@@ -257,12 +257,13 @@ Useful props:
 
 Reference page in production: [`src/pages/dashboard/AgentsPage.tsx`](../pages/dashboard/AgentsPage.tsx) (mounted at [`/agents`](https://shuffle.security/agents)).
 
-When the Chat tab changes a workflow it sends window events, so a page showing that workflow can keep its canvas in sync. Without a listener the chat still works.
+When the Chat tab changes or runs a workflow it sends window events, so a page showing that workflow can keep its canvas in sync. Without a listener the chat still works. Runs the agent starts also get a card in the chat showing each node's status as the engine recorded it.
 
 | Event | `detail` | Sent when |
 |---|---|---|
 | `AGENT_WORKFLOW_CHANGED_EVENT` | `{ workflowId, nodeIds, reverted? }` | An agent edit to the workflow finished, or the user reverted the chat's changes |
 | `AGENT_FOCUS_NODE_EVENT` | `{ workflowId, nodeId }` | The user clicked a changed node in the chat |
+| `AGENT_OPEN_EXECUTION_EVENT` | `{ workflowId, executionId, authorization }` | The agent started a workflow run, or the user clicked "Open in debug view" (only sent when `workflowId` is set) |
 
 ```tsx
 import { AGENT_WORKFLOW_CHANGED_EVENT } from 'shuffle-mcps';

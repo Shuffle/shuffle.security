@@ -25,6 +25,7 @@ import { Route as ShuffleCoreRouteImport } from './routes/shuffle-core'
 import { Route as ShuffleCoreDemoRouteImport } from './routes/shuffle-core-demo'
 import { Route as ShuffleMcpDemoRouteImport } from './routes/shuffle-mcp-demo'
 import { Route as ShuffleMcpsRouteImport } from './routes/shuffle-mcps'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as CondAgentRouteImport } from './routes/_cond.agent'
 import { Route as CondDashboardRouteImport } from './routes/_cond.dashboard'
 import { Route as CondSearchRouteImport } from './routes/_cond.search'
@@ -185,6 +186,11 @@ const ShuffleMcpDemoRoute = ShuffleMcpDemoRouteImport.update({
 const ShuffleMcpsRoute = ShuffleMcpsRouteImport.update({
   id: '/shuffle-mcps',
   path: '/shuffle-mcps',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CondAgentRoute = CondAgentRouteImport.update({
@@ -639,6 +645,7 @@ export interface FileRoutesByFullPath {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/agent': typeof CondAgentRoute
   '/dashboard': typeof CondDashboardRoute
   '/search': typeof CondSearchRoute
@@ -738,6 +745,7 @@ export interface FileRoutesByTo {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/agent': typeof CondAgentRoute
   '/dashboard': typeof CondDashboardRoute
   '/search': typeof CondSearchRoute
@@ -841,6 +849,7 @@ export interface FileRoutesById {
   '/shuffle-core-demo': typeof ShuffleCoreDemoRoute
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_cond/agent': typeof CondAgentRoute
   '/_cond/dashboard': typeof CondDashboardRoute
   '/_cond/search': typeof CondSearchRoute
@@ -942,6 +951,7 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/sitemap.xml'
     | '/agent'
     | '/dashboard'
     | '/search'
@@ -1041,6 +1051,7 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/sitemap.xml'
     | '/agent'
     | '/dashboard'
     | '/search'
@@ -1143,6 +1154,7 @@ export interface FileRouteTypes {
     | '/shuffle-core-demo'
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
+    | '/sitemap.xml'
     | '/_cond/agent'
     | '/_cond/dashboard'
     | '/_cond/search'
@@ -1246,6 +1258,7 @@ export interface RootRouteChildren {
   ShuffleCoreDemoRoute: typeof ShuffleCoreDemoRoute
   ShuffleMcpDemoRoute: typeof ShuffleMcpDemoRoute
   ShuffleMcpsRoute: typeof ShuffleMcpsRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ArticlesNameRoute: typeof ArticlesNameRoute
   BlogNameRoute: typeof BlogNameRoute
   DocsSlugRoute: typeof DocsSlugRoute
@@ -1371,6 +1384,13 @@ declare module '@tanstack/react-router' {
       path: '/shuffle-mcps'
       fullPath: '/shuffle-mcps'
       preLoaderRoute: typeof ShuffleMcpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_cond/agent': {
@@ -2161,6 +2181,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShuffleCoreDemoRoute: ShuffleCoreDemoRoute,
   ShuffleMcpDemoRoute: ShuffleMcpDemoRoute,
   ShuffleMcpsRoute: ShuffleMcpsRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   ArticlesNameRoute: ArticlesNameRoute,
   BlogNameRoute: BlogNameRoute,
   DocsSlugRoute: DocsSlugRoute,

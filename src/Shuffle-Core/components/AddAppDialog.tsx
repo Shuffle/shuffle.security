@@ -27,6 +27,7 @@ import {
 import { Plus, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { useOverlayLayer } from '@/Shuffle-Core/drawerLayer';
+import { useShuffleCoreTheme } from '@/Shuffle-Core/components/ShuffleCoreThemeProvider';
 import { toast } from '@/Shuffle-Core/toast';
 import type { ShuffleCoreHostProps } from '@/Shuffle-Core/types/host-props';
 

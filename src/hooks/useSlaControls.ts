@@ -82,6 +82,11 @@ function getSnapshot(): SlaControls {
 }
 const getServerSnapshot = () => DEFAULT_SLA_CONTROLS;
 
+/** Latest known settings (local cache, refreshed from org_settings on load). */
+export function getSlaControls(): SlaControls {
+  return getSnapshot();
+}
+
 let _fetched = false;
 let _inflight: Promise<void> | null = null;
 async function readOrgSettings(): Promise<Record<string, unknown>> {
@@ -107,6 +112,17 @@ export async function loadSlaControls(): Promise<void> {
     } catch { /* keep local cache */ } finally { _inflight = null; }
   })();
   return _inflight;
+}
+
+/**
+ * Merge an editor's patch over the latest stored settings. Each settings
+ * section only patches the fields it owns, so saving one section never
+ * reverts values another section saved after this editor became dirty.
+ */
+export function mergeSlaControls(latest: SlaControls, patch: Partial<SlaControls>): SlaControls {
+  const merged: SlaControls = { ...latest, ...patch };
+  if (patch.taskTargets) merged.taskTargets = { ...latest.taskTargets, ...patch.taskTargets };
+  return normalizeSlaControls(merged);
 }
 
 export async function setSlaControls(next: SlaControls) {

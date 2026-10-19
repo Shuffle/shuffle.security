@@ -8,6 +8,8 @@ import { toast } from '@/lib/toast';
 import {
   DEFAULT_SLA_CONTROLS,
   TASK_SLA_CATEGORIES,
+  getSlaControls,
+  mergeSlaControls,
   setSlaControls,
   useSlaControls,
   type SlaControls,
@@ -70,13 +72,17 @@ const SaveRow = ({ dirty, saving, onSave, label }: { dirty: boolean; saving: boo
 function useDraft() {
   const stored = useSlaControls();
   const [draft, setDraft] = useState<SlaControls>(stored);
+  const [patch, setPatch] = useState<Partial<SlaControls>>({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
-  useEffect(() => { if (!dirty) setDraft(stored); }, [stored, dirty]);
-  const update = (patch: Partial<SlaControls>) => { setDraft((p) => ({ ...p, ...patch })); setDirty(true); };
-  const save = async (next: SlaControls, msg: string) => {
+  useEffect(() => { if (!dirty) { setDraft(stored); setPatch({}); } }, [stored, dirty]);
+  const update = (p: Partial<SlaControls>) => { setDraft((d) => ({ ...d, ...p })); setPatch((prev) => ({ ...prev, ...p })); setDirty(true); };
+  const save = async (extra: Partial<SlaControls>, msg: string) => {
     setSaving(true);
-    try { await setSlaControls(next); setDirty(false); toast.success(msg); } finally { setSaving(false); }
+    // Save only the fields this section owns, merged over the latest stored
+    // settings, so saving one section never reverts values another section
+    // (or the incident toggle) saved after this editor became dirty.
+    try { await setSlaControls(mergeSlaControls(getSlaControls(), { ...patch, ...extra })); setDirty(false); toast.success(msg); } finally { setSaving(false); }
   };
   return { draft, dirty, saving, update, save };
 }
@@ -108,7 +114,7 @@ export const TaskSlaEditor = () => {
       if (m <= 0) { toast.error(`${c.label}: enter a value greater than 0`); return; }
       taskTargets[c.value] = m;
     }
-    save({ ...draft, taskTargets }, 'Task SLA targets saved');
+    save({ taskTargets }, 'Task SLA targets saved');
   };
 
   return (
@@ -178,7 +184,7 @@ export const SloEditor = () => {
       const v = draft[k];
       if (!Number.isFinite(v) || v <= 0 || v > 100) { toast.error('SLO targets must be between 1 and 100 percent'); return; }
     }
-    save(draft, 'SLO targets saved');
+    save({}, 'SLO targets saved');
   };
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>

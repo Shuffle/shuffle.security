@@ -394,6 +394,7 @@ export const AddAppDialog = ({
         },
       }}
       PaperProps={{
+        className: scopeClassName,
         sx: {
           maxWidth: 640,
           width: 'calc(100vw - 32px)',

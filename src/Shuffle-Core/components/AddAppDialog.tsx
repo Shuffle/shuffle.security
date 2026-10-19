@@ -193,6 +193,10 @@ export const AddAppDialog = ({
   initialInput = '',
 }: AddAppDialogProps) => {
   const dialogZIndex = useOverlayLayer(open);
+  // Scope class lets the shared overlay auto-layer recognize this dialog as
+  // Shuffle-owned and keep it above the drawer that opened it.
+  const themeScope = useShuffleCoreTheme();
+  const scopeClassName = themeScope?.scopeClassName ?? (theme === 'dark' ? 'shuffle-mcp-scope dark' : theme === 'light' ? 'shuffle-mcp-scope' : undefined);
   const [input, setInput] = useState(initialInput);
   const [stage, setStage] = useState<Stage>('idle');
   const [spec, setSpec] = useState<OpenApiSpec | null>(null);

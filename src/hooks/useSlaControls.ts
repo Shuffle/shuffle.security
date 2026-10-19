@@ -109,6 +109,15 @@ export async function loadSlaControls(): Promise<void> {
   return _inflight;
 }
 
+/**
+ * Merge an editor draft over the latest stored settings. Editors keep a full
+ * draft copy; merging at save time means fields the editor never touched keep
+ * whatever value another section saved after this draft was created.
+ */
+export function mergeSlaControls(latest: SlaControls, draft: SlaControls): SlaControls {
+  return normalizeSlaControls({ ...latest, ...draft, taskTargets: { ...latest.taskTargets, ...draft.taskTargets } });
+}
+
 export async function setSlaControls(next: SlaControls) {
   const normalized = normalizeSlaControls(next);
   localStorage.setItem(LOCAL_KEY, JSON.stringify(normalized));

@@ -11,6 +11,9 @@ import {
   getLatestChanges,
   getNodeLabels,
   getQuickReplies,
+  getRunIdleSeconds,
+  getRunNodes,
+  getWorkflowRuns,
   getWorkflowProblems,
   stripModePrefix,
   toSeconds,
@@ -170,5 +173,39 @@ describe('agent chat replies', () => {
 
   it('hides the ask-first instruction from what the user sees', () => {
     expect(stripModePrefix(ASK_FIRST_PREFIX + 'add a slack step')).toBe('add a slack step');
+  });
+});
+
+// Mirrors run 7baac1be starting execution 904f2347, where Google Sheets never ran
+describe('agent workflow runs', () => {
+  const started: ChatDecision = {
+    action: 'post_run_workflow',
+    fields: [{ key: 'workflowId', value: 'wf' }, { key: 'body', value: '{"execution_argument":"{}"}' }],
+    run_details: { id: 'run', status: 'FINISHED', raw_response: JSON.stringify({ status: 200, body: { success: true, execution_id: 'exec', authorization: 'auth' }, url: '/api/v1/workflows/wf/run' }) },
+  };
+  const failedStart: ChatDecision = { action: 'post_run_workflow', run_details: { id: 'bad', status: 'IGNORED', raw_response: 'Failed to start decision action. Raw Error: DirectAppCall: executeSingleAction returned HTTP 401' } };
+  const execution = {
+    status: 'EXECUTING',
+    start: 'py',
+    started_at: 1792172835,
+    workflow: {
+      actions: [{ id: 'py', label: 'wassup' }, { id: 'sheet', label: 'append_sheet_values_1' }, { id: 'mail', label: 'notify' }],
+      branches: [{ source_id: 'py', destination_id: 'sheet' }, { source_id: 'sheet', destination_id: 'mail' }],
+    },
+    results: [{ action: { id: 'py' }, status: 'SUCCESS', completed_at: 1792172844352 }],
+  };
+
+  it('finds runs the agent started, skipping ones that never started', () => {
+    expect(getWorkflowRuns([failedStart, started])).toEqual([{ decisionId: 'run', workflowId: 'wf', executionId: 'exec', authorization: 'auth' }]);
+  });
+
+  it('shows each node as the engine recorded it', () => {
+    expect(getRunNodes(execution).map((node) => `${node.label}:${node.status}`)).toEqual(['wassup:done', 'append sheet values 1:waiting', 'notify:not run']);
+    const failed = { ...execution, status: 'ABORTED', results: [...execution.results, { action: { id: 'sheet' }, status: 'FAILURE', result: '{"success":false,"reason":"403 from google-sheets"}' }] };
+    expect(getRunNodes(failed).map((node) => `${node.status}:${node.reason || ''}`)).toEqual(['done:', 'failed:403 from google-sheets', 'not run:']);
+  });
+
+  it('measures how long the run has made no progress', () => {
+    expect(getRunIdleSeconds(execution, 1792172844352 + 180000)).toBeCloseTo(180);
   });
 });

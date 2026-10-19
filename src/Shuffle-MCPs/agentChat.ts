@@ -52,6 +52,11 @@ export type AgentWorkflowChangedDetail = { workflowId: string; nodeIds: string[]
 export const AGENT_FOCUS_NODE_EVENT = 'shuffle:agent_focus_node';
 export type AgentFocusNodeDetail = { workflowId: string; nodeId: string };
 
+/** Sent when the agent started a workflow run, or the user asks to see it.
+ * Hosts showing that workflow can open the run in their own run view. */
+export const AGENT_OPEN_EXECUTION_EVENT = 'shuffle:agent_open_execution';
+export type AgentOpenExecutionDetail = { workflowId: string; executionId: string; authorization: string };
+
 /** Prepended to the user's message in "Ask before changing" mode. */
 export const ASK_FIRST_PREFIX =
   '(Mode: ask before changing) Before changing the workflow, use the ask action to show me a short numbered plan of the changes and wait for my confirmation. Then make the changes.\n\n';
@@ -411,4 +416,59 @@ export const formatDuration = (seconds: number): string => {
   if (seconds < 1) return '<1s';
   if (seconds < 60) return `${Math.round(seconds)}s`;
   return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+};
+
+export type ChatWorkflowRun = { decisionId: string; workflowId: string; executionId: string; authorization: string };
+
+/** Workflow runs the agent started, from the run tool's response. */
+export const getWorkflowRuns = (decisions: ChatDecision[]): ChatWorkflowRun[] =>
+  decisions.flatMap((decision) => {
+    if (!isAction(decision, 'post_run_workflow', 'run_workflow', 'execute_workflow')) return [];
+    const started = findInResult(getResult(decision), (v) => !Array.isArray(v) && typeof v.execution_id === 'string' && typeof v.authorization === 'string');
+    if (!started) return [];
+    const workflowId = getField(decision, 'workflowId')?.value || getField(decision, 'workflow_id')?.value || started.workflow_id || '';
+    return [{ decisionId: decision.run_details?.id || `${decision.i}`, workflowId: String(workflowId), executionId: started.execution_id, authorization: started.authorization }];
+  });
+
+export type RunNodeStatus = 'done' | 'failed' | 'skipped' | 'running' | 'waiting' | 'not run';
+export type RunNode = { id: string; label: string; status: RunNodeStatus; reason?: string };
+
+const resultReason = (result: unknown): string => {
+  const parsed = parseJson(result);
+  if (parsed && typeof parsed === 'object') {
+    const text = parsed.reason || parsed.error || parsed.message || parsed.details;
+    if (typeof text === 'string') return text.substring(0, 300);
+  }
+  return typeof result === 'string' ? result.substring(0, 300) : '';
+};
+
+/** Each node of a workflow run as the engine recorded it, in workflow order.
+ * Nodes without a result are "waiting" when everything before them is done, else "not run". */
+export const getRunNodes = (execution: BackendJson): RunNode[] => {
+  const actions: BackendJson[] = execution?.workflow?.actions || [];
+  const branches: BackendJson[] = execution?.workflow?.branches || [];
+  const results: BackendJson[] = execution?.results || [];
+  const byId: Record<string, BackendJson> = {};
+  results.forEach((result) => { if (result?.action?.id) byId[result.action.id] = result; });
+  const finished = ['FINISHED', 'ABORTED', 'FAILURE'].includes(String(execution?.status || '').toUpperCase());
+
+  return actions.map((action) => {
+    const result = byId[action.id];
+    const label = humanize(action.label || action.name || action.app_name);
+    const status = String(result?.status || '').toUpperCase();
+    if (status === 'SUCCESS') return { id: action.id, label, status: 'done' };
+    if (status === 'FAILURE' || status === 'ABORTED') return { id: action.id, label, status: 'failed', reason: resultReason(result.result) };
+    if (status === 'SKIPPED') return { id: action.id, label, status: 'skipped' };
+    if (status) return { id: action.id, label, status: 'running' };
+    if (finished) return { id: action.id, label, status: 'not run' };
+    const parents = branches.filter((branch) => branch.destination_id === action.id).map((branch) => branch.source_id);
+    const ready = parents.length === 0 ? action.id === execution?.start : parents.every((id) => byId[id]);
+    return { id: action.id, label, status: ready ? 'waiting' : 'not run' };
+  });
+};
+
+/** Seconds since the run last made progress (started, or a node finished). */
+export const getRunIdleSeconds = (execution: BackendJson, nowMs: number): number => {
+  const times = [toSeconds(execution?.started_at), ...((execution?.results || []) as BackendJson[]).map((r) => toSeconds(r?.completed_at))].filter(Boolean);
+  return times.length ? nowMs / 1000 - Math.max(...times) : 0;
 };

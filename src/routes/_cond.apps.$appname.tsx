@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { routeMeta } from '@/lib/routeMeta';
 import { getPublicAppMeta } from '@/lib/appCatalog.functions';
-import { appSlug } from '@/lib/appCatalog.server';
+import { appSlug } from '@/lib/appSlug';
 import AppDetailPage from '@/pages/dashboard/AppDetailPage';
 
 const trimDescription = (text: string, max = 155): string => {

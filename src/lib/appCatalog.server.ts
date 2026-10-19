@@ -16,8 +16,8 @@ export interface PublicCatalogApp {
   categories?: string[];
 }
 
-/** URL slug used by /apps links: lowercase name, whitespace to underscores. */
-export const appSlug = (name: string): string => name.toLowerCase().replace(/\s+/g, '_');
+import { appSlug } from './appSlug';
+export { appSlug };
 
 const queryCatalog = async (body: Record<string, unknown>): Promise<{ hits: PublicCatalogApp[]; nbPages: number }> => {
   const res = await fetch(QUERY_URL, {

@@ -16,7 +16,7 @@ import {
   type AgentUIProps,
 } from '@/Shuffle-MCPs';
 import PermissionsPanel from '@/components/agent/PermissionsPanel';
-import { LocalLLMConfig } from '@/Shuffle-Core';
+import { AppDetailDrawer, AppSearchDrawer, LocalLLMConfig } from '@/Shuffle-Core';
 import { useTheme } from '@/context/ThemeContext';
 import {
   AGENT_DRAWER_OPEN_EVENT,
@@ -216,6 +216,8 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
         autoSubmit,
         incidentId,
         incidentContext,
+        renderToolDrawer: (p: any) => <AppSearchDrawer {...(p as any)} />,
+        renderAppDetailDrawer: (p: any) => <AppDetailDrawer {...(p as any)} />,
       }}
     />
   );

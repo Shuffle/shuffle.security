@@ -510,7 +510,11 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     );
   };
 
-  const lastGroupKey = [...thread].reverse().find((item) => item.type === 'steps')?.key;
+  // Only the newest item can be live. Right after the user sends a message the
+  // agent has no steps for it yet, so the previous turn's steps must stay finished.
+  const working = isRunning && !waitingQuestion;
+  const lastItem = thread[thread.length - 1];
+  const liveGroupKey = working && lastItem?.type === 'steps' ? lastItem.key : undefined;
 
   const renderItem = (item: ChatThreadItem) => {
     if (item.type === 'user') {
@@ -535,7 +539,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     }
 
     // Steps: the live group stays open, finished ones fold into one line
-    const live = item.key === lastGroupKey && isRunning && !waitingQuestion;
+    const live = item.key === liveGroupKey;
     const open = openGroups[item.key] ?? live;
     const failed = item.steps.filter((step) => getStepStatus(step) === 'failed').length;
     const starts = item.steps.map((s) => toSeconds(s.run_details?.started_at)).filter(Boolean);
@@ -754,6 +758,12 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
 
       {thread.map(renderItem)}
       {busy && thread.length === 0 && <Typography sx={{ ...mutedSx, my: 1 }}>Starting the agent...</Typography>}
+      {working && lastItem && !liveGroupKey && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, my: 1, px: 1.25, py: 0.75, border: '1px solid hsl(var(--border))', borderRadius: 2, bgcolor: 'hsl(var(--muted) / 0.2)' }}>
+          <Typography sx={{ ...mutedSx, flex: 1 }}>Working</Typography>
+          <CircularProgress size={11} sx={{ color: 'hsl(var(--primary))' }} />
+        </Box>
+      )}
       {renderWaiting()}
       {renderSummary()}
 

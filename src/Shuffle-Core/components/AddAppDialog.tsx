@@ -27,6 +27,7 @@ import {
 import { Plus, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { useOverlayLayer } from '@/Shuffle-Core/drawerLayer';
+import { useShuffleCoreTheme } from '@/Shuffle-Core/components/ShuffleCoreThemeProvider';
 import { toast } from '@/Shuffle-Core/toast';
 import type { ShuffleCoreHostProps } from '@/Shuffle-Core/types/host-props';
 
@@ -190,8 +191,13 @@ export const AddAppDialog = ({
   algoliaIndexName = DEFAULT_ALGOLIA_INDEX,
   maxLength = 1024,
   initialInput = '',
+  theme,
 }: AddAppDialogProps) => {
   const dialogZIndex = useOverlayLayer(open);
+  // Scope class lets the shared overlay auto-layer recognize this dialog as
+  // Shuffle-owned and keep it above the drawer that opened it.
+  const themeScope = useShuffleCoreTheme();
+  const scopeClassName = themeScope?.scopeClassName ?? (theme === 'dark' ? 'shuffle-mcp-scope dark' : theme === 'light' ? 'shuffle-mcp-scope' : undefined);
   const [input, setInput] = useState(initialInput);
   const [stage, setStage] = useState<Stage>('idle');
   const [spec, setSpec] = useState<OpenApiSpec | null>(null);
@@ -388,6 +394,7 @@ export const AddAppDialog = ({
         },
       }}
       PaperProps={{
+        className: scopeClassName,
         sx: {
           maxWidth: 640,
           width: 'calc(100vw - 32px)',

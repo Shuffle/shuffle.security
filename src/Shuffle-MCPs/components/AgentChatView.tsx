@@ -696,6 +696,22 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   const canType = !busy && (!isRunning || !!waitingQuestion);
 
   const composer = (
+    <>
+    {/* Past chats sits with the composer, so it stays visible however far the chat is scrolled */}
+    {showPastChats && onOpenRun && (
+      <Box sx={{ mb: 1, maxHeight: '45vh', overflow: 'auto', border: '1px solid hsl(var(--border))', borderRadius: 2, bgcolor: 'hsl(var(--background))' }}>
+        <AgentActivityList
+          apiBaseUrl={apiBaseUrl}
+          showStatusChips={false}
+          top={25}
+          limit={25}
+          onRunClick={(run) => {
+            setShowPastChats(false);
+            onOpenRun(run.execution_id, run.authorization, run.status);
+          }}
+        />
+      </Box>
+    )}
     <Box
       component="form"
       onSubmit={(e) => { e.preventDefault(); send(); }}
@@ -726,7 +742,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
           color: 'hsl(var(--foreground))', fontFamily: 'inherit', fontSize: '0.8125rem', lineHeight: 1.5, maxHeight: 160,
         }}
       />
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1.5, rowGap: 0.5 }}>
         {workflowId && (
           <Tooltip title="Auto-build makes changes right away. Ask before changing shows a plan and waits for your OK.">
             <Select
@@ -742,6 +758,14 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
             </Select>
           </Tooltip>
         )}
+        {onOpenRun && (
+          <Button size="small" disableRipple onClick={() => setShowPastChats((open) => !open)} sx={{ ...linkButtonSx, whiteSpace: 'nowrap' }}>
+            {showPastChats ? 'Hide past chats' : 'Past chats'}
+          </Button>
+        )}
+        {onNewChat && executionId && !busy && (
+          <Button size="small" disableRipple onClick={() => { setShowPastChats(false); onNewChat(); }} sx={{ ...linkButtonSx, whiteSpace: 'nowrap' }}>New chat</Button>
+        )}
         <Box sx={{ flex: 1 }} />
         {isRunning && !waitingQuestion ? (
           <Button size="small" variant="outlined" onClick={onStop} sx={{ textTransform: 'none', fontSize: '0.75rem', minHeight: 0, py: 0.25 }}>Stop</Button>
@@ -752,40 +776,13 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
         )}
       </Box>
     </Box>
+    </>
   );
 
   const stalled = stalledFor > STALL_MS;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', minHeight: 0 }}>
-      {(onOpenRun || (onNewChat && executionId)) && (
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5, mb: 0.5 }}>
-          {onOpenRun && (
-            <Button size="small" disableRipple onClick={() => setShowPastChats((open) => !open)} sx={linkButtonSx}>
-              {showPastChats ? 'Hide past chats' : 'Past chats'}
-            </Button>
-          )}
-          {onNewChat && executionId && !busy && (
-            <Button size="small" disableRipple onClick={() => { setShowPastChats(false); onNewChat(); }} sx={linkButtonSx}>New chat</Button>
-          )}
-        </Box>
-      )}
-
-      {showPastChats && onOpenRun && (
-        <Box sx={{ mb: 1.5, border: '1px solid hsl(var(--border))', borderRadius: 2, overflow: 'hidden' }}>
-          <AgentActivityList
-            apiBaseUrl={apiBaseUrl}
-            showStatusChips={false}
-            top={25}
-            limit={25}
-            onRunClick={(run) => {
-              setShowPastChats(false);
-              onOpenRun(run.execution_id, run.authorization, run.status);
-            }}
-          />
-        </Box>
-      )}
-
       {!executionId && !busy && thread.length === 0 && (
         <Box sx={{ py: 3, textAlign: 'center' }}>
           <Typography sx={{ ...textSx, fontWeight: 600 }}>Chat with the agent</Typography>

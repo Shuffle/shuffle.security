@@ -121,6 +121,7 @@ import { getToolsForSkill, AGENT_TOOLS_CHANGED_EVENT } from '@/lib/agentTools';
 
 import { useAgentPromptPrefix } from '@/Shuffle-MCPs/useAgentPromptPrefix';
 import { runAgent, resolveAgentNodeId } from '@/Shuffle-MCPs/agentRun';
+import AgentChatView from '@/Shuffle-MCPs/components/AgentChatView';
 import { toast } from '@/Shuffle-Core/toast';
 import { getPopupZIndex } from '@/Shuffle-Core/drawerLayer';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
@@ -731,6 +732,10 @@ export interface AgentUIApp {
   icon?: string;
 }
 
+/** Top-level views of AgentUI. */
+export type AgentUIView = 'start' | 'simple' | 'detailed' | 'chat';
+type RunViewMode = Exclude<AgentUIView, 'start'>;
+
 export interface AgentUIProps {
   /** Optional React key to force re-mounting when context changes */
   key?: React.Key;
@@ -853,8 +858,14 @@ export interface AgentUIProps {
   onRun?: (info: { input: string; success: boolean; executionId?: string; authorization?: string; error?: string }) => void;
   /** Called whenever the chip set under the prompt changes (add/remove apps). */
   onAppsChange?: (apps: AgentUIApp[]) => void;
-  /** Called whenever the active top-level view changes (start / simple / detailed). */
-  onViewChange?: (view: 'start' | 'simple' | 'detailed') => void;
+  /** Called whenever the active top-level view changes (start / simple / detailed / chat). */
+  onViewChange?: (view: AgentUIView) => void;
+  /**
+   * View to open on mount. 'chat' shows the run as a conversation and lets the
+   * user start, answer and continue runs from there. When omitted, the stored
+   * Simple/Detailed preference is used (unchanged behaviour).
+   */
+  initialView?: AgentUIView;
   /**
    * Called when the user saves a recurring schedule (cron expression) for the
    * current prompt. When omitted, a toast is shown indicating scheduling is
@@ -2330,6 +2341,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   onRun,
   onAppsChange,
   onViewChange,
+  initialView,
   onSchedule,
   apiKey,
   apiBaseUrl,
@@ -2922,6 +2934,11 @@ const AgentUI: React.FC<AgentUIProps> = ({
         return false;
       }
     }
+    // Chat has its own composer, so it opens without the Start form unless the
+    // user last chose Start here.
+    if (initialView === 'chat') {
+      return !!contextStorageKey && getPageContextChoice(contextStorageKey)?.viewMode === 'start';
+    }
     return true;
   });
 
@@ -3038,14 +3055,16 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const [searchParams, setSearchParams] = useSearchParams();
   const initialViewParam = searchParams.get('agentView');
 
-  const readStoredViewMode = (): 'simple' | 'detailed' => {
+  const readStoredViewMode = (): RunViewMode => {
     if (initialViewParam === 'detailed') return 'detailed';
     if (contextStorageKey) {
       const saved = getPageContextChoice(contextStorageKey);
       if (saved?.viewMode === 'detailed' || saved?.viewMode === 'simple') {
         return saved.viewMode;
       }
+      if (saved?.viewMode === 'chat') return 'chat';
     }
+    if (initialView === 'chat' || initialView === 'simple' || initialView === 'detailed') return initialView;
     if (typeof window === 'undefined') return 'simple';
     try {
       const stored = window.localStorage.getItem('shuffle-agents-view-mode');
@@ -3054,7 +3073,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
     return 'simple';
   };
 
-  const [viewMode, setViewMode] = useState<'simple' | 'detailed'>(readStoredViewMode);
+  const [viewMode, setViewMode] = useState<RunViewMode>(readStoredViewMode);
+  // Footer element the Chat view renders its composer into (sidebar layout)
+  const [chatComposerEl, setChatComposerEl] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     try {
@@ -3894,6 +3915,36 @@ const AgentUI: React.FC<AgentUIProps> = ({
     }
   }, []);
 
+  // Chat sessions: open an earlier run, or clear the current one so the next message starts a new run.
+  // Either way the choice is remembered for this page, like any other run.
+  const openChatRun = useCallback((eid: string, auth?: string, status?: string) => {
+    activeExecutionIdRef.current = eid;
+    setAgentData({});
+    setError(null);
+    setPollWarning(null);
+    setExecution({ execution_id: eid, authorization: auth, status: status || 'EXECUTING' });
+    getExecution(eid, auth);
+  }, [getExecution]);
+
+  const startNewChat = useCallback(() => {
+    activeExecutionIdRef.current = null;
+    setExecution(null);
+    setAgentData({});
+    setError(null);
+    setPollWarning(null);
+    if (contextStorageKey) {
+      setPageContextChoice(contextStorageKey, { executionId: null, authorization: null, executionStatus: null, viewMode: 'chat' });
+    }
+    if (readUrlParams) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('execution_id');
+        next.delete('authorization');
+        return next;
+      }, { replace: true });
+    }
+  }, [contextStorageKey, readUrlParams, setSearchParams]);
+
   // ── Probe whether the execution sidebar can load this run ──
   // Uses the explorer's own fetch so the answer matches exactly what the
   // drawer would render. Re-probes when the execution (or its token) changes.
@@ -3936,7 +3987,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     let eid: string | null = null;
     let auth: string | null = null;
     let initialStatus: string = 'EXECUTING';
-    let savedViewMode: 'start' | 'simple' | 'detailed' | null = null;
+    let savedViewMode: AgentUIView | null = null;
 
     if (executionId) {
       eid = executionId;
@@ -3966,7 +4017,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
         userPickedStartRef.current = true;
       } else {
         if (!userPickedStartRef.current) setShowStarter(false);
-        if (savedViewMode === 'simple' || savedViewMode === 'detailed') {
+        if (savedViewMode === 'simple' || savedViewMode === 'detailed' || savedViewMode === 'chat') {
           setViewMode(savedViewMode);
         }
       }
@@ -4125,12 +4176,13 @@ const AgentUI: React.FC<AgentUIProps> = ({
     setError(null);
     setLocalRunStart(null);
     // When starting a new run, respect the user's stored Simple/Detailed
-    // preference rather than forcing Simple every time.
+    // preference rather than forcing Simple every time. A run started from
+    // Chat stays in Chat.
     try {
       const stored = typeof window !== 'undefined' ? window.localStorage.getItem('shuffle-agents-view-mode') : null;
-      setViewMode(stored === 'detailed' ? 'detailed' : 'simple');
+      setViewMode((current) => (current === 'chat' ? 'chat' : stored === 'detailed' ? 'detailed' : 'simple'));
     } catch {
-      setViewMode('simple');
+      setViewMode((current) => (current === 'chat' ? 'chat' : 'simple'));
     }
     setShowStarter(false);
     // The user is starting a new run — drop any sticky "manual Start" pin so
@@ -4257,7 +4309,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
           executionId: eid,
           authorization: auth,
           executionStatus: 'EXECUTING',
-          viewMode: viewMode === 'detailed' ? 'detailed' : 'simple',
+          viewMode: viewMode === 'chat' || viewMode === 'detailed' ? viewMode : 'simple',
         });
       }
       setExecution({ execution_id: eid, authorization: auth, status: 'EXECUTING' });
@@ -4279,7 +4331,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
           executionId: eid,
           authorization: auth || undefined,
           executionStatus: 'FINISHED',
-          viewMode: viewMode === 'detailed' ? 'detailed' : 'simple',
+          viewMode: viewMode === 'chat' || viewMode === 'detailed' ? viewMode : 'simple',
         });
       }
       // Direct response (no async execution): synthesize a single-step view
@@ -5279,13 +5331,15 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // restart() removed — Start tab now toggles via goToTab() while preserving the execution.
 
 
-  // The three top-level "tabs": Start (the prompt form), Simple summary,
-  // and Detailed timeline. They're all available once an execution exists,
-  // so the user can flip back and forth without losing the run.
-  type TabKey = 'start' | 'simple' | 'detailed';
+  // The top-level "tabs": Start (the prompt form), Simple summary, Detailed
+  // timeline and Chat. They're all available once an execution exists, so the
+  // user can flip back and forth without losing the run.
+  type TabKey = AgentUIView;
   const activeTab: TabKey = showStarter ? 'start' : viewMode;
   const hasExecution = !!execution?.execution_id;
-  const showRunSwitcher = hasExecution || agentRequestLoading;
+  // Hosts that open in Chat keep the tabs visible, so Start stays reachable
+  // before the first run.
+  const showRunSwitcher = hasExecution || agentRequestLoading || initialView === 'chat';
   useEffect(() => {
     onViewChange?.(activeTab);
   }, [activeTab, onViewChange]);
@@ -5607,6 +5661,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
             disabled: !hasExecution,
             title: runIsActive ? 'Current agent run is in progress — view live detailed timeline' : undefined,
           },
+          { value: 'chat', label: 'Chat', title: 'The run as a conversation: ask questions, answer the agent and continue' },
           { type: 'divider', key: 'div' },
           {
             type: 'action',
@@ -7586,6 +7641,38 @@ const AgentUI: React.FC<AgentUIProps> = ({
               </Box>
             )}
           </Box>
+        ) : viewMode === 'chat' ? (
+          <AgentChatView
+            execution={execution}
+            agentData={agentData}
+            isRunning={runIsActive || optimisticRunning}
+            busy={agentRequestLoading}
+            pollWarning={pollWarning}
+            error={error}
+            workflowId={resolvedWorkflowId}
+            placeholder={placeholder}
+            composerContainer={sidebarLayout ? chatComposerEl : null}
+            onStart={(text) => submitInput(text)}
+            onSubmit={submitQuestions}
+            onStop={safeHandler('Stop', abortAgent)}
+            onRefresh={() => {
+              if (execution?.execution_id) getExecution(execution.execution_id, execution.authorization);
+            }}
+            isAppAuthenticated={isAppAuthenticated}
+            onAuthenticateApp={(app) => {
+              if (renderAppDetailDrawer) {
+                setAuthDrawerApp({ name: app.name, id: app.id });
+              } else if (typeof window !== 'undefined') {
+                window.open(app.url || `/apps/${app.id}`, '_blank', 'noopener,noreferrer');
+              }
+            }}
+            onRefreshAuthenticatedApps={() => { loadAuthenticatedApps(); }}
+            resolveUrl={resolveUrl}
+            resolveHeaders={resolveHeaders}
+            apiBaseUrl={apiBaseUrl}
+            onOpenRun={openChatRun}
+            onNewChat={startNewChat}
+          />
         ) : (
           <Box sx={{ pb: sidebarLayout ? 1.5 : '200px' }}>
             {/* Status row */}
@@ -8405,8 +8492,23 @@ const AgentUI: React.FC<AgentUIProps> = ({
         ) : null}
       </Box>
 
-      {/* Pinned Bottom Footer in Sidebar Layout */}
-      {sidebarLayout && continuationElement && (
+      {/* Pinned Bottom Footer in Sidebar Layout. Chat renders its composer here. */}
+      {sidebarLayout && !showStarter && viewMode === 'chat' && (
+        <Box
+          ref={setChatComposerEl}
+          sx={{
+            flexShrink: 0,
+            width: '100%',
+            px: 1.5,
+            pt: 1,
+            pb: 1.5,
+            borderTop: '1px solid hsl(var(--border) / 0.5)',
+            bgcolor: 'hsl(var(--card))',
+            zIndex: 10,
+          }}
+        />
+      )}
+      {sidebarLayout && continuationElement && !(viewMode === 'chat' && !showStarter) && (
         <Box
           sx={{
             flexShrink: 0,

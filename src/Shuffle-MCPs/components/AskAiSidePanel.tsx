@@ -107,6 +107,8 @@ export interface AskAiSidePanelProps extends ShuffleHostProps {
   rules?: AgentContextRule[];
   /** Authoritative support user flag */
   isSupport?: boolean;
+  /** Distance in px from the right edge of the screen, for hosts that dock their own panel there. Default 0. */
+  rightOffset?: number;
   /** Panel width in pixels. Default: 380 */
   width?: number;
   /** Theme override forwarded to AgentUI */
@@ -152,6 +154,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   search,
   rules,
   isSupport,
+  rightOffset = 0,
   width = 380,
   theme,
   globalUrl,
@@ -597,7 +600,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = startX - moveEvent.clientX;
-      const maxAllowed = Math.min(MAX_ASK_AI_PANEL_WIDTH, (window.innerWidth || 1200) - 40);
+      const maxAllowed = Math.min(MAX_ASK_AI_PANEL_WIDTH, (window.innerWidth || 1200) - rightOffset - 40);
       const nextWidth = Math.round(
         Math.max(MIN_ASK_AI_PANEL_WIDTH, Math.min(maxAllowed, startW + deltaX))
       );
@@ -629,7 +632,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
       const deltaX = startX - upEvent.clientX;
-      const maxAllowed = Math.min(MAX_ASK_AI_PANEL_WIDTH, (window.innerWidth || 1200) - 40);
+      const maxAllowed = Math.min(MAX_ASK_AI_PANEL_WIDTH, (window.innerWidth || 1200) - rightOffset - 40);
       const finalWidth = Math.round(
         Math.max(MIN_ASK_AI_PANEL_WIDTH, Math.min(maxAllowed, startW + deltaX))
       );
@@ -647,7 +650,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-  }, [panelWidth]);
+  }, [panelWidth, rightOffset]);
 
   const handleTouchResizeStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length !== 1) return;
@@ -661,7 +664,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
     const handleTouchMove = (moveEvent: TouchEvent) => {
       if (moveEvent.touches.length !== 1) return;
       const deltaX = startX - moveEvent.touches[0].clientX;
-      const maxAllowed = Math.min(MAX_ASK_AI_PANEL_WIDTH, (window.innerWidth || 1200) - 40);
+      const maxAllowed = Math.min(MAX_ASK_AI_PANEL_WIDTH, (window.innerWidth || 1200) - rightOffset - 40);
       const nextWidth = Math.round(
         Math.max(MIN_ASK_AI_PANEL_WIDTH, Math.min(maxAllowed, startW + deltaX))
       );
@@ -690,7 +693,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       window.removeEventListener('touchend', handleTouchEnd);
       const clientX = endEvent.changedTouches[0]?.clientX ?? startX;
       const deltaX = startX - clientX;
-      const maxAllowed = Math.min(MAX_ASK_AI_PANEL_WIDTH, (window.innerWidth || 1200) - 40);
+      const maxAllowed = Math.min(MAX_ASK_AI_PANEL_WIDTH, (window.innerWidth || 1200) - rightOffset - 40);
       const finalWidth = Math.round(
         Math.max(MIN_ASK_AI_PANEL_WIDTH, Math.min(maxAllowed, startW + deltaX))
       );
@@ -708,7 +711,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
 
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleTouchEnd);
-  }, [panelWidth]);
+  }, [panelWidth, rightOffset]);
 
   const effectiveWidth =
     safeActiveTab === 'localLLM'
@@ -799,7 +802,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
           {
             position: 'fixed',
             top: 0,
-            right: 0,
+            right: { xs: 0, sm: rightOffset },
             bottom: 0,
             width: { xs: '100%', sm: effectiveWidth },
             minWidth: { xs: '100%', sm: MIN_ASK_AI_PANEL_WIDTH },
@@ -814,7 +817,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
             transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
             transition: isResizing
               ? 'none'
-              : `transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.2s ease, box-shadow 0.3s ease, visibility 0s linear ${isVisible ? '0s' : '0.3s'}`,
+              : `transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), right 0.2s ease, width 0.2s ease, box-shadow 0.3s ease, visibility 0s linear ${isVisible ? '0s' : '0.3s'}`,
             pointerEvents: isVisible ? 'auto' : 'none',
             visibility: isVisible ? 'visible' : 'hidden',
             boxSizing: 'border-box',

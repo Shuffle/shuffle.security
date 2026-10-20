@@ -3915,6 +3915,36 @@ const AgentUI: React.FC<AgentUIProps> = ({
     }
   }, []);
 
+  // Chat sessions: open an earlier run, or clear the current one so the next message starts a new run.
+  // Either way the choice is remembered for this page, like any other run.
+  const openChatRun = useCallback((eid: string, auth?: string, status?: string) => {
+    activeExecutionIdRef.current = eid;
+    setAgentData({});
+    setError(null);
+    setPollWarning(null);
+    setExecution({ execution_id: eid, authorization: auth, status: status || 'EXECUTING' });
+    getExecution(eid, auth);
+  }, [getExecution]);
+
+  const startNewChat = useCallback(() => {
+    activeExecutionIdRef.current = null;
+    setExecution(null);
+    setAgentData({});
+    setError(null);
+    setPollWarning(null);
+    if (contextStorageKey) {
+      setPageContextChoice(contextStorageKey, { executionId: null, authorization: null, executionStatus: null, viewMode: 'chat' });
+    }
+    if (readUrlParams) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('execution_id');
+        next.delete('authorization');
+        return next;
+      }, { replace: true });
+    }
+  }, [contextStorageKey, readUrlParams, setSearchParams]);
+
   // ── Probe whether the execution sidebar can load this run ──
   // Uses the explorer's own fetch so the answer matches exactly what the
   // drawer would render. Re-probes when the execution (or its token) changes.
@@ -7639,6 +7669,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
             onRefreshAuthenticatedApps={() => { loadAuthenticatedApps(); }}
             resolveUrl={resolveUrl}
             resolveHeaders={resolveHeaders}
+            apiBaseUrl={apiBaseUrl}
+            onOpenRun={openChatRun}
+            onNewChat={startNewChat}
           />
         ) : (
           <Box sx={{ pb: sidebarLayout ? 1.5 : '200px' }}>

@@ -18,6 +18,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { Box, Button, CircularProgress, MenuItem, Select, Tooltip, Typography } from '@mui/material';
 import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
+import AgentActivityList from '@/Shuffle-MCPs/components/AgentActivityList';
 import { toast } from '@/Shuffle-Core/toast';
 import {
   AGENT_FOCUS_NODE_EVENT,
@@ -92,6 +93,12 @@ export interface AgentChatViewProps {
   onRefreshAuthenticatedApps: () => void;
   resolveUrl: (path: string) => string;
   resolveHeaders: () => Record<string, string>;
+  /** Backend for the past chats list (the Agents page run list). */
+  apiBaseUrl?: string;
+  /** Opens an earlier agent run in this chat. Past chats are hidden without it. */
+  onOpenRun?: (executionId: string, authorization?: string, status?: string) => void;
+  /** Clears the current run so the next message starts a new one. */
+  onNewChat?: () => void;
 }
 
 const readMode = (): 'auto' | 'ask' => {
@@ -227,6 +234,9 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   onRefreshAuthenticatedApps,
   resolveUrl,
   resolveHeaders,
+  apiBaseUrl,
+  onOpenRun,
+  onNewChat,
 }) => {
   const executionId = execution?.execution_id || '';
   const decisions = useMemo<ChatDecision[]>(
@@ -244,6 +254,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   const [rawSteps, setRawSteps] = useState<Record<string, boolean>>({});
   const [watchingAuth, setWatchingAuth] = useState(false);
   const [reverting, setReverting] = useState(false);
+  const [showPastChats, setShowPastChats] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   // Answers seen in this session, by finish decision id. A follow-up rewrites that
@@ -747,6 +758,34 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', minHeight: 0 }}>
+      {(onOpenRun || (onNewChat && executionId)) && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5, mb: 0.5 }}>
+          {onOpenRun && (
+            <Button size="small" disableRipple onClick={() => setShowPastChats((open) => !open)} sx={linkButtonSx}>
+              {showPastChats ? 'Hide past chats' : 'Past chats'}
+            </Button>
+          )}
+          {onNewChat && executionId && !busy && (
+            <Button size="small" disableRipple onClick={() => { setShowPastChats(false); onNewChat(); }} sx={linkButtonSx}>New chat</Button>
+          )}
+        </Box>
+      )}
+
+      {showPastChats && onOpenRun && (
+        <Box sx={{ mb: 1.5, border: '1px solid hsl(var(--border))', borderRadius: 2, overflow: 'hidden' }}>
+          <AgentActivityList
+            apiBaseUrl={apiBaseUrl}
+            showStatusChips={false}
+            top={25}
+            limit={25}
+            onRunClick={(run) => {
+              setShowPastChats(false);
+              onOpenRun(run.execution_id, run.authorization, run.status);
+            }}
+          />
+        </Box>
+      )}
+
       {!executionId && !busy && thread.length === 0 && (
         <Box sx={{ py: 3, textAlign: 'center' }}>
           <Typography sx={{ ...textSx, fontWeight: 600 }}>Chat with the agent</Typography>

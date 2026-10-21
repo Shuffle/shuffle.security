@@ -732,6 +732,33 @@ export interface AgentUIApp {
   icon?: string;
 }
 
+/** Normalizes an app name so "Shuffle Workflows Builder" and "shuffle_workflows_builder" match. */
+const agentAppKey = (name?: string) =>
+  String(name || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+
+/**
+ * Removes duplicate apps (same id, or same normalized name). Keeps the first
+ * entry but fills in a missing id/icon from a later duplicate.
+ */
+export function dedupeAgentApps(list: AgentUIApp[] | null | undefined): AgentUIApp[] {
+  if (!Array.isArray(list)) return [];
+  const out: AgentUIApp[] = [];
+  for (const app of list) {
+    if (!app?.name && !app?.id) continue;
+    const key = agentAppKey(app.name);
+    const existing = out.find(
+      (a) => (key && agentAppKey(a.name) === key) || (!!app.id && !!a.id && a.id === app.id),
+    );
+    if (existing) {
+      if (!existing.id && app.id) existing.id = app.id;
+      if (!existing.icon && app.icon) existing.icon = app.icon;
+      continue;
+    }
+    out.push({ ...app });
+  }
+  return out;
+}
+
 /** Top-level views of AgentUI. */
 export type AgentUIView = 'start' | 'simple' | 'detailed' | 'chat';
 type RunViewMode = Exclude<AgentUIView, 'start'>;

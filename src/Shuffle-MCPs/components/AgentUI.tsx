@@ -737,8 +737,8 @@ const agentAppKey = (name?: string) =>
   String(name || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
 
 /**
- * Removes duplicate apps (same id, or same normalized name). Keeps the first
- * entry but fills in a missing id/icon from a later duplicate.
+ * Removes duplicate apps (same id, or same normalized name). The latest
+ * addition stays, but keeps an id/icon the newer entry lacks.
  */
 export function dedupeAgentApps(list: AgentUIApp[] | null | undefined): AgentUIApp[] {
   if (!Array.isArray(list)) return [];
@@ -746,12 +746,18 @@ export function dedupeAgentApps(list: AgentUIApp[] | null | undefined): AgentUIA
   for (const app of list) {
     if (!app?.name && !app?.id) continue;
     const key = agentAppKey(app.name);
-    const existing = out.find(
+    const existingIndex = out.findIndex(
       (a) => (key && agentAppKey(a.name) === key) || (!!app.id && !!a.id && a.id === app.id),
     );
-    if (existing) {
-      if (!existing.id && app.id) existing.id = app.id;
-      if (!existing.icon && app.icon) existing.icon = app.icon;
+    if (existingIndex >= 0) {
+      const existing = out[existingIndex];
+      // The latest addition wins; carry over id/icon it does not have.
+      out[existingIndex] = {
+        ...existing,
+        name: app.name || existing.name,
+        id: app.id || existing.id,
+        icon: app.icon || existing.icon,
+      };
       continue;
     }
     out.push({ ...app });

@@ -2857,13 +2857,18 @@ const AgentUI: React.FC<AgentUIProps> = ({
     { name: 'http' },
     { name: 'shuffle_tools' },
   ];
-  const [chosenApps, setChosenApps] = useState<AgentUIApp[]>(() => {
-    if (apps) return apps;
-    if (defaultApps !== undefined) return defaultApps.slice(0, MAX_AUTO_ASSIGNED_TOOLS);
+  const [chosenApps, setChosenAppsRaw] = useState<AgentUIApp[]>(() => {
+    if (apps) return dedupeAgentApps(apps);
+    if (defaultApps !== undefined) return dedupeAgentApps(defaultApps).slice(0, MAX_AUTO_ASSIGNED_TOOLS);
     const saved = readPresetAppsOverride(NO_PRESET_KEY);
-    if (saved) return saved;
+    if (saved) return dedupeAgentApps(saved);
     return BUILTIN_DEFAULT_APPS;
   });
+  // Every write goes through dedupe so the same app can never be attached twice,
+  // whichever path (preset, picker, execution restore, override) adds it.
+  const setChosenApps = useCallback((next: AgentUIApp[] | ((prev: AgentUIApp[]) => AgentUIApp[])) => {
+    setChosenAppsRaw((prev) => dedupeAgentApps(typeof next === 'function' ? next(prev) : next));
+  }, []);
   const isInitialMountChosenAppsRef = useRef(true);
   const isInitialMountPresetOverrideRef = useRef(true);
 

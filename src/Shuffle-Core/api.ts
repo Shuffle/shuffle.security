@@ -464,8 +464,11 @@ export const setHostBaseUrl = (url: string | undefined | null) => {
   // On Shuffle Cloud the tenant's region_url decides the backend. A cloud URL
   // handed in as globalUrl (often API_CONFIG.baseUrl captured before the
   // region was known, i.e. the UK default) must never pin requests to that
-  // region. Host overrides are only honored for self-hosted backends.
-  if (next && isShuffleCloudDomain(next) && !isDevEnvironment()) next = null;
+  // region. Exception: when embedded in Shuffle Core on *.shuffler.io, the
+  // host's globalUrl always wins (kept on shuffler.io so its cookie is sent).
+  if (next && isShuffleCloudDomain(next) && !isDevEnvironment()) {
+    next = isOnShufflerIoHost() ? (mapCloudRegionUrl(next) || null) : null;
+  }
   if (next === _hostBaseUrl) return;
   _hostBaseUrl = next;
   if (next) {

@@ -28,6 +28,7 @@ import {
   QueryClientContext,
 } from "@tanstack/react-query";
 import { AuthFallbackProvider } from "@/context/AuthContext";
+import { useSyncHostBaseUrl } from "./useSyncHostBaseUrl";
 
 import UsecasesRaw, {
   UsecaseDrawer as UsecaseDrawerRaw,
@@ -62,7 +63,7 @@ import AdminSetupRaw, { type AdminSetupProps } from "./views/AdminSetup";
  * (e.g. AutomationDashboard's `mode: 'apps' | 'workflows'`).
  */
 export type ShuffleTheme = "light" | "dark" | "system";
-type WithTheme<P> = P & { theme?: ShuffleTheme; colorMode?: ShuffleColorMode };
+type WithTheme<P> = P & { theme?: ShuffleTheme; colorMode?: ShuffleColorMode; /** Backend base URL. On *.shuffler.io hosts it always wins; on Shuffle Cloud elsewhere only self-hosted URLs are honored. */ globalUrl?: string };
 
 const resolveMode = (
   theme?: ShuffleTheme,
@@ -108,7 +109,9 @@ const withTheme = <P extends object>(
   Inner: React.ComponentType<P>,
   displayName: string,
 ) => {
-  const Wrapped: React.FC<WithTheme<P>> = ({ theme, colorMode, ...rest }) => (
+  const Wrapped: React.FC<WithTheme<P>> = ({ theme, colorMode, ...rest }) => {
+    useSyncHostBaseUrl((rest as any).globalUrl);
+    return (
     <EnsureQueryClient>
       <AuthFallbackProvider>
       <ShuffleCoreThemeProvider mode={resolveMode(theme, colorMode)}>
@@ -121,7 +124,8 @@ const withTheme = <P extends object>(
       </ShuffleCoreThemeProvider>
       </AuthFallbackProvider>
     </EnsureQueryClient>
-  );
+    );
+  };
   Wrapped.displayName = `ShuffleCore(${displayName})`;
   return Wrapped;
 };
@@ -130,7 +134,9 @@ const withThemeRef = <P extends object, R>(
   Inner: React.ForwardRefExoticComponent<P & React.RefAttributes<R>>,
   displayName: string,
 ) => {
-  const Wrapped = React.forwardRef<R, WithTheme<P>>(({ theme, colorMode, ...rest }, ref) => (
+  const Wrapped = React.forwardRef<R, WithTheme<P>>(({ theme, colorMode, ...rest }, ref) => {
+    useSyncHostBaseUrl((rest as any).globalUrl);
+    return (
     <EnsureQueryClient>
       <AuthFallbackProvider>
         <ShuffleCoreThemeProvider mode={resolveMode(theme, colorMode)}>
@@ -138,7 +144,8 @@ const withThemeRef = <P extends object, R>(
         </ShuffleCoreThemeProvider>
       </AuthFallbackProvider>
     </EnsureQueryClient>
-  ));
+    );
+  });
   Wrapped.displayName = `ShuffleCore(${displayName})`;
   return Wrapped as React.ForwardRefExoticComponent<WithTheme<P> & React.RefAttributes<R>>;
 };

@@ -20,6 +20,7 @@ import {
 
 ensureShuffleMcpStyles();
 import { AuthFallbackProvider } from '@/context/AuthContext';
+import { useSyncHostBaseUrl } from '@/Shuffle-Core/useSyncHostBaseUrl';
 
 let _fallbackQueryClient: QueryClient | null = null;
 function getFallbackQueryClient() {
@@ -45,7 +46,7 @@ const EnsureQueryClient: React.FC<{ children: React.ReactNode }> = ({ children }
  * `colorMode` is preserved as a legacy alias (`"auto"` == `"system"`).
  */
 export type ShuffleTheme = 'light' | 'dark' | 'system';
-type WithTheme<P> = P & { theme?: ShuffleTheme; colorMode?: ShuffleMcpColorMode };
+type WithTheme<P> = P & { theme?: ShuffleTheme; colorMode?: ShuffleMcpColorMode; /** Backend base URL. On *.shuffler.io hosts it always wins; on Shuffle Cloud elsewhere only self-hosted URLs are honored. */ globalUrl?: string };
 
 const resolveMode = (theme?: ShuffleTheme, colorMode?: ShuffleMcpColorMode): ShuffleMcpColorMode => {
   if (theme === 'light' || theme === 'dark') return theme;
@@ -55,8 +56,9 @@ const resolveMode = (theme?: ShuffleTheme, colorMode?: ShuffleMcpColorMode): Shu
 };
 
 const withMcpTheme = <P extends object>(Inner: React.ComponentType<P>, displayName: string) => {
-  const Wrapped: React.FC<WithTheme<P>> = ({ theme, colorMode, ...rest }) =>
-    React.createElement(
+  const Wrapped: React.FC<WithTheme<P>> = ({ theme, colorMode, ...rest }) => {
+    useSyncHostBaseUrl((rest as any).globalUrl);
+    return React.createElement(
       EnsureQueryClient,
       null,
       React.createElement(
@@ -69,13 +71,15 @@ const withMcpTheme = <P extends object>(Inner: React.ComponentType<P>, displayNa
         ),
       ),
     );
+  };
   Wrapped.displayName = `ShuffleMCPs(${displayName})`;
   return Wrapped as React.ComponentType<WithTheme<P>>;
 };
 
 const withMcpThemeRef = <P extends object, R>(Inner: React.ForwardRefExoticComponent<P & React.RefAttributes<R>>, displayName: string) => {
-  const Wrapped = React.forwardRef<R, WithTheme<P>>(({ theme, colorMode, ...rest }, ref) =>
-    React.createElement(
+  const Wrapped = React.forwardRef<R, WithTheme<P>>(({ theme, colorMode, ...rest }, ref) => {
+    useSyncHostBaseUrl((rest as any).globalUrl);
+    return React.createElement(
       EnsureQueryClient,
       null,
       React.createElement(
@@ -87,8 +91,8 @@ const withMcpThemeRef = <P extends object, R>(Inner: React.ForwardRefExoticCompo
           React.createElement(Inner as React.ComponentType<any>, { ...(rest as P), theme, colorMode, ref }),
         ),
       ),
-    ),
-  );
+    );
+  });
   Wrapped.displayName = `ShuffleMCPs(${displayName})`;
   return Wrapped as React.ForwardRefExoticComponent<WithTheme<P> & React.RefAttributes<R>>;
 };

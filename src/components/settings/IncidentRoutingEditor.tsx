@@ -62,6 +62,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { getDatastoreByCategory } from '@/Shuffle-Core/datastore';
+import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from '@/Shuffle-Core/components/DatastoreCategorySelect';
 import {
   findRoutingWorkflow,
   getExpectedRoutingWorkflowLabel,
@@ -321,9 +322,48 @@ interface IncidentRoutingEditorProps {
    * drawer, which has no paper of its own.
    */
   borderless?: boolean;
+  /**
+   * Show the shared datastore category dropdown above the editor so rules
+   * can be managed per category. Defaults to true. Hosts that already render
+   * the same dropdown (the "Automation for X" dialog) pass false.
+   */
+  showCategorySelect?: boolean;
 }
 
 export const IncidentRoutingEditor = ({
+  showCategorySelect = true,
+  ...props
+}: IncidentRoutingEditorProps) => {
+  const initial = props.entityCategory || DEFAULT_ROUTING_ENTITY_CATEGORY;
+  const [selected, setSelected] = useState<string>(initial);
+  useEffect(() => { setSelected(initial); }, [initial]);
+  if (!showCategorySelect) return <IncidentRoutingEditorInner {...props} />;
+  const opt = DATASTORE_CATEGORY_OPTIONS.find(o => o.category === selected);
+  const isInitial = selected === initial;
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ mb: 1.5, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.75rem' }}
+        >
+          Category
+        </Typography>
+        <DatastoreCategorySelect value={selected} onChange={setSelected} />
+      </Box>
+      <IncidentRoutingEditorInner
+        key={selected}
+        {...props}
+        entityCategory={selected}
+        entityLabel={isInitial ? props.entityLabel : (opt ? { singular: opt.singular, plural: opt.plural } : undefined)}
+        generateCategory={isInitial ? props.generateCategory : undefined}
+      />
+    </Box>
+  );
+};
+
+const IncidentRoutingEditorInner = ({
   forceShow = false,
   entityCategory = DEFAULT_ROUTING_ENTITY_CATEGORY,
   entityLabel = { singular: 'incident', plural: 'incidents' },

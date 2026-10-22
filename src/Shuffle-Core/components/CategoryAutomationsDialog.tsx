@@ -1221,6 +1221,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                 </Typography>
                 <IncidentRoutingEditor
                   forceShow
+                  showCategorySelect={false}
                   entityCategory={activeCategory}
                   entityLabel={{ singular: entitySingular, plural: entityPlural }}
                   generateCategory={routingGenerateCategory}

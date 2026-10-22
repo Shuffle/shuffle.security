@@ -76,10 +76,40 @@ export const isShuffleCloudDomain = (url?: string | null): boolean => {
  * - <subdomain>.shuffle.security -> preserved as https://<subdomain>.shuffle.security
  * - Self-hosted / on-prem / dev URLs -> preserved as-is
  */
+/**
+ * True when the library is embedded in Shuffle Core on shuffler.io (or a
+ * regional *.shuffler.io host). security.shuffler.io is Shuffle Security
+ * itself and is excluded. On these hosts the session cookie belongs to
+ * shuffler.io, so API calls must stay on *.shuffler.io and never be mapped
+ * to *.shuffle.security.
+ */
+export const isOnShufflerIoHost = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.toLowerCase();
+  if (host === 'security.shuffler.io') return false;
+  return host === 'shuffler.io' || host.endsWith('.shuffler.io');
+};
+
 export const mapCloudRegionUrl = (url?: string | null): string => {
   if (!url || typeof url !== 'string') return '';
   const trimmed = url.trim();
   if (!trimmed) return '';
+
+  if (isOnShufflerIoHost()) {
+    // Embedded in Shuffle Core: keep (or bring back) requests on shuffler.io.
+    try {
+      const parsed = new URL(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`);
+      const h = parsed.hostname.toLowerCase();
+      if (h === 'shuffle.security' || h === 'www.shuffle.security') {
+        parsed.hostname = 'shuffler.io';
+      } else if (h.endsWith('.shuffle.security')) {
+        parsed.hostname = `${h.slice(0, -'.shuffle.security'.length)}.shuffler.io`;
+      }
+      return parsed.toString().replace(/\/+$/, '');
+    } catch {
+      return trimmed.replace(/\/+$/, '');
+    }
+  }
 
   const hasScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed);
   const toParse = hasScheme ? trimmed : `https://${trimmed}`;
@@ -213,6 +243,9 @@ export const getDefaultBaseUrl = (): string => {
     if (customHost) return customHost;
     return PROD_BACKEND;
   }
+  // Embedded in Shuffle Core on shuffler.io: use the host's own origin so the
+  // shuffler.io session cookie is sent.
+  if (isOnShufflerIoHost()) return window.location.origin;
   // Cloud domains always default to uk.shuffle.security; region_url from getinfo may override later
   if (isCloudDomain()) return PROD_BACKEND;
   // Self-hosted / on-prem: use current domain (nginx proxies /api/* to backend)

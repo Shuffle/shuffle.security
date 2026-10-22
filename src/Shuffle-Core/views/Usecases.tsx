@@ -7632,7 +7632,7 @@ export default function UsecasesPage(props: UsecasesPageProps = {}) {
     url: '/usecases',
   });
   useInjectScopedStyles();
-  const { globalUrl, userdata, isLoaded, isLoggedIn, theme = 'system', renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal, onToggled, workflows } = props;
+  const { globalUrl, userdata, isLoaded, isLoggedIn, theme = 'system', renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseDetailTitle, renderUsecaseActionModal, onToggled, workflows } = props;
   // Sync host-injected `globalUrl` into the Shuffle-Core api.ts runtime so
   // every internal `getApiUrl()` call (hooks, helpers, etc.) targets the host
   // backend instead of the bundled default.
@@ -7680,12 +7680,13 @@ export default function UsecasesPage(props: UsecasesPageProps = {}) {
       isLoaded: loaded,
       renderEndpointSlot,
       renderUsecaseDetailSlot,
+      renderUsecaseDetailTitle,
       renderUsecaseActionModal,
       onToggled,
       preloadedWorkflows: workflows,
       scopeClassName: themeClass ? `${SCOPE_CLASS} ${themeClass}` : SCOPE_CLASS,
     };
-  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
+  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseDetailTitle, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
 
   return (
     <UsecasesPageConfigContext.Provider value={config}>
@@ -7924,6 +7925,7 @@ export function UsecaseDrawer(props: UsecaseDrawerProps) {
     theme = 'system',
     renderEndpointSlot,
     renderUsecaseDetailSlot,
+    renderUsecaseDetailTitle,
     renderUsecaseActionModal,
     onToggled,
     workflows,
@@ -7959,12 +7961,13 @@ export function UsecaseDrawer(props: UsecaseDrawerProps) {
       isLoaded: loaded,
       renderEndpointSlot,
       renderUsecaseDetailSlot,
+      renderUsecaseDetailTitle,
       renderUsecaseActionModal,
       onToggled,
       preloadedWorkflows: workflows,
       scopeClassName: themeClass ? `${SCOPE_CLASS} ${themeClass}` : SCOPE_CLASS,
     };
-  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
+  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseDetailTitle, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
 
   return (
     <UsecasesPageConfigContext.Provider value={config}>

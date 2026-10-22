@@ -1200,6 +1200,11 @@ interface UsecasesPageConfig {
    *  Routing editor or the vulnerability readiness banner) instead of
    *  bundling it into Shuffle-Core. */
   renderUsecaseDetailSlot?: (params: { flowId: string; flowLabel: string; onOpenModal?: (modal: string) => void }) => React.ReactNode;
+  /** Optional host slot that replaces the title shown at the top of the detail
+   *  view. Return undefined to keep the usecase's own label. Lets the host
+   *  rename the area from its own state — e.g. "Vulnerability Routing Rules"
+   *  while the routing editor is showing the vulnerabilities category. */
+  renderUsecaseDetailTitle?: (params: { flowId: string; flowLabel: string }) => React.ReactNode;
   /** Optional host slot that renders an inline modal for a usecase whose
    *  `customAction.modal` key matches. Lets the host embed dialogs (e.g.
    *  "Add Host" for the Add Host-Monitors usecase) directly in the sidebar
@@ -1232,6 +1237,7 @@ const DEFAULT_CONFIG: UsecasesPageConfig = {
   isLoaded: true,
   renderEndpointSlot: undefined,
   renderUsecaseDetailSlot: undefined,
+  renderUsecaseDetailTitle: undefined,
   renderUsecaseActionModal: undefined,
   onToggled: undefined,
   preloadedWorkflows: undefined,
@@ -3637,7 +3643,7 @@ function UsecaseDetailContent({
   const primaryColor = theme.palette.primary.main;
   const navigate = useNavigate();
   const { apiUrl, authHeader } = useApi();
-  const { renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal } = useUsecasesConfig();
+  const { renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal, renderUsecaseDetailTitle } = useUsecasesConfig();
   // Tracks whether a `customAction.modal` dialog is open for this flow.
   const [actionModalOpen, setActionModalOpen] = useState(false);
   // Same handle used by the default Source/Destination tile popover so the
@@ -4423,7 +4429,7 @@ function UsecaseDetailContent({
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1 }}>
               <Typography sx={{ fontSize: '1.35rem', fontWeight: 800, color: FG, lineHeight: 1.2, flex: 1, minWidth: 0 }}>
-                {flowDisplayLabel}
+                {renderUsecaseDetailTitle?.({ flowId: flow?.id ?? '', flowLabel: flowDisplayLabel }) ?? flowDisplayLabel}
               </Typography>
               {isComingSoon ? (
                 <Box
@@ -5822,6 +5828,13 @@ export interface UsecasesPageProps {
    * configuration UI (e.g. Incident Routing editor, readiness banner).
    */
   renderUsecaseDetailSlot?: (params: { flowId: string; flowLabel: string; onOpenModal?: (modal: string) => void }) => React.ReactNode;
+  /**
+   * Optional host slot that replaces the title shown at the top of the
+   * usecase detail view. Return undefined to keep the usecase's own label.
+   * Use it to rename the area from host state — e.g. "Vulnerability Routing
+   * Rules" while the routing editor is showing the vulnerabilities category.
+   */
+  renderUsecaseDetailTitle?: (params: { flowId: string; flowLabel: string }) => React.ReactNode;
   /**
    * Optional host slot that renders an inline modal for a usecase whose
    * `customAction.modal` matches. Used to embed dialogs like "Add Host"
@@ -7632,7 +7645,7 @@ export default function UsecasesPage(props: UsecasesPageProps = {}) {
     url: '/usecases',
   });
   useInjectScopedStyles();
-  const { globalUrl, userdata, isLoaded, isLoggedIn, theme = 'system', renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal, onToggled, workflows } = props;
+  const { globalUrl, userdata, isLoaded, isLoggedIn, theme = 'system', renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseDetailTitle, renderUsecaseActionModal, onToggled, workflows } = props;
   // Sync host-injected `globalUrl` into the Shuffle-Core api.ts runtime so
   // every internal `getApiUrl()` call (hooks, helpers, etc.) targets the host
   // backend instead of the bundled default.
@@ -7680,12 +7693,13 @@ export default function UsecasesPage(props: UsecasesPageProps = {}) {
       isLoaded: loaded,
       renderEndpointSlot,
       renderUsecaseDetailSlot,
+      renderUsecaseDetailTitle,
       renderUsecaseActionModal,
       onToggled,
       preloadedWorkflows: workflows,
       scopeClassName: themeClass ? `${SCOPE_CLASS} ${themeClass}` : SCOPE_CLASS,
     };
-  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
+  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseDetailTitle, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
 
   return (
     <UsecasesPageConfigContext.Provider value={config}>
@@ -7924,6 +7938,7 @@ export function UsecaseDrawer(props: UsecaseDrawerProps) {
     theme = 'system',
     renderEndpointSlot,
     renderUsecaseDetailSlot,
+    renderUsecaseDetailTitle,
     renderUsecaseActionModal,
     onToggled,
     workflows,
@@ -7959,12 +7974,13 @@ export function UsecaseDrawer(props: UsecaseDrawerProps) {
       isLoaded: loaded,
       renderEndpointSlot,
       renderUsecaseDetailSlot,
+      renderUsecaseDetailTitle,
       renderUsecaseActionModal,
       onToggled,
       preloadedWorkflows: workflows,
       scopeClassName: themeClass ? `${SCOPE_CLASS} ${themeClass}` : SCOPE_CLASS,
     };
-  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
+  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseDetailTitle, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
 
   return (
     <UsecasesPageConfigContext.Provider value={config}>

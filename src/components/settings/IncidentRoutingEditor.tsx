@@ -323,11 +323,17 @@ interface IncidentRoutingEditorProps {
    */
   borderless?: boolean;
   /**
-   * Show the shared datastore category dropdown above the editor so rules
+   * Show the shared datastore category dropdown in the rules toolbar so rules
    * can be managed per category. Defaults to true. Hosts that already render
    * the same dropdown (the "Automation for X" dialog) pass false.
    */
   showCategorySelect?: boolean;
+  /**
+   * Compact category control rendered next to the "Add rule" button. Set by
+   * the wrapper when showCategorySelect is true; hosts that render their own
+   * dropdown leave it undefined.
+   */
+  categorySelect?: React.ReactNode;
 }
 
 export const IncidentRoutingEditor = ({
@@ -341,25 +347,21 @@ export const IncidentRoutingEditor = ({
   const opt = DATASTORE_CATEGORY_OPTIONS.find(o => o.category === selected);
   const isInitial = selected === initial;
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ mb: 1.5, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.75rem' }}
-        >
-          Category
-        </Typography>
-        <DatastoreCategorySelect value={selected} onChange={setSelected} />
-      </Box>
-      <IncidentRoutingEditorInner
-        key={selected}
-        {...props}
-        entityCategory={selected}
-        entityLabel={isInitial ? props.entityLabel : (opt ? { singular: opt.singular, plural: opt.plural } : undefined)}
-        generateCategory={isInitial ? props.generateCategory : undefined}
-      />
-    </Box>
+    <IncidentRoutingEditorInner
+      key={selected}
+      {...props}
+      entityCategory={selected}
+      entityLabel={isInitial ? props.entityLabel : (opt ? { singular: opt.singular, plural: opt.plural } : undefined)}
+      generateCategory={isInitial ? props.generateCategory : undefined}
+      categorySelect={
+        <DatastoreCategorySelect
+          value={selected}
+          onChange={setSelected}
+          label="Category"
+          compact
+        />
+      }
+    />
   );
 };
 
@@ -369,6 +371,7 @@ const IncidentRoutingEditorInner = ({
   entityLabel = { singular: 'incident', plural: 'incidents' },
   generateCategory,
   borderless = false,
+  categorySelect,
 }: IncidentRoutingEditorProps) => {
   const entityPluralCap = entityLabel.plural.charAt(0).toUpperCase() + entityLabel.plural.slice(1);
   const effectiveGenerateCategory =
@@ -1164,28 +1167,32 @@ const IncidentRoutingEditorInner = ({
         </Box>
       </Paper>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
         <Box>
           <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
             {hasFetched ? `${sortedRules.length} rule${sortedRules.length === 1 ? '' : 's'}` : 'Loading…'}
             {hasFetched && sortedRules.length > 0 && ' · evaluated low-to-high priority'}
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<AddIcon size={16} />}
-          onClick={handleAdd}
-          sx={{
-            height: 36,
-            borderColor: 'hsl(var(--border))',
-            color: 'hsl(var(--foreground))',
-            textTransform: 'none',
-            '&:hover': { borderColor: 'hsl(var(--primary))', color: 'hsl(var(--primary))' },
-          }}
-        >
-          Add rule
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {categorySelect}
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<AddIcon size={16} />}
+            onClick={handleAdd}
+            sx={{
+              height: 36,
+              borderColor: 'hsl(var(--border))',
+              color: 'hsl(var(--foreground))',
+              textTransform: 'none',
+              whiteSpace: 'nowrap',
+              '&:hover': { borderColor: 'hsl(var(--primary))', color: 'hsl(var(--primary))' },
+            }}
+          >
+            Add {entityLabel.singular} rule
+          </Button>
+        </Box>
       </Box>
 
       {isLoading && !hasFetched && (

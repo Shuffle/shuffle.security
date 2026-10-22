@@ -63,7 +63,7 @@ import AdminSetupRaw, { type AdminSetupProps } from "./views/AdminSetup";
  * (e.g. AutomationDashboard's `mode: 'apps' | 'workflows'`).
  */
 export type ShuffleTheme = "light" | "dark" | "system";
-type WithTheme<P> = P & { theme?: ShuffleTheme; colorMode?: ShuffleColorMode };
+type WithTheme<P> = P & { theme?: ShuffleTheme; colorMode?: ShuffleColorMode; /** Backend base URL. On *.shuffler.io hosts it always wins; on Shuffle Cloud elsewhere only self-hosted URLs are honored. */ globalUrl?: string };
 
 const resolveMode = (
   theme?: ShuffleTheme,

@@ -70,6 +70,8 @@ export interface ExecutionNotification {
 export interface NotificationsDrawerProps {
   open: boolean;
   onClose: () => void;
+  /** Backend base URL (applied by the library wrapper). */
+  globalUrl?: string;
   /** Optional execution context — pre-fills the search field. */
   executionId?: string;
   workflowId?: string;

@@ -46,7 +46,7 @@ const EnsureQueryClient: React.FC<{ children: React.ReactNode }> = ({ children }
  * `colorMode` is preserved as a legacy alias (`"auto"` == `"system"`).
  */
 export type ShuffleTheme = 'light' | 'dark' | 'system';
-type WithTheme<P> = P & { theme?: ShuffleTheme; colorMode?: ShuffleMcpColorMode };
+type WithTheme<P> = P & { theme?: ShuffleTheme; colorMode?: ShuffleMcpColorMode; /** Backend base URL. On *.shuffler.io hosts it always wins; on Shuffle Cloud elsewhere only self-hosted URLs are honored. */ globalUrl?: string };
 
 const resolveMode = (theme?: ShuffleTheme, colorMode?: ShuffleMcpColorMode): ShuffleMcpColorMode => {
   if (theme === 'light' || theme === 'dark') return theme;

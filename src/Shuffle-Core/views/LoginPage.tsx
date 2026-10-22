@@ -2508,6 +2508,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                                 <Box
                                   component="button"
                                   type="button"
+                                  tabIndex={-1}
                                   onClick={() => {
                                     setIsResetPasswordMode(true);
                                     setError('');
@@ -2519,11 +2520,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                                     border: 'none',
                                     background: 'transparent',
                                     cursor: 'pointer',
-                                    fontSize: '10px',
-                                    lineHeight: 1,
                                     color: 'hsl(var(--muted-foreground))',
-                                    fontWeight: 400,
                                     fontFamily: 'inherit',
+                                    // The library reset ".shuffle-core-scope button { font: inherit }" outranks a
+                                    // single sx class, so the type size needs doubled specificity to land.
+                                    '&&': {
+                                      fontSize: '0.7rem',
+                                      lineHeight: 1,
+                                      fontWeight: 400,
+                                    },
                                     '&:hover': {
                                       color: 'hsl(var(--foreground))',
                                       textDecoration: 'underline',

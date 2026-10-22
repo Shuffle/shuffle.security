@@ -26,6 +26,7 @@ import { Route as ShuffleCoreDemoRouteImport } from './routes/shuffle-core-demo'
 import { Route as ShuffleMcpDemoRouteImport } from './routes/shuffle-mcp-demo'
 import { Route as ShuffleMcpsRouteImport } from './routes/shuffle-mcps'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as TmpCatCheckRouteImport } from './routes/tmp-cat-check'
 import { Route as CondAgentRouteImport } from './routes/_cond.agent'
 import { Route as CondDashboardRouteImport } from './routes/_cond.dashboard'
 import { Route as CondSearchRouteImport } from './routes/_cond.search'
@@ -191,6 +192,11 @@ const ShuffleMcpsRoute = ShuffleMcpsRouteImport.update({
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TmpCatCheckRoute = TmpCatCheckRouteImport.update({
+  id: '/tmp-cat-check',
+  path: '/tmp-cat-check',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CondAgentRoute = CondAgentRouteImport.update({
@@ -646,6 +652,7 @@ export interface FileRoutesByFullPath {
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/tmp-cat-check': typeof TmpCatCheckRoute
   '/agent': typeof CondAgentRoute
   '/dashboard': typeof CondDashboardRoute
   '/search': typeof CondSearchRoute
@@ -746,6 +753,7 @@ export interface FileRoutesByTo {
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/tmp-cat-check': typeof TmpCatCheckRoute
   '/agent': typeof CondAgentRoute
   '/dashboard': typeof CondDashboardRoute
   '/search': typeof CondSearchRoute
@@ -850,6 +858,7 @@ export interface FileRoutesById {
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/tmp-cat-check': typeof TmpCatCheckRoute
   '/_cond/agent': typeof CondAgentRoute
   '/_cond/dashboard': typeof CondDashboardRoute
   '/_cond/search': typeof CondSearchRoute
@@ -952,6 +961,7 @@ export interface FileRouteTypes {
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
     | '/sitemap.xml'
+    | '/tmp-cat-check'
     | '/agent'
     | '/dashboard'
     | '/search'
@@ -1052,6 +1062,7 @@ export interface FileRouteTypes {
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
     | '/sitemap.xml'
+    | '/tmp-cat-check'
     | '/agent'
     | '/dashboard'
     | '/search'
@@ -1155,6 +1166,7 @@ export interface FileRouteTypes {
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
     | '/sitemap.xml'
+    | '/tmp-cat-check'
     | '/_cond/agent'
     | '/_cond/dashboard'
     | '/_cond/search'
@@ -1259,6 +1271,7 @@ export interface RootRouteChildren {
   ShuffleMcpDemoRoute: typeof ShuffleMcpDemoRoute
   ShuffleMcpsRoute: typeof ShuffleMcpsRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  TmpCatCheckRoute: typeof TmpCatCheckRoute
   ArticlesNameRoute: typeof ArticlesNameRoute
   BlogNameRoute: typeof BlogNameRoute
   DocsSlugRoute: typeof DocsSlugRoute
@@ -1391,6 +1404,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tmp-cat-check': {
+      id: '/tmp-cat-check'
+      path: '/tmp-cat-check'
+      fullPath: '/tmp-cat-check'
+      preLoaderRoute: typeof TmpCatCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_cond/agent': {
@@ -2182,6 +2202,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShuffleMcpDemoRoute: ShuffleMcpDemoRoute,
   ShuffleMcpsRoute: ShuffleMcpsRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  TmpCatCheckRoute: TmpCatCheckRoute,
   ArticlesNameRoute: ArticlesNameRoute,
   BlogNameRoute: BlogNameRoute,
   DocsSlugRoute: DocsSlugRoute,

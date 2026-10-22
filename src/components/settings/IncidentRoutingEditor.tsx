@@ -411,6 +411,10 @@ export const IncidentRoutingEditor = ({
 
   useEffect(() => {
     fetchWorkflowHealth();
+    if (typeof window === 'undefined') return;
+    const handleCatUpdate = () => { fetchWorkflowHealth(); };
+    window.addEventListener('shuffle-category-automations-updated', handleCatUpdate);
+    return () => window.removeEventListener('shuffle-category-automations-updated', handleCatUpdate);
   }, [fetchWorkflowHealth]);
 
   const workflowHealth: RoutingWorkflowHealth = useMemo(() => {

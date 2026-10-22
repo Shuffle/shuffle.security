@@ -1076,27 +1076,6 @@ export const IncidentRoutingEditor = ({
             </Button>
           )}
 
-          {workflowHealth.status === 'not_automated' && (
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={isGeneratingWorkflow}
-              onClick={handleGenerateWorkflow}
-              sx={{
-                height: 28,
-                fontSize: '0.75rem',
-                textTransform: 'none',
-                borderColor: 'hsl(var(--border))',
-                color: 'hsl(var(--foreground))',
-                '&:hover': {
-                  borderColor: 'hsl(var(--primary))',
-                  color: 'hsl(var(--primary))',
-                },
-              }}
-            >
-              {isGeneratingWorkflow ? 'Creating…' : 'Create workflow'}
-            </Button>
-          )}
 
           {matchedWorkflow ? (
             <Button

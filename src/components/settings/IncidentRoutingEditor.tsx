@@ -371,6 +371,7 @@ const IncidentRoutingEditorInner = ({
   entityLabel = { singular: 'incident', plural: 'incidents' },
   generateCategory,
   borderless = false,
+  categorySelect,
 }: IncidentRoutingEditorProps) => {
   const entityPluralCap = entityLabel.plural.charAt(0).toUpperCase() + entityLabel.plural.slice(1);
   const effectiveGenerateCategory =
@@ -1166,28 +1167,32 @@ const IncidentRoutingEditorInner = ({
         </Box>
       </Paper>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
         <Box>
           <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
             {hasFetched ? `${sortedRules.length} rule${sortedRules.length === 1 ? '' : 's'}` : 'Loading…'}
             {hasFetched && sortedRules.length > 0 && ' · evaluated low-to-high priority'}
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<AddIcon size={16} />}
-          onClick={handleAdd}
-          sx={{
-            height: 36,
-            borderColor: 'hsl(var(--border))',
-            color: 'hsl(var(--foreground))',
-            textTransform: 'none',
-            '&:hover': { borderColor: 'hsl(var(--primary))', color: 'hsl(var(--primary))' },
-          }}
-        >
-          Add rule
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {categorySelect}
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<AddIcon size={16} />}
+            onClick={handleAdd}
+            sx={{
+              height: 36,
+              borderColor: 'hsl(var(--border))',
+              color: 'hsl(var(--foreground))',
+              textTransform: 'none',
+              whiteSpace: 'nowrap',
+              '&:hover': { borderColor: 'hsl(var(--primary))', color: 'hsl(var(--primary))' },
+            }}
+          >
+            Add {entityLabel.singular} rule
+          </Button>
+        </Box>
       </Box>
 
       {isLoading && !hasFetched && (

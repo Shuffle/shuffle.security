@@ -37,6 +37,7 @@ import { useAuthenticatedApps } from '../useAuthenticatedApps';
 
 import { CategoryAutomation, DATASTORE_CATEGORIES, getDatastoreByCategory, RBACConfig } from '@/Shuffle-Core/datastore';
 import { ShareAccessModal } from '@/components/common/ShareAccessModal';
+import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from './DatastoreCategorySelect';
 import { IncidentRoutingEditor } from '@/components/settings/IncidentRoutingEditor';
 import { useIsSupport } from '@/hooks/useIsSupport';
 import { propagateAutomationsToChildren } from '@/lib/automationPropagation';
@@ -96,15 +97,7 @@ export interface CategoryAutomationsDialogProps {
 /** Datastore categories Shuffle Security supports automation for. All of these
  *  are pre-loaded (top=1 lookup) when the dialog opens so the "When" dropdown
  *  can show which ones already have automation enabled and swap between them. */
-const CATEGORY_OPTIONS: { category: string; singular: string; plural: string }[] = [
-  { category: DATASTORE_CATEGORIES.INCIDENTS, singular: 'incident', plural: 'incidents' },
-  { category: DATASTORE_CATEGORIES.VULNERABILITIES, singular: 'vulnerability', plural: 'vulnerabilities' },
-  { category: DATASTORE_CATEGORIES.INFRASTRUCTURE, singular: 'sensor', plural: 'sensors' },
-  { category: DATASTORE_CATEGORIES.ASSETS, singular: 'asset', plural: 'assets' },
-  { category: DATASTORE_CATEGORIES.PACKAGES, singular: 'package', plural: 'packages' },
-  { category: DATASTORE_CATEGORIES.SOFTWARE, singular: 'software', plural: 'software' },
-  { category: DATASTORE_CATEGORIES.USERS, singular: 'user', plural: 'users' },
-];
+const CATEGORY_OPTIONS = DATASTORE_CATEGORY_OPTIONS;
 
 
 interface CategoryEntry {
@@ -1228,6 +1221,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                 </Typography>
                 <IncidentRoutingEditor
                   forceShow
+                  showCategorySelect={false}
                   entityCategory={activeCategory}
                   entityLabel={{ singular: entitySingular, plural: entityPlural }}
                   generateCategory={routingGenerateCategory}
@@ -1257,59 +1251,24 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
           >
             {currentView === 'automations' ? 'When' : 'Category'}
           </Typography>
-          <FormControl fullWidth size="small">
-            <Select
-              value={activeCategory}
-              onChange={(e) => {
-                const next = String(e.target.value);
-                if (next === activeCategory) return;
-                if (hasChanges && !window.confirm('You have unsaved changes. Switch area and discard them?')) return;
-                setActiveCategory(next);
-              }}
-              sx={{
-                bgcolor: 'hsl(var(--muted) / 0.4)',
-                fontSize: '0.95rem',
-                '& .MuiSelect-select': { py: 1.5, px: 2 },
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'hsl(var(--border))' },
-              }}
-              MenuProps={{
-                PaperProps: {
-                  sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' },
-                },
-              }}
-            >
-              {categoryOptions.map((opt) => {
-                const count = enabledCountFor(opt.category);
-                return (
-                  <MenuItem key={opt.category} value={opt.category}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-                      <Box
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          flexShrink: 0,
-                          bgcolor: count > 0 ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground) / 0.5)',
-                        }}
-                      />
-                      <Typography sx={{ fontSize: '0.95rem', flex: 1 }}>
-                        {currentView === 'automations'
-                          ? `A${/^[aeiou]/i.test(opt.singular) ? 'n' : ''} ${opt.singular} is edited`
-                          : `${opt.plural.charAt(0).toUpperCase() + opt.plural.slice(1)} (${opt.category})`}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: 'text.disabled' }}>
-                        {loadingCategories && !categoryEntries[opt.category]
-                          ? 'Loading…'
-                          : count > 0
-                            ? `${count} enabled`
-                            : 'No automation'}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                );
-              })}
-            </Select>
-          </FormControl>
+          <DatastoreCategorySelect
+            value={activeCategory}
+            options={categoryOptions}
+            labelMode={currentView === 'automations' ? 'when' : 'category'}
+            onChange={(next) => {
+              if (hasChanges && !window.confirm('You have unsaved changes. Switch area and discard them?')) return;
+              setActiveCategory(next);
+            }}
+            isActive={(c) => enabledCountFor(c) > 0}
+            getStatus={(c) => {
+              const count = enabledCountFor(c);
+              return loadingCategories && !categoryEntries[c]
+                ? 'Loading…'
+                : count > 0
+                  ? `${count} enabled`
+                  : 'No automation';
+            }}
+          />
         </Box>
 
         <Divider sx={{ mb: 3, borderColor: 'hsl(var(--border))' }} />

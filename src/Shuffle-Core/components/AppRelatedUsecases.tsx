@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Box, Typography, Button } from '@mui/material';
+import { Box, Typography, Button, useTheme } from '@mui/material';
 import { useNavigate } from '@/lib/router-compat';
 import { useWorkflows } from '@/Shuffle-Core/useWorkflows';
 import { useQueryClient } from '@tanstack/react-query';
@@ -46,6 +46,8 @@ export interface AppRelatedUsecasesProps {
   hasValidAuth?: boolean;
   onNavigateToAuth?: () => void;
   mode?: 'drawer' | 'page';
+  /** Theme for the usecase drawer. Defaults to the surrounding MUI palette mode. */
+  theme?: 'light' | 'dark' | 'system';
 }
 
 export default function AppRelatedUsecases({
@@ -55,7 +57,11 @@ export default function AppRelatedUsecases({
   hasValidAuth = false,
   onNavigateToAuth: _onNavigateToAuth,
   mode = 'drawer',
+  theme,
 }: AppRelatedUsecasesProps) {
+  const muiTheme = useTheme();
+  const drawerTheme: 'light' | 'dark' =
+    theme === 'light' || theme === 'dark' ? theme : muiTheme.palette.mode === 'light' ? 'light' : 'dark';
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: workflows = [], refetch: refetchWorkflows } = useWorkflows();
@@ -223,6 +229,7 @@ export default function AppRelatedUsecases({
         flowId={drawerFlowId}
         workflows={workflows}
         onToggled={handleWorkflowsChanged}
+        theme={drawerTheme}
       />
     </Box>
   );

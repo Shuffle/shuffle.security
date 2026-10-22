@@ -4749,7 +4749,13 @@ function UsecaseDetailContent({
         if (!isAuthenticated) {
           message = 'Sign in to enable this usecase.';
         } else if (flow.id === 'case_management_incident_routing_1') {
-          message = `Configure at least one routing rule below to enable ${flow.label}.`;
+          // The rules live in the editor below; what actually gates "Active"
+          // is the routing workflow existing and being hooked into
+          // Automation for Incidents. Only hint while it is still missing.
+          const routingWf = findRoutingWorkflow(workflows as any, { singular: 'incident', plural: 'incidents' }, 'shuffle-security_incidents');
+          message = routingWf
+            ? null
+            : `Creating the ${flow.label} workflow. This can take a few seconds.`;
         } else if (flow.id === 'case_management_schedules_notifications_1') {
           message = `Click Enable to generate the Schedules & Phone Notifications workflow.`;
         } else if (isShuffleSourcedFlow) {
@@ -6272,7 +6278,7 @@ function UsecasesPageInner() {
   const [incidentsCategoryConfig, setIncidentsCategoryConfig] = useState<any>(null);
   useEffect(() => {
     let cancelled = false;
-    const fetchIncidentsCat = async () => {
+    const fetchIncidentsCat = async (force: boolean = false) => {
       try {
         const info = localStorage.getItem('shuffle_user_info');
         const orgId = info ? JSON.parse(info)?.active_org?.id : null;
@@ -6280,6 +6286,7 @@ function UsecasesPageInner() {
         const data = await fetchCategoryAutomationsCached(
           apiUrl(`/api/v1/orgs/${orgId}/list_cache?category=shuffle-security_incidents&top=1`),
           { credentials: 'include', headers: { ...authHeader() } },
+          force,
         );
         if (!data) return;
         if (!cancelled && (data?.category_config || data?.categoryConfig)) {
@@ -6297,7 +6304,9 @@ function UsecasesPageInner() {
     fetchIncidentsCat();
 
     const handleCatUpdate = () => {
-      fetchIncidentsCat();
+      // Always bypass the 2-minute cache here: this event means the
+      // category automations just changed on the backend.
+      fetchIncidentsCat(true);
     };
     if (typeof window !== 'undefined') {
       window.addEventListener('shuffle-category-automations-updated', handleCatUpdate);
@@ -6483,6 +6492,18 @@ function UsecasesPageInner() {
     window.setTimeout(() => { refetchWorkflows(); }, 1200);
     window.setTimeout(() => { refetchWorkflows(); }, 3000);
     window.setTimeout(() => { refetchWorkflows(); }, 8000);
+    // Generated workflows (e.g. Incident Routing Rules) are hooked into the
+    // category automations by the backend, sometimes a few seconds later.
+    // Tell every listener (category config, routing editor) to re-read so
+    // the Linked Workflow and Active state show up without a reload.
+    if (typeof window !== 'undefined') {
+      for (const delay of [1200, 3000, 8000, 15000]) {
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
+          window.dispatchEvent(new CustomEvent('shuffle-category-automations-updated', { detail: { category: 'shuffle-security_incidents' } }));
+        }, delay);
+      }
+    }
   }, [refetchWorkflows, cfgOnToggled]);
 
   // Set of usecase names the user has shown interest in. Sourced from both

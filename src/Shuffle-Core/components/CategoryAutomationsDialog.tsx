@@ -1225,6 +1225,18 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                   entityCategory={activeCategory}
                   entityLabel={{ singular: entitySingular, plural: entityPlural }}
                   generateCategory={routingGenerateCategory}
+                  categorySelect={
+                    <DatastoreCategorySelect
+                      value={activeCategory}
+                      options={categoryOptions}
+                      onChange={(next) => {
+                        if (hasChanges && !window.confirm('You have unsaved changes. Switch area and discard them?')) return;
+                        setActiveCategory(next);
+                      }}
+                      label="Category"
+                      compact
+                    />
+                  }
                 />
               </Box>
             </motion.div>

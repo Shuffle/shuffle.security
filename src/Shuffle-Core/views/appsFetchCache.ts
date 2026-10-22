@@ -202,8 +202,8 @@ export async function fetchOrgCached(url: string, init?: RequestInit): Promise<a
 /**
  * Cached category automations (e.g. AI Agent on shuffle-security_incidents).
  */
-export async function fetchCategoryAutomationsCached(url: string, init?: RequestInit): Promise<any> {
-  return fetchJsonCached(url, init, JSON_CACHE_TTL_MS);
+export async function fetchCategoryAutomationsCached(url: string, init?: RequestInit, force: boolean = false): Promise<any> {
+  return fetchJsonCached(url, init, JSON_CACHE_TTL_MS, force);
 }
 
 // Module-level parsed in-memory caches

@@ -271,8 +271,8 @@ const AuthenticatedVulnerabilitiesView = () => {
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-6">
-      {/* Vulnerability Automation */}
-      <VulnerabilityAutomationBanner />
+      {/* Vulnerability Automation — only useful while it is not running yet */}
+      <VulnerabilityAutomationBanner hideWhenActive />
 
       {/* Header */}
       <div className="flex items-center justify-between">

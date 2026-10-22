@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback, useRef } from 'react';
+import { type Context, createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback, useRef } from 'react';
 import { registerTenantRegions } from '@/lib/tenantApiUrl';
 import { setRegionCookie } from '@/lib/regionRouting';
 import { getApiUrl, getAuthHeader, getSessionAuthHeader, setRegionUrl, resetRegionUrl, getTrackedOrgId, applyRegionFromPayload, setHostBaseUrl, getHostBaseUrl, setSessionToken as persistSessionToken, clearAuthTokens, getSessionToken, isDevEnvironment, isCloud, mapCloudRegionUrl, getDefaultBaseUrl, getRegionUrl, isCapacitorNative, isCrossDomainBackend } from '@/Shuffle-Core/api';
@@ -60,7 +60,7 @@ interface AuthContextType {
 // this module creates a new context while the mounted AuthProvider still
 // serves the old one, and every useAuth() caller throws.
 const AUTH_CONTEXT_KEY = '__shuffleAuthContext__';
-const AuthContext: React.Context<AuthContextType | undefined> =
+const AuthContext: Context<AuthContextType | undefined> =
   ((globalThis as any)[AUTH_CONTEXT_KEY] ??= createContext<AuthContextType | undefined>(undefined));
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {

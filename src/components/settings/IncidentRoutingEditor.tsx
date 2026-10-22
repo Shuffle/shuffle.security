@@ -334,29 +334,51 @@ interface IncidentRoutingEditorProps {
    * dropdown leave it undefined.
    */
   categorySelect?: React.ReactNode;
+  /**
+   * Called when the user picks another category in the shared dropdown. When
+   * provided, the dropdown is controlled: `entityCategory` is the current
+   * selection and the component stops keeping the selection itself, so a host
+   * that shows the category elsewhere (e.g. the area title) can follow it.
+   */
+  onCategoryChange?: (category: string) => void;
 }
 
 export const IncidentRoutingEditor = ({
   showCategorySelect = true,
+  onCategoryChange,
   ...props
 }: IncidentRoutingEditorProps) => {
   const initial = props.entityCategory || DEFAULT_ROUTING_ENTITY_CATEGORY;
   const [selected, setSelected] = useState<string>(initial);
   useEffect(() => { setSelected(initial); }, [initial]);
   if (!showCategorySelect) return <IncidentRoutingEditorInner {...props} />;
-  const opt = DATASTORE_CATEGORY_OPTIONS.find(o => o.category === selected);
-  const isInitial = selected === initial;
+
+  // Controlled when the host owns the selection, uncontrolled otherwise.
+  const controlled = typeof onCategoryChange === 'function';
+  const value = controlled ? initial : selected;
+  const handleCategoryChange = (next: string) => {
+    if (controlled) {
+      if (next !== value) onCategoryChange?.(next);
+    } else {
+      setSelected(next);
+    }
+  };
+
+  const opt = DATASTORE_CATEGORY_OPTIONS.find(o => o.category === value);
+  // The category the host asked for keeps the host's own naming; a category
+  // picked from the dropdown uses the shared option naming instead.
+  const isInitial = controlled ? false : value === initial;
   return (
     <IncidentRoutingEditorInner
-      key={selected}
+      key={value}
       {...props}
-      entityCategory={selected}
+      entityCategory={value}
       entityLabel={isInitial ? props.entityLabel : (opt ? { singular: opt.singular, plural: opt.plural } : undefined)}
       generateCategory={isInitial ? props.generateCategory : undefined}
       categorySelect={
         <DatastoreCategorySelect
-          value={selected}
-          onChange={setSelected}
+          value={value}
+          onChange={handleCategoryChange}
           label="Category"
           compact
         />

@@ -35,6 +35,17 @@ export function getExpectedRoutingWorkflowLabel(
 }
 
 /**
+ * Title of the routing-rules area for an entity category, e.g.
+ * "Vulnerability Routing Rules". Uses the singular form so the title reads the
+ * same way as the editor's "Add vulnerability rule" button.
+ */
+export function getRoutingAreaTitle(entityLabel?: EntityLabel): string {
+  const singular = (entityLabel?.singular || 'incident').toLowerCase();
+  const singCap = singular.charAt(0).toUpperCase() + singular.slice(1);
+  return `${singCap} Routing Rules`;
+}
+
+/**
  * Normalizes string for fuzzy/alias comparisons.
  */
 function normalize(str: string): string {

@@ -56,7 +56,12 @@ interface AuthContextType {
   dismissOrgMismatch: () => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Keep one context instance across hot reloads. Without this, re-evaluating
+// this module creates a new context while the mounted AuthProvider still
+// serves the old one, and every useAuth() caller throws.
+const AUTH_CONTEXT_KEY = '__shuffleAuthContext__';
+const AuthContext: React.Context<AuthContextType | undefined> =
+  ((globalThis as any)[AUTH_CONTEXT_KEY] ??= createContext<AuthContextType | undefined>(undefined));
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Optimistic hydration: if a previous session's userInfo is cached in

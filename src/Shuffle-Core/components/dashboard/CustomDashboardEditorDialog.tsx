@@ -73,7 +73,8 @@ export interface CreateDashboardDialogProps {
   initialName?: string;
   initialDescription?: string;
   mode?: 'create' | 'rename';
-  onSubmit: (payload: { name: string; description?: string; useStarterTemplate: boolean }) => void;
+  onSubmit?: (payload: { name: string; description?: string; useStarterTemplate: boolean }) => Promise<void> | void;
+  onCreate?: (name: string, description: string | undefined, useStarterTemplate: boolean) => Promise<void> | void;
 }
 
 export const CreateDashboardDialog = ({
@@ -83,6 +84,7 @@ export const CreateDashboardDialog = ({
   initialDescription = '',
   mode = 'create',
   onSubmit,
+  onCreate,
 }: CreateDashboardDialogProps) => {
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
@@ -96,15 +98,17 @@ export const CreateDashboardDialog = ({
     }
   }, [open, initialName, initialDescription]);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    onSubmit({
-      name: trimmed,
-      description: description.trim() || undefined,
-      useStarterTemplate: mode === 'create' && templateMode === 'starter',
-    });
+    const desc = description.trim() || undefined;
+    const useStarterTemplate = mode === 'create' && templateMode === 'starter';
+    if (typeof onSubmit === 'function') {
+      await onSubmit({ name: trimmed, description: desc, useStarterTemplate });
+    } else if (typeof onCreate === 'function') {
+      await onCreate(trimmed, desc, useStarterTemplate);
+    }
     onClose();
   };
 

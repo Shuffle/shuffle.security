@@ -73,7 +73,8 @@ export interface CustomDashboardIncident {
 
 export interface CustomDashboardProps extends ShuffleCoreHostProps {
   dashboard: CustomDashboardConfig;
-  onUpdateDashboard: (updated: CustomDashboardConfig) => Promise<void> | void;
+  onUpdateDashboard?: (updated: CustomDashboardConfig) => Promise<void> | void;
+  onSaveDashboard?: (updated: CustomDashboardConfig) => Promise<unknown> | void;
   onDeleteDashboard?: (id: string) => Promise<void> | void;
   onCreateDashboard?: () => void;
   orgId?: string | null;
@@ -228,7 +229,8 @@ interface ResolvedWidgetData {
 
 export const CustomDashboard = ({
   dashboard,
-  onUpdateDashboard,
+  onUpdateDashboard: onUpdateDashboardProp,
+  onSaveDashboard,
   onDeleteDashboard,
   orgId: orgIdProp,
   days = 30,
@@ -249,6 +251,16 @@ export const CustomDashboard = ({
 }: CustomDashboardProps) => {
   useSyncHostBaseUrl(globalUrl);
   const orgId = orgIdProp ?? userdata?.active_org?.id ?? null;
+  const onUpdateDashboard = useCallback(
+    async (updated: CustomDashboardConfig) => {
+      if (typeof onUpdateDashboardProp === 'function') {
+        await onUpdateDashboardProp(updated);
+      } else if (typeof onSaveDashboard === 'function') {
+        await onSaveDashboard(updated);
+      }
+    },
+    [onUpdateDashboardProp, onSaveDashboard],
+  );
 
   const [isEditing, setIsEditing] = useState(false);
   const [widgetDialogOpen, setWidgetDialogOpen] = useState(false);

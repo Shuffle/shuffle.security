@@ -250,14 +250,14 @@ export function buildSampleCustomDashboards(now = Date.now()) {
     createdAt: now - 7 * DAY,
     updatedAt: now - DAY,
     widgets: [
-      { id: 'w-open-inc', type: 'builtin', title: 'Open Incidents', builtinKey: 'open_incidents', display: 'kpi', span: 3, color: 'hsl(25 98% 58%)' },
-      { id: 'w-crit-inc', type: 'builtin', title: 'Critical / High Incidents', builtinKey: 'critical_high_incidents', display: 'kpi', span: 3, color: 'hsl(352 96% 62%)' },
-      { id: 'w-phishing', type: 'custom_stat', title: 'Phishing Reports Handled', statKey: 'phishing_reports_handled', display: 'kpi', span: 3, color: 'hsl(188 94% 48%)' },
-      { id: 'w-hours', type: 'builtin', title: 'Analyst Hours Saved', builtinKey: 'hours_saved', display: 'kpi', span: 3, color: 'hsl(152 82% 48%)' },
-      { id: 'w-inc-act', type: 'builtin', title: 'Incident Volume Over Time', builtinKey: 'incident_activity', display: 'bar_chart', span: 6, color: 'hsl(25 98% 58%)' },
-      { id: 'w-iocs', type: 'custom_stat', title: 'IOCs Enriched per Day', statKey: 'iocs_enriched', display: 'area_chart', span: 6, color: 'hsl(262 88% 66%)' },
-      { id: 'w-ds-sev', type: 'datastore_category', title: 'Incidents by Severity (Datastore)', category: 'shuffle-security_incidents', groupByField: 'severity', display: 'horizontal_bar', span: 6, color: 'hsl(25 98% 58%)' },
-      { id: 'w-ds-vuln', type: 'datastore_category', title: 'Vulnerabilities by Source (Datastore)', category: 'shuffle-security_vulns', groupByField: 'source', display: 'radial_chart', span: 6, color: 'hsl(188 94% 48%)' },
+      { id: 'w-open-inc', title: 'Open Incidents', visualization: 'kpi', span: 3, accentColor: 'magenta', dataSource: { kind: 'builtin', builtinId: 'open_incidents' } },
+      { id: 'w-crit-inc', title: 'Critical / High Incidents', visualization: 'kpi', span: 3, accentColor: 'red', dataSource: { kind: 'builtin', builtinId: 'critical_high_incidents' } },
+      { id: 'w-phishing', title: 'Phishing Reports Handled', visualization: 'kpi', span: 3, accentColor: 'cyan', dataSource: { kind: 'custom_stat', statKey: 'phishing_reports_handled' } },
+      { id: 'w-hours', title: 'Analyst Hours Saved', visualization: 'kpi', span: 3, accentColor: 'green', dataSource: { kind: 'builtin', builtinId: 'hours_saved' } },
+      { id: 'w-inc-act', title: 'Incident Volume Over Time', visualization: 'bar', span: 6, accentColor: 'magenta', dataSource: { kind: 'builtin', builtinId: 'incident_activity' } },
+      { id: 'w-iocs', title: 'IOCs Enriched per Day', visualization: 'area', span: 6, accentColor: 'violet', dataSource: { kind: 'custom_stat', statKey: 'iocs_enriched' } },
+      { id: 'w-ds-sev', title: 'Incidents by Severity (Datastore)', visualization: 'horizontal_bar', span: 6, accentColor: 'amber', dataSource: { kind: 'datastore_category', category: 'shuffle-security_incidents', aggregation: 'group_by', groupByField: 'severity' } },
+      { id: 'w-ds-vuln', title: 'Vulnerabilities by Source (Datastore)', visualization: 'radial', span: 6, accentColor: 'cyan', dataSource: { kind: 'datastore_category', category: 'shuffle-security_vulns', aggregation: 'group_by', groupByField: 'source' } },
     ],
   };
   return {
@@ -265,6 +265,7 @@ export function buildSampleCustomDashboards(now = Date.now()) {
     keys: [
       {
         key: sampleDashboard.id,
+        category: 'shuffle-security_dashboards',
         value: JSON.stringify(sampleDashboard),
         created: Math.floor(sampleDashboard.createdAt / 1000),
         edited: Math.floor(sampleDashboard.updatedAt / 1000),

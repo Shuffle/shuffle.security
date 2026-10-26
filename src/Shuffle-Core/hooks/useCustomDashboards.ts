@@ -12,6 +12,7 @@ import {
 } from '../datastore';
 import {
   type CustomDashboardConfig,
+  createStarterCustomDashboard,
   validateCustomDashboardConfig,
 } from '../components/dashboard/customDashboardTypes';
 
@@ -54,16 +55,37 @@ function writeLocalDashboards(orgId: string | null | undefined, list: CustomDash
   }
 }
 
+export interface UseCustomDashboardsOptions {
+  orgId?: string | null;
+  enabled?: boolean;
+}
+
 export interface UseCustomDashboardsResult {
   dashboards: CustomDashboardConfig[];
   isLoading: boolean;
   isSaving: boolean;
   refresh: () => Promise<void>;
+  createDashboard: (
+    name: string,
+    description?: string,
+    useStarterTemplate?: boolean,
+  ) => Promise<CustomDashboardConfig>;
   saveDashboard: (config: CustomDashboardConfig) => Promise<CustomDashboardConfig>;
   deleteDashboard: (id: string) => Promise<boolean>;
 }
 
-export function useCustomDashboards(orgId?: string | null): UseCustomDashboardsResult {
+export function useCustomDashboards(
+  orgIdOrOptions?: string | null | UseCustomDashboardsOptions,
+): UseCustomDashboardsResult {
+  const orgId =
+    typeof orgIdOrOptions === 'object' && orgIdOrOptions !== null
+      ? orgIdOrOptions.orgId
+      : orgIdOrOptions;
+  const enabled =
+    typeof orgIdOrOptions === 'object' && orgIdOrOptions !== null
+      ? orgIdOrOptions.enabled !== false
+      : true;
+
   const [dashboards, setDashboards] = useState<CustomDashboardConfig[]>(() =>
     readLocalDashboards(orgId),
   );
@@ -85,6 +107,7 @@ export function useCustomDashboards(orgId?: string | null): UseCustomDashboardsR
   }, [orgId]);
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
     setIsLoading(true);
     try {
       const res = await getDatastoreByCategory(
@@ -127,7 +150,7 @@ export function useCustomDashboards(orgId?: string | null): UseCustomDashboardsR
     } finally {
       setIsLoading(false);
     }
-  }, [orgId]);
+  }, [orgId, enabled]);
 
   useEffect(() => {
     void refresh();
@@ -167,6 +190,21 @@ export function useCustomDashboards(orgId?: string | null): UseCustomDashboardsR
     [orgId],
   );
 
+  const createDashboard = useCallback(
+    async (
+      name: string,
+      description?: string,
+      useStarterTemplate = true,
+    ): Promise<CustomDashboardConfig> => {
+      const base = createStarterCustomDashboard(name, description);
+      const config: CustomDashboardConfig = useStarterTemplate
+        ? base
+        : { ...base, widgets: [] };
+      return saveDashboard(config);
+    },
+    [saveDashboard],
+  );
+
   const deleteDashboard = useCallback(
     async (id: string): Promise<boolean> => {
       setIsSaving(true);
@@ -196,6 +234,7 @@ export function useCustomDashboards(orgId?: string | null): UseCustomDashboardsR
     isLoading,
     isSaving,
     refresh,
+    createDashboard,
     saveDashboard,
     deleteDashboard,
   };

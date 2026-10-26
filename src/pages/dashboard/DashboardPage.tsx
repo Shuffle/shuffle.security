@@ -1194,7 +1194,9 @@ const DashboardPage = () => {
                         refreshKey={dashboardRefreshKey}
                         incidents={overviewIncidents}
                         vulnSeverityCounts={vulnSeverityCounts}
-                        onSaveDashboard={saveCustomDashboard}
+                        onUpdateDashboard={async (updated) => {
+                          await saveCustomDashboard(updated);
+                        }}
                         onDeleteDashboard={async (id) => {
                           await deleteCustomDashboard(id);
                           setDashboardTab('security');
@@ -1555,8 +1557,8 @@ const DashboardPage = () => {
       <CreateDashboardDialog
         open={createDashboardOpen}
         onClose={() => setCreateDashboardOpen(false)}
-        onCreate={async (name, description, withStarter) => {
-          const created = await createCustomDashboard(name, description, withStarter);
+        onSubmit={async ({ name, description, useStarterTemplate }) => {
+          const created = await createCustomDashboard(name, description, useStarterTemplate);
           setDashboardTab(toCustomDashboardTab(created.id));
         }}
       />

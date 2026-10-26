@@ -237,7 +237,7 @@ export const TooltipContent = ({ active, payload, label }: any) => {
 
 // ── KPI Tile ────────────────────────────────────────────────────────────────
 export interface KpiTileProps {
-  icon: LucideIcon;
+  icon?: LucideIcon;
   glow: string;
   value: number | string;
   label: string;
@@ -281,16 +281,28 @@ export const KpiTile = ({ icon: Icon, glow, value, label, delta, deltaTooltip, s
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.25, position: 'relative' }}>
-          <Box
-            sx={{
-              width: 32, height: 32, borderRadius: 1.25,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              backgroundColor: `${glow}1A`,
-              border: `1px solid ${glow}33`,
-            }}
-          >
-            <Icon size={16} style={{ color: glow }} />
-          </Box>
+          {Icon ? (
+            <Box
+              sx={{
+                width: 32, height: 32, borderRadius: 1.25,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                backgroundColor: `${glow}1A`,
+                border: `1px solid ${glow}33`,
+              }}
+            >
+              <Icon size={16} style={{ color: glow }} />
+            </Box>
+          ) : (
+            <Box
+              sx={{
+                width: 24,
+                height: 3,
+                borderRadius: 1,
+                backgroundColor: glow,
+                my: 0.5,
+              }}
+            />
+          )}
           {onClick && (
             <ArrowUpRight
               size={14}

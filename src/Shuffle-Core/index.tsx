@@ -43,6 +43,7 @@ import AutomationDashboardRaw from "./components/dashboard/AutomationDashboard";
 import DashboardOverviewRaw from "./components/dashboard/DashboardOverview";
 import AgentsDashboardRaw from "./components/dashboard/AgentsDashboard";
 import VulnerabilitiesDashboardRaw from "./components/dashboard/VulnerabilitiesDashboard";
+import CustomDashboardRaw from "./components/dashboard/CustomDashboard";
 import CombinedDashboardRaw from "./components/dashboard/CombinedDashboard";
 import BillingRaw from "./views/Billing";
 import TenantManagementRaw from "./views/TenantManagement";

@@ -241,11 +241,50 @@ export function buildSampleAgentRuns(now = Date.now(), count = 400) {
   });
 }
 
+export function buildSampleCustomDashboards(now = Date.now()) {
+  const sampleDashboard = {
+    version: 1,
+    id: 'sample-soc-exec',
+    name: 'Executive SOC Summary',
+    description: 'High-level custom dashboard combining built-in security metrics, datastore breakdowns, and custom workflow stats.',
+    createdAt: now - 7 * DAY,
+    updatedAt: now - DAY,
+    widgets: [
+      { id: 'w-open-inc', type: 'builtin', title: 'Open Incidents', builtinKey: 'open_incidents', display: 'kpi', span: 3, color: 'hsl(25 98% 58%)' },
+      { id: 'w-crit-inc', type: 'builtin', title: 'Critical / High Incidents', builtinKey: 'critical_high_incidents', display: 'kpi', span: 3, color: 'hsl(352 96% 62%)' },
+      { id: 'w-phishing', type: 'custom_stat', title: 'Phishing Reports Handled', statKey: 'phishing_reports_handled', display: 'kpi', span: 3, color: 'hsl(188 94% 48%)' },
+      { id: 'w-hours', type: 'builtin', title: 'Analyst Hours Saved', builtinKey: 'hours_saved', display: 'kpi', span: 3, color: 'hsl(152 82% 48%)' },
+      { id: 'w-inc-act', type: 'builtin', title: 'Incident Volume Over Time', builtinKey: 'incident_activity', display: 'bar_chart', span: 6, color: 'hsl(25 98% 58%)' },
+      { id: 'w-iocs', type: 'custom_stat', title: 'IOCs Enriched per Day', statKey: 'iocs_enriched', display: 'area_chart', span: 6, color: 'hsl(262 88% 66%)' },
+      { id: 'w-ds-sev', type: 'datastore_category', title: 'Incidents by Severity (Datastore)', category: 'shuffle-security_incidents', groupByField: 'severity', display: 'horizontal_bar', span: 6, color: 'hsl(25 98% 58%)' },
+      { id: 'w-ds-vuln', type: 'datastore_category', title: 'Vulnerabilities by Source (Datastore)', category: 'shuffle-security_vulns', groupByField: 'source', display: 'radial_chart', span: 6, color: 'hsl(188 94% 48%)' },
+    ],
+  };
+  return {
+    success: true,
+    keys: [
+      {
+        key: sampleDashboard.id,
+        value: JSON.stringify(sampleDashboard),
+        created: Math.floor(sampleDashboard.createdAt / 1000),
+        edited: Math.floor(sampleDashboard.updatedAt / 1000),
+      },
+    ],
+  };
+}
+
 // ── Fetch interception ────────────────────────────────────────────────────
 type Responder = (url: URL, init?: RequestInit) => unknown | undefined;
 
 const RESPONDERS: Responder[] = [
-  (u) => (/\/api\/v1\/orgs\/[^/]+\/list_cache$/.test(u.pathname) ? buildSampleIncidentList() : undefined),
+  (u) => {
+    if (!/\/api\/v1\/orgs\/[^/]+\/list_cache$/.test(u.pathname)) return undefined;
+    const category = u.searchParams.get('category') || '';
+    if (category === 'shuffle-security_dashboards') return buildSampleCustomDashboards();
+    if (category === 'shuffle-security_vulns') return buildSampleVulns();
+    return buildSampleIncidentList();
+  },
+  (u) => (/\/api\/v1\/orgs\/[^/]+\/(set_cache|delete_cache)$/.test(u.pathname) ? { success: true } : undefined),
   (u) => (u.pathname.endsWith('/api/v1/apps/authentication') ? buildSampleAppAuth() : undefined),
   (u) => (/\/api\/v1\/orgs\/[^/]+\/stats$/.test(u.pathname) ? buildSampleStats() : undefined),
   (u) => (u.pathname.endsWith('/api/v1/notifications') ? { success: true, notifications: buildSampleNotifications() } : undefined),

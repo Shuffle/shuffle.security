@@ -7,7 +7,9 @@ import { Box, Typography, Button } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@/lib/router-compat';
 import {
+  CreateDashboardDialog,
   ExportReportDialog, REPORT_SECTIONS, buildSectionTable, buildDashboardPdf, captureNode,
+  fromCustomDashboardTab, toCustomDashboardTab,
   type DashboardTab, type ReportSectionId, type ReportTable,
 } from '@/Shuffle-Core';
 import { DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
@@ -16,7 +18,9 @@ import { DashboardOverview } from '@/components/dashboard/DashboardOverview';
 import { AutomationDashboard } from '@/components/dashboard/AutomationDashboard';
 import { AgentsDashboard } from '@/components/dashboard/AgentsDashboard';
 import { VulnerabilitiesDashboard } from '@/components/dashboard/VulnerabilitiesDashboard';
+import { CustomDashboard } from '@/components/dashboard/CustomDashboard';
 import { DashboardHeaderBar } from '@/components/dashboard/DashboardHeaderBar';
+import { useCustomDashboards } from '@/hooks/useCustomDashboards';
 import { SAMPLE_ORG_ID, SAMPLE_HOST_COUNT, buildSampleIncidents, buildSampleVulns, installDashboardSampleFetch } from '@/lib/dashboardSampleData';
 
 const GuestDashboardPage = () => {
@@ -30,7 +34,20 @@ const GuestDashboardPage = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportStatus, setExportStatus] = useState('');
+  const [createDashboardOpen, setCreateDashboardOpen] = useState(false);
   const dashboardRef = useRef<HTMLDivElement>(null);
+
+  const {
+    dashboards: customDashboards,
+    createDashboard: createCustomDashboard,
+    saveDashboard: saveCustomDashboard,
+    deleteDashboard: deleteCustomDashboard,
+  } = useCustomDashboards(SAMPLE_ORG_ID);
+  const activeCustomDashboardId = fromCustomDashboardTab(tab);
+  const activeCustomDashboard = useMemo(
+    () => (activeCustomDashboardId ? customDashboards.find((d) => d.id === activeCustomDashboardId) ?? null : null),
+    [activeCustomDashboardId, customDashboards],
+  );
 
   // Answer dashboard API calls with sample data while this page is open.
   useLayoutEffect(() => {
@@ -158,6 +175,8 @@ const GuestDashboardPage = () => {
         gran={gran}
         onGranChange={setGran}
         onRefresh={() => setRefreshKey(k => k + 1)}
+        customDashboards={customDashboards}
+        onCreateDashboard={() => setCreateDashboardOpen(true)}
       />
 
       {/* display:none wrapper: the dialog portals to <body> anyway, but its
@@ -165,10 +184,35 @@ const GuestDashboardPage = () => {
           header bar and the content, adding 24px of gap on each side. */}
       <Box sx={{ display: 'none' }}>
         <ExportReportDialog open={exportOpen} rangeLabel={rangeLabel} onClose={() => setExportOpen(false)} onExport={handleExport} />
+        <CreateDashboardDialog
+          open={createDashboardOpen}
+          onClose={() => setCreateDashboardOpen(false)}
+          onCreate={async (name, description, withStarter) => {
+            const created = await createCustomDashboard(name, description, withStarter);
+            setTab(toCustomDashboardTab(created.id));
+          }}
+        />
       </Box>
 
       <Box ref={dashboardRef}>
-      {ready && (tab === 'agents' ? (
+      {ready && (activeCustomDashboard ? (
+        <CustomDashboard
+          dashboard={activeCustomDashboard}
+          orgId={SAMPLE_ORG_ID}
+          days={dayCount}
+          gran={gran}
+          customRange={customRange}
+          onRangeSelect={onRangeSelect}
+          refreshKey={refreshKey}
+          incidents={incidents}
+          vulnSeverityCounts={vulnSeverityCounts}
+          onSaveDashboard={saveCustomDashboard}
+          onDeleteDashboard={async (id) => {
+            await deleteCustomDashboard(id);
+            setTab('security');
+          }}
+        />
+      ) : tab === 'agents' ? (
         <AgentsDashboard orgId={SAMPLE_ORG_ID} days={dayCount} gran={gran} customRange={customRange} onRangeSelect={onRangeSelect} refreshKey={refreshKey} />
       ) : tab === 'vulnerabilities' ? (
         <VulnerabilitiesDashboard orgId={SAMPLE_ORG_ID} days={dayCount} gran={gran} customRange={customRange} onRangeSelect={onRangeSelect} refreshKey={refreshKey} />

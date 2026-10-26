@@ -174,6 +174,10 @@ export const VulnerabilitiesDashboard = withTheme(
   VulnerabilitiesDashboardRaw,
   "VulnerabilitiesDashboard",
 );
+export const CustomDashboard = withTheme(
+  CustomDashboardRaw,
+  "CustomDashboard",
+);
 export const CombinedDashboard = withTheme(
   CombinedDashboardRaw,
   "CombinedDashboard",
@@ -193,9 +197,39 @@ export type { TenantManagementProps } from "./views/TenantManagement";
 export type { AutomationDashboardProps } from "./components/dashboard/AutomationDashboard";
 export type { AgentsDashboardProps } from "./components/dashboard/AgentsDashboard";
 export type { VulnerabilitiesDashboardProps } from "./components/dashboard/VulnerabilitiesDashboard";
+export type { CustomDashboardProps } from "./components/dashboard/CustomDashboard";
+export {
+  CreateDashboardDialog,
+  WidgetEditorDialog,
+  DashboardJsonDialog,
+} from "./components/dashboard/CustomDashboardEditorDialog";
+export {
+  isCustomDashboardTab,
+  toCustomDashboardTab,
+  fromCustomDashboardTab,
+  createStarterCustomDashboard,
+  validateCustomDashboardConfig,
+  BUILTIN_METRICS,
+  KNOWN_DATASTORE_CATEGORIES,
+  VISUALIZATION_OPTIONS,
+  WIDGET_SPAN_OPTIONS,
+  type CustomDashboardConfig,
+  type CustomDashboardWidget,
+  type CustomWidgetDataSource,
+  type CustomWidgetVisualization,
+  type CustomDashboardTab,
+  type WidgetSpan,
+  type BuiltinMetricId,
+} from "./components/dashboard/customDashboardTypes";
+export {
+  useCustomDashboards,
+  type UseCustomDashboardsOptions,
+  type UseCustomDashboardsResult,
+} from "./hooks/useCustomDashboards";
 export type {
   CombinedDashboardProps,
   DashboardTab,
+  BuiltinDashboardTab,
 } from "./components/dashboard/CombinedDashboard";
 export {
   DASHBOARD_TABS,

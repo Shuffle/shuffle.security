@@ -51,7 +51,18 @@ import { AutomationDashboard } from '@/components/dashboard/AutomationDashboard'
 import { AgentsDashboard } from '@/components/dashboard/AgentsDashboard';
 import { DashboardHeaderBar } from '@/components/dashboard/DashboardHeaderBar';
 import { VulnerabilitiesDashboard } from '@/components/dashboard/VulnerabilitiesDashboard';
-import { AUTOMATION_RANGE_OPTIONS, DASHBOARD_TABS, TAB_LABELS, type DashboardTab } from '@/Shuffle-Core';
+import { CustomDashboard } from '@/components/dashboard/CustomDashboard';
+import { useCustomDashboards } from '@/hooks/useCustomDashboards';
+import {
+  AUTOMATION_RANGE_OPTIONS,
+  CreateDashboardDialog,
+  DASHBOARD_TABS,
+  TAB_LABELS,
+  fromCustomDashboardTab,
+  isCustomDashboardTab,
+  toCustomDashboardTab,
+  type DashboardTab,
+} from '@/Shuffle-Core';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useAuth } from '@/context/AuthContext';
 import { useSubOrgs } from '@/hooks/useSubOrgs';
@@ -566,7 +577,7 @@ const DashboardPage = () => {
   const [dashboardTab, setDashboardTab] = useState<DashboardTab>(() => {
     try {
       const stored = localStorage.getItem('shuffle_dashboard_tab') as DashboardTab | null;
-      if (stored && DASHBOARD_TABS.includes(stored)) return stored;
+      if (stored && ((DASHBOARD_TABS as readonly string[]).includes(stored) || isCustomDashboardTab(stored))) return stored;
     } catch { return 'security'; }
     return 'security';
   });
@@ -647,6 +658,19 @@ const DashboardPage = () => {
   const [viewOrgId, setViewOrgId] = useState<string | null>(null);
   const effectiveOrgId = viewOrgId || currentOrgId;
   const isViewingChild = !!viewOrgId && viewOrgId !== currentOrgId;
+
+  const {
+    dashboards: customDashboards,
+    createDashboard: createCustomDashboard,
+    saveDashboard: saveCustomDashboard,
+    deleteDashboard: deleteCustomDashboard,
+  } = useCustomDashboards(effectiveOrgId);
+  const [createDashboardOpen, setCreateDashboardOpen] = useState(false);
+  const activeCustomDashboardId = fromCustomDashboardTab(dashboardTab);
+  const activeCustomDashboard = useMemo(
+    () => (activeCustomDashboardId ? customDashboards.find((d) => d.id === activeCustomDashboardId) ?? null : null),
+    [activeCustomDashboardId, customDashboards],
+  );
 
   // Default datastore/vulnerability hooks — only used when viewing the active org.
   const { items: incidentItems, isLoading: incidentsLoadingDefault, fetchItems: fetchIncidents, hasFetched: incidentsFetched, hasMore: incidentsHasMoreDefault, totalAmount: incidentTotalAmount } = useDatastore({
@@ -1152,12 +1176,31 @@ const DashboardPage = () => {
                     gran={dashboardGran}
                     onGranChange={setDashboardGran}
                     onRefresh={handleDashboardRefresh}
+                    customDashboards={customDashboards}
+                    onCreateDashboard={() => setCreateDashboardOpen(true)}
                   />
                 );
                 return (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
                     {sharedHeader}
-                    {dashboardTab === 'agents' ? (
+                    {activeCustomDashboard ? (
+                      <CustomDashboard
+                        dashboard={activeCustomDashboard}
+                        orgId={effectiveOrgId}
+                        days={parseInt(dashboardDays, 10) || 30}
+                        gran={dashboardGran}
+                        customRange={dashboardCustomRange}
+                        onRangeSelect={(fromMs, toMs) => setDashboardCustomRange({ fromMs, toMs })}
+                        refreshKey={dashboardRefreshKey}
+                        incidents={overviewIncidents}
+                        vulnSeverityCounts={vulnSeverityCounts}
+                        onSaveDashboard={saveCustomDashboard}
+                        onDeleteDashboard={async (id) => {
+                          await deleteCustomDashboard(id);
+                          setDashboardTab('security');
+                        }}
+                      />
+                    ) : dashboardTab === 'agents' ? (
                       <AgentsDashboard
                         orgId={effectiveOrgId}
                         days={parseInt(dashboardDays, 10) || 30}
@@ -1507,6 +1550,15 @@ const DashboardPage = () => {
         onDeny={handleDeny}
         onConfigureApprove={handleConfigureApprove}
         onSubmitAnswers={handleSubmitAnswers}
+      />
+
+      <CreateDashboardDialog
+        open={createDashboardOpen}
+        onClose={() => setCreateDashboardOpen(false)}
+        onCreate={async (name, description, withStarter) => {
+          const created = await createCustomDashboard(name, description, withStarter);
+          setDashboardTab(toCustomDashboardTab(created.id));
+        }}
       />
     </>
   );

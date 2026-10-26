@@ -60,10 +60,12 @@ import {
 } from './CustomDashboardEditorDialog';
 import {
   WIDGET_SPAN_OPTIONS,
+  createStarterCustomDashboard,
   type CustomDashboardConfig,
   type CustomDashboardWidget,
   type WidgetSpan,
 } from './customDashboardTypes';
+import { useCustomDashboards } from '../../hooks/useCustomDashboards';
 
 export interface CustomDashboardIncident {
   status: string;
@@ -72,7 +74,10 @@ export interface CustomDashboardIncident {
 }
 
 export interface CustomDashboardProps extends ShuffleCoreHostProps {
-  dashboard: CustomDashboardConfig;
+  /** Controlled dashboard config. When omitted, CustomDashboard loads from `useCustomDashboards` using `dashboardId` (or the first available dashboard). */
+  dashboard?: CustomDashboardConfig;
+  /** Optional ID to select when `dashboard` prop is not passed directly. */
+  dashboardId?: string;
   onUpdateDashboard?: (updated: CustomDashboardConfig) => Promise<void> | void;
   onSaveDashboard?: (updated: CustomDashboardConfig) => Promise<unknown> | void;
   onDeleteDashboard?: (id: string) => Promise<void> | void;
@@ -228,20 +233,21 @@ interface ResolvedWidgetData {
 }
 
 export const CustomDashboard = ({
-  dashboard,
+  dashboard: dashboardProp,
+  dashboardId,
   onUpdateDashboard: onUpdateDashboardProp,
   onSaveDashboard,
-  onDeleteDashboard,
+  onDeleteDashboard: onDeleteDashboardProp,
   orgId: orgIdProp,
   days = 30,
   gran = 'daily',
   customRange,
   onRangeSelect,
   refreshKey,
-  incidents = [],
-  incidentsLoading = false,
-  vulnSeverityCounts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
-  vulnLoading = false,
+  incidents: incidentsProp,
+  incidentsLoading: incidentsLoadingProp,
+  vulnSeverityCounts: vulnSeverityCountsProp,
+  vulnLoading: vulnLoadingProp,
   minutesSavedPerAppRun = 2,
   serverside,
   isLoaded = true,
@@ -251,16 +257,52 @@ export const CustomDashboard = ({
 }: CustomDashboardProps) => {
   useSyncHostBaseUrl(globalUrl);
   const orgId = orgIdProp ?? userdata?.active_org?.id ?? null;
+
+  // Standalone fallback: when mounted without a parent passing `dashboard` or
+  // `onUpdateDashboard`, load and persist directly via `useCustomDashboards`.
+  const needsStandaloneStore =
+    !dashboardProp || (!onUpdateDashboardProp && !onSaveDashboard);
+  const {
+    dashboards: storedDashboards,
+    saveDashboard: saveStoredDashboard,
+    deleteDashboard: deleteStoredDashboard,
+  } = useCustomDashboards({
+    orgId,
+    enabled: !serverside && isLoaded !== false && needsStandaloneStore,
+  });
+
+  const fallbackDashboard = useMemo(
+    () => createStarterCustomDashboard('Overview', 'Custom dashboard'),
+    [],
+  );
+
+  const dashboard = useMemo<CustomDashboardConfig>(() => {
+    if (dashboardProp) return dashboardProp;
+    if (dashboardId) {
+      const found = storedDashboards.find((d) => d.id === dashboardId);
+      if (found) return found;
+    }
+    return storedDashboards[0] || fallbackDashboard;
+  }, [dashboardProp, dashboardId, storedDashboards, fallbackDashboard]);
+
   const onUpdateDashboard = useCallback(
     async (updated: CustomDashboardConfig) => {
       if (typeof onUpdateDashboardProp === 'function') {
         await onUpdateDashboardProp(updated);
       } else if (typeof onSaveDashboard === 'function') {
         await onSaveDashboard(updated);
+      } else {
+        await saveStoredDashboard(updated);
       }
     },
-    [onUpdateDashboardProp, onSaveDashboard],
+    [onUpdateDashboardProp, onSaveDashboard, saveStoredDashboard],
   );
+
+  const onDeleteDashboard = useMemo(() => {
+    if (typeof onDeleteDashboardProp === 'function') return onDeleteDashboardProp;
+    if (!dashboardProp && storedDashboards.length > 0) return deleteStoredDashboard;
+    return undefined;
+  }, [onDeleteDashboardProp, dashboardProp, storedDashboards.length, deleteStoredDashboard]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [widgetDialogOpen, setWidgetDialogOpen] = useState(false);
@@ -276,6 +318,16 @@ export const CustomDashboard = ({
   // Datastore category cache: category -> parsed records
   const [categoryData, setCategoryData] = useState<Record<string, Record<string, any>[]>>({});
   const [categoryLoading, setCategoryLoading] = useState<Record<string, boolean>>({});
+
+  // Standalone vulnerability fallback when `vulnSeverityCounts` is not passed by parent
+  const [fetchedVulns, setFetchedVulns] = useState({
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+  });
+  const [fetchedVulnsLoading, setFetchedVulnsLoading] = useState(false);
 
   const buildUrl = useCallback(
     (path: string) =>
@@ -311,7 +363,32 @@ export const CustomDashboard = ({
     };
   }, [orgId, isLoaded, isLoggedIn, serverside, buildUrl, refreshKey]);
 
-  // Determine which datastore categories are referenced by widgets
+  const hasBuiltinIncidentWidget = useMemo(
+    () =>
+      dashboard.widgets.some(
+        (w) =>
+          w.dataSource.kind === 'builtin' &&
+          (w.dataSource.builtinId === 'open_incidents' ||
+            w.dataSource.builtinId === 'critical_high_incidents' ||
+            w.dataSource.builtinId === 'resolved_incidents' ||
+            w.dataSource.builtinId === 'incident_activity'),
+      ),
+    [dashboard.widgets],
+  );
+
+  const hasBuiltinVulnWidget = useMemo(
+    () =>
+      dashboard.widgets.some(
+        (w) =>
+          w.dataSource.kind === 'builtin' &&
+          (w.dataSource.builtinId === 'critical_high_vulns' ||
+            w.dataSource.builtinId === 'total_vulns' ||
+            w.dataSource.builtinId === 'vulnerability_severity'),
+      ),
+    [dashboard.widgets],
+  );
+
+  // Determine which datastore categories are referenced by widgets (including standalone incidents fallback)
   const requiredCategories = useMemo(() => {
     const set = new Set<string>();
     for (const w of dashboard.widgets) {
@@ -319,8 +396,99 @@ export const CustomDashboard = ({
         set.add(w.dataSource.category.trim());
       }
     }
+    if (incidentsProp === undefined && hasBuiltinIncidentWidget) {
+      set.add(DATASTORE_CATEGORIES.INCIDENTS);
+    }
     return Array.from(set);
-  }, [dashboard.widgets]);
+  }, [dashboard.widgets, incidentsProp, hasBuiltinIncidentWidget]);
+
+  // Fetch standalone vulnerabilities when not supplied by parent
+  useEffect(() => {
+    if (
+      serverside ||
+      !isLoaded ||
+      !isLoggedIn ||
+      vulnSeverityCountsProp !== undefined ||
+      !hasBuiltinVulnWidget
+    ) {
+      setFetchedVulnsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setFetchedVulnsLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(buildUrl('/api/v2/vulns?skip_fields=false&top=100'), {
+          method: 'GET',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data.keys || data.data || [];
+        const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+        for (const item of list) {
+          try {
+            const v =
+              item?.value != null
+                ? typeof item.value === 'string'
+                  ? JSON.parse(item.value)
+                  : item.value
+                : item;
+            const sevRaw = (v?.severity || v?.database_specific?.severity || '')
+              .toString()
+              .toLowerCase();
+            if (sevRaw.startsWith('crit')) counts.critical++;
+            else if (sevRaw.startsWith('high') || sevRaw === 'severe') counts.high++;
+            else if (sevRaw.startsWith('mod') || sevRaw.startsWith('med')) counts.medium++;
+            else if (sevRaw.startsWith('low')) counts.low++;
+            else counts.info++;
+          } catch {
+            /* skip */
+          }
+        }
+        if (!cancelled) setFetchedVulns(counts);
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setFetchedVulnsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    serverside,
+    isLoaded,
+    isLoggedIn,
+    vulnSeverityCountsProp,
+    hasBuiltinVulnWidget,
+    buildUrl,
+    refreshKey,
+  ]);
+
+  const incidents = useMemo<CustomDashboardIncident[]>(() => {
+    if (incidentsProp !== undefined) return incidentsProp;
+    const raw = categoryData[DATASTORE_CATEGORIES.INCIDENTS] || [];
+    return raw.map((r) => {
+      const rawTs = r.created_time ?? r.created_at ?? r.created ?? r.timestamp ?? 0;
+      const num = typeof rawTs === 'number' ? rawTs : Date.parse(String(rawTs || ''));
+      const createdTs = Number.isFinite(num) && num > 0 ? (num < 1e12 ? num * 1000 : num) : 0;
+      return {
+        status: String(r.status || 'open').toLowerCase(),
+        severity: String(r.severity || 'medium').toLowerCase(),
+        createdTs,
+      };
+    });
+  }, [incidentsProp, categoryData]);
+
+  const incidentsLoading =
+    incidentsLoadingProp !== undefined
+      ? incidentsLoadingProp
+      : Boolean(categoryLoading[DATASTORE_CATEGORIES.INCIDENTS]);
+
+  const vulnSeverityCounts = vulnSeverityCountsProp ?? fetchedVulns;
+  const vulnLoading = vulnLoadingProp !== undefined ? vulnLoadingProp : fetchedVulnsLoading;
 
   // Fetch required datastore categories
   useEffect(() => {

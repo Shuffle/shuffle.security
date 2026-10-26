@@ -198,11 +198,31 @@ export type { AutomationDashboardProps } from "./components/dashboard/Automation
 export type { AgentsDashboardProps } from "./components/dashboard/AgentsDashboard";
 export type { VulnerabilitiesDashboardProps } from "./components/dashboard/VulnerabilitiesDashboard";
 export type { CustomDashboardProps } from "./components/dashboard/CustomDashboard";
-export {
-  CreateDashboardDialog,
-  WidgetEditorDialog,
-  DashboardJsonDialog,
+import {
+  CreateDashboardDialog as CreateDashboardDialogRaw,
+  WidgetEditorDialog as WidgetEditorDialogRaw,
+  DashboardJsonDialog as DashboardJsonDialogRaw,
+  type CreateDashboardDialogProps,
+  type WidgetEditorDialogProps,
+  type DashboardJsonDialogProps,
 } from "./components/dashboard/CustomDashboardEditorDialog";
+export const CreateDashboardDialog = withTheme<CreateDashboardDialogProps>(
+  CreateDashboardDialogRaw,
+  "CreateDashboardDialog",
+);
+export const WidgetEditorDialog = withTheme<WidgetEditorDialogProps>(
+  WidgetEditorDialogRaw,
+  "WidgetEditorDialog",
+);
+export const DashboardJsonDialog = withTheme<DashboardJsonDialogProps>(
+  DashboardJsonDialogRaw,
+  "DashboardJsonDialog",
+);
+export type {
+  CreateDashboardDialogProps,
+  WidgetEditorDialogProps,
+  DashboardJsonDialogProps,
+};
 export {
   isCustomDashboardTab,
   toCustomDashboardTab,

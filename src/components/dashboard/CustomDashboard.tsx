@@ -11,11 +11,14 @@ import { useTheme } from '@/context/ThemeContext';
 type Props = ComponentProps<typeof CoreCustomDashboard>;
 
 export const CustomDashboard = (props: Props) => {
-  const { userInfo } = useAuth();
+  const { userInfo, isLoading, isAuthenticated } = useAuth();
   const { resolvedTheme } = useTheme();
   return (
     <CoreCustomDashboard
       orgId={userInfo?.active_org?.id}
+      userdata={userInfo}
+      isLoaded={!isLoading}
+      isLoggedIn={isAuthenticated}
       globalUrl={API_CONFIG.baseUrl}
       theme={resolvedTheme}
       {...props}

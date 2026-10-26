@@ -4495,12 +4495,12 @@ function UsecaseDetailContent({
                     detailIsBlocked
                       ? `${detailHealth.primaryProblem?.title || 'Execution blocked'}: ${detailHealth.primaryProblem?.description || 'Runtime location is offline.'} Click to disable.`
                       : !effectiveEnabled && !hasValidatedSource && !isShuffleSourcedFlow
-                        ? `No active ${sourceCatLabel} integration is connected. Activating will not do anything until a ${sourceCatLabel} tool is authenticated — the workflow will be disabled again automatically.`
+                        ? `No active ${sourceCatLabel} integration is connected. Enabling will not do anything until a ${sourceCatLabel} tool is authenticated — the workflow will be disabled again automatically.`
                         : !effectiveEnabled && (flow.id === 'case_management_cases_forward_1' || flow.id === 'case_management_communication_1')
-                          ? 'Click to activate (choose a destination tool)'
+                          ? 'Click to enable (choose a destination tool)'
                           : effectiveEnabled
                             ? 'Click to disable'
-                            : 'Click to activate'
+                            : 'Click to enable'
                   }
                   placement="bottom"
                   arrow
@@ -4568,7 +4568,7 @@ function UsecaseDetailContent({
                         },
                       }}
                     >
-                      {detailIsBlocked ? 'Active · Blocked' : effectiveEnabled ? 'Active' : 'Activate'}
+                      {detailIsBlocked ? 'Disable · Blocked' : effectiveEnabled ? 'Disable' : 'Enable'}
                     </Button>
                   </span>
                 </Tooltip>
@@ -4600,7 +4600,7 @@ function UsecaseDetailContent({
                     },
                   }}
                 >
-                  Activate
+                  Enable
                 </Button>
               ) : null}
             </Box>
@@ -7452,7 +7452,7 @@ export function UsecaseCard({
                   ) : (
                     <Power size={11} style={{ color: 'inherit' }} />
                   )}
-                  <span>{isBlocked ? 'Active · Blocked' : 'Active'}</span>
+                  <span>{isBlocked ? 'Disable · Blocked' : 'Disable'}</span>
                 </Box>
               </Tooltip>
             ) : (flow.customAction?.href || flow.customAction?.url) && (!canToggle || (flow.id !== 'threat_intel_ingest_1' && flow.id !== 'case_management_agent_ai_incident_handling_1')) ? (
@@ -7530,8 +7530,8 @@ export function UsecaseCard({
                 <Tooltip
                   title={
                     !hasValidatedSource
-                      ? `No active ${sourceCat} integration is connected. Activating will not do anything until a ${sourceCat} tool is authenticated — the workflow will be disabled again automatically.`
-                      : 'Click to activate'
+                      ? `No active ${sourceCat} integration is connected. Enabling will not do anything until a ${sourceCat} tool is authenticated — the workflow will be disabled again automatically.`
+                      : 'Click to enable'
                   }
                   placement="top"
                   arrow
@@ -7571,7 +7571,7 @@ export function UsecaseCard({
                     ) : (
                       <Power size={11} style={{ color: 'hsl(var(--destructive))' }} />
                     )}
-                    <span>Activate</span>
+                    <span>Enable</span>
                   </Box>
                 </Tooltip>
               </Box>
@@ -7614,7 +7614,7 @@ export function UsecaseCard({
                   }}
                 >
                   <Power size={11} style={{ color: 'hsl(var(--destructive))' }} />
-                  <span>Activate</span>
+                  <span>Enable</span>
                 </Box>
               </Box>
             ) : null}

@@ -21,10 +21,12 @@ import { VulnerabilitiesDashboard } from '@/components/dashboard/Vulnerabilities
 import { CustomDashboard } from '@/components/dashboard/CustomDashboard';
 import { DashboardHeaderBar } from '@/components/dashboard/DashboardHeaderBar';
 import { useCustomDashboards } from '@/hooks/useCustomDashboards';
+import { useTheme } from '@/context/ThemeContext';
 import { SAMPLE_ORG_ID, SAMPLE_HOST_COUNT, buildSampleIncidents, buildSampleVulns, installDashboardSampleFetch } from '@/lib/dashboardSampleData';
 
 const GuestDashboardPage = () => {
   const queryClient = useQueryClient();
+  const { resolvedTheme } = useTheme();
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<DashboardTab>('security');
   const [days, setDays] = useState('90');
@@ -183,10 +185,11 @@ const GuestDashboardPage = () => {
           theme wrapper otherwise renders a zero-height flex child between the
           header bar and the content, adding 24px of gap on each side. */}
       <Box sx={{ display: 'none' }}>
-        <ExportReportDialog open={exportOpen} rangeLabel={rangeLabel} onClose={() => setExportOpen(false)} onExport={handleExport} />
+        <ExportReportDialog open={exportOpen} rangeLabel={rangeLabel} onClose={() => setExportOpen(false)} onExport={handleExport} theme={resolvedTheme} />
         <CreateDashboardDialog
           open={createDashboardOpen}
           onClose={() => setCreateDashboardOpen(false)}
+          theme={resolvedTheme}
           onSubmit={async ({ name, description, useStarterTemplate }) => {
             const created = await createCustomDashboard(name, description, useStarterTemplate);
             setTab(toCustomDashboardTab(created.id));

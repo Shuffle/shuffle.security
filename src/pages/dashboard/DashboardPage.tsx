@@ -53,6 +53,7 @@ import { DashboardHeaderBar } from '@/components/dashboard/DashboardHeaderBar';
 import { VulnerabilitiesDashboard } from '@/components/dashboard/VulnerabilitiesDashboard';
 import { CustomDashboard } from '@/components/dashboard/CustomDashboard';
 import { useCustomDashboards } from '@/hooks/useCustomDashboards';
+import { useTheme } from '@/context/ThemeContext';
 import {
   AUTOMATION_RANGE_OPTIONS,
   CreateDashboardDialog,
@@ -1554,14 +1555,17 @@ const DashboardPage = () => {
         onSubmitAnswers={handleSubmitAnswers}
       />
 
-      <CreateDashboardDialog
-        open={createDashboardOpen}
-        onClose={() => setCreateDashboardOpen(false)}
-        onSubmit={async ({ name, description, useStarterTemplate }) => {
-          const created = await createCustomDashboard(name, description, useStarterTemplate);
-          setDashboardTab(toCustomDashboardTab(created.id));
-        }}
-      />
+      <Box sx={{ display: 'none' }}>
+        <CreateDashboardDialog
+          open={createDashboardOpen}
+          onClose={() => setCreateDashboardOpen(false)}
+          theme={resolvedTheme}
+          onSubmit={async ({ name, description, useStarterTemplate }) => {
+            const created = await createCustomDashboard(name, description, useStarterTemplate);
+            setDashboardTab(toCustomDashboardTab(created.id));
+          }}
+        />
+      </Box>
     </>
   );
 };

@@ -1129,35 +1129,6 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
           )}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {isSupportUser && (
-            <Tooltip
-              title={
-                currentView === 'routing'
-                  ? `Switch to Automation for ${entityPluralCap}`
-                  : 'Routing rules are a support-only preview and are not visible to regular users yet.'
-              }
-            >
-              <IconButton
-                size="small"
-                onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
-                sx={{
-                  color: currentView === 'routing' ? 'hsl(var(--primary))' : 'text.secondary',
-                  border: '1px solid hsl(var(--border))',
-                  borderColor: currentView === 'routing' ? 'hsl(var(--primary))' : 'hsl(var(--border))',
-                  borderRadius: 1.5,
-                  p: 0.75,
-                  bgcolor: currentView === 'routing' ? 'hsl(var(--muted) / 0.5)' : 'transparent',
-                  '&:hover': {
-                    color: 'text.primary',
-                    bgcolor: 'hsl(var(--muted) / 0.5)',
-                    borderColor: 'hsl(var(--primary))',
-                  },
-                }}
-              >
-                <RouteIcon size={18} />
-              </IconButton>
-            </Tooltip>
-          )}
           {showViewToggle && (
             <Tooltip
               title={

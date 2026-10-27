@@ -533,6 +533,7 @@ const NotificationRow = ({ notification, entityBasePath, onApprove, onQuickView,
 const ITEMS_PER_PAGE = 10;
 
 const DashboardPage = () => {
+  const { resolvedTheme } = useTheme();
 
   usePageMeta({
     title: 'Dashboard',
@@ -714,7 +715,7 @@ const DashboardPage = () => {
       if (!cancelled) setSubOrgIncidentItems(results.flat());
     })();
     return () => { cancelled = true; };
-  }, [isParentOrg, subOrgs, currentOrgId, isViewingChild]);
+  }, [isParentOrg, subOrgs, currentOrgId, isViewingChild, dashboardRefreshKey]);
 
   // When viewing a specific child tenant, fetch incidents + vulnerabilities
   // scoped to that org via Org-Id header (no active-org change).
@@ -767,7 +768,7 @@ const DashboardPage = () => {
       setViewLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [isViewingChild, viewOrgId]);
+  }, [isViewingChild, viewOrgId, dashboardRefreshKey]);
 
   // Effective values used by the rest of the page
   const effectiveIncidentItems = isViewingChild ? viewIncidentItems : incidentItems;
@@ -861,7 +862,7 @@ const DashboardPage = () => {
       }
     };
     checkSensors();
-  }, [isViewingChild, viewOrgId]);
+  }, [isViewingChild, viewOrgId, dashboardRefreshKey]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -1194,7 +1195,9 @@ const DashboardPage = () => {
                         onRangeSelect={(fromMs, toMs) => setDashboardCustomRange({ fromMs, toMs })}
                         refreshKey={dashboardRefreshKey}
                         incidents={overviewIncidents}
+                        incidentsLoading={incidentsLoading}
                         vulnSeverityCounts={vulnSeverityCounts}
+                        vulnLoading={vulnLoading}
                         onUpdateDashboard={async (updated) => {
                           await saveCustomDashboard(updated);
                         }}

@@ -181,7 +181,8 @@ export interface WidgetEditorDialogProps {
   initialWidget?: CustomDashboardWidget | null;
   /** Available custom stat keys discovered from `/api/v1/orgs/{orgId}/stats`. */
   availableStatKeys?: string[];
-  onSave: (widget: CustomDashboardWidget) => void;
+  onSave?: (widget: CustomDashboardWidget) => Promise<void> | void;
+  onSubmit?: (widget: CustomDashboardWidget) => Promise<void> | void;
 }
 
 export const WidgetEditorDialog = ({
@@ -190,6 +191,7 @@ export const WidgetEditorDialog = ({
   initialWidget,
   availableStatKeys = [],
   onSave,
+  onSubmit,
 }: WidgetEditorDialogProps) => {
   const [title, setTitle] = useState('');
   const [titleTouched, setTitleTouched] = useState(false);
@@ -222,25 +224,25 @@ export const WidgetEditorDialog = ({
 
   useEffect(() => {
     if (!open) return;
-    if (initialWidget) {
-      setTitle(initialWidget.title);
+    if (initialWidget && initialWidget.dataSource) {
+      setTitle(initialWidget.title || '');
       setTitleTouched(true);
-      setVisualization(initialWidget.visualization);
-      setSpan(initialWidget.span);
+      setVisualization(initialWidget.visualization || 'kpi');
+      setSpan(initialWidget.span || 3);
       setAccentColor(initialWidget.accentColor || 'violet');
       const ds = initialWidget.dataSource;
       setSourceKind(ds.kind);
       if (ds.kind === 'custom_stat') {
-        setStatKey(ds.statKey);
+        setStatKey(ds.statKey || availableStatKeys[0] || 'total_workflow_executions');
         setAdditionalStatKeys(ds.additionalStatKeys || []);
       } else if (ds.kind === 'datastore_category') {
-        setCategory(ds.category);
-        setAggregation(ds.aggregation);
+        setCategory(ds.category || DATASTORE_CATEGORIES.INCIDENTS);
+        setAggregation(ds.aggregation || 'group_by');
         setGroupByField(ds.groupByField || 'severity');
         setFilterField(ds.filterField || '');
         setFilterValue(ds.filterValue || '');
       } else if (ds.kind === 'builtin') {
-        setBuiltinId(ds.builtinId);
+        setBuiltinId(ds.builtinId || BUILTIN_METRICS[0].id);
       }
     } else {
       const def = BUILTIN_METRICS[0];
@@ -378,7 +380,11 @@ export const WidgetEditorDialog = ({
       accentColor,
       dataSource,
     };
-    onSave(widget);
+    if (typeof onSave === 'function') {
+      void onSave(widget);
+    } else if (typeof onSubmit === 'function') {
+      void onSubmit(widget);
+    }
     onClose();
   };
 
@@ -648,7 +654,9 @@ export interface DashboardJsonDialogProps {
   open: boolean;
   onClose: () => void;
   config: CustomDashboardConfig;
-  onApply: (updated: CustomDashboardConfig) => Promise<void> | void;
+  onApply?: (updated: CustomDashboardConfig) => Promise<void> | void;
+  onSave?: (updated: CustomDashboardConfig) => Promise<void> | void;
+  onSubmit?: (updated: CustomDashboardConfig) => Promise<void> | void;
 }
 
 export const DashboardJsonDialog = ({
@@ -656,6 +664,8 @@ export const DashboardJsonDialog = ({
   onClose,
   config,
   onApply,
+  onSave,
+  onSubmit,
 }: DashboardJsonDialogProps) => {
   const [rawJson, setRawJson] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -706,7 +716,13 @@ export const DashboardJsonDialog = ({
       id: config.id,
     };
 
-    await onApply(normalized);
+    if (typeof onApply === 'function') {
+      await onApply(normalized);
+    } else if (typeof onSave === 'function') {
+      await onSave(normalized);
+    } else if (typeof onSubmit === 'function') {
+      await onSubmit(normalized);
+    }
     onClose();
   };
 

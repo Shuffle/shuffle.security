@@ -4427,8 +4427,8 @@ function UsecaseDetailContent({
       }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2.5 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1 }}>
-              <Typography sx={{ fontSize: '1.35rem', fontWeight: 800, color: FG, lineHeight: 1.2, flex: 1, minWidth: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5, mb: 1 }}>
+              <Typography sx={{ fontSize: { xs: '1.15rem', sm: '1.35rem' }, fontWeight: 800, color: FG, lineHeight: 1.2, flex: '1 1 180px', minWidth: 0 }}>
                 {renderUsecaseDetailTitle?.({ flowId: flow?.id ?? '', flowLabel: flowDisplayLabel }) ?? flowDisplayLabel}
               </Typography>
               {isComingSoon ? (
@@ -4551,6 +4551,7 @@ function UsecaseDetailContent({
                           : effectiveEnabled
                             ? '1px solid hsl(var(--severity-low) / 0.4)'
                             : '1px solid hsl(var(--destructive) / 0.4)',
+                        whiteSpace: 'nowrap',
                         letterSpacing: 0.2,
                         boxShadow: 'none',
                         '&:hover': {
@@ -4568,7 +4569,7 @@ function UsecaseDetailContent({
                         },
                       }}
                     >
-                      {detailIsBlocked ? 'Disable · Blocked' : effectiveEnabled ? 'Disable' : 'Enable'}
+                      {effectiveEnabled ? 'Disable' : 'Enable'}
                     </Button>
                   </span>
                 </Tooltip>
@@ -6857,9 +6858,9 @@ function UsecasesPageInner() {
 
       {/* Grouped card grid */}
       {grouped.map((group) => (
-        <Box key={group.id} sx={{ mb: 6 }}>
+        <Box key={group.id} sx={{ mb: { xs: 4, sm: 6 } }}>
           {/* Phase header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5, pt: 5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: { xs: 1.5, sm: 2.5 }, pt: { xs: 2, sm: 5 }, flexWrap: 'wrap' }}>
             <Chip
               label={group.step}
               size="small"
@@ -6880,12 +6881,15 @@ function UsecasesPageInner() {
             </Typography>
           </Box>
 
-          {/* Cards grid */}
+          {/* Cards grid (single-column list on mobile/narrow viewports, responsive grid on larger viewports) */}
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' },
-              gap: 1.5,
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'repeat(auto-fill, minmax(290px, 1fr))',
+              },
+              gap: { xs: 1, sm: 1.5 },
             }}
           >
             {group.flows.map((flow) => (
@@ -7264,6 +7268,8 @@ export function UsecaseCard({
       sx={{
         position: 'relative',
         height: '100%',
+        minWidth: 0,
+        overflow: 'hidden',
         bgcolor: isBlocked
           ? 'hsl(var(--destructive) / 0.05)'
           : effectiveEnabled
@@ -7290,11 +7296,20 @@ export function UsecaseCard({
           from: { opacity: 0, transform: 'scale(0.96)' },
           to: { opacity: 1, transform: 'scale(1)' },
         },
-        '&:hover .uc-card-action': {
-          display: 'inline-flex',
-          opacity: 1,
-          pointerEvents: 'auto',
-          animation: 'ucCardActionIn 0.15s ease-out',
+        '@media (hover: hover)': {
+          '&:hover .uc-card-action': {
+            display: 'inline-flex',
+            opacity: 1,
+            pointerEvents: 'auto',
+            animation: 'ucCardActionIn 0.15s ease-out',
+          },
+        },
+        '@media (hover: none), (max-width: 599.95px)': {
+          '& .uc-card-action': {
+            display: 'inline-flex',
+            opacity: 1,
+            pointerEvents: 'auto',
+          },
         },
       }}
     >
@@ -7302,13 +7317,16 @@ export function UsecaseCard({
         component="div"
         onClick={onClick}
         sx={{
-          px: 2,
-          py: '14.5px',
+          px: { xs: 1.5, sm: 2 },
+          py: { xs: 1.5, sm: '14.5px' },
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-start',
           justifyContent: showImage && flow.referenceImage ? 'flex-start' : 'center',
           height: '100%',
+          minWidth: 0,
+          width: '100%',
+          boxSizing: 'border-box',
           cursor: 'pointer',
         }}
       >
@@ -7330,26 +7348,26 @@ export function UsecaseCard({
             }}
           />
         )}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 0, gap: 1 }}>
           {/* Left: Label + Route */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, gap: 0.25 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: '1 1 0%', overflow: 'hidden', gap: 0.25 }}>
             <Typography variant="body2" title={cardDisplayLabel} sx={{ fontWeight: 600, color: 'hsl(var(--foreground))', fontSize: '0.82rem', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {cardDisplayLabel}
             </Typography>
             {/* Source → Target */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, overflow: 'hidden' }}>
+              <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1 }}>
                 {flow.source === 'case_management' ? 'Shuffle' : sourceCat}
               </Typography>
-              <ArrowRight size={10} style={{ color: 'hsl(var(--muted-foreground))' }} />
-              <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem' }}>
+              <ArrowRight size={10} style={{ color: 'hsl(var(--muted-foreground))', flexShrink: 0 }} />
+              <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
                 {MULTI_DEST_FLOW_IDS.has(flow.id) ? 'Communication & Cases' : targetCat}
               </Typography>
             </Box>
           </Box>
 
           {/* Right: Badges & Unified Action / Status Chip-Button */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0, maxWidth: '55%' }}>
             {showDrift && (
               <Tooltip title={driftTooltip} placement="top" arrow>
                 <Box
@@ -7436,6 +7454,10 @@ export function UsecaseCard({
                     outline: 'none',
                     boxShadow: 'none',
                     flexShrink: 0,
+                    maxWidth: '100%',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                     transition: 'all 0.15s ease',
                     '&:hover': (isMonitorsFlow || canDisable) ? {
                       bgcolor: isBlocked
@@ -7448,11 +7470,13 @@ export function UsecaseCard({
                   }}
                 >
                   {toggling ? (
-                    <CircularProgress size={11} sx={{ color: 'inherit' }} />
+                    <CircularProgress size={11} sx={{ color: 'inherit', flexShrink: 0 }} />
                   ) : (
-                    <Power size={11} style={{ color: 'inherit' }} />
+                    <Power size={11} style={{ color: 'inherit', flexShrink: 0 }} />
                   )}
-                  <span>{isBlocked ? 'Disable · Blocked' : 'Disable'}</span>
+                  <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    Disable
+                  </Box>
                 </Box>
               </Tooltip>
             ) : (flow.customAction?.href || flow.customAction?.url) && (!canToggle || (flow.id !== 'threat_intel_ingest_1' && flow.id !== 'case_management_agent_ai_incident_handling_1')) ? (
@@ -7567,11 +7591,11 @@ export function UsecaseCard({
                     }}
                   >
                     {toggling ? (
-                      <CircularProgress size={11} sx={{ color: 'inherit' }} />
+                      <CircularProgress size={11} sx={{ color: 'inherit', flexShrink: 0 }} />
                     ) : (
-                      <Power size={11} style={{ color: 'hsl(var(--destructive))' }} />
+                      <Power size={11} style={{ color: 'hsl(var(--destructive))', flexShrink: 0 }} />
                     )}
-                    <span>Enable</span>
+                    <Box component="span" sx={{ whiteSpace: 'nowrap' }}>Enable</Box>
                   </Box>
                 </Tooltip>
               </Box>
@@ -7605,6 +7629,7 @@ export function UsecaseCard({
                     letterSpacing: '0.02em',
                     lineHeight: 1,
                     textDecoration: 'none',
+                    whiteSpace: 'nowrap',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                     '&:hover': {
@@ -7613,8 +7638,8 @@ export function UsecaseCard({
                     },
                   }}
                 >
-                  <Power size={11} style={{ color: 'hsl(var(--destructive))' }} />
-                  <span>Enable</span>
+                  <Power size={11} style={{ color: 'hsl(var(--destructive))', flexShrink: 0 }} />
+                  <Box component="span" sx={{ whiteSpace: 'nowrap' }}>Enable</Box>
                 </Box>
               </Box>
             ) : null}

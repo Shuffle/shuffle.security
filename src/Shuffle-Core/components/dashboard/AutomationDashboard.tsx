@@ -102,6 +102,7 @@ const greeting = () => {
 
 /** Strip leading `total_`, replace underscores with spaces, sentence-case. */
 const prettyStatLabel = (key: string): string => {
+  if (!key || typeof key !== 'string') return '';
   let bare = key;
   if (bare.startsWith('total_')) bare = bare.slice(6);
   if (bare.toLowerCase().startsWith('categorylabel_')) bare = bare.slice('categorylabel_'.length);
@@ -255,8 +256,8 @@ export const AutomationDashboard = ({
     load(true); /* eslint-disable-next-line */
   }, [refreshKey]);
 
-  const daily = stats?.daily_statistics || [];
-  const rangeDays = parseInt(days, 10);
+  const daily = Array.isArray(stats?.daily_statistics) ? stats.daily_statistics : [];
+  const rangeDays = Math.max(1, parseInt(String(days ?? '30'), 10) || 30);
 
   // Time buckets (daily or monthly) — every chart in this dashboard renders
   // one section per bucket, so widths are uniform regardless of range.
@@ -272,8 +273,9 @@ export const AutomationDashboard = ({
     const end = buckets[buckets.length - 1]?.endMs ?? Date.now();
     return daily
       .filter(d => {
+        if (!d?.date) return false;
         const ms = new Date(d.date).getTime();
-        return ms >= start && ms < end;
+        return Number.isFinite(ms) && ms >= start && ms < end;
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [daily, rangeDays, buckets]);
@@ -286,6 +288,7 @@ export const AutomationDashboard = ({
   const bucketed = (key: string): number[] => {
     const acc = new Array(buckets.length).fill(0);
     for (const d of filtered) {
+      if (!d?.date) continue;
       const ms = new Date(d.date).getTime();
       const idx = bucketIndexOf(buckets, ms);
       if (idx >= 0) acc[idx] += Number((d as any)[key]) || 0;
@@ -335,27 +338,43 @@ export const AutomationDashboard = ({
    * Preference order: top-level `total_*` > addition key.
    */
   const statKeys = useMemo(() => {
-    if (!stats) return [] as string[];
+    if (!stats || typeof stats !== 'object') return [] as string[];
     const map = new Map<string, string>(); // canonical -> rawKey
     Object.keys(stats)
-      .filter(k => k.startsWith('total_'))
+      .filter(k => typeof k === 'string' && k.startsWith('total_'))
       .forEach(k => {
         const canon = k.slice(6);
-        if (!map.has(canon)) map.set(canon, k);
+        if (canon && !map.has(canon)) map.set(canon, k);
       });
-    const addAddition = (k?: string) => {
-      if (!k) return;
+    const addAddition = (k?: unknown) => {
+      if (typeof k !== 'string' || !k) return;
       const canon = k.startsWith('total_') ? k.slice(6) : k;
-      if (!map.has(canon)) map.set(canon, k);
+      if (canon && !map.has(canon)) map.set(canon, k);
     };
-    (stats.additions || []).forEach(a => addAddition(a?.key));
-    (stats.daily_statistics || []).forEach(d =>
-      (d.additions || []).forEach(a => addAddition(a?.key))
-    );
+    if (Array.isArray(stats.additions)) {
+      stats.additions.forEach(a => addAddition(a?.key));
+    }
+    if (Array.isArray(stats.daily_statistics)) {
+      stats.daily_statistics.forEach(d => {
+        if (Array.isArray(d?.additions)) {
+          d.additions.forEach(a => addAddition(a?.key));
+        }
+      });
+    }
     return Array.from(map.values()).sort((a, b) =>
       prettyStatLabel(a).localeCompare(prettyStatLabel(b))
     );
   }, [stats]);
+
+  const valueForStat = (d: any, key: string): number => {
+    if (!d || typeof d !== 'object' || typeof key !== 'string' || !key) return 0;
+    const bare = key.startsWith('total_') ? key.slice(6) : key;
+    if (d[bare] != null && typeof d[bare] !== 'object') return Number(d[bare]) || 0;
+    if (d[key] != null && typeof d[key] !== 'object') return Number(d[key]) || 0;
+    const additions = Array.isArray(d.additions) ? d.additions : [];
+    const hit = additions.find((a: Addition) => a?.key === key || a?.key === bare);
+    return hit ? Number(hit.value) || 0 : 0;
+  };
 
   useEffect(() => {
     if (!statKeys.length) return;
@@ -366,23 +385,22 @@ export const AutomationDashboard = ({
     setSelectedStat(firstWithData || statKeys[0]);
   }, [statKeys, selectedStat, filtered]);
 
-  const valueForStat = (d: any, key: string): number => {
-    const bare = key.startsWith('total_') ? key.slice(6) : key;
-    if (d[bare] != null) return Number(d[bare]) || 0;
-    if (d[key] != null) return Number(d[key]) || 0;
-    const hit = (d.additions || []).find((a: Addition) => a?.key === key || a?.key === bare);
-    return hit ? Number(hit.value) || 0 : 0;
-  };
+  const effectiveSelectedStat = useMemo(() => {
+    if (!statKeys.length) return '';
+    if (selectedStat && statKeys.includes(selectedStat)) return selectedStat;
+    return statKeys[0];
+  }, [statKeys, selectedStat]);
 
   const statSeries = useMemo(() => {
-    if (!selectedStat) return [] as Array<{ date: string; value: number }>;
+    if (!effectiveSelectedStat) return [] as Array<{ date: string; value: number }>;
     const acc = new Array(buckets.length).fill(0);
     for (const d of filtered) {
+      if (!d?.date) continue;
       const idx = bucketIndexOf(buckets, new Date(d.date).getTime());
-      if (idx >= 0) acc[idx] += valueForStat(d, selectedStat);
+      if (idx >= 0) acc[idx] += valueForStat(d, effectiveSelectedStat);
     }
     return buckets.map((b, i) => ({ date: b.label, value: acc[i] }));
-  }, [filtered, selectedStat, buckets]);
+  }, [filtered, effectiveSelectedStat, buckets]);
 
   /** Aggregate value per stat key across the currently-filtered date range. */
   const statTotals = useMemo(() => {
@@ -600,9 +618,9 @@ export const AutomationDashboard = ({
               <Autocomplete
                 size="small"
                 options={statKeys}
-                value={selectedStat ?? undefined}
+                value={effectiveSelectedStat || null}
                 onChange={(_, v) => { if (v) pickSelectedStat(v); }}
-                disableClearable
+                disableClearable={Boolean(effectiveSelectedStat)}
                 getOptionLabel={(k) => prettyStatLabel(k)}
                 isOptionEqualToValue={(a, b) => a === b}
                 noOptionsText={statKeys.length === 0 ? 'No stats available' : 'No matches'}
@@ -683,7 +701,7 @@ export const AutomationDashboard = ({
               onCta={() => window.open('https://shuffler.io/docs/API#stats-and-timelines', '_blank', 'noopener,noreferrer')}
             />
           ) : statSeries.every(p => p.value === 0) ? (
-            <EmptyState text={`No values for "${prettyStatLabel(selectedStat)}" in the last ${days} days. Increment this key from a workflow and it will start charting here.`} />
+            <EmptyState text={`No values for "${prettyStatLabel(effectiveSelectedStat)}" in the last ${rangeDays} days. Increment this key from a workflow and it will start charting here.`} />
 
                     ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -698,7 +716,7 @@ export const AutomationDashboard = ({
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={32} />
                 <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
                 <RechartsTooltip content={<TooltipContent />} cursor={{ fill: 'hsl(var(--muted) / 0.15)' }} />
-                <Bar dataKey="value" name={selectedStat ? prettyStatLabel(selectedStat) : 'value'} radius={[6, 6, 0, 0]} maxBarSize={64} fill="url(#auto-bar-fill)" />
+                <Bar dataKey="value" name={effectiveSelectedStat ? prettyStatLabel(effectiveSelectedStat) : 'value'} radius={[6, 6, 0, 0]} maxBarSize={64} fill="url(#auto-bar-fill)" />
                 {statsDrag.refArea && (
                   <ReferenceArea x1={statsDrag.refArea.x1} x2={statsDrag.refArea.x2} stroke="hsl(var(--primary))" strokeOpacity={0.4} fill="hsl(var(--primary))" fillOpacity={0.12} />
                 )}

@@ -187,13 +187,15 @@ export const AgentsDashboard = ({
   const topTools = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const r of scoped) {
-      for (const res of r.results || []) {
+      const results = Array.isArray(r?.results) ? r.results : [];
+      for (const res of results) {
         const name = res?.action?.app_name;
-        if (!name) continue;
+        if (typeof name !== 'string' || !name) continue;
         const clean = name.replace(/_/g, ' ');
         counts[clean] = (counts[clean] || 0) + 1;
       }
-      for (const d of r.decisions || []) {
+      const decisions = Array.isArray(r?.decisions) ? r.decisions : [];
+      for (const d of decisions) {
         const tool = typeof d?.tool === 'string' ? d.tool : '';
         if (tool) counts[tool.replace(/_/g, ' ')] = (counts[tool.replace(/_/g, ' ')] || 0) + 1;
       }

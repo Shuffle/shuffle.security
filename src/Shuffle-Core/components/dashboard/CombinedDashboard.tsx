@@ -358,7 +358,7 @@ const CombinedDashboard = ({
           const table = await buildSectionTable(def.id, {
             fromMs: rangeFrom,
             toMs: rangeTo,
-            orgId: orgId ?? undefined,
+            orgId: effectiveOrgId ?? undefined,
             userdata: host.userdata,
             incidentsCategory: DATASTORE_CATEGORIES.INCIDENTS,
           });
@@ -561,7 +561,7 @@ const CombinedDashboard = ({
         ) : tab === 'agents' ? (
           <AgentsDashboard
             {...host}
-            orgId={orgId ?? undefined}
+            orgId={effectiveOrgId ?? undefined}
             days={parseInt(days, 10) || 30}
             gran={gran}
             customRange={customRange}
@@ -571,7 +571,7 @@ const CombinedDashboard = ({
         ) : tab === 'vulnerabilities' ? (
           <VulnerabilitiesDashboard
             {...host}
-            orgId={orgId ?? undefined}
+            orgId={effectiveOrgId ?? undefined}
             days={parseInt(days, 10) || 30}
             gran={gran}
             customRange={customRange}
@@ -581,7 +581,7 @@ const CombinedDashboard = ({
         ) : tab === 'automation' ? (
           <AutomationDashboard
             {...host}
-            orgId={orgId}
+            orgId={effectiveOrgId}
             displayName={displayName}
             headerLeft={headerLeft}
             days={days}

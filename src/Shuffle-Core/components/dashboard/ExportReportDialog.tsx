@@ -22,7 +22,8 @@ export interface ExportReportDialogProps {
   /** Sections ticked when the dialog opens. Defaults to DEFAULT_REPORT_SECTIONS. */
   initialSections?: ReportSectionId[];
   onClose: () => void;
-  onExport: (sections: ReportSectionId[]) => void;
+  onExport?: (sections: ReportSectionId[]) => void;
+  onSubmit?: (sections: ReportSectionId[]) => void;
 }
 
 const ExportReportDialog = ({
@@ -32,6 +33,7 @@ const ExportReportDialog = ({
   initialSections,
   onClose,
   onExport,
+  onSubmit,
 }: ExportReportDialogProps) => {
   const sections = visibleReportSections(hasChildTenants);
   const [selected, setSelected] = useState<ReportSectionId[]>(initialSections ?? DEFAULT_REPORT_SECTIONS);
@@ -81,7 +83,13 @@ const ExportReportDialog = ({
         <Button
           variant="contained"
           disabled={selected.length === 0}
-          onClick={() => onExport(selected)}
+          onClick={() => {
+            if (typeof onExport === 'function') {
+              onExport(selected);
+            } else if (typeof onSubmit === 'function') {
+              onSubmit(selected);
+            }
+          }}
           sx={{ height: 36, textTransform: 'none', boxShadow: 'none' }}
         >
           Generate PDF

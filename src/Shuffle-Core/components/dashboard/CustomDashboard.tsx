@@ -9,7 +9,7 @@
  * Persisted via `useCustomDashboards` in the `shuffle-security_dashboards`
  * datastore category with localStorage fallback.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -164,6 +164,7 @@ const formatCompact = (n: number): string => {
 };
 
 const prettyStatLabel = (key: string): string => {
+  if (!key || typeof key !== 'string') return '';
   let bare = key;
   if (bare.startsWith('total_')) bare = bare.slice(6);
   if (bare.toLowerCase().startsWith('categorylabel_')) bare = bare.slice('categorylabel_'.length);
@@ -173,10 +174,12 @@ const prettyStatLabel = (key: string): string => {
 };
 
 const valueForStat = (d: DailyStat, key: string): number => {
+  if (!d || typeof d !== 'object' || typeof key !== 'string' || !key) return 0;
   const bare = key.startsWith('total_') ? key.slice(6) : key;
-  if (d[bare] != null) return Number(d[bare]) || 0;
-  if (d[key] != null) return Number(d[key]) || 0;
-  const hit = (d.additions || []).find((a: Addition) => a?.key === key || a?.key === bare);
+  if (d[bare] != null && typeof d[bare] !== 'object') return Number(d[bare]) || 0;
+  if (d[key] != null && typeof d[key] !== 'object') return Number(d[key]) || 0;
+  const additions = Array.isArray(d.additions) ? d.additions : [];
+  const hit = additions.find((a: Addition) => a?.key === key || a?.key === bare);
   return hit ? Number(hit.value) || 0 : 0;
 };
 
@@ -277,12 +280,14 @@ export const CustomDashboard = ({
   );
 
   const dashboard = useMemo<CustomDashboardConfig>(() => {
-    if (dashboardProp) return dashboardProp;
-    if (dashboardId) {
-      const found = storedDashboards.find((d) => d.id === dashboardId);
-      if (found) return found;
+    let chosen: CustomDashboardConfig | undefined = dashboardProp;
+    if (!chosen && dashboardId) {
+      chosen = storedDashboards.find((d) => d.id === dashboardId);
     }
-    return storedDashboards[0] || fallbackDashboard;
+    const resolved = chosen || storedDashboards[0] || fallbackDashboard;
+    return Array.isArray(resolved.widgets)
+      ? resolved
+      : { ...resolved, widgets: [] };
   }, [dashboardProp, dashboardId, storedDashboards, fallbackDashboard]);
 
   const onUpdateDashboard = useCallback(
@@ -365,9 +370,9 @@ export const CustomDashboard = ({
 
   const hasBuiltinIncidentWidget = useMemo(
     () =>
-      dashboard.widgets.some(
+      (dashboard.widgets || []).some(
         (w) =>
-          w.dataSource.kind === 'builtin' &&
+          w?.dataSource?.kind === 'builtin' &&
           (w.dataSource.builtinId === 'open_incidents' ||
             w.dataSource.builtinId === 'critical_high_incidents' ||
             w.dataSource.builtinId === 'resolved_incidents' ||
@@ -378,9 +383,9 @@ export const CustomDashboard = ({
 
   const hasBuiltinVulnWidget = useMemo(
     () =>
-      dashboard.widgets.some(
+      (dashboard.widgets || []).some(
         (w) =>
-          w.dataSource.kind === 'builtin' &&
+          w?.dataSource?.kind === 'builtin' &&
           (w.dataSource.builtinId === 'critical_high_vulns' ||
             w.dataSource.builtinId === 'total_vulns' ||
             w.dataSource.builtinId === 'vulnerability_severity'),
@@ -391,8 +396,8 @@ export const CustomDashboard = ({
   // Determine which datastore categories are referenced by widgets (including standalone incidents fallback)
   const requiredCategories = useMemo(() => {
     const set = new Set<string>();
-    for (const w of dashboard.widgets) {
-      if (w.dataSource.kind === 'datastore_category' && w.dataSource.category.trim()) {
+    for (const w of dashboard.widgets || []) {
+      if (w?.dataSource?.kind === 'datastore_category' && w.dataSource.category?.trim()) {
         set.add(w.dataSource.category.trim());
       }
     }
@@ -526,56 +531,65 @@ export const CustomDashboard = ({
 
   // Discover all available custom stat keys from `/api/v1/orgs/{orgId}/stats`
   const availableStatKeys = useMemo(() => {
-    if (!stats) return [] as string[];
+    if (!stats || typeof stats !== 'object') return [] as string[];
     const map = new Map<string, string>();
     Object.keys(stats)
-      .filter((k) => k.startsWith('total_'))
+      .filter((k) => typeof k === 'string' && k.startsWith('total_'))
       .forEach((k) => {
         const canon = k.slice(6);
-        if (!map.has(canon)) map.set(canon, k);
+        if (canon && !map.has(canon)) map.set(canon, k);
       });
-    const addAddition = (k?: string) => {
-      if (!k) return;
+    const addAddition = (k?: unknown) => {
+      if (typeof k !== 'string' || !k) return;
       const canon = k.startsWith('total_') ? k.slice(6) : k;
-      if (!map.has(canon)) map.set(canon, k);
+      if (canon && !map.has(canon)) map.set(canon, k);
     };
-    (stats.additions || []).forEach((a) => addAddition(a?.key));
-    (stats.daily_statistics || []).forEach((d) =>
-      (d.additions || []).forEach((a) => addAddition(a?.key)),
-    );
+    if (Array.isArray(stats.additions)) {
+      stats.additions.forEach((a) => addAddition(a?.key));
+    }
+    if (Array.isArray(stats.daily_statistics)) {
+      stats.daily_statistics.forEach((d) => {
+        if (Array.isArray(d?.additions)) {
+          d.additions.forEach((a) => addAddition(a?.key));
+        }
+      });
+    }
     return Array.from(map.values()).sort((a, b) =>
       prettyStatLabel(a).localeCompare(prettyStatLabel(b)),
     );
   }, [stats]);
+
+  const safeDays = Math.max(1, parseInt(String(days ?? 30), 10) || 30);
 
   // Compute time buckets
   const buckets: TimeBucket[] = useMemo(
     () =>
       customRange
         ? buildBucketsBetween(customRange.fromMs, customRange.toMs, gran)
-        : buildBuckets(Math.max(1, days), gran),
-    [days, gran, customRange],
+        : buildBuckets(safeDays, gran),
+    [safeDays, gran, customRange],
   );
 
   const filteredDailyStats = useMemo(() => {
-    const daily = stats?.daily_statistics || [];
-    const start = buckets[0]?.startMs ?? Date.now() - days * 86400_000;
+    const daily = Array.isArray(stats?.daily_statistics) ? stats.daily_statistics : [];
+    const start = buckets[0]?.startMs ?? Date.now() - safeDays * 86400_000;
     const end = buckets[buckets.length - 1]?.endMs ?? Date.now();
     return daily
       .filter((d) => {
+        if (!d?.date) return false;
         const ms = new Date(d.date).getTime();
-        return ms >= start && ms < end;
+        return Number.isFinite(ms) && ms >= start && ms < end;
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [stats, buckets, days]);
+  }, [stats, buckets, safeDays]);
 
-  const drag = useChartRangeDrag(buckets, onRangeSelect);
+  const drag = useChartRangeDrag(buckets, isEditing ? undefined : onRangeSelect);
 
   // Resolve data for a single widget
   const resolveWidgetData = useCallback(
     (widget: CustomDashboardWidget): ResolvedWidgetData => {
-      const accentHex = NEON[widget.accentColor || 'violet'] || NEON.violet;
-      const ds = widget.dataSource;
+      const accentHex = NEON[widget?.accentColor || 'violet'] || NEON.violet;
+      const ds = widget?.dataSource || { kind: 'builtin' as const, builtinId: 'open_incidents' as const };
 
       if (ds.kind === 'builtin') {
         const id = ds.builtinId;
@@ -806,7 +820,7 @@ export const CustomDashboard = ({
       }
 
       // ds.kind === 'datastore_category'
-      const cat = ds.category.trim();
+      const cat = (ds.category || '').trim();
       const isLoadingCat = Boolean(categoryLoading[cat]);
       let records = categoryData[cat] || [];
 
@@ -925,17 +939,227 @@ export const CustomDashboard = ({
     });
   };
 
-  const handleMoveWidget = async (index: number, direction: -1 | 1) => {
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= dashboard.widgets.length) return;
-    const copy = [...dashboard.widgets];
-    const [moved] = copy.splice(index, 1);
-    copy.splice(targetIndex, 0, moved);
-    await onUpdateDashboard({
-      ...dashboard,
-      updatedAt: Date.now(),
-      widgets: copy,
-    });
+  // Allowed 12-column spans for edge-resize snapping and quick cycling
+  const SNAP_SPANS: WidgetSpan[] = useMemo(
+    () => WIDGET_SPAN_OPTIONS.map((o) => o.value),
+    [],
+  );
+
+  const formatSpanShortLabel = (span: WidgetSpan): string => {
+    if (span === 3) return '1/4';
+    if (span === 4) return '1/3';
+    if (span === 6) return '1/2';
+    if (span === 8) return '2/3';
+    return 'Full';
+  };
+
+  const snapToNearestSpan = useCallback(
+    (rawCols: number): WidgetSpan => {
+      let best: WidgetSpan = SNAP_SPANS[0] || 3;
+      let bestDist = Infinity;
+      for (const candidate of SNAP_SPANS) {
+        const dist = Math.abs(rawCols - candidate);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = candidate;
+        }
+      }
+      return best;
+    },
+    [SNAP_SPANS],
+  );
+
+  const handleCycleSpan = async (widget: CustomDashboardWidget) => {
+    const idx = SNAP_SPANS.indexOf(widget.span);
+    const nextSpan = SNAP_SPANS[(idx + 1) % SNAP_SPANS.length] || 6;
+    await handleSpanChange(widget.id, nextSpan);
+  };
+
+  // Refs & state for Edit Mode drag-and-drop reordering and edge resizing
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const widgetRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const [dragState, setDragState] = useState<{
+    widgetId: string;
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+
+  const [dropTarget, setDropTarget] = useState<{
+    widgetId: string;
+    side: 'before' | 'after';
+  } | null>(null);
+
+  const [resizingState, setResizingState] = useState<{
+    widgetId: string;
+    edge: 'left' | 'right';
+    span: WidgetSpan;
+  } | null>(null);
+
+  // Clear any active drag/resize state when leaving Edit Mode
+  useEffect(() => {
+    if (!isEditing) {
+      setDragState(null);
+      setDropTarget(null);
+      setResizingState(null);
+    }
+  }, [isEditing]);
+
+  const startEdgeResize = (
+    e: React.PointerEvent<HTMLElement>,
+    widget: CustomDashboardWidget,
+    edge: 'left' | 'right',
+  ) => {
+    if (!isEditing) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const gridEl = gridRef.current;
+    const widgetEl = widgetRefs.current[widget.id];
+    if (!gridEl || !widgetEl) return;
+
+    const gridRect = gridEl.getBoundingClientRect();
+    const initialRect = widgetEl.getBoundingClientRect();
+    const gridWidth = Math.max(240, gridRect.width);
+    let latestSpan: WidgetSpan = widget.span;
+
+    setResizingState({ widgetId: widget.id, edge, span: widget.span });
+
+    const onPointerMove = (ev: PointerEvent) => {
+      const desiredPx =
+        edge === 'right'
+          ? Math.max(60, ev.clientX - initialRect.left)
+          : Math.max(60, initialRect.right - ev.clientX);
+      const rawCols = (desiredPx / gridWidth) * 12;
+      const snapped = snapToNearestSpan(rawCols);
+      latestSpan = snapped;
+      setResizingState((prev) =>
+        prev && prev.widgetId === widget.id && prev.span === snapped
+          ? prev
+          : { widgetId: widget.id, edge, span: snapped },
+      );
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      setResizingState(null);
+      if (latestSpan !== widget.span) {
+        void handleSpanChange(widget.id, latestSpan);
+      }
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  };
+
+  const startWidgetDrag = (
+    e: React.PointerEvent<HTMLElement>,
+    widget: CustomDashboardWidget,
+  ) => {
+    if (!isEditing) return;
+    if (e.button !== 0) return;
+
+    const targetEl = e.target as HTMLElement | null;
+    if (targetEl?.closest('button, [data-no-widget-drag="true"]')) {
+      return;
+    }
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let isDraggingNow = false;
+    let latestDrop: { widgetId: string; side: 'before' | 'after' } | null = null;
+
+    const resolveDropTargetAt = (
+      cx: number,
+      cy: number,
+    ): { widgetId: string; side: 'before' | 'after' } | null => {
+      let bestId: string | null = null;
+      let bestSide: 'before' | 'after' = 'before';
+      let bestScore = Infinity;
+
+      for (const candidate of dashboard.widgets) {
+        const el = widgetRefs.current[candidate.id];
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        const midX = rect.left + rect.width / 2;
+        const side: 'before' | 'after' = cx < midX ? 'before' : 'after';
+
+        const insideX = cx >= rect.left && cx <= rect.right;
+        const insideY = cy >= rect.top && cy <= rect.bottom;
+
+        if (insideX && insideY) {
+          return { widgetId: candidate.id, side };
+        }
+
+        const dx = cx < rect.left ? rect.left - cx : cx > rect.right ? cx - rect.right : 0;
+        const dy = cy < rect.top ? rect.top - cy : cy > rect.bottom ? cy - rect.bottom : 0;
+        // Weight vertical distance higher so widgets on the same row are strongly preferred
+        const score = dx + dy * 2.5;
+        if (score < bestScore) {
+          bestScore = score;
+          bestId = candidate.id;
+          bestSide = side;
+        }
+      }
+
+      return bestId ? { widgetId: bestId, side: bestSide } : null;
+    };
+
+    const onPointerMove = (ev: PointerEvent) => {
+      const dist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
+      if (!isDraggingNow && dist < 6) return;
+
+      if (!isDraggingNow) {
+        isDraggingNow = true;
+      }
+
+      setDragState({
+        widgetId: widget.id,
+        clientX: ev.clientX,
+        clientY: ev.clientY,
+      });
+
+      const resolvedTarget = resolveDropTargetAt(ev.clientX, ev.clientY);
+      latestDrop = resolvedTarget;
+      setDropTarget(resolvedTarget);
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+
+      setDragState(null);
+      setDropTarget(null);
+
+      if (!isDraggingNow || !latestDrop) return;
+      if (latestDrop.widgetId === widget.id) return;
+
+      const list = [...dashboard.widgets];
+      const fromIdx = list.findIndex((w) => w.id === widget.id);
+      if (fromIdx < 0) return;
+
+      const [moved] = list.splice(fromIdx, 1);
+      const targetIdx = list.findIndex((w) => w.id === latestDrop!.widgetId);
+      if (targetIdx < 0) return;
+
+      const insertIdx = latestDrop.side === 'before' ? targetIdx : targetIdx + 1;
+      if (insertIdx === fromIdx) return;
+
+      list.splice(insertIdx, 0, moved);
+      void onUpdateDashboard({
+        ...dashboard,
+        updatedAt: Date.now(),
+        widgets: list,
+      });
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
   };
 
   const handleRenameDashboard = async ({
@@ -1394,6 +1618,33 @@ export const CustomDashboard = ({
         </Box>
       </Box>
 
+      {isEditing && dashboard.widgets.length > 0 && (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 1,
+            px: 1.75,
+            py: 0.85,
+            borderRadius: 1.5,
+            border: `1px dashed ${NEON.cyan}66`,
+            bgcolor: `${NEON.cyan}0D`,
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: '0.75rem',
+              color: 'hsl(var(--foreground))',
+              fontWeight: 500,
+            }}
+          >
+            Layout edit mode: Drag any widget card to reorder. Hover and drag a widget's left or right edge to resize (1/4, 1/3, 1/2, 2/3, Full).
+          </Typography>
+        </Box>
+      )}
+
       {/* 12-Column Widget Grid */}
       {dashboard.widgets.length === 0 ? (
         <Panel title="Empty Custom Dashboard">
@@ -1408,161 +1659,348 @@ export const CustomDashboard = ({
         </Panel>
       ) : (
         <Box
+          ref={gridRef}
           sx={{
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', md: 'repeat(12, 1fr)' },
             gap: 1.5,
+            userSelect: isEditing ? 'none' : 'auto',
           }}
         >
-          {dashboard.widgets.map((widget, idx) => (
-            <Box
-              key={widget.id}
-              sx={{
-                gridColumn: { xs: 'span 12', md: `span ${widget.span}` },
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 0.75,
-                minWidth: 0,
-              }}
-            >
-              {isEditing && (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: 0.75,
-                    px: 1.25,
-                    py: 0.6,
-                    borderRadius: 1.5,
-                    border: `1px dashed ${NEON.cyan}66`,
-                    bgcolor: 'hsl(var(--card) / 0.75)',
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                    {WIDGET_SPAN_OPTIONS.map((opt) => {
-                      const active = widget.span === opt.value;
-                      const shortLabel =
-                        opt.value === 3
-                          ? '1/4'
-                          : opt.value === 4
-                            ? '1/3'
-                            : opt.value === 6
-                              ? '1/2'
-                              : opt.value === 8
-                                ? '2/3'
-                                : 'Full';
-                      return (
-                        <Box
-                          key={opt.value}
-                          component="button"
-                          type="button"
-                          onClick={() => handleSpanChange(widget.id, opt.value)}
-                          sx={{
-                            height: 24,
-                            px: 0.85,
-                            borderRadius: 1,
-                            fontSize: '0.68rem',
-                            fontWeight: active ? 700 : 500,
-                            cursor: 'pointer',
-                            border: '1px solid',
-                            borderColor: active ? NEON.cyan : 'hsl(var(--border))',
-                            bgcolor: active ? `${NEON.cyan}1F` : 'transparent',
-                            color: active ? NEON.cyan : 'hsl(var(--muted-foreground))',
-                          }}
-                        >
-                          {shortLabel}
-                        </Box>
-                      );
-                    })}
-                  </Box>
+          {dashboard.widgets.map((widget) => {
+            const isBeingDragged = dragState?.widgetId === widget.id;
+            const isBeingResized = resizingState?.widgetId === widget.id;
+            const effectiveSpan: WidgetSpan = isBeingResized
+              ? resizingState.span
+              : widget.span;
+            const isDropTarget =
+              Boolean(dragState) &&
+              dropTarget?.widgetId === widget.id &&
+              dragState?.widgetId !== widget.id;
+            const dropSide = isDropTarget ? dropTarget?.side : null;
 
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            return (
+              <Box
+                key={widget.id}
+                ref={(el: HTMLDivElement | null) => {
+                  widgetRefs.current[widget.id] = el;
+                }}
+                onPointerDown={(e) => startWidgetDrag(e, widget)}
+                sx={{
+                  position: 'relative',
+                  gridColumn: { xs: 'span 12', md: `span ${effectiveSpan}` },
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.75,
+                  minWidth: 0,
+                  cursor: isEditing
+                    ? isBeingDragged
+                      ? 'grabbing'
+                      : 'grab'
+                    : 'default',
+                  opacity: isBeingDragged ? 0.45 : 1,
+                  borderRadius: 2,
+                  outline: isEditing
+                    ? isBeingResized || isDropTarget
+                      ? `1.5px solid ${NEON.cyan}`
+                      : `1px dashed ${NEON.cyan}55`
+                    : 'none',
+                  outlineOffset: isEditing ? 2 : 0,
+                  transition: isBeingResized
+                    ? 'none'
+                    : 'opacity 0.15s ease, outline-color 0.15s ease',
+                  '&:hover .widget-edge-pill': {
+                    opacity: 0.9,
+                    bgcolor: NEON.cyan,
+                  },
+                }}
+              >
+                {/* Drop target indicator line (before / after) */}
+                {dropSide && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: -4,
+                      bottom: -4,
+                      width: 4,
+                      borderRadius: 999,
+                      bgcolor: NEON.cyan,
+                      boxShadow: `0 0 12px ${NEON.cyan}`,
+                      zIndex: 30,
+                      pointerEvents: 'none',
+                      ...(dropSide === 'before' ? { left: -8 } : { right: -8 }),
+                    }}
+                  />
+                )}
+
+                {/* Left & Right Edge-Hover Resize Handles */}
+                {isEditing && (
+                  <>
                     <Box
-                      component="button"
-                      type="button"
-                      disabled={idx === 0}
-                      onClick={() => handleMoveWidget(idx, -1)}
+                      data-no-widget-drag="true"
+                      title="Drag left edge to resize widget width"
+                      onPointerDown={(e) => startEdgeResize(e, widget, 'left')}
                       sx={{
-                        height: 24,
-                        px: 0.85,
-                        borderRadius: 1,
-                        fontSize: '0.68rem',
-                        cursor: idx === 0 ? 'not-allowed' : 'pointer',
-                        opacity: idx === 0 ? 0.4 : 1,
-                        border: '1px solid hsl(var(--border))',
-                        bgcolor: 'transparent',
-                        color: 'hsl(var(--foreground))',
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        left: -6,
+                        width: 14,
+                        cursor: 'col-resize',
+                        zIndex: 25,
+                        display: { xs: 'none', md: 'flex' },
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        '&:hover .widget-edge-pill': {
+                          height: 56,
+                          bgcolor: NEON.cyan,
+                          boxShadow: `0 0 10px ${NEON.cyan}`,
+                          opacity: 1,
+                        },
                       }}
                     >
-                      Move left
+                      <Box
+                        className="widget-edge-pill"
+                        sx={{
+                          width: 4,
+                          height:
+                            isBeingResized && resizingState?.edge === 'left' ? 56 : 34,
+                          borderRadius: 999,
+                          bgcolor:
+                            isBeingResized && resizingState?.edge === 'left'
+                              ? NEON.cyan
+                              : 'hsl(var(--muted-foreground))',
+                          opacity:
+                            isBeingResized && resizingState?.edge === 'left' ? 1 : 0.35,
+                          transition: 'all 0.15s ease',
+                        }}
+                      />
                     </Box>
+
                     <Box
-                      component="button"
-                      type="button"
-                      disabled={idx === dashboard.widgets.length - 1}
-                      onClick={() => handleMoveWidget(idx, 1)}
+                      data-no-widget-drag="true"
+                      title="Drag right edge to resize widget width"
+                      onPointerDown={(e) => startEdgeResize(e, widget, 'right')}
                       sx={{
-                        height: 24,
-                        px: 0.85,
-                        borderRadius: 1,
-                        fontSize: '0.68rem',
-                        cursor: idx === dashboard.widgets.length - 1 ? 'not-allowed' : 'pointer',
-                        opacity: idx === dashboard.widgets.length - 1 ? 0.4 : 1,
-                        border: '1px solid hsl(var(--border))',
-                        bgcolor: 'transparent',
-                        color: 'hsl(var(--foreground))',
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        right: -6,
+                        width: 14,
+                        cursor: 'col-resize',
+                        zIndex: 25,
+                        display: { xs: 'none', md: 'flex' },
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        '&:hover .widget-edge-pill': {
+                          height: 56,
+                          bgcolor: NEON.cyan,
+                          boxShadow: `0 0 10px ${NEON.cyan}`,
+                          opacity: 1,
+                        },
                       }}
                     >
-                      Move right
+                      <Box
+                        className="widget-edge-pill"
+                        sx={{
+                          width: 4,
+                          height:
+                            isBeingResized && resizingState?.edge === 'right' ? 56 : 34,
+                          borderRadius: 999,
+                          bgcolor:
+                            isBeingResized && resizingState?.edge === 'right'
+                              ? NEON.cyan
+                              : 'hsl(var(--muted-foreground))',
+                          opacity:
+                            isBeingResized && resizingState?.edge === 'right' ? 1 : 0.35,
+                          transition: 'all 0.15s ease',
+                        }}
+                      />
                     </Box>
+                  </>
+                )}
+
+                {/* Compact Non-Wrapping Edit Action Bar */}
+                {isEditing && (
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'nowrap',
+                      gap: 0.75,
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1.5,
+                      border: '1px solid hsl(var(--border))',
+                      bgcolor: 'hsl(var(--card) / 0.88)',
+                      minWidth: 0,
+                      overflow: 'hidden',
+                    }}
+                  >
                     <Box
-                      component="button"
-                      type="button"
-                      onClick={() => {
-                        setEditingWidget(widget);
-                        setWidgetDialogOpen(true);
-                      }}
                       sx={{
-                        height: 24,
-                        px: 0.85,
-                        borderRadius: 1,
-                        fontSize: '0.68rem',
-                        cursor: 'pointer',
-                        border: '1px solid hsl(var(--border))',
-                        bgcolor: 'transparent',
-                        color: 'hsl(var(--foreground))',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.6,
+                        minWidth: 0,
+                        flexShrink: 1,
+                        overflow: 'hidden',
                       }}
                     >
-                      Configure
+                      <Typography
+                        noWrap
+                        sx={{
+                          fontSize: '0.68rem',
+                          fontWeight: 600,
+                          color: 'hsl(var(--muted-foreground))',
+                          letterSpacing: '0.02em',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Drag
+                      </Typography>
+                      <Box
+                        component="button"
+                        type="button"
+                        title="Click to cycle width or drag left/right widget edges to resize"
+                        onClick={() => void handleCycleSpan(widget)}
+                        sx={{
+                          height: 22,
+                          px: 0.75,
+                          borderRadius: 1,
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          fontFamily: 'ui-monospace, monospace',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                          cursor: 'pointer',
+                          border: `1px solid ${NEON.cyan}66`,
+                          bgcolor: `${NEON.cyan}1A`,
+                          color: NEON.cyan,
+                        }}
+                      >
+                        {formatSpanShortLabel(effectiveSpan)}
+                      </Box>
                     </Box>
+
                     <Box
-                      component="button"
-                      type="button"
-                      onClick={() => handleRemoveWidget(widget.id)}
                       sx={{
-                        height: 24,
-                        px: 0.85,
-                        borderRadius: 1,
-                        fontSize: '0.68rem',
-                        cursor: 'pointer',
-                        border: `1px solid ${NEON.red}55`,
-                        bgcolor: 'transparent',
-                        color: NEON.red,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        flexShrink: 0,
                       }}
                     >
-                      Remove
+                      <Box
+                        component="button"
+                        type="button"
+                        onClick={() => {
+                          setEditingWidget(widget);
+                          setWidgetDialogOpen(true);
+                        }}
+                        sx={{
+                          height: 22,
+                          px: 0.75,
+                          borderRadius: 1,
+                          fontSize: '0.68rem',
+                          fontWeight: 500,
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                          cursor: 'pointer',
+                          border: '1px solid hsl(var(--border))',
+                          bgcolor: 'transparent',
+                          color: 'hsl(var(--foreground))',
+                          '&:hover': {
+                            bgcolor: 'hsl(var(--muted) / 0.45)',
+                          },
+                        }}
+                      >
+                        Configure
+                      </Box>
+                      <Box
+                        component="button"
+                        type="button"
+                        onClick={() => void handleRemoveWidget(widget.id)}
+                        sx={{
+                          height: 22,
+                          px: 0.75,
+                          borderRadius: 1,
+                          fontSize: '0.68rem',
+                          fontWeight: 500,
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                          cursor: 'pointer',
+                          border: `1px solid ${NEON.red}55`,
+                          bgcolor: 'transparent',
+                          color: NEON.red,
+                          '&:hover': {
+                            bgcolor: `${NEON.red}14`,
+                          },
+                        }}
+                      >
+                        Remove
+                      </Box>
                     </Box>
                   </Box>
-                </Box>
-              )}
+                )}
 
-              <Box sx={{ flex: 1, minHeight: 0 }}>{renderWidgetBody(widget)}</Box>
-            </Box>
-          ))}
+                <Box sx={{ flex: 1, minHeight: 0 }}>{renderWidgetBody(widget)}</Box>
+              </Box>
+            );
+          })}
         </Box>
       )}
+
+      {/* Floating ghost badge while dragging a widget */}
+      {dragState && (() => {
+        const draggedWidget = dashboard.widgets.find((w) => w.id === dragState.widgetId);
+        if (!draggedWidget) return null;
+        return (
+          <Box
+            sx={{
+              position: 'fixed',
+              left: dragState.clientX + 14,
+              top: dragState.clientY + 14,
+              zIndex: 10060,
+              pointerEvents: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              px: 1.25,
+              py: 0.65,
+              borderRadius: 1.5,
+              border: `1px solid ${NEON.cyan}`,
+              bgcolor: 'hsl(var(--popover))',
+              color: 'hsl(var(--popover-foreground))',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: 'hsl(var(--foreground))',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {draggedWidget.title}
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                fontFamily: 'ui-monospace, monospace',
+                color: NEON.cyan,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {formatSpanShortLabel(draggedWidget.span)}
+            </Typography>
+          </Box>
+        );
+      })()}
 
       {/* Dialogs */}
       <WidgetEditorDialog

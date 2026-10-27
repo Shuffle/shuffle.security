@@ -65,6 +65,7 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
   },
   ref,
 ) {
+  const daysStr = String(days ?? '30');
   const customRangeLabel = customRange ? `${fmtShort(customRange.fromMs)} → ${fmtShort(customRange.toMs)}` : null;
   const isAutomation = tab === 'automation';
   const hasMatchingCustom =
@@ -83,7 +84,7 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
                 onCreateDashboard?.();
                 return;
               }
-              onTabChange(val as DashboardTab);
+              onTabChange?.(val as DashboardTab);
             }}
             inputProps={{ 'aria-label': 'Dashboard view' }}
             sx={{
@@ -125,19 +126,19 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
           <InputLabel>Last</InputLabel>
           <Select
             label="Last"
-            value={customRange ? '__custom__' : days}
+            value={customRange ? '__custom__' : daysStr}
             onChange={(e) => {
               const v = String(e.target.value);
               if (v === '__custom__') return;
-              onClearCustomRange();
-              onDaysChange(v);
+              onClearCustomRange?.();
+              onDaysChange?.(v);
             }}
-            renderValue={() => customRangeLabel ?? (AUTOMATION_RANGE_OPTIONS.find(o => o.value === days)?.label ?? `${days} days`)}
+            renderValue={() => customRangeLabel ?? (AUTOMATION_RANGE_OPTIONS.find(o => o.value === daysStr)?.label ?? `${daysStr} days`)}
             endAdornment={customRange ? (
               <IconButton
                 size="small"
                 onMouseDown={(e) => { e.stopPropagation(); }}
-                onClick={(e) => { e.stopPropagation(); onClearCustomRange(); }}
+                onClick={(e) => { e.stopPropagation(); onClearCustomRange?.(); }}
                 sx={{ mr: 3, p: 0.25, color: 'hsl(var(--muted-foreground))' }}
                 aria-label="Clear custom range"
               >
@@ -158,7 +159,7 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
             <SegmentedControl
               ariaLabel="Mode"
               value={mode}
-              onChange={(v) => onModeChange(v as 'workflows' | 'apps')}
+              onChange={(v) => onModeChange?.(v as 'workflows' | 'apps')}
               options={[
                 { value: 'workflows', label: 'Workflows' },
                 { value: 'apps', label: 'Apps' },
@@ -170,14 +171,14 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
           <SegmentedControl
             ariaLabel="Granularity"
             value={gran}
-            onChange={(v) => onGranChange(v as 'daily' | 'monthly')}
+            onChange={(v) => onGranChange?.(v as 'daily' | 'monthly')}
             options={[{ value: 'daily', label: 'Daily' }, { value: 'monthly', label: 'Monthly' }]}
           />
         </Box>
         <Tooltip title="Refresh">
           <IconButton
             size="small"
-            onClick={onRefresh}
+            onClick={() => onRefresh?.()}
             sx={{ color: 'hsl(var(--muted-foreground))', alignSelf: 'flex-end', width: 36, height: 36, borderRadius: '8px' }}
           >
             <RefreshIcon size={16} />

@@ -2997,6 +2997,11 @@ const IntegrationStatusLite = React.memo(function IntegrationStatusLite({
 // this list renders a "Coming soon" affordance instead of a live Enable
 // button — both in the list cards and inside the detail page, so the two
 // stay in sync.
+/** Rechecks after a usecase enable/disable, until the server reflects it. */
+const USECASE_RECHECK_DELAYS_MS = [1200, 3000, 6000, 10000, 15000, 22000, 30000];
+/** Stop showing the loading state if the server never confirms the change. */
+const USECASE_CONFIRM_TIMEOUT_MS = 32000;
+
 const ACTIVE_USECASE_IDS = [
   'siem_case_management_1',
   'edr_case_management_1',
@@ -3726,7 +3731,6 @@ function UsecaseDetailContent({
   };
 
   const effectiveEnabled = optimisticEnabled !== null ? optimisticEnabled : isEnabled;
-  const busy = toggling || optimisticEnabled !== null;
   const { environments } = useWorkflowHealth();
   const linkedWfs = useMemo(() => (flow ? findWorkflowsForUsecase(flow, workflows) : []), [flow, workflows]);
   const detailHealth = useMemo(() => diagnoseUsecase(linkedWfs, environments), [linkedWfs, environments]);

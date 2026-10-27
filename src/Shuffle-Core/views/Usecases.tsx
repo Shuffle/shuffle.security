@@ -1730,7 +1730,7 @@ async function runUsecaseRecheck(
   label: string,
   enabled: boolean,
   refetch: () => Promise<WorkflowSummary[] | undefined>,
-  getUsecases: () => UsecaseFlow[],
+  getUsecases: () => Usecase[],
 ) {
   const token = (usecaseRecheckTokens.get(label) || 0) + 1;
   usecaseRecheckTokens.set(label, token);
@@ -1753,7 +1753,7 @@ async function runUsecaseRecheck(
 }
 
 /** automationLabel set for which at least one matching workflow exists (name or tag). */
-function computeWorkflowEnabledLabels(workflows: WorkflowSummary[], usecases: UsecaseFlow[]): Set<string> {
+function computeWorkflowEnabledLabels(workflows: WorkflowSummary[], usecases: Usecase[]): Set<string> {
   const set = new Set<string>();
   for (const wf of workflows) {
     const name = (wf.name || '').toLowerCase();

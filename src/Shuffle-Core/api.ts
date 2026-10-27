@@ -522,7 +522,16 @@ export const clearAuthTokens = () => {
 export const getSessionToken = (): string | null => {
   try {
     if (typeof localStorage === 'undefined') return null;
-    if (localStorage.getItem(LEGACY_API_KEY_STORAGE_KEY) !== null) {
+    // Migrate (never silently drop) a legacy API key: cross-origin test
+    // backends such as tunnel.schemaless.org authenticate with it via the
+    // Authorization header, so deleting it signs the user out on refresh.
+    const legacy = localStorage.getItem(LEGACY_API_KEY_STORAGE_KEY);
+    if (legacy !== null) {
+      const current = localStorage.getItem('session_token');
+      const legacyValid = legacy.trim().length > 0 && legacy !== 'null' && legacy !== 'undefined';
+      if (legacyValid && (!current || current === 'null' || current === 'undefined')) {
+        localStorage.setItem('session_token', legacy.trim());
+      }
       localStorage.removeItem(LEGACY_API_KEY_STORAGE_KEY);
     }
     const stored = localStorage.getItem('session_token');

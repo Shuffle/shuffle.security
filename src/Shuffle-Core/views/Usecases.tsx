@@ -7502,6 +7502,9 @@ export function UsecaseCard({
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                       marginLeft: 0,
+                      fontSize: '0.6rem',
+                      fontWeight: 500,
+                      letterSpacing: 0,
                       transition: 'max-width 0.18s ease, opacity 0.12s ease, margin-left 0.18s ease',
                     }}
                   >
@@ -7630,6 +7633,9 @@ export function UsecaseCard({
                       overflow: 'hidden',
                       whiteSpace: 'nowrap',
                       marginLeft: 0,
+                      fontSize: '0.6rem',
+                      fontWeight: 500,
+                      letterSpacing: 0,
                       transition: 'max-width 0.18s ease, opacity 0.12s ease, margin-left 0.18s ease',
                     }}
                   >

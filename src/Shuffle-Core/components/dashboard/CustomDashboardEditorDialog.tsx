@@ -1377,7 +1377,7 @@ export const DashboardDataGuideDialog = ({
             Standard Shuffle Security Datastore Categories
           </Typography>
           <Typography sx={{ fontSize: '0.73rem', color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>
-            Incidents: <code>{DATASTORE_CATEGORIES.INCIDENTS}</code> &middot; Vulnerabilities: <code>{DATASTORE_CATEGORIES.VULNERABILITIES}</code> &middot; Assets: <code>{DATASTORE_CATEGORIES.ASSETS}</code> &middot; Events: <code>{DATASTORE_CATEGORIES.EVENTS}</code> &middot; IOCs: <code>{DATASTORE_CATEGORIES.IOCS}</code> &middot; Monitors: <code>{DATASTORE_CATEGORIES.MONITORS}</code>
+            Incidents: <code>{DATASTORE_CATEGORIES.INCIDENTS}</code> &middot; Vulnerabilities: <code>{DATASTORE_CATEGORIES.VULNERABILITIES}</code> &middot; Assets: <code>{DATASTORE_CATEGORIES.ASSETS}</code> &middot; Events: <code>{DATASTORE_CATEGORIES.EVENTS}</code> &middot; IOCs: <code>{DATASTORE_CATEGORIES.IOCS}</code> &middot; Infrastructure: <code>{DATASTORE_CATEGORIES.INFRASTRUCTURE}</code>
           </Typography>
         </Box>
       </DialogContent>

@@ -1129,35 +1129,6 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
           )}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {isSupportUser && (
-            <Tooltip
-              title={
-                currentView === 'routing'
-                  ? `Switch to Automation for ${entityPluralCap}`
-                  : 'Routing rules are a support-only preview and are not visible to regular users yet.'
-              }
-            >
-              <IconButton
-                size="small"
-                onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
-                sx={{
-                  color: currentView === 'routing' ? 'hsl(var(--primary))' : 'text.secondary',
-                  border: '1px solid hsl(var(--border))',
-                  borderColor: currentView === 'routing' ? 'hsl(var(--primary))' : 'hsl(var(--border))',
-                  borderRadius: 1.5,
-                  p: 0.75,
-                  bgcolor: currentView === 'routing' ? 'hsl(var(--muted) / 0.5)' : 'transparent',
-                  '&:hover': {
-                    color: 'text.primary',
-                    bgcolor: 'hsl(var(--muted) / 0.5)',
-                    borderColor: 'hsl(var(--primary))',
-                  },
-                }}
-              >
-                <RouteIcon size={18} />
-              </IconButton>
-            </Tooltip>
-          )}
           {showViewToggle && (
             <Tooltip
               title={
@@ -1214,7 +1185,9 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18, ease: 'easeInOut' }}
             >
-              <Box>
+              {/* Default min-height so the dialog does not jump around when
+                  switching category or while rules load. */}
+              <Box sx={{ minHeight: 560 }}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.8rem' }}>
                   Rules are evaluated when a {entitySingular} is created or edited. Conditions are
                   generic field checks, so the same mechanism works for every category.
@@ -1610,6 +1583,42 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                 </Box>
               );
             })}
+            {/* Support-only: routing rules as one of the "Do" items. Clicking
+                swaps the dialog to the routing view (same as the old top-right
+                route button). */}
+            {isSupportUser && (
+              <Box
+                sx={{
+                  borderRadius: 1.5,
+                  transition: 'all 0.15s',
+                  border: '1px solid',
+                  borderColor: 'hsl(var(--border))',
+                  bgcolor: 'transparent',
+                  '&:hover': { bgcolor: 'hsl(var(--muted) / 0.45)' },
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    py: 1.5,
+                    px: 1.5,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setCurrentView('routing')}
+                >
+                  <RouteIcon size={22} style={{ color: 'hsl(var(--muted-foreground))' }} />
+                  <Typography sx={{ flex: 1, fontSize: '0.95rem', color: 'text.primary', fontWeight: 500 }}>
+                    Routing rules
+                  </Typography>
+                  <ExpandMoreIcon
+                    size={20}
+                    style={{ color: 'hsl(var(--muted-foreground))', transform: 'rotate(-90deg)' }}
+                  />
+                </Box>
+              </Box>
+            )}
           </Box>
         </Box>
       ) : (
@@ -1832,7 +1841,16 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
 
       <DialogActions sx={{ px: 4, py: 2.5, justifyContent: currentView === 'routing' ? 'flex-end' : 'space-between' }}>
         {currentView === 'routing' ? (
-          <Button onClick={onClose}>Close</Button>
+          <>
+            <Button
+              startIcon={<RocketLaunchIcon size={18} />}
+              onClick={() => setCurrentView('automations')}
+              sx={{ textTransform: 'none', fontSize: '0.85rem' }}
+            >
+              Automation for {entityPluralCap}
+            </Button>
+            <Button onClick={onClose}>Close</Button>
+          </>
         ) : (
         <>
         <Button

@@ -4518,11 +4518,9 @@ function UsecaseDetailContent({
                           <Power
                             size={13}
                             style={{
-                              color: detailIsBlocked
+                              color: effectiveEnabled
                                 ? 'hsl(var(--destructive))'
-                                : effectiveEnabled
-                                  ? 'hsl(var(--severity-low))'
-                                  : 'hsl(var(--destructive))',
+                                : 'hsl(var(--severity-low))',
                             }}
                           />
                         )
@@ -4536,35 +4534,25 @@ function UsecaseDetailContent({
                         py: 0.5,
                         px: 1.2,
                         borderRadius: 1,
-                        bgcolor: detailIsBlocked
+                        bgcolor: effectiveEnabled
                           ? 'hsl(var(--destructive) / 0.12)'
-                          : effectiveEnabled
-                            ? 'hsl(var(--severity-low) / 0.12)'
-                            : 'hsl(var(--destructive) / 0.12)',
-                        color: detailIsBlocked
+                          : 'hsl(var(--severity-low) / 0.12)',
+                        color: effectiveEnabled
                           ? 'hsl(var(--destructive))'
-                          : effectiveEnabled
-                            ? 'hsl(var(--severity-low))'
-                            : 'hsl(var(--destructive))',
-                        border: detailIsBlocked
-                          ? '1px solid hsl(var(--destructive) / 0.45)'
-                          : effectiveEnabled
-                            ? '1px solid hsl(var(--severity-low) / 0.4)'
-                            : '1px solid hsl(var(--destructive) / 0.4)',
+                          : 'hsl(var(--severity-low))',
+                        border: effectiveEnabled
+                          ? '1px solid hsl(var(--destructive) / 0.4)'
+                          : '1px solid hsl(var(--severity-low) / 0.4)',
                         whiteSpace: 'nowrap',
                         letterSpacing: 0.2,
                         boxShadow: 'none',
                         '&:hover': {
-                          bgcolor: detailIsBlocked
+                          bgcolor: effectiveEnabled
                             ? 'hsl(var(--destructive) / 0.22)'
-                            : effectiveEnabled
-                              ? 'hsl(var(--severity-low) / 0.22)'
-                              : 'hsl(var(--destructive) / 0.22)',
-                          borderColor: detailIsBlocked
+                            : 'hsl(var(--severity-low) / 0.22)',
+                          borderColor: effectiveEnabled
                             ? 'hsl(var(--destructive) / 0.7)'
-                            : effectiveEnabled
-                              ? 'hsl(var(--severity-low) / 0.7)'
-                              : 'hsl(var(--destructive) / 0.7)',
+                            : 'hsl(var(--severity-low) / 0.7)',
                           boxShadow: 'none',
                         },
                       }}
@@ -4579,7 +4567,7 @@ function UsecaseDetailContent({
                   to={`/register?view=${encodeURIComponent(`/usecases/${slugify(flow.label)}`)}`}
                   size="small"
                   disableElevation
-                  startIcon={<Power size={13} style={{ color: 'hsl(var(--destructive))' }} />}
+                  startIcon={<Power size={13} style={{ color: 'hsl(var(--severity-low))' }} />}
                   sx={{
                     flexShrink: 0,
                     textTransform: 'none',
@@ -4589,14 +4577,14 @@ function UsecaseDetailContent({
                     py: 0.5,
                     px: 1.2,
                     borderRadius: 1,
-                    bgcolor: 'hsl(var(--destructive) / 0.12)',
-                    color: 'hsl(var(--destructive))',
-                    border: '1px solid hsl(var(--destructive) / 0.4)',
+                    bgcolor: 'hsl(var(--severity-low) / 0.12)',
+                    color: 'hsl(var(--severity-low))',
+                    border: '1px solid hsl(var(--severity-low) / 0.4)',
                     letterSpacing: 0.2,
                     boxShadow: 'none',
                     '&:hover': {
-                      bgcolor: 'hsl(var(--destructive) / 0.22)',
-                      borderColor: 'hsl(var(--destructive) / 0.7)',
+                      bgcolor: 'hsl(var(--severity-low) / 0.22)',
+                      borderColor: 'hsl(var(--severity-low) / 0.7)',
                       boxShadow: 'none',
                     },
                   }}
@@ -7437,15 +7425,15 @@ export function UsecaseCard({
                     py: 0.2,
                     height: 22,
                     borderRadius: 0.75,
-                    bgcolor: isBlocked
-                      ? 'hsl(var(--destructive) / 0.12)'
-                      : 'hsl(var(--severity-low) / 0.12)',
-                    border: isBlocked
-                      ? '1px solid hsl(var(--destructive) / 0.45)'
-                      : '1px solid hsl(var(--severity-low) / 0.4)',
-                    color: isBlocked
-                      ? 'hsl(var(--destructive))'
-                      : 'hsl(var(--severity-low))',
+                    bgcolor: isMonitorsFlow
+                      ? 'hsl(var(--severity-low) / 0.12)'
+                      : 'hsl(var(--destructive) / 0.12)',
+                    border: isMonitorsFlow
+                      ? '1px solid hsl(var(--severity-low) / 0.4)'
+                      : '1px solid hsl(var(--destructive) / 0.4)',
+                    color: isMonitorsFlow
+                      ? 'hsl(var(--severity-low))'
+                      : 'hsl(var(--destructive))',
                     fontSize: '0.65rem',
                     fontWeight: 700,
                     letterSpacing: '0.02em',
@@ -7460,12 +7448,12 @@ export function UsecaseCard({
                     textOverflow: 'ellipsis',
                     transition: 'all 0.15s ease',
                     '&:hover': (isMonitorsFlow || canDisable) ? {
-                      bgcolor: isBlocked
-                        ? 'hsl(var(--destructive) / 0.22)'
-                        : 'hsl(var(--severity-low) / 0.22)',
-                      borderColor: isBlocked
-                        ? 'hsl(var(--destructive) / 0.7)'
-                        : 'hsl(var(--severity-low) / 0.7)',
+                      bgcolor: isMonitorsFlow
+                        ? 'hsl(var(--severity-low) / 0.22)'
+                        : 'hsl(var(--destructive) / 0.22)',
+                      borderColor: isMonitorsFlow
+                        ? 'hsl(var(--severity-low) / 0.7)'
+                        : 'hsl(var(--destructive) / 0.7)',
                     } : {},
                   }}
                 >
@@ -7475,7 +7463,7 @@ export function UsecaseCard({
                     <Power size={11} style={{ color: 'inherit', flexShrink: 0 }} />
                   )}
                   <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    Disable
+                    {isMonitorsFlow ? 'Active' : 'Disable'}
                   </Box>
                 </Box>
               </Tooltip>
@@ -7573,9 +7561,9 @@ export function UsecaseCard({
                       py: 0.25,
                       height: 22,
                       borderRadius: 0.75,
-                      bgcolor: 'hsl(var(--destructive) / 0.12)',
-                      border: '1px solid hsl(var(--destructive) / 0.4)',
-                      color: 'hsl(var(--destructive))',
+                      bgcolor: 'hsl(var(--severity-low) / 0.12)',
+                      border: '1px solid hsl(var(--severity-low) / 0.4)',
+                      color: 'hsl(var(--severity-low))',
                       fontSize: '0.65rem',
                       fontWeight: 700,
                       letterSpacing: '0.02em',
@@ -7585,15 +7573,15 @@ export function UsecaseCard({
                       boxShadow: 'none',
                       transition: 'all 0.15s ease',
                       '&:hover': {
-                        bgcolor: 'hsl(var(--destructive) / 0.22)',
-                        borderColor: 'hsl(var(--destructive) / 0.7)',
+                        bgcolor: 'hsl(var(--severity-low) / 0.22)',
+                        borderColor: 'hsl(var(--severity-low) / 0.7)',
                       },
                     }}
                   >
                     {toggling ? (
                       <CircularProgress size={11} sx={{ color: 'inherit', flexShrink: 0 }} />
                     ) : (
-                      <Power size={11} style={{ color: 'hsl(var(--destructive))', flexShrink: 0 }} />
+                      <Power size={11} style={{ color: 'hsl(var(--severity-low))', flexShrink: 0 }} />
                     )}
                     <Box component="span" sx={{ whiteSpace: 'nowrap' }}>Enable</Box>
                   </Box>
@@ -7621,9 +7609,9 @@ export function UsecaseCard({
                     py: 0.25,
                     height: 22,
                     borderRadius: 0.75,
-                    bgcolor: 'hsl(var(--destructive) / 0.12)',
-                    border: '1px solid hsl(var(--destructive) / 0.4)',
-                    color: 'hsl(var(--destructive))',
+                    bgcolor: 'hsl(var(--severity-low) / 0.12)',
+                    border: '1px solid hsl(var(--severity-low) / 0.4)',
+                    color: 'hsl(var(--severity-low))',
                     fontSize: '0.65rem',
                     fontWeight: 700,
                     letterSpacing: '0.02em',
@@ -7633,12 +7621,12 @@ export function UsecaseCard({
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                     '&:hover': {
-                      bgcolor: 'hsl(var(--destructive) / 0.22)',
-                      borderColor: 'hsl(var(--destructive) / 0.7)',
+                      bgcolor: 'hsl(var(--severity-low) / 0.22)',
+                      borderColor: 'hsl(var(--severity-low) / 0.7)',
                     },
                   }}
                 >
-                  <Power size={11} style={{ color: 'hsl(var(--destructive))', flexShrink: 0 }} />
+                  <Power size={11} style={{ color: 'hsl(var(--severity-low))', flexShrink: 0 }} />
                   <Box component="span" sx={{ whiteSpace: 'nowrap' }}>Enable</Box>
                 </Box>
               </Box>

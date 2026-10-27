@@ -1,5 +1,5 @@
 {
-  "lockfileVersion": 1,
+  "lockfileVersion": 3,
   "configVersion": 1,
   "workspaces": {
     "": {
@@ -133,6 +133,9 @@
   },
   "overrides": {
     "next-themes": "^0.4.6",
+    "react-day-picker": {
+      "date-fns": "^4.1.0",
+    },
     "rolldown": "1.2.1",
   },
   "packages": {

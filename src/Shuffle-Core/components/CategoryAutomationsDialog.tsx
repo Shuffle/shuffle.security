@@ -1841,7 +1841,16 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
 
       <DialogActions sx={{ px: 4, py: 2.5, justifyContent: currentView === 'routing' ? 'flex-end' : 'space-between' }}>
         {currentView === 'routing' ? (
-          <Button onClick={onClose}>Close</Button>
+          <>
+            <Button
+              startIcon={<RocketLaunchIcon size={18} />}
+              onClick={() => setCurrentView('automations')}
+              sx={{ textTransform: 'none', fontSize: '0.85rem' }}
+            >
+              Automation for {entityPluralCap}
+            </Button>
+            <Button onClick={onClose}>Close</Button>
+          </>
         ) : (
         <>
         <Button

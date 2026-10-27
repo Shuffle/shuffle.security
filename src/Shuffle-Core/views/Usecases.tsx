@@ -35,6 +35,7 @@ import ReactGA from 'react-ga4';
 import shuffleSecurityIcon from '../assets/shuffle-icon.png';
 import UsecaseAlluvialDiagram, { extractNotificationWorkflowAppNames, matchesCategory } from './UsecaseAlluvialDiagram';
 import { findForwardTicketsWorkflow } from '../ingestionDetection';
+import { getUsecaseToggleChip } from './usecaseToggleChip';
 import { useEntityPreference } from '@/hooks/useEntityLabel';
 import AppSearchDrawer from './AppSearchDrawer';
 import {
@@ -3726,6 +3727,7 @@ function UsecaseDetailContent({
   const linkedWfs = useMemo(() => (flow ? findWorkflowsForUsecase(flow, workflows) : []), [flow, workflows]);
   const detailHealth = useMemo(() => diagnoseUsecase(linkedWfs, environments), [linkedWfs, environments]);
   const detailIsBlocked = effectiveEnabled && detailHealth.hasProblem;
+  const detailChip = getUsecaseToggleChip(effectiveEnabled, detailIsBlocked);
   // App-search drawer state — mirrors the alluvial diagram's "+" buttons so
   // users can force-add a Source or Destination tool from this view too.
   const [addToolFor, setAddToolFor] = useState<null | { side: 'source' | 'destination'; categoryId: string; multiDest?: boolean }>(null);
@@ -4517,11 +4519,7 @@ function UsecaseDetailContent({
                         ) : (
                           <Power
                             size={13}
-                            style={{
-                              color: effectiveEnabled
-                                ? 'hsl(var(--destructive))'
-                                : 'hsl(var(--severity-low))',
-                            }}
+                            style={{ color: 'inherit' }}
                           />
                         )
                       }
@@ -4534,30 +4532,30 @@ function UsecaseDetailContent({
                         py: 0.5,
                         px: 1.2,
                         borderRadius: 1,
-                        bgcolor: effectiveEnabled
-                          ? 'hsl(var(--destructive) / 0.12)'
-                          : 'hsl(var(--severity-low) / 0.12)',
-                        color: effectiveEnabled
-                          ? 'hsl(var(--destructive))'
-                          : 'hsl(var(--severity-low))',
-                        border: effectiveEnabled
-                          ? '1px solid hsl(var(--destructive) / 0.4)'
-                          : '1px solid hsl(var(--severity-low) / 0.4)',
+                        bgcolor: detailChip.positive
+                          ? 'hsl(var(--severity-low) / 0.12)'
+                          : 'hsl(var(--destructive) / 0.12)',
+                        color: detailChip.positive
+                          ? 'hsl(var(--severity-low))'
+                          : 'hsl(var(--destructive))',
+                        border: detailChip.positive
+                          ? '1px solid hsl(var(--severity-low) / 0.4)'
+                          : '1px solid hsl(var(--destructive) / 0.4)',
                         whiteSpace: 'nowrap',
                         letterSpacing: 0.2,
                         boxShadow: 'none',
                         '&:hover': {
-                          bgcolor: effectiveEnabled
-                            ? 'hsl(var(--destructive) / 0.22)'
-                            : 'hsl(var(--severity-low) / 0.22)',
-                          borderColor: effectiveEnabled
-                            ? 'hsl(var(--destructive) / 0.7)'
-                            : 'hsl(var(--severity-low) / 0.7)',
+                          bgcolor: detailChip.positive
+                            ? 'hsl(var(--severity-low) / 0.22)'
+                            : 'hsl(var(--destructive) / 0.22)',
+                          borderColor: detailChip.positive
+                            ? 'hsl(var(--severity-low) / 0.7)'
+                            : 'hsl(var(--destructive) / 0.7)',
                           boxShadow: 'none',
                         },
                       }}
                     >
-                      {effectiveEnabled ? 'Disable' : 'Enable'}
+                      {detailChip.label}
                     </Button>
                   </span>
                 </Tooltip>
@@ -7075,6 +7073,14 @@ export function UsecaseCard({
   const cardDisplayLabel = flow.id === 'case_management_cases_forward_1' ? dynamicForwardTicketsLabel : flow.label;
   const isMonitorsFlow = flow.id === 'case_management_asset_management_monitors_1';
   const canDisable = canToggle && !isMonitorsFlow;
+  // Chip text is the state the usecase is in, not the click action — the
+  // tooltip carries "Click to enable" / "Click to disable".
+  const statusChip = getUsecaseToggleChip(
+    true,
+    isMonitorsFlow ? false : isBlocked,
+    isMonitorsFlow ? 'Active' : 'Enabled',
+  );
+  const enableChip = getUsecaseToggleChip(false);
 
   const theme = useTheme()
   const primaryColor = theme.palette.primary.main
@@ -7291,12 +7297,30 @@ export function UsecaseCard({
             pointerEvents: 'auto',
             animation: 'ucCardActionIn 0.15s ease-out',
           },
+          // The status chip sits collapsed on its icon; hovering the card
+          // slides the state word open beside it.
+          '&:hover .uc-card-chip': {
+            pr: 0.85,
+          },
+          '&:hover .uc-card-chip-label': {
+            maxWidth: 92,
+            opacity: 1,
+            marginLeft: 0.5,
+          },
         },
         '@media (hover: none), (max-width: 599.95px)': {
           '& .uc-card-action': {
             display: 'inline-flex',
             opacity: 1,
             pointerEvents: 'auto',
+          },
+          '& .uc-card-chip': {
+            pr: 0.85,
+          },
+          '& .uc-card-chip-label': {
+            maxWidth: 92,
+            opacity: 1,
+            marginLeft: 0.5,
           },
         },
       }}
@@ -7403,6 +7427,7 @@ export function UsecaseCard({
                 arrow
               >
                 <Box
+                  className="uc-card-chip"
                   component="button"
                   type="button"
                   disabled={toggling}
@@ -7420,18 +7445,18 @@ export function UsecaseCard({
                   sx={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 0.5,
-                    px: 0.85,
+                    gap: 0,
+                    px: 0.4,
                     py: 0.2,
                     height: 22,
                     borderRadius: 0.75,
-                    bgcolor: isMonitorsFlow
+                    bgcolor: statusChip.positive
                       ? 'hsl(var(--severity-low) / 0.12)'
                       : 'hsl(var(--destructive) / 0.12)',
-                    border: isMonitorsFlow
+                    border: statusChip.positive
                       ? '1px solid hsl(var(--severity-low) / 0.4)'
                       : '1px solid hsl(var(--destructive) / 0.4)',
-                    color: isMonitorsFlow
+                    color: statusChip.positive
                       ? 'hsl(var(--severity-low))'
                       : 'hsl(var(--destructive))',
                     fontSize: '0.65rem',
@@ -7445,13 +7470,12 @@ export function UsecaseCard({
                     maxWidth: '100%',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
-                    textOverflow: 'ellipsis',
                     transition: 'all 0.15s ease',
                     '&:hover': (isMonitorsFlow || canDisable) ? {
-                      bgcolor: isMonitorsFlow
+                      bgcolor: statusChip.positive
                         ? 'hsl(var(--severity-low) / 0.22)'
                         : 'hsl(var(--destructive) / 0.22)',
-                      borderColor: isMonitorsFlow
+                      borderColor: statusChip.positive
                         ? 'hsl(var(--severity-low) / 0.7)'
                         : 'hsl(var(--destructive) / 0.7)',
                     } : {},
@@ -7462,8 +7486,20 @@ export function UsecaseCard({
                   ) : (
                     <Power size={11} style={{ color: 'inherit', flexShrink: 0 }} />
                   )}
-                  <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {isMonitorsFlow ? 'Active' : 'Disable'}
+                  <Box
+                    component="span"
+                    className="uc-card-chip-label"
+                    sx={{
+                      maxWidth: 0,
+                      opacity: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      marginLeft: 0,
+                      transition: 'max-width 0.18s ease, opacity 0.12s ease, margin-left 0.18s ease',
+                    }}
+                  >
+                    {statusChip.label}
                   </Box>
                 </Box>
               </Tooltip>
@@ -7530,104 +7566,114 @@ export function UsecaseCard({
                 </Box>
               </Tooltip>
             ) : canToggle ? (
-              <Box
-                className="uc-card-action"
-                sx={{
-                  display: 'none',
-                  opacity: 0,
-                  pointerEvents: 'none',
-                  flexShrink: 0,
-                }}
-              >
-                <Tooltip
-                  title={
-                    !hasValidatedSource
-                      ? `No active ${sourceCat} integration is connected. Enabling will not do anything until a ${sourceCat} tool is authenticated — the workflow will be disabled again automatically.`
-                      : 'Click to enable'
-                  }
-                  placement="top"
-                  arrow
-                >
-                  <Box
-                    component="button"
-                    type="button"
-                    disabled={toggling}
-                    onClick={handleToggle}
-                    sx={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 0.5,
-                      px: 0.85,
-                      py: 0.25,
-                      height: 22,
-                      borderRadius: 0.75,
-                      bgcolor: 'hsl(var(--severity-low) / 0.12)',
-                      border: '1px solid hsl(var(--severity-low) / 0.4)',
-                      color: 'hsl(var(--severity-low))',
-                      fontSize: '0.65rem',
-                      fontWeight: 700,
-                      letterSpacing: '0.02em',
-                      lineHeight: 1,
-                      cursor: toggling ? 'default' : 'pointer',
-                      outline: 'none',
-                      boxShadow: 'none',
-                      transition: 'all 0.15s ease',
-                      '&:hover': {
-                        bgcolor: 'hsl(var(--severity-low) / 0.22)',
-                        borderColor: 'hsl(var(--severity-low) / 0.7)',
-                      },
-                    }}
-                  >
-                    {toggling ? (
-                      <CircularProgress size={11} sx={{ color: 'inherit', flexShrink: 0 }} />
-                    ) : (
-                      <Power size={11} style={{ color: 'hsl(var(--severity-low))', flexShrink: 0 }} />
-                    )}
-                    <Box component="span" sx={{ whiteSpace: 'nowrap' }}>Enable</Box>
-                  </Box>
-                </Tooltip>
-              </Box>
-            ) : !isAuthenticated && flow.automationLabel ? (
-              <Box
-                className="uc-card-action"
-                sx={{
-                  display: 'none',
-                  opacity: 0,
-                  pointerEvents: 'none',
-                  flexShrink: 0,
-                }}
+              <Tooltip
+                title={
+                  !hasValidatedSource
+                    ? `No active ${sourceCat} integration is connected. Enabling will not do anything until a ${sourceCat} tool is authenticated — the workflow will be disabled again automatically.`
+                    : 'Click to enable'
+                }
+                placement="top"
+                arrow
               >
                 <Box
-                  component={Link}
-                  to={`/register?view=${encodeURIComponent(`/usecases/${slugify(flow.label)}`)}`}
-                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                  className="uc-card-chip"
+                  component="button"
+                  type="button"
+                  disabled={toggling}
+                  onClick={handleToggle}
                   sx={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 0.5,
-                    px: 0.85,
+                    gap: 0,
+                    px: 0.4,
                     py: 0.25,
                     height: 22,
                     borderRadius: 0.75,
-                    bgcolor: 'hsl(var(--severity-low) / 0.12)',
-                    border: '1px solid hsl(var(--severity-low) / 0.4)',
-                    color: 'hsl(var(--severity-low))',
+                    bgcolor: 'hsl(var(--destructive) / 0.12)',
+                    border: '1px solid hsl(var(--destructive) / 0.4)',
+                    color: 'hsl(var(--destructive))',
                     fontSize: '0.65rem',
                     fontWeight: 700,
                     letterSpacing: '0.02em',
                     lineHeight: 1,
-                    textDecoration: 'none',
-                    whiteSpace: 'nowrap',
-                    cursor: 'pointer',
+                    cursor: toggling ? 'default' : 'pointer',
+                    outline: 'none',
+                    boxShadow: 'none',
+                    flexShrink: 0,
                     transition: 'all 0.15s ease',
                     '&:hover': {
-                      bgcolor: 'hsl(var(--severity-low) / 0.22)',
-                      borderColor: 'hsl(var(--severity-low) / 0.7)',
+                      bgcolor: 'hsl(var(--destructive) / 0.22)',
+                      borderColor: 'hsl(var(--destructive) / 0.7)',
                     },
                   }}
                 >
-                  <Power size={11} style={{ color: 'hsl(var(--severity-low))', flexShrink: 0 }} />
-                  <Box component="span" sx={{ whiteSpace: 'nowrap' }}>Enable</Box>
+                  {toggling ? (
+                    <CircularProgress size={11} sx={{ color: 'inherit', flexShrink: 0 }} />
+                  ) : (
+                    <Power size={11} style={{ color: 'inherit', flexShrink: 0 }} />
+                  )}
+                  <Box
+                    component="span"
+                    className="uc-card-chip-label"
+                    sx={{
+                      maxWidth: 0,
+                      opacity: 0,
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                      marginLeft: 0,
+                      transition: 'max-width 0.18s ease, opacity 0.12s ease, margin-left 0.18s ease',
+                    }}
+                  >
+                    {enableChip.label}
+                  </Box>
+                </Box>
+              </Tooltip>
+            ) : !isAuthenticated && flow.automationLabel ? (
+              <Box
+                className="uc-card-chip"
+                component={Link}
+                to={`/register?view=${encodeURIComponent(`/usecases/${slugify(flow.label)}`)}`}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0,
+                  px: 0.4,
+                  py: 0.25,
+                  height: 22,
+                  borderRadius: 0.75,
+                  bgcolor: 'hsl(var(--severity-low) / 0.12)',
+                  border: '1px solid hsl(var(--severity-low) / 0.4)',
+                  color: 'hsl(var(--severity-low))',
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.02em',
+                  lineHeight: 1,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                  '&:hover': {
+                    bgcolor: 'hsl(var(--severity-low) / 0.22)',
+                    borderColor: 'hsl(var(--severity-low) / 0.7)',
+                  },
+                }}
+              >
+                <Power size={11} style={{ color: 'inherit', flexShrink: 0 }} />
+                <Box
+                  component="span"
+                  className="uc-card-chip-label"
+                  sx={{
+                    maxWidth: 0,
+                    opacity: 0,
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                    marginLeft: 0,
+                    transition: 'max-width 0.18s ease, opacity 0.12s ease, margin-left 0.18s ease',
+                  }}
+                >
+                  Enable
                 </Box>
               </Box>
             ) : null}

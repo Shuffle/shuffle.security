@@ -1214,8 +1214,9 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18, ease: 'easeInOut' }}
             >
-              <Box>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.8rem' }}>
+              {/* Default min-height so the dialog does not jump around when
+                  switching category or while rules load. */}
+              <Box sx={{ minHeight: 560 }}>
                   Rules are evaluated when a {entitySingular} is created or edited. Conditions are
                   generic field checks, so the same mechanism works for every category.
                 </Typography>

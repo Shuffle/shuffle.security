@@ -227,15 +227,41 @@ export interface WidgetEditorDialogProps {
   initialWidget?: CustomDashboardWidget | null;
   /** Available custom stat keys discovered from `/api/v1/orgs/{orgId}/stats`. */
   availableStatKeys?: string[];
+  /** Current totals per stat key for displaying live counts in the selector. */
+  statTotals?: Record<string, number>;
+  /** Additional datastore categories discovered from active widgets or org data. */
+  discoveredCategories?: string[];
+  /** Discovered JSON field paths per datastore category. */
+  categoryFieldMap?: Record<string, string[]>;
+  /** Record counts per datastore category. */
+  categoryRecordCounts?: Record<string, number>;
+  /** Active organization ID used for live field discovery and API snippets. */
+  orgId?: string | null;
+  /** Optional callback to open the full Dashboard Data Input Guide dialog. */
+  onOpenDataGuide?: () => void;
   onSave?: (widget: CustomDashboardWidget) => Promise<void> | void;
   onSubmit?: (widget: CustomDashboardWidget) => Promise<void> | void;
 }
+
+const formatCompactCount = (n: number): string => {
+  if (!Number.isFinite(n)) return '0';
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return (n / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1).replace(/\.0$/, '') + 'M';
+  if (abs >= 1_000) return (n / 1_000).toFixed(abs >= 10_000 ? 0 : 1).replace(/\.0$/, '') + 'k';
+  return String(Math.round(n));
+};
 
 export const WidgetEditorDialog = ({
   open,
   onClose,
   initialWidget,
   availableStatKeys = [],
+  statTotals = {},
+  discoveredCategories = [],
+  categoryFieldMap = {},
+  categoryRecordCounts = {},
+  orgId,
+  onOpenDataGuide,
   onSave,
   onSubmit,
 }: WidgetEditorDialogProps) => {
@@ -250,26 +276,96 @@ export const WidgetEditorDialog = ({
   const [statKey, setStatKey] = useState('total_workflow_executions');
   const [additionalStatKeys, setAdditionalStatKeys] = useState<string[]>([]);
   const [category, setCategory] = useState<string>(DATASTORE_CATEGORIES.INCIDENTS);
-  const [aggregation, setAggregation] = useState<'count' | 'group_by'>('group_by');
+  const [aggregation, setAggregation] = useState<DatastoreAggregation>('group_by');
   const [groupByField, setGroupByField] = useState('severity');
   const [filterField, setFilterField] = useState('');
   const [filterValue, setFilterValue] = useState('');
   const [builtinId, setBuiltinId] = useState<BuiltinMetricId>('open_incidents');
 
+  // Live field discovery for any typed or selected datastore category
+  const [liveCategoryFields, setLiveCategoryFields] = useState<Record<string, string[]>>({});
+  const [liveCategoryCounts, setLiveCategoryCounts] = useState<Record<string, number>>({});
+  const [copiedSnippet, setCopiedSnippet] = useState(false);
+
   const mergedStatKeys = useMemo(() => {
     const set = new Set<string>([...availableStatKeys, ...DEFAULT_STAT_KEYS]);
-    return Array.from(set).sort((a, b) => prettyStatKey(a).localeCompare(prettyStatKey(b)));
-  }, [availableStatKeys]);
+    return Array.from(set).sort((a, b) => {
+      const totalA = statTotals[a] ?? 0;
+      const totalB = statTotals[b] ?? 0;
+      if (totalA !== totalB) return totalB - totalA;
+      return prettyStatKey(a).localeCompare(prettyStatKey(b));
+    });
+  }, [availableStatKeys, statTotals]);
+
+  const mergedCategories = useMemo(() => {
+    const set = new Set<string>([
+      ...KNOWN_DATASTORE_CATEGORIES.map((c) => c.value),
+      ...discoveredCategories,
+    ]);
+    return Array.from(set);
+  }, [discoveredCategories]);
+
+  // Fetch sample records from datastore when a category is selected to discover its JSON fields
+  useEffect(() => {
+    if (!open || sourceKind !== 'datastore_category') return;
+    const cat = category.trim();
+    if (!cat) return;
+    if (categoryFieldMap[cat]?.length || liveCategoryFields[cat] !== undefined) return;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const resp = await getDatastoreByCategory(cat, undefined, 25, orgId || undefined);
+        if (cancelled) return;
+        if (resp.success && Array.isArray(resp.data)) {
+          const parsedRecords = resp.data.map((item: any) => {
+            if (!item || typeof item !== 'object') return {};
+            let parsedVal: Record<string, any> = {};
+            if (typeof item.value === 'string' && item.value.trim()) {
+              try {
+                const p = JSON.parse(item.value);
+                if (p && typeof p === 'object') parsedVal = p;
+              } catch {
+                /* ignore non-JSON */
+              }
+            } else if (item.value && typeof item.value === 'object') {
+              parsedVal = item.value;
+            }
+            return { ...item, ...parsedVal };
+          });
+          const fields = discoverFieldsFromRecords(parsedRecords);
+          setLiveCategoryFields((prev) => ({ ...prev, [cat]: fields }));
+          setLiveCategoryCounts((prev) => ({ ...prev, [cat]: parsedRecords.length }));
+        } else {
+          setLiveCategoryFields((prev) => ({ ...prev, [cat]: [] }));
+        }
+      } catch {
+        if (!cancelled) {
+          setLiveCategoryFields((prev) => ({ ...prev, [cat]: [] }));
+        }
+      }
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [open, sourceKind, category, categoryFieldMap, liveCategoryFields, orgId]);
 
   const suggestedGroupFields = useMemo(() => {
-    const found = KNOWN_DATASTORE_CATEGORIES.find((c) => c.value === category);
-    return found
-      ? found.suggestedFields.map((s) => s.trim())
-      : ['severity', 'status', 'type', 'source'];
-  }, [category]);
+    const cat = category.trim();
+    const known = KNOWN_DATASTORE_CATEGORIES.find((c) => c.value === cat);
+    const fromKnown = known ? known.suggestedFields.map((s) => s.trim()) : [];
+    const fromParent = categoryFieldMap[cat] || [];
+    const fromLive = liveCategoryFields[cat] || [];
+    const fallback = ['severity', 'status', 'type', 'source', 'score', 'count'];
+    const merged = new Set<string>([...fromParent, ...fromLive, ...fromKnown, ...fallback]);
+    return Array.from(merged);
+  }, [category, categoryFieldMap, liveCategoryFields]);
 
   useEffect(() => {
     if (!open) return;
+    setCopiedSnippet(false);
     if (initialWidget && initialWidget.dataSource) {
       setTitle(initialWidget.title || '');
       setTitleTouched(true);
@@ -309,6 +405,24 @@ export const WidgetEditorDialog = ({
     }
   }, [open, initialWidget, availableStatKeys]);
 
+  const computeAutoDatastoreTitle = (
+    cat: string,
+    agg: DatastoreAggregation,
+    field: string,
+  ): string => {
+    const known = KNOWN_DATASTORE_CATEGORIES.find((c) => c.value === cat.trim());
+    const shortName = known ? known.label.split(' (')[0] : cat.trim() || 'Records';
+    if (agg === 'count') return `Total ${shortName}`;
+    if (agg === 'group_by') return field ? `${shortName} by ${field}` : shortName;
+    const aggLabel: Record<string, string> = {
+      sum: 'Sum of',
+      avg: 'Avg',
+      max: 'Max',
+      min: 'Min',
+    };
+    return field ? `${aggLabel[agg] || agg} ${field} (${shortName})` : `${shortName} (${agg})`;
+  };
+
   const handleSourceKindChange = (nextKind: 'custom_stat' | 'datastore_category' | 'builtin') => {
     setSourceKind(nextKind);
     if (nextKind === 'builtin') {
@@ -323,14 +437,8 @@ export const WidgetEditorDialog = ({
       setSpan(6);
       setAccentColor('violet');
     } else if (nextKind === 'datastore_category') {
-      const known = KNOWN_DATASTORE_CATEGORIES.find((c) => c.value === category);
-      const shortName = known ? known.label.split(' (')[0] : category;
       if (!titleTouched) {
-        setTitle(
-          aggregation === 'group_by' && groupByField
-            ? `${shortName} by ${groupByField}`
-            : `Total ${shortName}`,
-        );
+        setTitle(computeAutoDatastoreTitle(category, aggregation, groupByField));
       }
       setVisualization(aggregation === 'group_by' ? 'horizontal_bar' : 'kpi');
       setSpan(aggregation === 'group_by' ? 6 : 3);
@@ -359,13 +467,7 @@ export const WidgetEditorDialog = ({
   const handleCategoryChange = (nextCat: string) => {
     setCategory(nextCat);
     if (!titleTouched && nextCat.trim()) {
-      const known = KNOWN_DATASTORE_CATEGORIES.find((c) => c.value === nextCat.trim());
-      const shortName = known ? known.label.split(' (')[0] : nextCat.trim();
-      setTitle(
-        aggregation === 'group_by' && groupByField
-          ? `${shortName} by ${groupByField}`
-          : `Total ${shortName}`,
-      );
+      setTitle(computeAutoDatastoreTitle(nextCat, aggregation, groupByField));
     }
   };
 
@@ -383,11 +485,52 @@ export const WidgetEditorDialog = ({
     if (sourceKind === 'custom_stat') return Boolean(statKey.trim());
     if (sourceKind === 'datastore_category') {
       if (!category.trim()) return false;
-      if (aggregation === 'group_by' && !groupByField.trim()) return false;
+      if (aggregation !== 'count' && !groupByField.trim()) return false;
       return true;
     }
     return Boolean(builtinId);
   }, [title, sourceKind, statKey, category, aggregation, groupByField, builtinId]);
+
+  const inlineSnippet = useMemo(() => {
+    const cleanStatKey = (statKey || 'tickets_created').trim().replace(/^total_/, '');
+    const cleanCat = (category || 'custom_metrics').trim();
+    const cleanField = (groupByField || 'severity').trim();
+    const isNumericAgg = aggregation === 'sum' || aggregation === 'avg' || aggregation === 'max' || aggregation === 'min';
+    const sampleObj: Record<string, any> = isNumericAgg
+      ? { [cleanField]: 42, status: 'open', created_at: Math.floor(Date.now() / 1000) }
+      : { [cleanField]: 'high', status: 'open', created_at: Math.floor(Date.now() / 1000) };
+
+    if (sourceKind === 'custom_stat') {
+      return `POST /api/v1/orgs/${orgId || '{org_id}'}/stats\n${JSON.stringify(
+        { key: cleanStatKey, value: 1 },
+        null,
+        2,
+      )}`;
+    }
+    if (sourceKind === 'datastore_category') {
+      return `POST /api/v2/datastore\n${JSON.stringify(
+        {
+          category: cleanCat,
+          key: `record_${Date.now().toString(36)}`,
+          value: JSON.stringify(sampleObj),
+        },
+        null,
+        2,
+      )}`;
+    }
+    return '';
+  }, [sourceKind, statKey, category, groupByField, aggregation, orgId]);
+
+  const handleCopyInlineSnippet = async () => {
+    if (!inlineSnippet) return;
+    try {
+      await navigator.clipboard.writeText(inlineSnippet);
+      setCopiedSnippet(true);
+      setTimeout(() => setCopiedSnippet(false), 1800);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -405,7 +548,7 @@ export const WidgetEditorDialog = ({
         kind: 'datastore_category',
         category: category.trim(),
         aggregation,
-        ...(aggregation === 'group_by' && groupByField.trim()
+        ...(aggregation !== 'count' && groupByField.trim()
           ? { groupByField: groupByField.trim() }
           : {}),
         ...(filterField.trim() ? { filterField: filterField.trim() } : {}),
@@ -437,8 +580,37 @@ export const WidgetEditorDialog = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <form onSubmit={handleSubmit}>
-        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 600, pb: 1 }}>
-          {initialWidget ? 'Configure Widget' : 'Add Dashboard Widget'}
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1.5,
+            fontSize: '1rem',
+            fontWeight: 600,
+            pb: 1,
+          }}
+        >
+          <span>{initialWidget ? 'Configure Widget' : 'Add Dashboard Widget'}</span>
+          {onOpenDataGuide && (
+            <Button
+              type="button"
+              size="small"
+              variant="outlined"
+              onClick={onOpenDataGuide}
+              sx={{
+                height: 28,
+                px: 1.25,
+                textTransform: 'none',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                borderColor: 'hsl(var(--border))',
+                color: NEON.cyan,
+              }}
+            >
+              How to input data
+            </Button>
+          )}
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
           {/* Data Source Kind */}
@@ -454,8 +626,8 @@ export const WidgetEditorDialog = ({
               }
             >
               <MenuItem value="builtin">Built-in Platform Metric (Security, Vulns, Automation)</MenuItem>
-              <MenuItem value="custom_stat">Organization Custom Stat (/api/v1/orgs/stats)</MenuItem>
-              <MenuItem value="datastore_category">Datastore Category Aggregation</MenuItem>
+              <MenuItem value="custom_stat">Organization Custom Stat (/api/v1/orgs/stats — Any Counter)</MenuItem>
+              <MenuItem value="datastore_category">Datastore Category (Any JSON Category & Field)</MenuItem>
             </Select>
           </FormControl>
 
@@ -484,15 +656,49 @@ export const WidgetEditorDialog = ({
                 size="small"
                 options={mergedStatKeys}
                 value={statKey}
-                onChange={(_e, val) => handleStatKeyChange(val || '')}
-                onInputChange={(_e, val) => handleStatKeyChange(val || '')}
-                getOptionLabel={(opt) => `${prettyStatKey(opt)} (${opt})`}
+                onChange={(_e, val) => handleStatKeyChange(typeof val === 'string' ? val : '')}
+                onInputChange={(_e, val, reason) => {
+                  if (reason === 'input' || reason === 'clear') {
+                    handleStatKeyChange(val || '');
+                  }
+                }}
+                getOptionLabel={(opt) => (typeof opt === 'string' ? opt : String(opt))}
+                renderOption={(props, opt) => {
+                  const total = statTotals[opt];
+                  return (
+                    <li {...props} key={opt}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, width: '100%' }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 500, color: 'hsl(var(--foreground))' }}>
+                            {prettyStatKey(opt)}
+                          </Typography>
+                          <Typography sx={{ fontSize: '0.7rem', fontFamily: 'ui-monospace, monospace', color: 'hsl(var(--muted-foreground))' }}>
+                            {opt}
+                          </Typography>
+                        </Box>
+                        {total !== undefined && (
+                          <Typography
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              fontFamily: 'ui-monospace, monospace',
+                              color: total > 0 ? NEON.cyan : 'hsl(var(--muted-foreground))',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {formatCompactCount(total)}
+                          </Typography>
+                        )}
+                      </Box>
+                    </li>
+                  );
+                }}
                 renderInput={(params) => (
                   <TextField
                     {...params}
                     label="Primary Stat Key"
-                    placeholder="e.g. tickets_created or total_workflow_executions"
-                    helperText="Select a discovered org stat key or type any custom addition key."
+                    placeholder="e.g. tickets_created, alerts_triaged, or total_workflow_executions"
+                    helperText="Pick any discovered stat key or type any new custom key name you send from workflows."
                     required
                   />
                 )}
@@ -504,12 +710,25 @@ export const WidgetEditorDialog = ({
                   size="small"
                   options={mergedStatKeys.filter((k) => k !== statKey)}
                   value={additionalStatKeys}
-                  onChange={(_e, val) => setAdditionalStatKeys(val.map((v) => v.trim()).filter(Boolean))}
+                  onChange={(_e, val) =>
+                    setAdditionalStatKeys(val.map((v) => String(v).trim()).filter(Boolean))
+                  }
+                  getOptionLabel={(opt) => (typeof opt === 'string' ? opt : String(opt))}
+                  renderOption={(props, opt) => (
+                    <li {...props} key={opt}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1 }}>
+                        <span>{prettyStatKey(opt)}</span>
+                        <Typography sx={{ fontSize: '0.7rem', fontFamily: 'ui-monospace, monospace', color: 'hsl(var(--muted-foreground))' }}>
+                          {opt}
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       label="Additional Stat Keys (optional)"
-                      placeholder="Compare multiple stats on the same chart"
+                      placeholder="Type or select more keys to compare on the same chart"
                     />
                   )}
                 />
@@ -522,19 +741,51 @@ export const WidgetEditorDialog = ({
               <Autocomplete
                 freeSolo
                 size="small"
-                options={KNOWN_DATASTORE_CATEGORIES.map((c) => c.value)}
+                options={mergedCategories}
                 value={category}
-                onChange={(_e, val) => handleCategoryChange(val || '')}
-                onInputChange={(_e, val) => handleCategoryChange(val || '')}
-                getOptionLabel={(opt) => {
+                onChange={(_e, val) => handleCategoryChange(typeof val === 'string' ? val : '')}
+                onInputChange={(_e, val, reason) => {
+                  if (reason === 'input' || reason === 'clear') {
+                    handleCategoryChange(val || '');
+                  }
+                }}
+                getOptionLabel={(opt) => (typeof opt === 'string' ? opt : String(opt))}
+                renderOption={(props, opt) => {
                   const found = KNOWN_DATASTORE_CATEGORIES.find((c) => c.value === opt);
-                  return found ? found.label : opt;
+                  const count = categoryRecordCounts[opt] ?? liveCategoryCounts[opt];
+                  return (
+                    <li {...props} key={opt}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, width: '100%' }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 500, color: 'hsl(var(--foreground))' }}>
+                            {found ? found.label.split(' (')[0] : opt}
+                          </Typography>
+                          <Typography sx={{ fontSize: '0.7rem', fontFamily: 'ui-monospace, monospace', color: 'hsl(var(--muted-foreground))' }}>
+                            {opt}
+                          </Typography>
+                        </Box>
+                        {count !== undefined && (
+                          <Typography
+                            sx={{
+                              fontSize: '0.72rem',
+                              fontFamily: 'ui-monospace, monospace',
+                              color: count > 0 ? NEON.cyan : 'hsl(var(--muted-foreground))',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {count} {count === 1 ? 'record' : 'records'}
+                          </Typography>
+                        )}
+                      </Box>
+                    </li>
+                  );
                 }}
                 renderInput={(params) => (
                   <TextField
                     {...params}
                     label="Datastore Category"
-                    placeholder="e.g. shuffle-security_incidents"
+                    placeholder="e.g. shuffle-security_incidents or any custom workflow category"
+                    helperText="Choose a built-in category or type any custom Datastore category written by your workflows."
                     required
                   />
                 )}
@@ -547,35 +798,62 @@ export const WidgetEditorDialog = ({
                     label="Aggregation"
                     value={aggregation}
                     onChange={(e) => {
-                      const nextAgg = e.target.value as 'count' | 'group_by';
+                      const nextAgg = e.target.value as DatastoreAggregation;
                       setAggregation(nextAgg);
-                      if (nextAgg === 'count' && visualization !== 'kpi') {
-                        setVisualization('kpi');
-                        setSpan(3);
-                      } else if (nextAgg === 'group_by' && visualization === 'kpi') {
+                      if (!titleTouched) {
+                        setTitle(computeAutoDatastoreTitle(category, nextAgg, groupByField));
+                      }
+                      if (nextAgg === 'group_by' && visualization === 'kpi') {
                         setVisualization('horizontal_bar');
                         setSpan(6);
+                      } else if (
+                        nextAgg === 'count' &&
+                        (visualization === 'horizontal_bar' || visualization === 'radial')
+                      ) {
+                        setVisualization('kpi');
+                        setSpan(3);
                       }
                     }}
                   >
-                    <MenuItem value="count">Total Item Count</MenuItem>
-                    <MenuItem value="group_by">Group by JSON Field</MenuItem>
+                    {AGGREGATION_OPTIONS.map((opt) => (
+                      <MenuItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
 
-                {aggregation === 'group_by' && (
+                {aggregation !== 'count' && (
                   <Autocomplete
                     freeSolo
                     size="small"
                     options={suggestedGroupFields}
                     value={groupByField}
-                    onChange={(_e, val) => setGroupByField(val || '')}
-                    onInputChange={(_e, val) => setGroupByField(val || '')}
+                    onChange={(_e, val) => {
+                      const nextField = typeof val === 'string' ? val : '';
+                      setGroupByField(nextField);
+                      if (!titleTouched && nextField.trim()) {
+                        setTitle(computeAutoDatastoreTitle(category, aggregation, nextField));
+                      }
+                    }}
+                    onInputChange={(_e, val, reason) => {
+                      if (reason === 'input' || reason === 'clear') {
+                        setGroupByField(val || '');
+                        if (!titleTouched && val?.trim()) {
+                          setTitle(computeAutoDatastoreTitle(category, aggregation, val));
+                        }
+                      }
+                    }}
+                    getOptionLabel={(opt) => (typeof opt === 'string' ? opt : String(opt))}
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Group By Field"
-                        placeholder="e.g. severity, status, source"
+                        label={aggregation === 'group_by' ? 'Group By JSON Field' : 'Numeric JSON Field'}
+                        placeholder={
+                          aggregation === 'group_by'
+                            ? 'e.g. severity, status, assignee.name'
+                            : 'e.g. risk_score, cvss_score, latency_ms'
+                        }
                         required
                       />
                     )}
@@ -584,22 +862,89 @@ export const WidgetEditorDialog = ({
               </Box>
 
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
-                <TextField
+                <Autocomplete
+                  freeSolo
                   size="small"
-                  label="Filter Field (optional)"
-                  placeholder="e.g. status"
+                  options={suggestedGroupFields}
                   value={filterField}
-                  onChange={(e) => setFilterField(e.target.value)}
+                  onChange={(_e, val) => setFilterField(typeof val === 'string' ? val : '')}
+                  onInputChange={(_e, val, reason) => {
+                    if (reason === 'input' || reason === 'clear') {
+                      setFilterField(val || '');
+                    }
+                  }}
+                  getOptionLabel={(opt) => (typeof opt === 'string' ? opt : String(opt))}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Filter Field (optional)"
+                      placeholder="e.g. status or severity"
+                    />
+                  )}
                 />
                 <TextField
                   size="small"
                   label="Filter Value (optional)"
-                  placeholder="e.g. open"
+                  placeholder="e.g. open or critical"
                   value={filterValue}
                   onChange={(e) => setFilterValue(e.target.value)}
                 />
               </Box>
             </>
+          )}
+
+          {/* Contextual inline guide for feeding data into the selected source */}
+          {(sourceKind === 'custom_stat' || sourceKind === 'datastore_category') && (
+            <Box
+              sx={{
+                p: 1.25,
+                borderRadius: 1.5,
+                border: '1px solid hsl(var(--border))',
+                bgcolor: 'hsl(var(--muted) / 0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0.75,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                <Typography sx={{ fontSize: '0.74rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+                  {sourceKind === 'custom_stat'
+                    ? `How to push values to "${(statKey || 'custom_key').replace(/^total_/, '')}"`
+                    : `How to write records to "${category || 'custom_category'}"`}
+                </Typography>
+                <Button
+                  type="button"
+                  size="small"
+                  variant="outlined"
+                  onClick={handleCopyInlineSnippet}
+                  sx={{ height: 24, px: 1, textTransform: 'none', fontSize: '0.68rem' }}
+                >
+                  {copiedSnippet ? 'Copied' : 'Copy API example'}
+                </Button>
+              </Box>
+              <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))', lineHeight: 1.45 }}>
+                {sourceKind === 'custom_stat'
+                  ? 'You can type any custom key name above. Increment it from a Shuffle workflow (Shuffle Tools stats action or HTTP request to /api/v1/orgs/{org_id}/stats) and it will automatically aggregate and chart here.'
+                  : 'You can type any custom Datastore category and any JSON field path (including nested dot paths like assignee.name or metrics.score). Write JSON objects from a workflow using Shuffle Tools (Set Cache / Datastore) or POST /api/v2/datastore.'}
+              </Typography>
+              <Box
+                component="pre"
+                sx={{
+                  m: 0,
+                  p: 1,
+                  borderRadius: 1,
+                  bgcolor: 'hsl(var(--background))',
+                  border: '1px solid hsl(var(--border))',
+                  fontSize: '0.68rem',
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  color: 'hsl(var(--foreground))',
+                  overflowX: 'auto',
+                  lineHeight: 1.4,
+                }}
+              >
+                {inlineSnippet}
+              </Box>
+            </Box>
           )}
 
           {/* Widget Title */}
@@ -841,6 +1186,220 @@ export const DashboardJsonDialog = ({
           sx={{ height: 32, textTransform: 'none', fontWeight: 600 }}
         >
           Apply JSON
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+// ── Dashboard Data Input & Custom Stats Guide Dialog ────────────────────────
+
+export interface DashboardDataGuideDialogProps {
+  open: boolean;
+  onClose: () => void;
+  orgId?: string | null;
+}
+
+export const DashboardDataGuideDialog = ({
+  open,
+  onClose,
+  orgId,
+}: DashboardDataGuideDialogProps) => {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const resolvedOrg = orgId || '{org_id}';
+
+  const statsCurlExample = `curl -X POST "https://shuffler.io/api/v1/orgs/${resolvedOrg}/stats" \\
+  -H "Authorization: Bearer $SHUFFLE_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "key": "phishing_emails_blocked",
+    "value": 1
+  }'`;
+
+  const datastoreCurlExample = `curl -X POST "https://shuffler.io/api/v2/datastore" \\
+  -H "Authorization: Bearer $SHUFFLE_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "category": "soc_triage_metrics",
+    "key": "alert_1042",
+    "value": "{\\"severity\\":\\"critical\\",\\"status\\":\\"resolved\\",\\"triage_seconds\\":45,\\"created_at\\":1730000000}"
+  }'`;
+
+  const handleCopy = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1800);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ pb: 1 }}>
+        <Typography sx={{ fontSize: '1rem', fontWeight: 600 }}>
+          How to Input Any Data into Dashboards & Custom Stats
+        </Typography>
+        <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--muted-foreground))', mt: 0.25 }}>
+          Every widget and Custom Stats chart can display any counter, workflow metric, or structured JSON object you send from Shuffle Workflows or the REST API.
+        </Typography>
+      </DialogTitle>
+
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+        {/* Section 1: Organization Custom Stats */}
+        <Box
+          sx={{
+            p: 1.75,
+            borderRadius: 2,
+            border: '1px solid hsl(var(--border))',
+            bgcolor: 'hsl(var(--card) / 0.5)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography sx={{ fontSize: '0.86rem', fontWeight: 600, color: NEON.violet }}>
+                1. Organization Custom Stats (Counters & Time-Series Trends)
+              </Typography>
+              <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
+                Best for tracking numerical counters over time (e.g. <code>tickets_closed</code>, <code>phishing_emails_blocked</code>, <code>alerts_triaged</code>).
+              </Typography>
+            </Box>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => handleCopy('stats', statsCurlExample)}
+              sx={{ height: 28, px: 1.25, textTransform: 'none', fontSize: '0.72rem' }}
+            >
+              {copiedId === 'stats' ? 'Copied' : 'Copy cURL'}
+            </Button>
+          </Box>
+
+          <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--foreground))', lineHeight: 1.5 }}>
+            <strong>In a Workflow:</strong> Add a <strong>Shuffle Tools</strong> action or HTTP request that posts <code>{"{ \"key\": \"your_stat_name\", \"value\": 1 }"}</code> to <code>/api/v1/orgs/{resolvedOrg}/stats</code>. Shuffle automatically buckets each increment by day and updates the organization total.
+          </Typography>
+          <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--foreground))', lineHeight: 1.5 }}>
+            <strong>In the Dashboard:</strong> Open <strong>Add Widget</strong>, choose <strong>Organization Custom Stat</strong>, and either select your key from the list or type any key name directly. You can also chart any key in the <strong>Automation &rarr; Custom Stats</strong> panel.
+          </Typography>
+
+          <Box
+            component="pre"
+            sx={{
+              m: 0,
+              p: 1.25,
+              borderRadius: 1.5,
+              bgcolor: 'hsl(var(--background))',
+              border: '1px solid hsl(var(--border))',
+              fontSize: '0.72rem',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              color: 'hsl(var(--foreground))',
+              overflowX: 'auto',
+              lineHeight: 1.45,
+            }}
+          >
+            {statsCurlExample}
+          </Box>
+        </Box>
+
+        {/* Section 2: Datastore Categories */}
+        <Box
+          sx={{
+            p: 1.75,
+            borderRadius: 2,
+            border: '1px solid hsl(var(--border))',
+            bgcolor: 'hsl(var(--card) / 0.5)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography sx={{ fontSize: '0.86rem', fontWeight: 600, color: NEON.cyan }}>
+                2. Datastore Categories (Any Structured JSON Field, Breakdown, or Numeric Metric)
+              </Typography>
+              <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
+                Best for grouping records by field (e.g. <code>severity</code>, <code>status</code>, <code>assignee.name</code>) or computing <strong>Sum / Average / Max / Min</strong> on numeric fields.
+              </Typography>
+            </Box>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => handleCopy('datastore', datastoreCurlExample)}
+              sx={{ height: 28, px: 1.25, textTransform: 'none', fontSize: '0.72rem' }}
+            >
+              {copiedId === 'datastore' ? 'Copied' : 'Copy cURL'}
+            </Button>
+          </Box>
+
+          <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--foreground))', lineHeight: 1.5 }}>
+            <strong>In a Workflow:</strong> Use <strong>Shuffle Tools &rarr; Set Cache / Datastore</strong> or <code>POST /api/v2/datastore</code> with any <code>category</code> name and a JSON object in <code>value</code>. Include a timestamp field (<code>created_at</code>, <code>timestamp</code>, or <code>created_time</code>) to enable automatic time-series bucketing.
+          </Typography>
+          <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--foreground))', lineHeight: 1.5 }}>
+            <strong>In the Dashboard:</strong> Open <strong>Add Widget</strong>, choose <strong>Datastore Category</strong>, type or select your category name, and pick an aggregation: <strong>Total Item Count</strong>, <strong>Group by JSON Field</strong>, or <strong>Sum / Average / Max / Min</strong> of any numeric JSON field.
+          </Typography>
+
+          <Box
+            component="pre"
+            sx={{
+              m: 0,
+              p: 1.25,
+              borderRadius: 1.5,
+              bgcolor: 'hsl(var(--background))',
+              border: '1px solid hsl(var(--border))',
+              fontSize: '0.72rem',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              color: 'hsl(var(--foreground))',
+              overflowX: 'auto',
+              lineHeight: 1.45,
+            }}
+          >
+            {datastoreCurlExample}
+          </Box>
+        </Box>
+
+        {/* Section 3: Built-in Categories Reference */}
+        <Box
+          sx={{
+            p: 1.5,
+            borderRadius: 1.5,
+            border: '1px solid hsl(var(--border))',
+            bgcolor: 'hsl(var(--muted) / 0.2)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0.5,
+          }}
+        >
+          <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+            Standard Shuffle Security Datastore Categories
+          </Typography>
+          <Typography sx={{ fontSize: '0.73rem', color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>
+            Incidents: <code>{DATASTORE_CATEGORIES.INCIDENTS}</code> &middot; Vulnerabilities: <code>{DATASTORE_CATEGORIES.VULNERABILITIES}</code> &middot; Assets: <code>{DATASTORE_CATEGORIES.ASSETS}</code> &middot; Events: <code>{DATASTORE_CATEGORIES.EVENTS}</code> &middot; IOCs: <code>{DATASTORE_CATEGORIES.IOCS}</code> &middot; Monitors: <code>{DATASTORE_CATEGORIES.MONITORS}</code>
+          </Typography>
+        </Box>
+      </DialogContent>
+
+      <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
+        <Button
+          component="a"
+          href="https://shuffler.io/docs/API#stats-and-timelines"
+          target="_blank"
+          rel="noopener noreferrer"
+          size="small"
+          sx={{ height: 32, textTransform: 'none', fontSize: '0.76rem', color: NEON.violet }}
+        >
+          Open Stats & Timelines API Docs
+        </Button>
+        <Button
+          onClick={onClose}
+          variant="contained"
+          size="small"
+          sx={{ height: 32, textTransform: 'none', fontWeight: 600 }}
+        >
+          Close
         </Button>
       </DialogActions>
     </Dialog>

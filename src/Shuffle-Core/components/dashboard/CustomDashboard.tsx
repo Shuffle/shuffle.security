@@ -55,8 +55,10 @@ import {
 } from './_shared';
 import {
   CreateDashboardDialog,
+  DashboardDataGuideDialog,
   DashboardJsonDialog,
   WidgetEditorDialog,
+  discoverFieldsFromRecords,
 } from './CustomDashboardEditorDialog';
 import {
   WIDGET_SPAN_OPTIONS,
@@ -181,6 +183,20 @@ const valueForStat = (d: DailyStat, key: string): number => {
   const additions = Array.isArray(d.additions) ? d.additions : [];
   const hit = additions.find((a: Addition) => a?.key === key || a?.key === bare);
   return hit ? Number(hit.value) || 0 : 0;
+};
+
+const topLevelStatValue = (stats: StatsResponse | null, key: string): number => {
+  if (!stats || typeof stats !== 'object' || typeof key !== 'string' || !key) return 0;
+  const bare = key.startsWith('total_') ? key.slice(6) : key;
+  const withTotal = `total_${bare}`;
+  if (typeof stats[key] === 'number' && Number.isFinite(stats[key])) return stats[key];
+  if (typeof stats[withTotal] === 'number' && Number.isFinite(stats[withTotal])) return stats[withTotal];
+  if (typeof stats[bare] === 'number' && Number.isFinite(stats[bare])) return stats[bare];
+  if (Array.isArray(stats.additions)) {
+    const hit = stats.additions.find((a) => a?.key === key || a?.key === bare || a?.key === withTotal);
+    if (hit && Number.isFinite(Number(hit.value))) return Number(hit.value);
+  }
+  return 0;
 };
 
 /** Parse a raw datastore entry into a flat/nested object for field extraction. */

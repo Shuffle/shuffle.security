@@ -7298,8 +7298,10 @@ export function UsecaseCard({
             animation: 'ucCardActionIn 0.15s ease-out',
           },
           // The status chip sits collapsed on its icon; hovering the card
-          // slides the state word open beside it.
+          // slides the state word open beside it. Collapsed it is an exact
+          // 22x22 square, so the hover has to release the fixed width first.
           '&:hover .uc-card-chip': {
+            width: 'auto',
             pr: 0.85,
           },
           '&:hover .uc-card-chip-label': {
@@ -7315,6 +7317,7 @@ export function UsecaseCard({
             pointerEvents: 'auto',
           },
           '& .uc-card-chip': {
+            width: 'auto',
             pr: 0.85,
           },
           '& .uc-card-chip-label': {
@@ -7445,10 +7448,13 @@ export function UsecaseCard({
                   sx={{
                     display: 'inline-flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: 0,
-                    px: 0.4,
-                    py: 0.2,
+                    boxSizing: 'border-box',
+                    width: 22,
                     height: 22,
+                    px: 0.4,
+                    py: 0,
                     borderRadius: 0.75,
                     bgcolor: statusChip.positive
                       ? 'hsl(var(--severity-low) / 0.12)'
@@ -7584,10 +7590,13 @@ export function UsecaseCard({
                   sx={{
                     display: 'inline-flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: 0,
-                    px: 0.4,
-                    py: 0.25,
+                    boxSizing: 'border-box',
+                    width: 22,
                     height: 22,
+                    px: 0.4,
+                    py: 0,
                     borderRadius: 0.75,
                     bgcolor: 'hsl(var(--destructive) / 0.12)',
                     border: '1px solid hsl(var(--destructive) / 0.4)',
@@ -7637,10 +7646,13 @@ export function UsecaseCard({
                 sx={{
                   display: 'inline-flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: 0,
-                  px: 0.4,
-                  py: 0.25,
+                  boxSizing: 'border-box',
+                  width: 22,
                   height: 22,
+                  px: 0.4,
+                  py: 0,
                   borderRadius: 0.75,
                   bgcolor: 'hsl(var(--severity-low) / 0.12)',
                   border: '1px solid hsl(var(--severity-low) / 0.4)',

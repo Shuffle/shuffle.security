@@ -35,6 +35,7 @@ import ReactGA from 'react-ga4';
 import shuffleSecurityIcon from '../assets/shuffle-icon.png';
 import UsecaseAlluvialDiagram, { extractNotificationWorkflowAppNames, matchesCategory } from './UsecaseAlluvialDiagram';
 import { findForwardTicketsWorkflow } from '../ingestionDetection';
+import { getUsecaseToggleChip } from './usecaseToggleChip';
 import { useEntityPreference } from '@/hooks/useEntityLabel';
 import AppSearchDrawer from './AppSearchDrawer';
 import {
@@ -3726,6 +3727,7 @@ function UsecaseDetailContent({
   const linkedWfs = useMemo(() => (flow ? findWorkflowsForUsecase(flow, workflows) : []), [flow, workflows]);
   const detailHealth = useMemo(() => diagnoseUsecase(linkedWfs, environments), [linkedWfs, environments]);
   const detailIsBlocked = effectiveEnabled && detailHealth.hasProblem;
+  const detailChip = getUsecaseToggleChip(effectiveEnabled, detailIsBlocked);
   // App-search drawer state — mirrors the alluvial diagram's "+" buttons so
   // users can force-add a Source or Destination tool from this view too.
   const [addToolFor, setAddToolFor] = useState<null | { side: 'source' | 'destination'; categoryId: string; multiDest?: boolean }>(null);
@@ -4517,11 +4519,7 @@ function UsecaseDetailContent({
                         ) : (
                           <Power
                             size={13}
-                            style={{
-                              color: effectiveEnabled
-                                ? 'hsl(var(--destructive))'
-                                : 'hsl(var(--severity-low))',
-                            }}
+                            style={{ color: 'inherit' }}
                           />
                         )
                       }
@@ -4534,30 +4532,30 @@ function UsecaseDetailContent({
                         py: 0.5,
                         px: 1.2,
                         borderRadius: 1,
-                        bgcolor: effectiveEnabled
-                          ? 'hsl(var(--destructive) / 0.12)'
-                          : 'hsl(var(--severity-low) / 0.12)',
-                        color: effectiveEnabled
-                          ? 'hsl(var(--destructive))'
-                          : 'hsl(var(--severity-low))',
-                        border: effectiveEnabled
-                          ? '1px solid hsl(var(--destructive) / 0.4)'
-                          : '1px solid hsl(var(--severity-low) / 0.4)',
+                        bgcolor: detailChip.positive
+                          ? 'hsl(var(--severity-low) / 0.12)'
+                          : 'hsl(var(--destructive) / 0.12)',
+                        color: detailChip.positive
+                          ? 'hsl(var(--severity-low))'
+                          : 'hsl(var(--destructive))',
+                        border: detailChip.positive
+                          ? '1px solid hsl(var(--severity-low) / 0.4)'
+                          : '1px solid hsl(var(--destructive) / 0.4)',
                         whiteSpace: 'nowrap',
                         letterSpacing: 0.2,
                         boxShadow: 'none',
                         '&:hover': {
-                          bgcolor: effectiveEnabled
-                            ? 'hsl(var(--destructive) / 0.22)'
-                            : 'hsl(var(--severity-low) / 0.22)',
-                          borderColor: effectiveEnabled
-                            ? 'hsl(var(--destructive) / 0.7)'
-                            : 'hsl(var(--severity-low) / 0.7)',
+                          bgcolor: detailChip.positive
+                            ? 'hsl(var(--severity-low) / 0.22)'
+                            : 'hsl(var(--destructive) / 0.22)',
+                          borderColor: detailChip.positive
+                            ? 'hsl(var(--severity-low) / 0.7)'
+                            : 'hsl(var(--destructive) / 0.7)',
                           boxShadow: 'none',
                         },
                       }}
                     >
-                      {effectiveEnabled ? 'Disable' : 'Enable'}
+                      {detailChip.label}
                     </Button>
                   </span>
                 </Tooltip>

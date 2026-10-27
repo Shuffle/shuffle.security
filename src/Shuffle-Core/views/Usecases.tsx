@@ -7070,6 +7070,7 @@ export function UsecaseCard({
   const [toggling, setToggling] = useState(false);
   const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
   const effectiveEnabled = optimisticEnabled !== null ? optimisticEnabled : isEnabled;
+  const busy = toggling || optimisticEnabled !== null;
   const { environments } = useWorkflowHealth();
   const linkedWfs = useMemo(() => findWorkflowsForUsecase(flow, workflows), [flow, workflows]);
   const usecaseHealth = useMemo(() => diagnoseUsecase(linkedWfs, environments), [linkedWfs, environments]);

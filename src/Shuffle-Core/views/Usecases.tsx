@@ -3850,12 +3850,31 @@ function UsecaseDetailContent({
   // change, and surface a clear warning toast if it didn't.
   const isEnabledRef = React.useRef(isEnabled);
   useEffect(() => { isEnabledRef.current = isEnabled; }, [isEnabled]);
+  // Stop loading when the shared recheck for this usecase reports back.
+  useEffect(() => {
+    const label = flow?.automationLabel;
+    if (!label || typeof window === 'undefined') return;
+    const onDone = (e: Event) => {
+      const d = (e as CustomEvent).detail || {};
+      if (d.label !== label) return;
+      setOptimisticEnabled(null);
+      if (d.enabled && !d.confirmed && flow) {
+        toast.warning(`${flow.label} did not confirm`, {
+          description: 'The backend accepted the request but the change has not shown up after several checks. Open Workflows to check whether the workflow was generated, or try again.',
+          duration: 10000,
+        });
+      }
+    };
+    window.addEventListener(USECASE_RECHECK_DONE_EVENT, onDone);
+    return () => window.removeEventListener(USECASE_RECHECK_DONE_EVENT, onDone);
+  }, [flow?.automationLabel]);
+
   const scheduleEnableVerification = (willBeEnabled: boolean) => {
     setTimeout(() => {
       setOptimisticEnabled(null);
       if (willBeEnabled && !isEnabledRef.current && flow) {
         toast.warning(`${flow.label} did not confirm`, {
-          description: 'The backend accepted the request but the change has not been reflected after 30 seconds. Open Workflows to check whether the workflow was generated, or try again.',
+          description: 'The backend accepted the request but the change has not been reflected. Open Workflows to check whether the workflow was generated, or try again.',
           duration: 10000,
         });
       }
@@ -5973,6 +5992,8 @@ function UsecasesPageInner() {
   const { apiUrl, authHeader } = useApi();
   const { scopeClassName: cfgScopeClassName, onToggled: cfgOnToggled, preloadedWorkflows } = useUsecasesConfig();
   const { usecases, apiLoaded, getDrift } = useUsecasesLite();
+  const usecasesRef = React.useRef(usecases);
+  usecasesRef.current = usecases;
   const { userInfo, isAuthenticated, refetch: refetchAuth } = useAuthLite();
   const { data: workflows = [], refetch: refetchWorkflows } = useWorkflowsLite(preloadedWorkflows);
   const isSupport = userInfo?.support === true;
@@ -7108,6 +7129,15 @@ export function UsecaseCard({
   const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
   const effectiveEnabled = optimisticEnabled !== null ? optimisticEnabled : isEnabled;
   const busy = toggling || optimisticEnabled !== null;
+  useEffect(() => {
+    const label = flow.automationLabel;
+    if (!label || typeof window === 'undefined') return;
+    const onDone = (e: Event) => {
+      if ((e as CustomEvent).detail?.label === label) setOptimisticEnabled(null);
+    };
+    window.addEventListener(USECASE_RECHECK_DONE_EVENT, onDone);
+    return () => window.removeEventListener(USECASE_RECHECK_DONE_EVENT, onDone);
+  }, [flow.automationLabel]);
   const { environments } = useWorkflowHealth();
   const linkedWfs = useMemo(() => findWorkflowsForUsecase(flow, workflows), [flow, workflows]);
   const usecaseHealth = useMemo(() => diagnoseUsecase(linkedWfs, environments), [linkedWfs, environments]);

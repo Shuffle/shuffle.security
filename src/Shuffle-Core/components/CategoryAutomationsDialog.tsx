@@ -1606,7 +1606,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                     px: 1.5,
                     cursor: 'pointer',
                   }}
-                  onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
+                  onClick={() => setCurrentView('routing')}
                 >
                   <RouteIcon size={22} style={{ color: 'hsl(var(--muted-foreground))' }} />
                   <Typography sx={{ flex: 1, fontSize: '0.95rem', color: 'text.primary', fontWeight: 500 }}>
@@ -1614,7 +1614,7 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                   </Typography>
                   <ExpandMoreIcon
                     size={20}
-                    sx={{ color: 'text.secondary', transform: 'rotate(-90deg)' }}
+                    style={{ color: 'hsl(var(--muted-foreground))', transform: 'rotate(-90deg)' }}
                   />
                 </Box>
               </Box>

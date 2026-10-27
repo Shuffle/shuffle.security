@@ -151,39 +151,56 @@ export const KNOWN_DATASTORE_CATEGORIES: { value: string; label: string; suggest
   {
     value: DATASTORE_CATEGORIES.INCIDENTS,
     label: 'Incidents (shuffle-security_incidents)',
-    suggestedFields: ['severity', 'status', ' assignee.name', 'finding_info.title'],
+    suggestedFields: ['severity', 'status', 'assignee.name', 'finding_info.title', 'confidence_score', 'risk_score'],
   },
   {
     value: DATASTORE_CATEGORIES.VULNERABILITIES,
     label: 'Vulnerabilities (shuffle-security_vulns)',
-    suggestedFields: ['severity', 'status', 'source'],
+    suggestedFields: ['severity', 'status', 'source', 'cvss_score'],
   },
   {
     value: DATASTORE_CATEGORIES.ASSETS,
     label: 'Assets (shuffle-security_assets)',
-    suggestedFields: ['type', 'os', 'status', 'criticality'],
+    suggestedFields: ['type', 'os', 'status', 'criticality', 'risk_score'],
   },
   {
     value: DATASTORE_CATEGORIES.EVENTS,
     label: 'Events (shuffle-security_events)',
-    suggestedFields: ['severity', 'source', 'type'],
+    suggestedFields: ['severity', 'source', 'type', 'count'],
   },
   {
     value: DATASTORE_CATEGORIES.IOCS,
     label: 'IOCs (shuffle-security_ioc-config)',
-    suggestedFields: ['type', 'severity', 'source'],
+    suggestedFields: ['type', 'severity', 'source', 'confidence'],
   },
   {
     value: DATASTORE_CATEGORIES.THREAT_FEEDS,
     label: 'Threat Feeds (shuffle-security_threat-feeds)',
-    suggestedFields: ['type', 'status'],
+    suggestedFields: ['type', 'status', 'indicator_count'],
+  },
+  {
+    value: DATASTORE_CATEGORIES.MONITORS,
+    label: 'Monitors (shuffle-security_monitors)',
+    suggestedFields: ['type', 'status', 'platform', 'environment'],
   },
   {
     value: DATASTORE_CATEGORIES.REPORTS,
     label: 'Reports (shuffle-security_reports)',
-    suggestedFields: ['type', 'status'],
+    suggestedFields: ['type', 'status', 'severity'],
+  },
+  {
+    value: DATASTORE_CATEGORIES.DETECTION_ENGINES,
+    label: 'Detection Engines (shuffle-security_detection-engines)',
+    suggestedFields: ['type', 'status', 'vendor'],
+  },
+  {
+    value: DATASTORE_CATEGORIES.CASE_MGMT_CONFIG,
+    label: 'Case Management (shuffle-security_case-mgmt)',
+    suggestedFields: ['type', 'status', 'priority'],
   },
 ];
+
+export type DatastoreAggregation = 'count' | 'group_by' | 'sum' | 'avg' | 'max' | 'min';
 
 export type CustomWidgetDataSource =
   | {
@@ -195,11 +212,11 @@ export type CustomWidgetDataSource =
     }
   | {
       kind: 'datastore_category';
-      /** Datastore category name, e.g. "shuffle-security_incidents" */
+      /** Datastore category name, e.g. "shuffle-security_incidents" or any custom workflow category */
       category: string;
-      /** Aggregation mode: total item count, or group by a top-level / dot-separated JSON field */
-      aggregation: 'count' | 'group_by';
-      /** Field path when aggregation === 'group_by' (e.g. "severity", "status", "source") */
+      /** Aggregation mode: total item count, group by JSON field, or numeric aggregation (sum/avg/max/min) */
+      aggregation: DatastoreAggregation;
+      /** Field path when aggregation !== 'count' (e.g. "severity", "status", "score", "metrics.latency_ms") */
       groupByField?: string;
       /** Optional filter expression (field = value) */
       filterField?: string;

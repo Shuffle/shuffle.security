@@ -909,34 +909,44 @@ export const CustomDashboard = ({
     ],
   );
 
+  // Optimistic local widget state so drag-drop and edge-resizing commit with 0ms frame latency
+  const [optimisticWidgets, setOptimisticWidgets] = useState<CustomDashboardWidget[]>(
+    () => dashboard.widgets,
+  );
+  useEffect(() => {
+    setOptimisticWidgets(dashboard.widgets);
+  }, [dashboard.widgets]);
+
+  const commitWidgets = useCallback(
+    async (nextWidgets: CustomDashboardWidget[]) => {
+      setOptimisticWidgets(nextWidgets);
+      await onUpdateDashboard({
+        ...dashboard,
+        updatedAt: Date.now(),
+        widgets: nextWidgets,
+      });
+    },
+    [dashboard, onUpdateDashboard],
+  );
+
   // Widget mutation handlers
   const handleSaveWidget = async (widget: CustomDashboardWidget) => {
-    const exists = dashboard.widgets.some((w) => w.id === widget.id);
+    const exists = optimisticWidgets.some((w) => w.id === widget.id);
     const nextWidgets = exists
-      ? dashboard.widgets.map((w) => (w.id === widget.id ? widget : w))
-      : [...dashboard.widgets, widget];
-    await onUpdateDashboard({
-      ...dashboard,
-      updatedAt: Date.now(),
-      widgets: nextWidgets,
-    });
+      ? optimisticWidgets.map((w) => (w.id === widget.id ? widget : w))
+      : [...optimisticWidgets, widget];
     setEditingWidget(null);
+    await commitWidgets(nextWidgets);
   };
 
   const handleRemoveWidget = async (widgetId: string) => {
-    await onUpdateDashboard({
-      ...dashboard,
-      updatedAt: Date.now(),
-      widgets: dashboard.widgets.filter((w) => w.id !== widgetId),
-    });
+    await commitWidgets(optimisticWidgets.filter((w) => w.id !== widgetId));
   };
 
   const handleSpanChange = async (widgetId: string, nextSpan: WidgetSpan) => {
-    await onUpdateDashboard({
-      ...dashboard,
-      updatedAt: Date.now(),
-      widgets: dashboard.widgets.map((w) => (w.id === widgetId ? { ...w, span: nextSpan } : w)),
-    });
+    await commitWidgets(
+      optimisticWidgets.map((w) => (w.id === widgetId ? { ...w, span: nextSpan } : w)),
+    );
   };
 
   // Allowed 12-column spans for edge-resize snapping and quick cycling
@@ -953,14 +963,15 @@ export const CustomDashboard = ({
     return 'Full';
   };
 
-  const snapToNearestSpan = useCallback(
-    (rawCols: number): WidgetSpan => {
-      let best: WidgetSpan = SNAP_SPANS[0] || 3;
-      let bestDist = Infinity;
+  // Magnetic snapping with hysteresis so the span doesn't jitter on boundary midpoints
+  const snapToSpanWithHysteresis = useCallback(
+    (rawCols: number, currentSpan: WidgetSpan): WidgetSpan => {
+      let best: WidgetSpan = currentSpan;
+      let bestScore = Math.abs(rawCols - currentSpan) - 0.32; // magnetic pull toward current span
       for (const candidate of SNAP_SPANS) {
         const dist = Math.abs(rawCols - candidate);
-        if (dist < bestDist) {
-          bestDist = dist;
+        if (dist < bestScore) {
+          bestScore = dist;
           best = candidate;
         }
       }
@@ -978,37 +989,57 @@ export const CustomDashboard = ({
   // Refs & state for Edit Mode drag-and-drop reordering and edge resizing
   const gridRef = useRef<HTMLDivElement | null>(null);
   const widgetRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const floatingCardRef = useRef<HTMLDivElement | null>(null);
+  const resizeContinuousBarRef = useRef<HTMLDivElement | null>(null);
+  const resizeColsLabelRef = useRef<HTMLSpanElement | null>(null);
 
-  const [dragState, setDragState] = useState<{
+  const [activeDrag, setActiveDrag] = useState<{
     widgetId: string;
-    clientX: number;
-    clientY: number;
+    initialWidth: number;
+    initialHeight: number;
+    grabOffsetX: number;
+    grabOffsetY: number;
+    initialX: number;
+    initialY: number;
   } | null>(null);
 
-  const [dropTarget, setDropTarget] = useState<{
-    widgetId: string;
-    side: 'before' | 'after';
-  } | null>(null);
+  const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
 
   const [resizingState, setResizingState] = useState<{
     widgetId: string;
-    edge: 'left' | 'right';
+    edge: 'left' | 'right' | 'corner';
     span: WidgetSpan;
   } | null>(null);
 
   // Clear any active drag/resize state when leaving Edit Mode
   useEffect(() => {
     if (!isEditing) {
-      setDragState(null);
-      setDropTarget(null);
+      setActiveDrag(null);
+      setPreviewOrder(null);
       setResizingState(null);
     }
   }, [isEditing]);
 
+  // Live-ordered widgets list (uses `previewOrder` while dragging so the grid reflows live)
+  const displayedWidgets = useMemo(() => {
+    if (!previewOrder || !activeDrag) return optimisticWidgets;
+    const byId = new Map(optimisticWidgets.map((w) => [w.id, w]));
+    const ordered: CustomDashboardWidget[] = [];
+    for (const id of previewOrder) {
+      const found = byId.get(id);
+      if (found) {
+        ordered.push(found);
+        byId.delete(id);
+      }
+    }
+    byId.forEach((w) => ordered.push(w));
+    return ordered;
+  }, [optimisticWidgets, previewOrder, activeDrag]);
+
   const startEdgeResize = (
     e: React.PointerEvent<HTMLElement>,
     widget: CustomDashboardWidget,
-    edge: 'left' | 'right',
+    edge: 'left' | 'right' | 'corner',
   ) => {
     if (!isEditing) return;
     e.stopPropagation();
@@ -1021,26 +1052,43 @@ export const CustomDashboard = ({
     const gridRect = gridEl.getBoundingClientRect();
     const initialRect = widgetEl.getBoundingClientRect();
     const gridWidth = Math.max(240, gridRect.width);
+    const startX = e.clientX;
     let latestSpan: WidgetSpan = widget.span;
+    let rafId: number | null = null;
 
     setResizingState({ widgetId: widget.id, edge, span: widget.span });
 
+    const updateContinuousHud = (rawCols: number, snapped: WidgetSpan) => {
+      const clampedCols = Math.max(2.2, Math.min(12, rawCols));
+      const pct = Math.max(8, Math.min(100, (clampedCols / 12) * 100));
+      if (resizeContinuousBarRef.current) {
+        resizeContinuousBarRef.current.style.width = `${pct}%`;
+      }
+      if (resizeColsLabelRef.current) {
+        resizeColsLabelRef.current.textContent = `${formatSpanShortLabel(snapped)} (${snapped}/12 cols)`;
+      }
+    };
+
     const onPointerMove = (ev: PointerEvent) => {
-      const desiredPx =
-        edge === 'right'
-          ? Math.max(60, ev.clientX - initialRect.left)
-          : Math.max(60, initialRect.right - ev.clientX);
-      const rawCols = (desiredPx / gridWidth) * 12;
-      const snapped = snapToNearestSpan(rawCols);
-      latestSpan = snapped;
-      setResizingState((prev) =>
-        prev && prev.widgetId === widget.id && prev.span === snapped
-          ? prev
-          : { widgetId: widget.id, edge, span: snapped },
-      );
+      // Delta-based width calculation is immune to CSS Grid row-wrapping jumps during resize
+      const deltaPx = edge === 'left' ? startX - ev.clientX : ev.clientX - startX;
+      const desiredWidthPx = Math.max(72, initialRect.width + deltaPx);
+      const rawCols = (desiredWidthPx / gridWidth) * 12;
+      const snapped = snapToSpanWithHysteresis(rawCols, latestSpan);
+
+      updateContinuousHud(rawCols, snapped);
+
+      if (snapped !== latestSpan) {
+        latestSpan = snapped;
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          setResizingState({ widgetId: widget.id, edge, span: latestSpan });
+        });
+      }
     };
 
     const onPointerUp = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
@@ -1067,64 +1115,131 @@ export const CustomDashboard = ({
       return;
     }
 
+    const widgetEl = widgetRefs.current[widget.id];
+    if (!widgetEl) return;
+
+    const initialRect = widgetEl.getBoundingClientRect();
     const startX = e.clientX;
     const startY = e.clientY;
-    let isDraggingNow = false;
-    let latestDrop: { widgetId: string; side: 'before' | 'after' } | null = null;
+    const grabOffsetX = startX - initialRect.left;
+    const grabOffsetY = startY - initialRect.top;
 
-    const resolveDropTargetAt = (
-      cx: number,
-      cy: number,
-    ): { widgetId: string; side: 'before' | 'after' } | null => {
-      let bestId: string | null = null;
+    let isDraggingNow = false;
+    let currentOrder = optimisticWidgets.map((w) => w.id);
+    let lastSwapTs = 0;
+
+    const computeNextOrderAt = (cx: number, cy: number, order: string[]): string[] | null => {
+      // Anti-oscillation guard: if the cursor is currently inside the dragged widget's
+      // own placeholder cell, keep the current order so mixed-width swaps never flicker.
+      const ownEl = widgetRefs.current[widget.id];
+      if (ownEl) {
+        const ownRect = ownEl.getBoundingClientRect();
+        if (
+          cx >= ownRect.left - 6 &&
+          cx <= ownRect.right + 6 &&
+          cy >= ownRect.top - 6 &&
+          cy <= ownRect.bottom + 6
+        ) {
+          return null;
+        }
+      }
+
+      const draggedIdx = order.indexOf(widget.id);
+      if (draggedIdx < 0) return null;
+
+      let bestTargetId: string | null = null;
       let bestSide: 'before' | 'after' = 'before';
       let bestScore = Infinity;
 
-      for (const candidate of dashboard.widgets) {
-        const el = widgetRefs.current[candidate.id];
+      for (const candidateId of order) {
+        if (candidateId === widget.id) continue;
+        const el = widgetRefs.current[candidateId];
         if (!el) continue;
         const rect = el.getBoundingClientRect();
-        const midX = rect.left + rect.width / 2;
-        const side: 'before' | 'after' = cx < midX ? 'before' : 'after';
 
-        const insideX = cx >= rect.left && cx <= rect.right;
-        const insideY = cy >= rect.top && cy <= rect.bottom;
+        // Require cursor to enter 15% inside the target edge to prevent boundary jitter
+        const insetX = Math.min(28, rect.width * 0.15);
+        const insetY = Math.min(24, rect.height * 0.15);
+        const insideX = cx >= rect.left + insetX && cx <= rect.right - insetX;
+        const insideY = cy >= rect.top + insetY && cy <= rect.bottom - insetY;
+
+        const targetIdx = order.indexOf(candidateId);
+        // When moving forward in the grid, insert 'after' the target; when moving backward, insert 'before'
+        const naturalSide: 'before' | 'after' =
+          cx < rect.left + rect.width * 0.45
+            ? 'before'
+            : cx > rect.left + rect.width * 0.55
+              ? 'after'
+              : draggedIdx < targetIdx
+                ? 'after'
+                : 'before';
 
         if (insideX && insideY) {
-          return { widgetId: candidate.id, side };
+          bestTargetId = candidateId;
+          bestSide = naturalSide;
+          bestScore = 0;
+          break;
         }
 
         const dx = cx < rect.left ? rect.left - cx : cx > rect.right ? cx - rect.right : 0;
         const dy = cy < rect.top ? rect.top - cy : cy > rect.bottom ? cy - rect.bottom : 0;
-        // Weight vertical distance higher so widgets on the same row are strongly preferred
         const score = dx + dy * 2.5;
-        if (score < bestScore) {
+        if (score < bestScore && score < 90) {
           bestScore = score;
-          bestId = candidate.id;
-          bestSide = side;
+          bestTargetId = candidateId;
+          bestSide = naturalSide;
         }
       }
 
-      return bestId ? { widgetId: bestId, side: bestSide } : null;
+      if (!bestTargetId) return null;
+
+      const next = order.filter((id) => id !== widget.id);
+      const targetIdx = next.indexOf(bestTargetId);
+      if (targetIdx < 0) return null;
+
+      const insertIdx = bestSide === 'before' ? targetIdx : targetIdx + 1;
+      next.splice(insertIdx, 0, widget.id);
+
+      const unchanged =
+        next.length === order.length && next.every((id, idx) => id === order[idx]);
+      return unchanged ? null : next;
     };
 
     const onPointerMove = (ev: PointerEvent) => {
       const dist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
-      if (!isDraggingNow && dist < 6) return;
+      if (!isDraggingNow && dist < 4) return;
+
+      const nextX = ev.clientX - grabOffsetX;
+      const nextY = ev.clientY - grabOffsetY;
 
       if (!isDraggingNow) {
         isDraggingNow = true;
+        setPreviewOrder(currentOrder);
+        setActiveDrag({
+          widgetId: widget.id,
+          initialWidth: initialRect.width,
+          initialHeight: initialRect.height,
+          grabOffsetX,
+          grabOffsetY,
+          initialX: nextX,
+          initialY: nextY,
+        });
       }
 
-      setDragState({
-        widgetId: widget.id,
-        clientX: ev.clientX,
-        clientY: ev.clientY,
-      });
+      // Direct GPU transform update on the floating card — 0 React re-renders per mouse move
+      if (floatingCardRef.current) {
+        floatingCardRef.current.style.transform = `translate3d(${nextX}px, ${nextY}px, 0) scale(1.015)`;
+      }
 
-      const resolvedTarget = resolveDropTargetAt(ev.clientX, ev.clientY);
-      latestDrop = resolvedTarget;
-      setDropTarget(resolvedTarget);
+      const now = performance.now();
+      if (now - lastSwapTs < 65) return;
+
+      const nextOrder = computeNextOrderAt(ev.clientX, ev.clientY, currentOrder);
+      if (nextOrder) {
+        currentOrder = nextOrder;
+        lastSwapTs = now;
+        setPreviewOrder(nextOrder);
+      }
     };
 
     const onPointerUp = () => {
@@ -1132,29 +1247,24 @@ export const CustomDashboard = ({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
 
-      setDragState(null);
-      setDropTarget(null);
+      const finalOrder = isDraggingNow ? currentOrder : null;
+      setActiveDrag(null);
+      setPreviewOrder(null);
 
-      if (!isDraggingNow || !latestDrop) return;
-      if (latestDrop.widgetId === widget.id) return;
+      if (!finalOrder) return;
 
-      const list = [...dashboard.widgets];
-      const fromIdx = list.findIndex((w) => w.id === widget.id);
-      if (fromIdx < 0) return;
+      const originalIds = optimisticWidgets.map((w) => w.id);
+      const changed =
+        finalOrder.length === originalIds.length &&
+        finalOrder.some((id, idx) => id !== originalIds[idx]);
 
-      const [moved] = list.splice(fromIdx, 1);
-      const targetIdx = list.findIndex((w) => w.id === latestDrop!.widgetId);
-      if (targetIdx < 0) return;
-
-      const insertIdx = latestDrop.side === 'before' ? targetIdx : targetIdx + 1;
-      if (insertIdx === fromIdx) return;
-
-      list.splice(insertIdx, 0, moved);
-      void onUpdateDashboard({
-        ...dashboard,
-        updatedAt: Date.now(),
-        widgets: list,
-      });
+      if (changed) {
+        const byId = new Map(optimisticWidgets.map((w) => [w.id, w]));
+        const reordered = finalOrder
+          .map((id) => byId.get(id))
+          .filter((w): w is CustomDashboardWidget => Boolean(w));
+        void commitWidgets(reordered);
+      }
     };
 
     window.addEventListener('pointermove', onPointerMove);
@@ -1249,6 +1359,7 @@ export const CustomDashboard = ({
                     fill={s.color}
                     radius={[3, 3, 0, 0]}
                     maxBarSize={32}
+                    isAnimationActive={!isEditing}
                   />
                 ))}
                 {drag.refArea && (
@@ -1313,6 +1424,7 @@ export const CustomDashboard = ({
                     stroke={s.color}
                     strokeWidth={2}
                     fill={`url(#grad-${widget.id}-${s.key})`}
+                    isAnimationActive={!isEditing}
                   />
                 ))}
                 {drag.refArea && (
@@ -1431,7 +1543,12 @@ export const CustomDashboard = ({
                       angleAxisId={0}
                       tick={false}
                     />
-                    <RadialBar background dataKey="value" cornerRadius={4}>
+                    <RadialBar
+                      background
+                      dataKey="value"
+                      cornerRadius={4}
+                      isAnimationActive={!isEditing}
+                    >
                       {resolved.breakdown.map((b, idx) => (
                         <Cell key={idx} fill={b.color} />
                       ))}

@@ -179,7 +179,7 @@ export const KNOWN_DATASTORE_CATEGORIES: { value: string; label: string; suggest
     suggestedFields: ['type', 'status', 'indicator_count'],
   },
   {
-    value: DATASTORE_CATEGORIES.MONITORS,
+    value: 'shuffle-security_monitors',
     label: 'Monitors (shuffle-security_monitors)',
     suggestedFields: ['type', 'status', 'platform', 'environment'],
   },
@@ -189,12 +189,12 @@ export const KNOWN_DATASTORE_CATEGORIES: { value: string; label: string; suggest
     suggestedFields: ['type', 'status', 'severity'],
   },
   {
-    value: DATASTORE_CATEGORIES.DETECTION_ENGINES,
+    value: 'shuffle-security_detection-engines',
     label: 'Detection Engines (shuffle-security_detection-engines)',
     suggestedFields: ['type', 'status', 'vendor'],
   },
   {
-    value: DATASTORE_CATEGORIES.CASE_MGMT_CONFIG,
+    value: 'shuffle-security_case-mgmt',
     label: 'Case Management (shuffle-security_case-mgmt)',
     suggestedFields: ['type', 'status', 'priority'],
   },

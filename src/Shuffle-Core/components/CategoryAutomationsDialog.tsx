@@ -1612,6 +1612,42 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                 </Box>
               );
             })}
+            {/* Support-only: routing rules as one of the "Do" items. Clicking
+                swaps the dialog to the routing view (same as the old top-right
+                route button). */}
+            {isSupportUser && (
+              <Box
+                sx={{
+                  borderRadius: 1.5,
+                  transition: 'all 0.15s',
+                  border: '1px solid',
+                  borderColor: 'hsl(var(--border))',
+                  bgcolor: 'transparent',
+                  '&:hover': { bgcolor: 'hsl(var(--muted) / 0.45)' },
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    py: 1.5,
+                    px: 1.5,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
+                >
+                  <RouteIcon size={22} style={{ color: 'hsl(var(--muted-foreground))' }} />
+                  <Typography sx={{ flex: 1, fontSize: '0.95rem', color: 'text.primary', fontWeight: 500 }}>
+                    Routing rules
+                  </Typography>
+                  <ExpandMoreIcon
+                    size={20}
+                    sx={{ color: 'text.secondary', transform: 'rotate(-90deg)' }}
+                  />
+                </Box>
+              </Box>
+            )}
           </Box>
         </Box>
       ) : (

@@ -30,9 +30,10 @@ import {
   type CustomDashboardWidget,
   type CustomWidgetDataSource,
   type CustomWidgetVisualization,
+  type DatastoreAggregation,
   type WidgetSpan,
 } from './customDashboardTypes';
-import { DATASTORE_CATEGORIES } from '../../datastore';
+import { DATASTORE_CATEGORIES, getDatastoreByCategory } from '../../datastore';
 
 const DEFAULT_STAT_KEYS = [
   'total_workflow_executions',
@@ -42,7 +43,52 @@ const DEFAULT_STAT_KEYS = [
   'total_subflow_executions',
   'total_cloud_executions',
   'total_onprem_executions',
+  'workflow_executions_finished',
+  'workflow_executions_failed',
+  'tickets_created',
+  'tickets_closed',
+  'alerts_triaged',
+  'phishing_blocked',
+  'agent_executions',
 ];
+
+const AGGREGATION_OPTIONS: { value: DatastoreAggregation; label: string; description: string }[] = [
+  { value: 'count', label: 'Total Item Count', description: 'Count matching records (KPI or time series)' },
+  { value: 'group_by', label: 'Group by JSON Field', description: 'Count records per unique field value' },
+  { value: 'sum', label: 'Sum of Numeric Field', description: 'Add numeric values across matching records' },
+  { value: 'avg', label: 'Average of Numeric Field', description: 'Mean of numeric values across matching records' },
+  { value: 'max', label: 'Maximum of Numeric Field', description: 'Highest numeric value across matching records' },
+  { value: 'min', label: 'Minimum of Numeric Field', description: 'Lowest numeric value across matching records' },
+];
+
+const INTERNAL_RECORD_KEYS = new Set([
+  'org_id',
+  'key',
+  'value',
+  'category',
+  'Authorization',
+  'authorization',
+  'id',
+]);
+
+/** Extract candidate JSON field paths (top-level + 1-level nested) from a list of parsed datastore records. */
+export const discoverFieldsFromRecords = (records: Record<string, any>[]): string[] => {
+  const fields = new Set<string>();
+  for (const r of records.slice(0, 40)) {
+    if (!r || typeof r !== 'object') continue;
+    for (const [k, v] of Object.entries(r)) {
+      if (!k || INTERNAL_RECORD_KEYS.has(k)) continue;
+      if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+        for (const nestedKey of Object.keys(v)) {
+          if (nestedKey) fields.add(`${k}.${nestedKey}`);
+        }
+      } else if (!Array.isArray(v)) {
+        fields.add(k);
+      }
+    }
+  }
+  return Array.from(fields);
+};
 
 const ACCENT_OPTIONS: { value: keyof typeof NEON; label: string; hex: string }[] = [
   { value: 'violet', label: 'Violet', hex: NEON.violet },

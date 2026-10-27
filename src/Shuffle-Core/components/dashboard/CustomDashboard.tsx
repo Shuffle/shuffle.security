@@ -1657,7 +1657,7 @@ export const CustomDashboard = ({
                 fontFamily: 'ui-monospace, monospace',
               }}
             >
-              {dashboard.widgets.length} {dashboard.widgets.length === 1 ? 'widget' : 'widgets'}
+              {optimisticWidgets.length} {optimisticWidgets.length === 1 ? 'widget' : 'widgets'}
             </Typography>
           </Box>
           {dashboard.description && (
@@ -1735,7 +1735,7 @@ export const CustomDashboard = ({
         </Box>
       </Box>
 
-      {isEditing && dashboard.widgets.length > 0 && (
+      {isEditing && optimisticWidgets.length > 0 && (
         <Box
           sx={{
             display: 'flex',
@@ -1757,13 +1757,13 @@ export const CustomDashboard = ({
               fontWeight: 500,
             }}
           >
-            Layout edit mode: Drag any widget card to reorder. Hover and drag a widget's left or right edge to resize (1/4, 1/3, 1/2, 2/3, Full).
+            Layout edit mode: Grab and drag any widget to live-reorder it in the 12-column grid. Drag a widget's left edge, right edge, or bottom-right corner to snap its width (1/4, 1/3, 1/2, 2/3, Full).
           </Typography>
         </Box>
       )}
 
       {/* 12-Column Widget Grid */}
-      {dashboard.widgets.length === 0 ? (
+      {optimisticWidgets.length === 0 ? (
         <Panel title="Empty Custom Dashboard">
           <EmptyState
             text="This custom dashboard has no widgets yet. Add a Built-in metric, an Organization Custom Stat, or a Datastore Category chart."
@@ -1775,346 +1775,609 @@ export const CustomDashboard = ({
           />
         </Panel>
       ) : (
-        <Box
-          ref={gridRef}
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: 'repeat(12, 1fr)' },
-            gap: 1.5,
-            userSelect: isEditing ? 'none' : 'auto',
-          }}
-        >
-          {dashboard.widgets.map((widget) => {
-            const isBeingDragged = dragState?.widgetId === widget.id;
-            const isBeingResized = resizingState?.widgetId === widget.id;
-            const effectiveSpan: WidgetSpan = isBeingResized
-              ? resizingState.span
-              : widget.span;
-            const isDropTarget =
-              Boolean(dragState) &&
-              dropTarget?.widgetId === widget.id &&
-              dragState?.widgetId !== widget.id;
-            const dropSide = isDropTarget ? dropTarget?.side : null;
-
-            return (
-              <Box
-                key={widget.id}
-                ref={(el: HTMLDivElement | null) => {
-                  widgetRefs.current[widget.id] = el;
-                }}
-                onPointerDown={(e) => startWidgetDrag(e, widget)}
-                sx={{
-                  position: 'relative',
-                  gridColumn: { xs: 'span 12', md: `span ${effectiveSpan}` },
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 0.75,
-                  minWidth: 0,
-                  cursor: isEditing
-                    ? isBeingDragged
-                      ? 'grabbing'
-                      : 'grab'
-                    : 'default',
-                  opacity: isBeingDragged ? 0.45 : 1,
-                  borderRadius: 2,
-                  outline: isEditing
-                    ? isBeingResized || isDropTarget
-                      ? `1.5px solid ${NEON.cyan}`
-                      : `1px dashed ${NEON.cyan}55`
-                    : 'none',
-                  outlineOffset: isEditing ? 2 : 0,
-                  transition: isBeingResized
-                    ? 'none'
-                    : 'opacity 0.15s ease, outline-color 0.15s ease',
-                  '&:hover .widget-edge-pill': {
-                    opacity: 0.9,
-                    bgcolor: NEON.cyan,
-                  },
-                }}
-              >
-                {/* Drop target indicator line (before / after) */}
-                {dropSide && (
-                  <Box
+        <Box sx={{ position: 'relative' }}>
+          {/* 12-Column Visual Grid Track Underlay while dragging or resizing */}
+          {isEditing && (Boolean(activeDrag) || Boolean(resizingState)) && (
+            <Box
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                display: { xs: 'none', md: 'grid' },
+                gridTemplateColumns: 'repeat(12, 1fr)',
+                gap: 1.5,
+                pointerEvents: 'none',
+                zIndex: 0,
+              }}
+            >
+              {Array.from({ length: 12 }).map((_, colIdx) => (
+                <Box
+                  key={colIdx}
+                  sx={{
+                    height: '100%',
+                    borderRadius: 1.5,
+                    border: `1px dashed ${NEON.cyan}26`,
+                    bgcolor: `${NEON.cyan}06`,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'center',
+                    pt: 0.5,
+                  }}
+                >
+                  <Typography
                     sx={{
-                      position: 'absolute',
-                      top: -4,
-                      bottom: -4,
-                      width: 4,
-                      borderRadius: 999,
-                      bgcolor: NEON.cyan,
-                      boxShadow: `0 0 12px ${NEON.cyan}`,
-                      zIndex: 30,
-                      pointerEvents: 'none',
-                      ...(dropSide === 'before' ? { left: -8 } : { right: -8 }),
-                    }}
-                  />
-                )}
-
-                {/* Left & Right Edge-Hover Resize Handles */}
-                {isEditing && (
-                  <>
-                    <Box
-                      data-no-widget-drag="true"
-                      title="Drag left edge to resize widget width"
-                      onPointerDown={(e) => startEdgeResize(e, widget, 'left')}
-                      sx={{
-                        position: 'absolute',
-                        top: 0,
-                        bottom: 0,
-                        left: -6,
-                        width: 14,
-                        cursor: 'col-resize',
-                        zIndex: 25,
-                        display: { xs: 'none', md: 'flex' },
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        '&:hover .widget-edge-pill': {
-                          height: 56,
-                          bgcolor: NEON.cyan,
-                          boxShadow: `0 0 10px ${NEON.cyan}`,
-                          opacity: 1,
-                        },
-                      }}
-                    >
-                      <Box
-                        className="widget-edge-pill"
-                        sx={{
-                          width: 4,
-                          height:
-                            isBeingResized && resizingState?.edge === 'left' ? 56 : 34,
-                          borderRadius: 999,
-                          bgcolor:
-                            isBeingResized && resizingState?.edge === 'left'
-                              ? NEON.cyan
-                              : 'hsl(var(--muted-foreground))',
-                          opacity:
-                            isBeingResized && resizingState?.edge === 'left' ? 1 : 0.35,
-                          transition: 'all 0.15s ease',
-                        }}
-                      />
-                    </Box>
-
-                    <Box
-                      data-no-widget-drag="true"
-                      title="Drag right edge to resize widget width"
-                      onPointerDown={(e) => startEdgeResize(e, widget, 'right')}
-                      sx={{
-                        position: 'absolute',
-                        top: 0,
-                        bottom: 0,
-                        right: -6,
-                        width: 14,
-                        cursor: 'col-resize',
-                        zIndex: 25,
-                        display: { xs: 'none', md: 'flex' },
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        '&:hover .widget-edge-pill': {
-                          height: 56,
-                          bgcolor: NEON.cyan,
-                          boxShadow: `0 0 10px ${NEON.cyan}`,
-                          opacity: 1,
-                        },
-                      }}
-                    >
-                      <Box
-                        className="widget-edge-pill"
-                        sx={{
-                          width: 4,
-                          height:
-                            isBeingResized && resizingState?.edge === 'right' ? 56 : 34,
-                          borderRadius: 999,
-                          bgcolor:
-                            isBeingResized && resizingState?.edge === 'right'
-                              ? NEON.cyan
-                              : 'hsl(var(--muted-foreground))',
-                          opacity:
-                            isBeingResized && resizingState?.edge === 'right' ? 1 : 0.35,
-                          transition: 'all 0.15s ease',
-                        }}
-                      />
-                    </Box>
-                  </>
-                )}
-
-                {/* Compact Non-Wrapping Edit Action Bar */}
-                {isEditing && (
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      flexWrap: 'nowrap',
-                      gap: 0.75,
-                      px: 1,
-                      py: 0.5,
-                      borderRadius: 1.5,
-                      border: '1px solid hsl(var(--border))',
-                      bgcolor: 'hsl(var(--card) / 0.88)',
-                      minWidth: 0,
-                      overflow: 'hidden',
+                      fontSize: '0.62rem',
+                      fontFamily: 'ui-monospace, monospace',
+                      color: `${NEON.cyan}88`,
+                      fontWeight: 600,
                     }}
                   >
+                    {colIdx + 1}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+
+          <Box
+            ref={gridRef}
+            sx={{
+              position: 'relative',
+              zIndex: 1,
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(12, 1fr)' },
+              gap: 1.5,
+              userSelect: isEditing ? 'none' : 'auto',
+            }}
+          >
+            {displayedWidgets.map((widget) => {
+              const isBeingDragged = activeDrag?.widgetId === widget.id;
+              const isBeingResized = resizingState?.widgetId === widget.id;
+              const effectiveSpan: WidgetSpan = isBeingResized
+                ? resizingState.span
+                : widget.span;
+
+              return (
+                <Box
+                  key={widget.id}
+                  ref={(el: HTMLDivElement | null) => {
+                    widgetRefs.current[widget.id] = el;
+                  }}
+                  onPointerDown={(e) => startWidgetDrag(e, widget)}
+                  sx={{
+                    position: 'relative',
+                    gridColumn: { xs: 'span 12', md: `span ${effectiveSpan}` },
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 0.75,
+                    minWidth: 0,
+                    cursor: isEditing
+                      ? isBeingDragged
+                        ? 'grabbing'
+                        : 'grab'
+                      : 'default',
+                    borderRadius: 2,
+                    outline: isEditing
+                      ? isBeingResized
+                        ? `2px solid ${NEON.cyan}`
+                        : isBeingDragged
+                          ? 'none'
+                          : `1px dashed ${NEON.cyan}55`
+                      : 'none',
+                    outlineOffset: isEditing ? 2 : 0,
+                    transition:
+                      isBeingResized || isBeingDragged
+                        ? 'none'
+                        : 'outline-color 0.15s ease, box-shadow 0.15s ease',
+                    '&:hover .widget-edge-pill': {
+                      opacity: 0.95,
+                      bgcolor: NEON.cyan,
+                    },
+                  }}
+                >
+                  {isBeingDragged ? (
+                    /* Live In-Grid Drop Slot Placeholder */
                     <Box
                       sx={{
+                        height: activeDrag?.initialHeight || 160,
+                        minHeight: 110,
+                        borderRadius: 2,
+                        border: `2px dashed ${NEON.cyan}`,
+                        bgcolor: `${NEON.cyan}12`,
+                        boxShadow: `inset 0 0 24px ${NEON.cyan}18`,
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
-                        gap: 0.6,
-                        minWidth: 0,
-                        flexShrink: 1,
-                        overflow: 'hidden',
+                        justifyContent: 'center',
+                        gap: 0.5,
+                        px: 2,
+                        textAlign: 'center',
                       }}
                     >
                       <Typography
                         noWrap
                         sx={{
-                          fontSize: '0.68rem',
-                          fontWeight: 600,
-                          color: 'hsl(var(--muted-foreground))',
-                          letterSpacing: '0.02em',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        Drag
-                      </Typography>
-                      <Box
-                        component="button"
-                        type="button"
-                        title="Click to cycle width or drag left/right widget edges to resize"
-                        onClick={() => void handleCycleSpan(widget)}
-                        sx={{
-                          height: 22,
-                          px: 0.75,
-                          borderRadius: 1,
-                          fontSize: '0.68rem',
+                          fontSize: '0.78rem',
                           fontWeight: 700,
-                          fontFamily: 'ui-monospace, monospace',
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0,
-                          cursor: 'pointer',
-                          border: `1px solid ${NEON.cyan}66`,
-                          bgcolor: `${NEON.cyan}1A`,
                           color: NEON.cyan,
+                          maxWidth: '100%',
                         }}
                       >
-                        {formatSpanShortLabel(effectiveSpan)}
-                      </Box>
-                    </Box>
-
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Box
-                        component="button"
-                        type="button"
-                        onClick={() => {
-                          setEditingWidget(widget);
-                          setWidgetDialogOpen(true);
-                        }}
+                        Drop here: {widget.title}
+                      </Typography>
+                      <Typography
                         sx={{
-                          height: 22,
-                          px: 0.75,
-                          borderRadius: 1,
                           fontSize: '0.68rem',
-                          fontWeight: 500,
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0,
-                          cursor: 'pointer',
-                          border: '1px solid hsl(var(--border))',
-                          bgcolor: 'transparent',
-                          color: 'hsl(var(--foreground))',
-                          '&:hover': {
-                            bgcolor: 'hsl(var(--muted) / 0.45)',
-                          },
+                          fontFamily: 'ui-monospace, monospace',
+                          color: 'hsl(var(--muted-foreground))',
                         }}
                       >
-                        Configure
-                      </Box>
-                      <Box
-                        component="button"
-                        type="button"
-                        onClick={() => void handleRemoveWidget(widget.id)}
-                        sx={{
-                          height: 22,
-                          px: 0.75,
-                          borderRadius: 1,
-                          fontSize: '0.68rem',
-                          fontWeight: 500,
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0,
-                          cursor: 'pointer',
-                          border: `1px solid ${NEON.red}55`,
-                          bgcolor: 'transparent',
-                          color: NEON.red,
-                          '&:hover': {
-                            bgcolor: `${NEON.red}14`,
-                          },
-                        }}
-                      >
-                        Remove
-                      </Box>
+                        Width {formatSpanShortLabel(effectiveSpan)} ({effectiveSpan}/12 cols)
+                      </Typography>
                     </Box>
-                  </Box>
-                )}
+                  ) : (
+                    <>
+                      {/* Left, Right & Bottom-Right Corner Resize Handles */}
+                      {isEditing && (
+                        <>
+                          <Box
+                            data-no-widget-drag="true"
+                            title="Drag left edge to resize widget width"
+                            onPointerDown={(e) => startEdgeResize(e, widget, 'left')}
+                            sx={{
+                              position: 'absolute',
+                              top: 0,
+                              bottom: 0,
+                              left: -8,
+                              width: 18,
+                              cursor: 'col-resize',
+                              zIndex: 25,
+                              display: { xs: 'none', md: 'flex' },
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              '&:hover .widget-edge-pill': {
+                                height: 64,
+                                width: 5,
+                                bgcolor: NEON.cyan,
+                                boxShadow: `0 0 12px ${NEON.cyan}`,
+                                opacity: 1,
+                              },
+                            }}
+                          >
+                            <Box
+                              className="widget-edge-pill"
+                              sx={{
+                                width:
+                                  isBeingResized && resizingState?.edge === 'left' ? 5 : 4,
+                                height:
+                                  isBeingResized && resizingState?.edge === 'left' ? 64 : 38,
+                                borderRadius: 999,
+                                bgcolor:
+                                  isBeingResized && resizingState?.edge === 'left'
+                                    ? NEON.cyan
+                                    : 'hsl(var(--muted-foreground))',
+                                opacity:
+                                  isBeingResized && resizingState?.edge === 'left' ? 1 : 0.45,
+                                transition: 'all 0.12s ease',
+                              }}
+                            />
+                          </Box>
 
-                <Box sx={{ flex: 1, minHeight: 0 }}>{renderWidgetBody(widget)}</Box>
-              </Box>
-            );
-          })}
+                          <Box
+                            data-no-widget-drag="true"
+                            title="Drag right edge to resize widget width"
+                            onPointerDown={(e) => startEdgeResize(e, widget, 'right')}
+                            sx={{
+                              position: 'absolute',
+                              top: 0,
+                              bottom: 0,
+                              right: -8,
+                              width: 18,
+                              cursor: 'col-resize',
+                              zIndex: 25,
+                              display: { xs: 'none', md: 'flex' },
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              '&:hover .widget-edge-pill': {
+                                height: 64,
+                                width: 5,
+                                bgcolor: NEON.cyan,
+                                boxShadow: `0 0 12px ${NEON.cyan}`,
+                                opacity: 1,
+                              },
+                            }}
+                          >
+                            <Box
+                              className="widget-edge-pill"
+                              sx={{
+                                width:
+                                  isBeingResized && resizingState?.edge === 'right' ? 5 : 4,
+                                height:
+                                  isBeingResized && resizingState?.edge === 'right' ? 64 : 38,
+                                borderRadius: 999,
+                                bgcolor:
+                                  isBeingResized && resizingState?.edge === 'right'
+                                    ? NEON.cyan
+                                    : 'hsl(var(--muted-foreground))',
+                                opacity:
+                                  isBeingResized && resizingState?.edge === 'right' ? 1 : 0.45,
+                                transition: 'all 0.12s ease',
+                              }}
+                            />
+                          </Box>
+
+                          {/* Bottom-Right Corner Resize Handle */}
+                          <Box
+                            data-no-widget-drag="true"
+                            title="Drag corner to resize widget width"
+                            onPointerDown={(e) => startEdgeResize(e, widget, 'corner')}
+                            sx={{
+                              position: 'absolute',
+                              right: -4,
+                              bottom: -4,
+                              width: 18,
+                              height: 18,
+                              cursor: 'nwse-resize',
+                              zIndex: 26,
+                              display: { xs: 'none', md: 'flex' },
+                              alignItems: 'flex-end',
+                              justifyContent: 'flex-end',
+                              p: 0.35,
+                              '&:hover .widget-corner-grip': {
+                                borderColor: NEON.cyan,
+                                opacity: 1,
+                              },
+                            }}
+                          >
+                            <Box
+                              className="widget-corner-grip"
+                              sx={{
+                                width: 9,
+                                height: 9,
+                                borderRight: '2.5px solid',
+                                borderBottom: '2.5px solid',
+                                borderColor:
+                                  isBeingResized && resizingState?.edge === 'corner'
+                                    ? NEON.cyan
+                                    : 'hsl(var(--muted-foreground))',
+                                borderBottomRightRadius: 2,
+                                opacity:
+                                  isBeingResized && resizingState?.edge === 'corner' ? 1 : 0.6,
+                              }}
+                            />
+                          </Box>
+                        </>
+                      )}
+
+                      {/* Live Magnetic Snap HUD while resizing */}
+                      {isBeingResized && (
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            left: 10,
+                            right: 10,
+                            bottom: 10,
+                            zIndex: 30,
+                            pointerEvents: 'none',
+                            p: 1,
+                            borderRadius: 1.5,
+                            border: `1px solid ${NEON.cyan}`,
+                            bgcolor: 'hsl(var(--popover) / 0.94)',
+                            backdropFilter: 'blur(8px)',
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 0.6,
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 1,
+                            }}
+                          >
+                            <Typography
+                              sx={{
+                                fontSize: '0.68rem',
+                                fontWeight: 600,
+                                color: 'hsl(var(--muted-foreground))',
+                              }}
+                            >
+                              Snap width
+                            </Typography>
+                            <Box
+                              component="span"
+                              ref={resizeColsLabelRef}
+                              sx={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                fontFamily: 'ui-monospace, monospace',
+                                color: NEON.cyan,
+                              }}
+                            >
+                              {formatSpanShortLabel(effectiveSpan)} ({effectiveSpan}/12 cols)
+                            </Box>
+                          </Box>
+
+                          {/* Continuous 120fps drag progress track */}
+                          <Box
+                            sx={{
+                              width: '100%',
+                              height: 5,
+                              borderRadius: 999,
+                              bgcolor: 'hsl(var(--muted) / 0.5)',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <Box
+                              ref={resizeContinuousBarRef}
+                              sx={{
+                                width: `${(effectiveSpan / 12) * 100}%`,
+                                height: '100%',
+                                borderRadius: 999,
+                                bgcolor: NEON.cyan,
+                                boxShadow: `0 0 8px ${NEON.cyan}`,
+                              }}
+                            />
+                          </Box>
+
+                          {/* 5 Snap Stops */}
+                          <Box
+                            sx={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(5, 1fr)',
+                              gap: 0.5,
+                            }}
+                          >
+                            {SNAP_SPANS.map((s) => {
+                              const active = effectiveSpan === s;
+                              return (
+                                <Box
+                                  key={s}
+                                  sx={{
+                                    py: 0.25,
+                                    borderRadius: 0.75,
+                                    textAlign: 'center',
+                                    fontSize: '0.64rem',
+                                    fontWeight: active ? 700 : 500,
+                                    fontFamily: 'ui-monospace, monospace',
+                                    border: '1px solid',
+                                    borderColor: active ? NEON.cyan : 'hsl(var(--border))',
+                                    bgcolor: active ? `${NEON.cyan}24` : 'transparent',
+                                    color: active ? NEON.cyan : 'hsl(var(--muted-foreground))',
+                                  }}
+                                >
+                                  {formatSpanShortLabel(s)}
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        </Box>
+                      )}
+
+                      {/* Compact Non-Wrapping Edit Action Bar */}
+                      {isEditing && (
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'nowrap',
+                            gap: 0.5,
+                            px: 0.85,
+                            py: 0.45,
+                            borderRadius: 1.5,
+                            border: '1px solid hsl(var(--border))',
+                            bgcolor: 'hsl(var(--card) / 0.9)',
+                            minWidth: 0,
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.4,
+                              minWidth: 0,
+                              flexShrink: 1,
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {effectiveSpan >= 6 ? (
+                              /* On medium/wide widgets, show all 5 snap pills inline */
+                              SNAP_SPANS.map((s) => {
+                                const active = effectiveSpan === s;
+                                return (
+                                  <Box
+                                    key={s}
+                                    component="button"
+                                    type="button"
+                                    onClick={() => void handleSpanChange(widget.id, s)}
+                                    sx={{
+                                      height: 22,
+                                      px: 0.65,
+                                      borderRadius: 1,
+                                      fontSize: '0.66rem',
+                                      fontWeight: active ? 700 : 500,
+                                      fontFamily: 'ui-monospace, monospace',
+                                      whiteSpace: 'nowrap',
+                                      flexShrink: 0,
+                                      cursor: 'pointer',
+                                      border: '1px solid',
+                                      borderColor: active ? NEON.cyan : 'hsl(var(--border))',
+                                      bgcolor: active ? `${NEON.cyan}1F` : 'transparent',
+                                      color: active ? NEON.cyan : 'hsl(var(--muted-foreground))',
+                                      '&:hover': {
+                                        borderColor: NEON.cyan,
+                                        color: NEON.cyan,
+                                      },
+                                    }}
+                                  >
+                                    {formatSpanShortLabel(s)}
+                                  </Box>
+                                );
+                              })
+                            ) : (
+                              /* On narrow 1/4 or 1/3 widgets, show a single non-wrapping cycle pill */
+                              <Box
+                                component="button"
+                                type="button"
+                                title="Click to cycle width or drag left/right widget edges to resize"
+                                onClick={() => void handleCycleSpan(widget)}
+                                sx={{
+                                  height: 22,
+                                  px: 0.75,
+                                  borderRadius: 1,
+                                  fontSize: '0.66rem',
+                                  fontWeight: 700,
+                                  fontFamily: 'ui-monospace, monospace',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0,
+                                  cursor: 'pointer',
+                                  border: `1px solid ${NEON.cyan}66`,
+                                  bgcolor: `${NEON.cyan}1A`,
+                                  color: NEON.cyan,
+                                }}
+                              >
+                                Width: {formatSpanShortLabel(effectiveSpan)}
+                              </Box>
+                            )}
+                          </Box>
+
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.4,
+                              flexShrink: 0,
+                            }}
+                          >
+                            <Box
+                              component="button"
+                              type="button"
+                              onClick={() => {
+                                setEditingWidget(widget);
+                                setWidgetDialogOpen(true);
+                              }}
+                              sx={{
+                                height: 22,
+                                px: 0.7,
+                                borderRadius: 1,
+                                fontSize: '0.66rem',
+                                fontWeight: 500,
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                cursor: 'pointer',
+                                border: '1px solid hsl(var(--border))',
+                                bgcolor: 'transparent',
+                                color: 'hsl(var(--foreground))',
+                                '&:hover': {
+                                  bgcolor: 'hsl(var(--muted) / 0.45)',
+                                },
+                              }}
+                            >
+                              Configure
+                            </Box>
+                            <Box
+                              component="button"
+                              type="button"
+                              onClick={() => void handleRemoveWidget(widget.id)}
+                              sx={{
+                                height: 22,
+                                px: 0.7,
+                                borderRadius: 1,
+                                fontSize: '0.66rem',
+                                fontWeight: 500,
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                cursor: 'pointer',
+                                border: `1px solid ${NEON.red}55`,
+                                bgcolor: 'transparent',
+                                color: NEON.red,
+                                '&:hover': {
+                                  bgcolor: `${NEON.red}14`,
+                                },
+                              }}
+                            >
+                              Remove
+                            </Box>
+                          </Box>
+                        </Box>
+                      )}
+
+                      <Box sx={{ flex: 1, minHeight: 0 }}>{renderWidgetBody(widget)}</Box>
+                    </>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
         </Box>
       )}
 
-      {/* Floating ghost badge while dragging a widget */}
-      {dragState && (() => {
-        const draggedWidget = dashboard.widgets.find((w) => w.id === dragState.widgetId);
+      {/* GPU-Accelerated Full-Card Floating Drag Preview */}
+      {activeDrag && (() => {
+        const draggedWidget = optimisticWidgets.find((w) => w.id === activeDrag.widgetId);
         if (!draggedWidget) return null;
         return (
           <Box
+            ref={floatingCardRef}
             sx={{
               position: 'fixed',
-              left: dragState.clientX + 14,
-              top: dragState.clientY + 14,
+              left: 0,
+              top: 0,
+              width: activeDrag.initialWidth,
               zIndex: 10060,
               pointerEvents: 'none',
+              transform: `translate3d(${activeDrag.initialX}px, ${activeDrag.initialY}px, 0) scale(1.015)`,
+              transformOrigin: 'center center',
+              willChange: 'transform',
+              borderRadius: 2,
+              outline: `2px solid ${NEON.cyan}`,
+              boxShadow: `0 20px 48px rgba(0, 0, 0, 0.48), 0 0 20px ${NEON.cyan}33`,
+              bgcolor: 'hsl(var(--background) / 0.92)',
+              backdropFilter: 'blur(10px)',
               display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              px: 1.25,
-              py: 0.65,
-              borderRadius: 1.5,
-              border: `1px solid ${NEON.cyan}`,
-              bgcolor: 'hsl(var(--popover))',
-              color: 'hsl(var(--popover-foreground))',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-              whiteSpace: 'nowrap',
+              flexDirection: 'column',
+              gap: 0.75,
+              opacity: 0.95,
             }}
           >
-            <Typography
+            <Box
               sx={{
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                color: 'hsl(var(--foreground))',
-                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                px: 1,
+                py: 0.45,
+                borderRadius: 1.5,
+                border: `1px solid ${NEON.cyan}66`,
+                bgcolor: 'hsl(var(--card))',
               }}
             >
-              {draggedWidget.title}
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: '0.68rem',
-                fontWeight: 700,
-                fontFamily: 'ui-monospace, monospace',
-                color: NEON.cyan,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {formatSpanShortLabel(draggedWidget.span)}
-            </Typography>
+              <Typography
+                noWrap
+                sx={{
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  color: NEON.cyan,
+                }}
+              >
+                Moving: {draggedWidget.title}
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: '0.66rem',
+                  fontWeight: 700,
+                  fontFamily: 'ui-monospace, monospace',
+                  color: 'hsl(var(--muted-foreground))',
+                }}
+              >
+                {formatSpanShortLabel(draggedWidget.span)}
+              </Typography>
+            </Box>
+            <Box sx={{ flex: 1, minHeight: 0 }}>{renderWidgetBody(draggedWidget)}</Box>
           </Box>
         );
       })()}

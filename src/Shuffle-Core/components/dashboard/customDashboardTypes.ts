@@ -261,6 +261,7 @@ export const fromCustomDashboardTab = (tab: string): string | null =>
 const VALID_SPANS: WidgetSpan[] = [3, 4, 6, 8, 12];
 const VALID_VISUALIZATIONS: CustomWidgetVisualization[] = ['kpi', 'bar', 'area', 'horizontal_bar', 'radial'];
 const VALID_NEON_KEYS = Object.keys(NEON) as Array<keyof typeof NEON>;
+const VALID_AGGREGATIONS: DatastoreAggregation[] = ['count', 'group_by', 'sum', 'avg', 'max', 'min'];
 
 export function createStarterCustomDashboard(
   name: string,
@@ -402,7 +403,9 @@ export function validateCustomDashboardConfig(
       if (typeof ds.category !== 'string' || !ds.category.trim()) {
         return { valid: false, error: `Widget "${title}" (datastore_category) requires a non-empty "category".` };
       }
-      const aggregation = ds.aggregation === 'group_by' ? 'group_by' : 'count';
+      const aggregation: DatastoreAggregation = VALID_AGGREGATIONS.includes(ds.aggregation as DatastoreAggregation)
+        ? (ds.aggregation as DatastoreAggregation)
+        : 'count';
       dataSource = {
         kind: 'datastore_category',
         category: ds.category.trim(),

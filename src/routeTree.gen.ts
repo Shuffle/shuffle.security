@@ -26,7 +26,6 @@ import { Route as ShuffleCoreDemoRouteImport } from './routes/shuffle-core-demo'
 import { Route as ShuffleMcpDemoRouteImport } from './routes/shuffle-mcp-demo'
 import { Route as ShuffleMcpsRouteImport } from './routes/shuffle-mcps'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as TmpAutoDialogRouteImport } from './routes/tmp-auto-dialog'
 import { Route as CondAgentRouteImport } from './routes/_cond.agent'
 import { Route as CondDashboardRouteImport } from './routes/_cond.dashboard'
 import { Route as CondSearchRouteImport } from './routes/_cond.search'
@@ -192,11 +191,6 @@ const ShuffleMcpsRoute = ShuffleMcpsRouteImport.update({
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TmpAutoDialogRoute = TmpAutoDialogRouteImport.update({
-  id: '/tmp-auto-dialog',
-  path: '/tmp-auto-dialog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CondAgentRoute = CondAgentRouteImport.update({
@@ -652,7 +646,6 @@ export interface FileRoutesByFullPath {
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/tmp-auto-dialog': typeof TmpAutoDialogRoute
   '/agent': typeof CondAgentRoute
   '/dashboard': typeof CondDashboardRoute
   '/search': typeof CondSearchRoute
@@ -753,7 +746,6 @@ export interface FileRoutesByTo {
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/tmp-auto-dialog': typeof TmpAutoDialogRoute
   '/agent': typeof CondAgentRoute
   '/dashboard': typeof CondDashboardRoute
   '/search': typeof CondSearchRoute
@@ -858,7 +850,6 @@ export interface FileRoutesById {
   '/shuffle-mcp-demo': typeof ShuffleMcpDemoRoute
   '/shuffle-mcps': typeof ShuffleMcpsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/tmp-auto-dialog': typeof TmpAutoDialogRoute
   '/_cond/agent': typeof CondAgentRoute
   '/_cond/dashboard': typeof CondDashboardRoute
   '/_cond/search': typeof CondSearchRoute
@@ -961,7 +952,6 @@ export interface FileRouteTypes {
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
     | '/sitemap.xml'
-    | '/tmp-auto-dialog'
     | '/agent'
     | '/dashboard'
     | '/search'
@@ -1062,7 +1052,6 @@ export interface FileRouteTypes {
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
     | '/sitemap.xml'
-    | '/tmp-auto-dialog'
     | '/agent'
     | '/dashboard'
     | '/search'
@@ -1166,7 +1155,6 @@ export interface FileRouteTypes {
     | '/shuffle-mcp-demo'
     | '/shuffle-mcps'
     | '/sitemap.xml'
-    | '/tmp-auto-dialog'
     | '/_cond/agent'
     | '/_cond/dashboard'
     | '/_cond/search'
@@ -1271,7 +1259,6 @@ export interface RootRouteChildren {
   ShuffleMcpDemoRoute: typeof ShuffleMcpDemoRoute
   ShuffleMcpsRoute: typeof ShuffleMcpsRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
-  TmpAutoDialogRoute: typeof TmpAutoDialogRoute
   ArticlesNameRoute: typeof ArticlesNameRoute
   BlogNameRoute: typeof BlogNameRoute
   DocsSlugRoute: typeof DocsSlugRoute
@@ -1404,13 +1391,6 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tmp-auto-dialog': {
-      id: '/tmp-auto-dialog'
-      path: '/tmp-auto-dialog'
-      fullPath: '/tmp-auto-dialog'
-      preLoaderRoute: typeof TmpAutoDialogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_cond/agent': {
@@ -2202,7 +2182,6 @@ const rootRouteChildren: RootRouteChildren = {
   ShuffleMcpDemoRoute: ShuffleMcpDemoRoute,
   ShuffleMcpsRoute: ShuffleMcpsRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
-  TmpAutoDialogRoute: TmpAutoDialogRoute,
   ArticlesNameRoute: ArticlesNameRoute,
   BlogNameRoute: BlogNameRoute,
   DocsSlugRoute: DocsSlugRoute,

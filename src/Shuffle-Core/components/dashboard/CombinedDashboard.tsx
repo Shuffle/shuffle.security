@@ -30,6 +30,7 @@ import CustomDashboard from './CustomDashboard';
 import { CreateDashboardDialog } from './CustomDashboardEditorDialog';
 import {
   fromCustomDashboardTab,
+  isCustomDashboardAdmin,
   isCustomDashboardTab,
   toCustomDashboardTab,
   type CustomDashboardTab,
@@ -135,6 +136,10 @@ const CombinedDashboard = ({
   useEffect(() => { try { localStorage.setItem('shuffle_dashboard_tab', tab); } catch { /* noop */ } }, [tab]);
 
   const effectiveOrgId = orgId ?? (host.userdata as { active_org?: { id?: string } } | undefined)?.active_org?.id ?? null;
+  const canManageDashboards = useMemo(
+    () => isCustomDashboardAdmin(host.userdata, effectiveOrgId),
+    [host.userdata, effectiveOrgId],
+  );
   const {
     dashboards: customDashboards,
     createDashboard,
@@ -435,20 +440,24 @@ const CombinedDashboard = ({
             </ListSubheader>
             <MenuItem value="automation">{TAB_LABELS.automation}</MenuItem>
             <MenuItem value="agents">{TAB_LABELS.agents}</MenuItem>
-            <ListSubheader sx={{ fontSize: '0.68rem', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 2.4, color: 'hsl(var(--muted-foreground))', bgcolor: 'transparent' }}>
-              Custom
-            </ListSubheader>
+            {(customDashboards.length > 0 || canManageDashboards) && (
+              <ListSubheader sx={{ fontSize: '0.68rem', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 2.4, color: 'hsl(var(--muted-foreground))', bgcolor: 'transparent' }}>
+                Custom
+              </ListSubheader>
+            )}
             {customDashboards.map((d) => (
               <MenuItem key={d.id} value={toCustomDashboardTab(d.id)}>
                 {d.name}
               </MenuItem>
             ))}
-            <MenuItem
-              value="__new_custom__"
-              sx={{ fontWeight: 600, color: 'hsl(var(--primary))' }}
-            >
-              + New custom dashboard...
-            </MenuItem>
+            {canManageDashboards && (
+              <MenuItem
+                value="__new_custom__"
+                sx={{ fontWeight: 600, color: 'hsl(var(--primary))' }}
+              >
+                + New custom dashboard...
+              </MenuItem>
+            )}
           </Select>
         </FormControl>
       </Box>
@@ -540,14 +549,23 @@ const CombinedDashboard = ({
             {...host}
             orgId={effectiveOrgId}
             dashboard={activeCustomDashboard}
-            onUpdateDashboard={async (updated) => {
-              await saveDashboard(updated);
-            }}
-            onDeleteDashboard={async (id) => {
-              await deleteDashboard(id);
-              setTab('security');
-            }}
-            onCreateDashboard={() => setCreateDialogOpen(true)}
+            canEdit={canManageDashboards}
+            onUpdateDashboard={
+              canManageDashboards
+                ? async (updated) => {
+                    await saveDashboard(updated);
+                  }
+                : undefined
+            }
+            onDeleteDashboard={
+              canManageDashboards
+                ? async (id) => {
+                    await deleteDashboard(id);
+                    setTab('security');
+                  }
+                : undefined
+            }
+            onCreateDashboard={canManageDashboards ? () => setCreateDialogOpen(true) : undefined}
             days={parseInt(days, 10) || 30}
             gran={gran}
             customRange={customRange}
@@ -614,14 +632,16 @@ const CombinedDashboard = ({
         )}
       </Box>
 
-      <CreateDashboardDialog
-        open={createDialogOpen}
-        onClose={() => setCreateDialogOpen(false)}
-        onSubmit={async ({ name, description, useStarterTemplate }) => {
-          const created = await createDashboard(name, description, useStarterTemplate);
-          setTab(toCustomDashboardTab(created.id));
-        }}
-      />
+      {canManageDashboards && (
+        <CreateDashboardDialog
+          open={createDialogOpen}
+          onClose={() => setCreateDialogOpen(false)}
+          onSubmit={async ({ name, description, useStarterTemplate }) => {
+            const created = await createDashboard(name, description, useStarterTemplate);
+            setTab(toCustomDashboardTab(created.id));
+          }}
+        />
+      )}
 
       {/* Export progress — rendered OUTSIDE the captured node so it never
        *  ends up in the screenshots. */}

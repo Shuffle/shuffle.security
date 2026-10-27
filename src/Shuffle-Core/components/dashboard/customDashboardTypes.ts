@@ -450,3 +450,21 @@ export function validateCustomDashboardConfig(
     },
   };
 }
+
+/**
+ * Determine whether the user in `userdata` has admin permissions to create,
+ * edit, or delete custom dashboards for the active/target organization.
+ */
+export function isCustomDashboardAdmin(userdata?: any, orgId?: string | null): boolean {
+  if (!userdata || typeof userdata !== 'object') return false;
+  if (userdata.admin === true || userdata.admin === 'true') return true;
+  if (userdata.support === true || userdata.support === 'true') return true;
+  if (String(userdata.role || '').toLowerCase() === 'admin') return true;
+  if (String(userdata.active_org?.role || '').toLowerCase() === 'admin') return true;
+  if (orgId && Array.isArray(userdata.orgs)) {
+    const matchedOrg = userdata.orgs.find((o: any) => o && o.id === orgId);
+    if (String(matchedOrg?.role || '').toLowerCase() === 'admin') return true;
+  }
+  return false;
+}
+

@@ -224,6 +224,7 @@ export type {
   DashboardJsonDialogProps,
 };
 export {
+  isCustomDashboardAdmin,
   isCustomDashboardTab,
   toCustomDashboardTab,
   fromCustomDashboardTab,

@@ -26,6 +26,7 @@ import { useWorkflows } from '../../hooks/useWorkflows';
 import { getApiUrl, getAuthHeader, getShuffleCoreUrl, getShuffleCoreWorkflowUrl } from '../../api';
 import { navigateToShuffleCore, isShuffleSecurityUrl } from '@/lib/authHandoff';
 import { NEON, TooltipContent, KpiTile, Panel, EmptyState, buildBuckets, buildBucketsBetween, bucketIndexOf, useChartRangeDrag, ReferenceArea, useSeriesVisibility, SeriesLegend } from './_shared';
+import { DashboardDataGuideDialog } from './CustomDashboardEditorDialog';
 import { useSyncHostBaseUrl } from '../../useSyncHostBaseUrl';
 
 import type { ShuffleCoreHostProps } from '../../types/host-props';
@@ -161,6 +162,7 @@ export const AutomationDashboard = ({
     if (typeof window === 'undefined') return '';
     try { return localStorage.getItem('shuffle-automation-custom-stat') || ''; } catch { return ''; }
   });
+  const [dataGuideOpen, setDataGuideOpen] = useState(false);
   const pickSelectedStat = useCallback((key: string) => {
     setSelectedStat(key);
     try { localStorage.setItem('shuffle-automation-custom-stat', key); } catch {}
@@ -329,25 +331,32 @@ export const AutomationDashboard = ({
   }, [notifications, rangeDays]);
 
   /**
-   * Custom stat keys come from two places in /api/v1/orgs/{orgId}/stats:
-   *   1. Top-level `total_*` keys (map to the matching field in daily entries)
+   * Custom stat keys come from all numeric and custom fields in /api/v1/orgs/{orgId}/stats:
+   *   1. Top-level `total_*`, `categorylabel_*`, and numeric top-level fields
    *   2. `additions[].key` across the org-level + daily-level additions arrays
+   *   3. Any numeric keys present on `daily_statistics` entries
    *
    * We dedupe on the canonical key (with `total_` stripped) so the user does
    * not see e.g. both "Workflow executions" and "Total workflow executions".
-   * Preference order: top-level `total_*` > addition key.
+   * Preference order: top-level `total_*` > addition / daily key.
    */
   const statKeys = useMemo(() => {
     if (!stats || typeof stats !== 'object') return [] as string[];
+    const ignoredKeys = new Set(['org_id', 'id', 'date', 'daily_statistics', 'monthly_statistics', 'additions']);
     const map = new Map<string, string>(); // canonical -> rawKey
     Object.keys(stats)
-      .filter(k => typeof k === 'string' && k.startsWith('total_'))
+      .filter(k => typeof k === 'string' && !ignoredKeys.has(k))
       .forEach(k => {
-        const canon = k.slice(6);
-        if (canon && !map.has(canon)) map.set(canon, k);
+        const val = (stats as any)[k];
+        if (k.startsWith('total_')) {
+          const canon = k.slice(6);
+          if (canon && !map.has(canon)) map.set(canon, k);
+        } else if (k.startsWith('categorylabel_') || typeof val === 'number') {
+          if (!map.has(k)) map.set(k, k);
+        }
       });
     const addAddition = (k?: unknown) => {
-      if (typeof k !== 'string' || !k) return;
+      if (typeof k !== 'string' || !k || ignoredKeys.has(k)) return;
       const canon = k.startsWith('total_') ? k.slice(6) : k;
       if (canon && !map.has(canon)) map.set(canon, k);
     };
@@ -356,6 +365,12 @@ export const AutomationDashboard = ({
     }
     if (Array.isArray(stats.daily_statistics)) {
       stats.daily_statistics.forEach(d => {
+        if (!d || typeof d !== 'object') return;
+        Object.keys(d).forEach(dk => {
+          if (!ignoredKeys.has(dk) && typeof (d as any)[dk] === 'number') {
+            addAddition(dk);
+          }
+        });
         if (Array.isArray(d?.additions)) {
           d.additions.forEach(a => addAddition(a?.key));
         }
@@ -369,25 +384,27 @@ export const AutomationDashboard = ({
   const valueForStat = (d: any, key: string): number => {
     if (!d || typeof d !== 'object' || typeof key !== 'string' || !key) return 0;
     const bare = key.startsWith('total_') ? key.slice(6) : key;
+    const totalKey = key.startsWith('total_') ? key : `total_${key}`;
     if (d[bare] != null && typeof d[bare] !== 'object') return Number(d[bare]) || 0;
     if (d[key] != null && typeof d[key] !== 'object') return Number(d[key]) || 0;
+    if (d[totalKey] != null && typeof d[totalKey] !== 'object') return Number(d[totalKey]) || 0;
     const additions = Array.isArray(d.additions) ? d.additions : [];
-    const hit = additions.find((a: Addition) => a?.key === key || a?.key === bare);
+    const hit = additions.find((a: Addition) => a?.key === key || a?.key === bare || a?.key === totalKey);
     return hit ? Number(hit.value) || 0 : 0;
   };
 
   useEffect(() => {
     if (!statKeys.length) return;
-    if (selectedStat && statKeys.includes(selectedStat)) return;
+    if (selectedStat) return;
     const firstWithData = statKeys.find(k =>
-      filtered.reduce((sum, d) => sum + valueForStat(d, k), 0) > 0
+      filtered.reduce((sum, d) => sum + valueForStat(d, k), 0) > 0 || valueForStat(stats, k) > 0
     );
     setSelectedStat(firstWithData || statKeys[0]);
-  }, [statKeys, selectedStat, filtered]);
+  }, [statKeys, selectedStat, filtered, stats]);
 
   const effectiveSelectedStat = useMemo(() => {
+    if (selectedStat) return selectedStat;
     if (!statKeys.length) return '';
-    if (selectedStat && statKeys.includes(selectedStat)) return selectedStat;
     return statKeys[0];
   }, [statKeys, selectedStat]);
 
@@ -399,17 +416,28 @@ export const AutomationDashboard = ({
       const idx = bucketIndexOf(buckets, new Date(d.date).getTime());
       if (idx >= 0) acc[idx] += valueForStat(d, effectiveSelectedStat);
     }
+    const dailySum = acc.reduce((a, b) => a + b, 0);
+    if (dailySum === 0 && stats && acc.length > 0) {
+      const topVal = valueForStat(stats, effectiveSelectedStat);
+      if (topVal > 0) {
+        acc[acc.length - 1] = topVal;
+      }
+    }
     return buckets.map((b, i) => ({ date: b.label, value: acc[i] }));
-  }, [filtered, effectiveSelectedStat, buckets]);
+  }, [filtered, effectiveSelectedStat, buckets, stats]);
 
-  /** Aggregate value per stat key across the currently-filtered date range. */
+  /** Aggregate value per stat key across the currently-filtered date range, falling back to org-level total. */
   const statTotals = useMemo(() => {
     const out: Record<string, number> = {};
-    statKeys.forEach(k => {
-      out[k] = filtered.reduce((sum, d) => sum + valueForStat(d, k), 0);
+    const keysToCompute = effectiveSelectedStat && !statKeys.includes(effectiveSelectedStat)
+      ? [...statKeys, effectiveSelectedStat]
+      : statKeys;
+    keysToCompute.forEach(k => {
+      const dailyTotal = filtered.reduce((sum, d) => sum + valueForStat(d, k), 0);
+      out[k] = dailyTotal > 0 ? dailyTotal : valueForStat(stats, k);
     });
     return out;
-  }, [statKeys, filtered]);
+  }, [statKeys, effectiveSelectedStat, filtered, stats]);
 
   // Click-drag a range on any time-series chart to zoom the dashboard.
   const activityDrag = useChartRangeDrag(buckets, onRangeSelect);
@@ -614,21 +642,32 @@ export const AutomationDashboard = ({
         delay={0.3}
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <FormControl size="small" sx={{ minWidth: 260 }}>
+            <FormControl size="small" sx={{ minWidth: 280 }}>
               <Autocomplete
+                freeSolo
                 size="small"
                 options={statKeys}
-                value={effectiveSelectedStat || null}
-                onChange={(_, v) => { if (v) pickSelectedStat(v); }}
-                disableClearable={Boolean(effectiveSelectedStat)}
-                getOptionLabel={(k) => prettyStatLabel(k)}
-                isOptionEqualToValue={(a, b) => a === b}
-                noOptionsText={statKeys.length === 0 ? 'No stats available' : 'No matches'}
+                value={effectiveSelectedStat || ''}
+                onChange={(_, v) => { if (typeof v === 'string' && v.trim()) pickSelectedStat(v.trim()); }}
+                onInputChange={(_, v, reason) => {
+                  if (reason === 'input' && v.trim()) pickSelectedStat(v.trim());
+                }}
+                getOptionLabel={(k) => (typeof k === 'string' ? k : String(k))}
+                filterOptions={(options, state) => {
+                  const q = state.inputValue.trim().toLowerCase();
+                  if (!q) return options;
+                  return options.filter(
+                    (opt) =>
+                      opt.toLowerCase().includes(q) ||
+                      prettyStatLabel(opt).toLowerCase().includes(q),
+                  );
+                }}
+                noOptionsText={statKeys.length === 0 ? 'Type any custom stat key...' : 'No matches — press Enter to use typed key'}
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Find your stat"
-                    placeholder="Type to search..."
+                    label="Select or type any stat key"
+                    placeholder="e.g. phishing_blocked, total_workflow_executions..."
                     InputLabelProps={{ sx: { color: NEON.violet } }}
                   />
                 )}
@@ -645,48 +684,63 @@ export const AutomationDashboard = ({
                   const total = statTotals[k] || 0;
                   return (
                     <li {...props} key={k}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-                        <Typography
-                          sx={{
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: statColor(total),
-                            minWidth: 56,
-                            textAlign: 'left',
-                          }}
-                        >
-                          {formatCompact(total)}
-                        </Typography>
-                        <Typography sx={{ fontSize: 13, color: 'hsl(var(--foreground))' }}>
-                          {prettyStatLabel(k)}
-                        </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, width: '100%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+                          <Typography
+                            sx={{
+                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: statColor(total),
+                              minWidth: 52,
+                              textAlign: 'left',
+                            }}
+                          >
+                            {formatCompact(total)}
+                          </Typography>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography sx={{ fontSize: 13, color: 'hsl(var(--foreground))', lineHeight: 1.2 }}>
+                              {prettyStatLabel(k)}
+                            </Typography>
+                            <Typography
+                              sx={{
+                                fontSize: 11,
+                                color: 'hsl(var(--muted-foreground))',
+                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                              }}
+                            >
+                              {k}
+                            </Typography>
+                          </Box>
+                        </Box>
                       </Box>
                     </li>
                   );
                 }}
               />
             </FormControl>
-            <MuiTooltip title="Increment any custom key from a workflow (Shuffle Tools → Repeat back / Stats actions, or the API) and it shows up here. Opens the Stats & Timelines API docs.">
+            <MuiTooltip title="Learn how to push any custom stat or JSON field into the dashboard from a Shuffle workflow or the API.">
               <Box
-                component="a"
-                href="https://shuffler.io/docs/API#stats-and-timelines"
-                target="_blank"
-                rel="noopener noreferrer"
+                component="button"
+                type="button"
+                onClick={() => setDataGuideOpen(true)}
                 sx={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 0.5,
-                  fontSize: '0.72rem',
-                  fontWeight: 500,
+                  height: 32,
+                  px: 1.25,
+                  borderRadius: 1.5,
+                  border: '1px solid hsl(var(--border))',
+                  bgcolor: 'transparent',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
                   color: NEON.violet,
-                  textDecoration: 'none',
+                  cursor: 'pointer',
                   whiteSpace: 'nowrap',
-                  '&:hover': { textDecoration: 'underline' },
+                  '&:hover': { bgcolor: 'hsl(var(--muted) / 0.35)' },
                 }}
               >
-                Add custom stats
-                <ExternalLink size={12} />
+                How to input data
               </Box>
             </MuiTooltip>
           </Box>
@@ -694,16 +748,19 @@ export const AutomationDashboard = ({
 
       >
         <Box sx={{ height: 260 }}>
-          {statKeys.length === 0 ? (
+          {statKeys.length === 0 && !effectiveSelectedStat ? (
             <EmptyState
-              text="No custom stats yet. Any counter you increment from a workflow (via the Stats & Timelines API or a Shuffle Tools stat action) appears here automatically — for example agent_executions, tickets_closed, or phishing_blocked."
-              ctaLabel="View Stats & Timelines API"
-              onCta={() => window.open('https://shuffler.io/docs/API#stats-and-timelines', '_blank', 'noopener,noreferrer')}
+              text="No custom stats yet. Any counter you increment from a workflow (via the Organization Stats API or Shuffle Tools) appears here automatically — for example agent_executions, tickets_closed, or phishing_blocked."
+              ctaLabel="How to input data"
+              onCta={() => setDataGuideOpen(true)}
             />
           ) : statSeries.every(p => p.value === 0) ? (
-            <EmptyState text={`No values for "${prettyStatLabel(effectiveSelectedStat)}" in the last ${rangeDays} days. Increment this key from a workflow and it will start charting here.`} />
-
-                    ) : (
+            <EmptyState
+              text={`No values for "${prettyStatLabel(effectiveSelectedStat)}" (${effectiveSelectedStat}) in the last ${rangeDays} days. Push values to this key from a workflow or API call and it will start charting here.`}
+              ctaLabel="How to input data"
+              onCta={() => setDataGuideOpen(true)}
+            />
+          ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={statSeries} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} {...statsDrag.chartProps}>
                 <defs>
@@ -725,6 +782,11 @@ export const AutomationDashboard = ({
           )}
         </Box>
       </Panel>
+      <DashboardDataGuideDialog
+        open={dataGuideOpen}
+        onClose={() => setDataGuideOpen(false)}
+        orgId={orgId}
+      />
     </Box>
   );
 };

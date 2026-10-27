@@ -63,6 +63,7 @@ import {
 import {
   WIDGET_SPAN_OPTIONS,
   createStarterCustomDashboard,
+  isCustomDashboardAdmin,
   type CustomDashboardConfig,
   type CustomDashboardWidget,
   type WidgetSpan,
@@ -80,6 +81,8 @@ export interface CustomDashboardProps extends ShuffleCoreHostProps {
   dashboard?: CustomDashboardConfig;
   /** Optional ID to select when `dashboard` prop is not passed directly. */
   dashboardId?: string;
+  /** Whether the current user can edit, add/remove widgets, or delete this custom dashboard (defaults to admin check when `userdata` is supplied). */
+  canEdit?: boolean;
   onUpdateDashboard?: (updated: CustomDashboardConfig) => Promise<void> | void;
   onSaveDashboard?: (updated: CustomDashboardConfig) => Promise<unknown> | void;
   onDeleteDashboard?: (id: string) => Promise<void> | void;
@@ -254,6 +257,7 @@ interface ResolvedWidgetData {
 export const CustomDashboard = ({
   dashboard: dashboardProp,
   dashboardId,
+  canEdit: canEditProp,
   onUpdateDashboard: onUpdateDashboardProp,
   onSaveDashboard,
   onDeleteDashboard: onDeleteDashboardProp,
@@ -276,6 +280,12 @@ export const CustomDashboard = ({
 }: CustomDashboardProps) => {
   useSyncHostBaseUrl(globalUrl);
   const orgId = orgIdProp ?? userdata?.active_org?.id ?? null;
+
+  const canEdit = useMemo(() => {
+    if (typeof canEditProp === 'boolean') return canEditProp;
+    if (userdata !== undefined) return isCustomDashboardAdmin(userdata, orgId);
+    return typeof onUpdateDashboardProp === 'function' || typeof onSaveDashboard === 'function';
+  }, [canEditProp, userdata, orgId, onUpdateDashboardProp, onSaveDashboard]);
 
   // Standalone fallback: when mounted without a parent passing `dashboard` or
   // `onUpdateDashboard`, load and persist directly via `useCustomDashboards`.
@@ -325,12 +335,14 @@ export const CustomDashboard = ({
     return undefined;
   }, [onDeleteDashboardProp, dashboardProp, storedDashboards.length, deleteStoredDashboard]);
 
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditingState, setIsEditing] = useState(false);
+  const isEditing = canEdit && isEditingState;
   const [widgetDialogOpen, setWidgetDialogOpen] = useState(false);
   const [editingWidget, setEditingWidget] = useState<CustomDashboardWidget | null>(null);
   const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [dataGuideOpen, setDataGuideOpen] = useState(false);
 
   // Org stats state (for `custom_stat` and `builtin` automation widgets)
   const [stats, setStats] = useState<StatsResponse | null>(null);
@@ -549,24 +561,43 @@ export const CustomDashboard = ({
   const availableStatKeys = useMemo(() => {
     if (!stats || typeof stats !== 'object') return [] as string[];
     const map = new Map<string, string>();
-    Object.keys(stats)
-      .filter((k) => typeof k === 'string' && k.startsWith('total_'))
-      .forEach((k) => {
-        const canon = k.slice(6);
-        if (canon && !map.has(canon)) map.set(canon, k);
-      });
-    const addAddition = (k?: unknown) => {
-      if (typeof k !== 'string' || !k) return;
+    const SKIP_KEYS = new Set([
+      'org_id',
+      'org_name',
+      'daily_statistics',
+      'additions',
+      'updated',
+      'created',
+      'edited',
+      'id',
+    ]);
+    const addKey = (k?: unknown, preferReplace = false) => {
+      if (typeof k !== 'string' || !k || SKIP_KEYS.has(k)) return;
       const canon = k.startsWith('total_') ? k.slice(6) : k;
-      if (canon && !map.has(canon)) map.set(canon, k);
+      if (!canon) return;
+      if (!map.has(canon) || preferReplace) {
+        map.set(canon, k);
+      }
     };
+    Object.entries(stats).forEach(([k, v]) => {
+      if (typeof k !== 'string' || SKIP_KEYS.has(k)) return;
+      if (k.startsWith('total_') || k.toLowerCase().startsWith('categorylabel_') || typeof v === 'number') {
+        addKey(k, k.startsWith('total_'));
+      }
+    });
     if (Array.isArray(stats.additions)) {
-      stats.additions.forEach((a) => addAddition(a?.key));
+      stats.additions.forEach((a) => addKey(a?.key));
     }
     if (Array.isArray(stats.daily_statistics)) {
       stats.daily_statistics.forEach((d) => {
-        if (Array.isArray(d?.additions)) {
-          d.additions.forEach((a) => addAddition(a?.key));
+        if (!d || typeof d !== 'object') return;
+        Object.entries(d).forEach(([dk, dv]) => {
+          if (dk !== 'date' && dk !== 'additions' && typeof dv === 'number') {
+            addKey(dk);
+          }
+        });
+        if (Array.isArray(d.additions)) {
+          d.additions.forEach((a) => addKey(a?.key));
         }
       });
     }
@@ -598,6 +629,37 @@ export const CustomDashboard = ({
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [stats, buckets, safeDays]);
+
+  const statTotals = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const k of availableStatKeys) {
+      const dailySum = filteredDailyStats.reduce((sum, d) => sum + valueForStat(d, k), 0);
+      out[k] = dailySum > 0 ? dailySum : topLevelStatValue(stats, k);
+    }
+    return out;
+  }, [availableStatKeys, filteredDailyStats, stats]);
+
+  const discoveredCategories = useMemo(() => Object.keys(categoryData), [categoryData]);
+
+  const categoryFieldMap = useMemo(() => {
+    const out: Record<string, string[]> = {};
+    for (const [cat, records] of Object.entries(categoryData)) {
+      if (Array.isArray(records) && records.length > 0) {
+        out[cat] = discoverFieldsFromRecords(records);
+      }
+    }
+    return out;
+  }, [categoryData]);
+
+  const categoryRecordCounts = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [cat, records] of Object.entries(categoryData)) {
+      if (Array.isArray(records)) {
+        out[cat] = records.length;
+      }
+    }
+    return out;
+  }, [categoryData]);
 
   const drag = useChartRangeDrag(buckets, isEditing ? undefined : onRangeSelect);
 
@@ -790,17 +852,24 @@ export const CustomDashboard = ({
       if (ds.kind === 'custom_stat') {
         const allKeys = [ds.statKey, ...(ds.additionalStatKeys || [])].filter(Boolean);
         const seriesByKey: Record<string, number[]> = {};
+        const totalsByKey: Record<string, number> = {};
         for (const k of allKeys) {
           const arr = new Array(buckets.length).fill(0);
           for (const d of filteredDailyStats) {
             const idx = bucketIndexOf(buckets, new Date(d.date).getTime());
             if (idx >= 0) arr[idx] += valueForStat(d, k);
           }
+          const dailySum = arr.reduce((a, b) => a + b, 0);
+          const fallbackTotal = topLevelStatValue(stats, k);
+          if (dailySum === 0 && fallbackTotal > 0 && arr.length > 0) {
+            arr[arr.length - 1] = fallbackTotal;
+          }
           seriesByKey[k] = arr;
+          totalsByKey[k] = dailySum > 0 ? dailySum : fallbackTotal;
         }
 
         const primarySeries = seriesByKey[ds.statKey] || new Array(buckets.length).fill(0);
-        const primaryTotal = primarySeries.reduce((a, b) => a + b, 0);
+        const primaryTotal = totalsByKey[ds.statKey] ?? primarySeries.reduce((a, b) => a + b, 0);
 
         const timeSeries = buckets.map((b, i) => {
           const row: Record<string, any> = { date: b.label, value: primarySeries[i] };
@@ -821,7 +890,7 @@ export const CustomDashboard = ({
 
         const breakdown = allKeys.map((k, idx) => ({
           label: prettyStatLabel(k),
-          count: (seriesByKey[k] || []).reduce((a, b) => a + b, 0),
+          count: totalsByKey[k] ?? (seriesByKey[k] || []).reduce((a, b) => a + b, 0),
           color: idx === 0 ? accentHex : SERIES_COLORS[(idx + 1) % SERIES_COLORS.length],
         }));
 
@@ -858,10 +927,18 @@ export const CustomDashboard = ({
 
       // Build time-series if records have a timestamp field
       const bucketCounts = new Array(buckets.length).fill(0);
+      const bucketValues: number[][] = Array.from({ length: buckets.length }, () => []);
       let hasTimestamps = false;
       for (const r of records) {
         const rawTs =
-          r.created_at ?? r.createdTs ?? r.created ?? r.timestamp ?? r.updated_at ?? r.time;
+          r.created_at ??
+          r.created_time ??
+          r.createdTs ??
+          r.created ??
+          r.timestamp ??
+          r.updated_at ??
+          r.edited ??
+          r.time;
         const num = typeof rawTs === 'number' ? rawTs : Date.parse(String(rawTs || ''));
         if (Number.isFinite(num) && num > 0) {
           const ms = num < 1e12 ? num * 1000 : num;
@@ -869,8 +946,51 @@ export const CustomDashboard = ({
           if (idx >= 0) {
             bucketCounts[idx]++;
             hasTimestamps = true;
+            if (ds.groupByField) {
+              const rawVal = Number(extractField(r, ds.groupByField));
+              if (Number.isFinite(rawVal)) {
+                bucketValues[idx].push(rawVal);
+              }
+            }
           }
         }
+      }
+
+      if (
+        (ds.aggregation === 'sum' ||
+          ds.aggregation === 'avg' ||
+          ds.aggregation === 'max' ||
+          ds.aggregation === 'min') &&
+        ds.groupByField
+      ) {
+        const computeAgg = (vals: number[]): number => {
+          if (!vals.length) return 0;
+          if (ds.aggregation === 'sum') return vals.reduce((a, b) => a + b, 0);
+          if (ds.aggregation === 'avg') return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100;
+          if (ds.aggregation === 'max') return Math.max(...vals);
+          if (ds.aggregation === 'min') return Math.min(...vals);
+          return 0;
+        };
+
+        const allNumericValues: number[] = [];
+        for (const r of records) {
+          const n = Number(extractField(r, ds.groupByField));
+          if (Number.isFinite(n)) allNumericValues.push(n);
+        }
+
+        const overallValue = computeAgg(allNumericValues);
+        const aggSeries = bucketValues.map((vals) => computeAgg(vals));
+
+        return {
+          loading: isLoadingCat,
+          kpiValue: formatCompact(overallValue),
+          spark: hasTimestamps ? aggSeries.slice(-14) : allNumericValues.slice(-14),
+          timeSeries: hasTimestamps
+            ? buckets.map((b, i) => ({ date: b.label, value: aggSeries[i] }))
+            : allNumericValues.map((v, idx) => ({ date: `#${idx + 1}`, value: v })),
+          seriesKeys: [{ key: 'value', label: `${ds.aggregation.toUpperCase()}(${ds.groupByField})`, color: accentHex }],
+          breakdown: [{ label: `${ds.aggregation.toUpperCase()}(${ds.groupByField})`, count: overallValue, color: accentHex }],
+        };
       }
 
       if (ds.aggregation === 'group_by' && ds.groupByField) {
@@ -918,6 +1038,7 @@ export const CustomDashboard = ({
       vulnLoading,
       buckets,
       filteredDailyStats,
+      stats,
       statsLoading,
       minutesSavedPerAppRun,
       categoryData,
@@ -1689,66 +1810,71 @@ export const CustomDashboard = ({
           )}
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          <Button
-            size="small"
-            onClick={() => {
-              setEditingWidget(null);
-              setWidgetDialogOpen(true);
-            }}
-            sx={{
-              ...controlButtonSx,
-              bgcolor: 'hsl(var(--primary))',
-              color: 'hsl(var(--primary-foreground))',
-              borderColor: 'hsl(var(--primary))',
-              fontWeight: 600,
-              '&:hover': {
-                bgcolor: 'hsl(var(--primary) / 0.9)',
-                borderColor: 'hsl(var(--primary))',
-              },
-            }}
-          >
-            Add widget
-          </Button>
-          <Button
-            size="small"
-            onClick={() => setIsEditing((prev) => !prev)}
-            sx={{
-              ...controlButtonSx,
-              ...(isEditing
-                ? {
-                    borderColor: NEON.cyan,
-                    color: NEON.cyan,
-                    bgcolor: `${NEON.cyan}14`,
-                  }
-                : {}),
-            }}
-          >
-            {isEditing ? 'Done editing' : 'Edit layout'}
-          </Button>
-          <Button size="small" onClick={() => setJsonDialogOpen(true)} sx={controlButtonSx}>
-            JSON config
-          </Button>
-          <Button size="small" onClick={() => setRenameDialogOpen(true)} sx={controlButtonSx}>
-            Rename
-          </Button>
-          {onDeleteDashboard && (
+        {canEdit && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Button
               size="small"
-              onClick={() => setDeleteConfirmOpen(true)}
+              onClick={() => {
+                setEditingWidget(null);
+                setWidgetDialogOpen(true);
+              }}
               sx={{
                 ...controlButtonSx,
-                color: NEON.red,
+                bgcolor: 'hsl(var(--primary))',
+                color: 'hsl(var(--primary-foreground))',
+                borderColor: 'hsl(var(--primary))',
+                fontWeight: 600,
                 '&:hover': {
-                  bgcolor: `${NEON.red}14`,
-                  borderColor: `${NEON.red}66`,
+                  bgcolor: 'hsl(var(--primary) / 0.9)',
+                  borderColor: 'hsl(var(--primary))',
                 },
               }}
             >
-              Delete
+              Add widget
             </Button>
-          )}
-        </Box>
+            <Button
+              size="small"
+              onClick={() => setIsEditing((prev) => !prev)}
+              sx={{
+                ...controlButtonSx,
+                ...(isEditing
+                  ? {
+                      borderColor: NEON.cyan,
+                      color: NEON.cyan,
+                      bgcolor: `${NEON.cyan}14`,
+                    }
+                  : {}),
+              }}
+            >
+              {isEditing ? 'Done editing' : 'Edit layout'}
+            </Button>
+            <Button size="small" onClick={() => setDataGuideOpen(true)} sx={controlButtonSx}>
+              Data guide
+            </Button>
+            <Button size="small" onClick={() => setJsonDialogOpen(true)} sx={controlButtonSx}>
+              JSON config
+            </Button>
+            <Button size="small" onClick={() => setRenameDialogOpen(true)} sx={controlButtonSx}>
+              Rename
+            </Button>
+            {onDeleteDashboard && (
+              <Button
+                size="small"
+                onClick={() => setDeleteConfirmOpen(true)}
+                sx={{
+                  ...controlButtonSx,
+                  color: NEON.red,
+                  '&:hover': {
+                    bgcolor: `${NEON.red}14`,
+                    borderColor: `${NEON.red}66`,
+                  },
+                }}
+              >
+                Delete
+              </Button>
+            )}
+          </Box>
+        )}
       </Box>
 
       {isEditing && optimisticWidgets.length > 0 && (
@@ -1782,12 +1908,20 @@ export const CustomDashboard = ({
       {optimisticWidgets.length === 0 ? (
         <Panel title="Empty Custom Dashboard">
           <EmptyState
-            text="This custom dashboard has no widgets yet. Add a Built-in metric, an Organization Custom Stat, or a Datastore Category chart."
-            ctaLabel="Add first widget"
-            onCta={() => {
-              setEditingWidget(null);
-              setWidgetDialogOpen(true);
-            }}
+            text={
+              canEdit
+                ? 'This custom dashboard has no widgets yet. Add a Built-in metric, an Organization Custom Stat, or a Datastore Category chart.'
+                : 'This custom dashboard has no widgets configured yet.'
+            }
+            ctaLabel={canEdit ? 'Add first widget' : undefined}
+            onCta={
+              canEdit
+                ? () => {
+                    setEditingWidget(null);
+                    setWidgetDialogOpen(true);
+                  }
+                : undefined
+            }
           />
         </Panel>
       ) : (
@@ -2399,77 +2533,93 @@ export const CustomDashboard = ({
       })()}
 
       {/* Dialogs */}
-      <WidgetEditorDialog
-        open={widgetDialogOpen}
-        onClose={() => {
-          setWidgetDialogOpen(false);
-          setEditingWidget(null);
-        }}
-        initialWidget={editingWidget}
-        availableStatKeys={availableStatKeys}
-        onSave={handleSaveWidget}
-      />
-
-      <DashboardJsonDialog
-        open={jsonDialogOpen}
-        onClose={() => setJsonDialogOpen(false)}
-        config={dashboard}
-        onApply={onUpdateDashboard}
-      />
-
-      <CreateDashboardDialog
-        open={renameDialogOpen}
-        onClose={() => setRenameDialogOpen(false)}
-        mode="rename"
-        initialName={dashboard.name}
-        initialDescription={dashboard.description || ''}
-        onSubmit={handleRenameDashboard}
-      />
-
-      <Dialog
-        open={deleteConfirmOpen}
-        onClose={() => setDeleteConfirmOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 600 }}>
-          Delete Custom Dashboard
-        </DialogTitle>
-        <DialogContent>
-          <Typography sx={{ fontSize: '0.84rem', color: 'hsl(var(--muted-foreground))' }}>
-            Are you sure you want to delete <strong>{dashboard.name}</strong>? This removes its
-            configuration from the datastore.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={() => setDeleteConfirmOpen(false)}
-            size="small"
-            sx={{ height: 32, textTransform: 'none' }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={async () => {
-              setDeleteConfirmOpen(false);
-              if (onDeleteDashboard) {
-                await onDeleteDashboard(dashboard.id);
-              }
+      {canEdit && (
+        <>
+          <WidgetEditorDialog
+            open={widgetDialogOpen}
+            onClose={() => {
+              setWidgetDialogOpen(false);
+              setEditingWidget(null);
             }}
-            variant="contained"
-            size="small"
-            sx={{
-              height: 32,
-              textTransform: 'none',
-              fontWeight: 600,
-              bgcolor: NEON.red,
-              '&:hover': { bgcolor: `${NEON.red}DD` },
-            }}
+            initialWidget={editingWidget}
+            availableStatKeys={availableStatKeys}
+            statTotals={statTotals}
+            discoveredCategories={discoveredCategories}
+            categoryFieldMap={categoryFieldMap}
+            categoryRecordCounts={categoryRecordCounts}
+            orgId={orgId}
+            onOpenDataGuide={() => setDataGuideOpen(true)}
+            onSave={handleSaveWidget}
+          />
+
+          <DashboardDataGuideDialog
+            open={dataGuideOpen}
+            onClose={() => setDataGuideOpen(false)}
+            orgId={orgId}
+          />
+
+          <DashboardJsonDialog
+            open={jsonDialogOpen}
+            onClose={() => setJsonDialogOpen(false)}
+            config={dashboard}
+            onApply={onUpdateDashboard}
+          />
+
+          <CreateDashboardDialog
+            open={renameDialogOpen}
+            onClose={() => setRenameDialogOpen(false)}
+            mode="rename"
+            initialName={dashboard.name}
+            initialDescription={dashboard.description || ''}
+            onSubmit={handleRenameDashboard}
+          />
+
+          <Dialog
+            open={deleteConfirmOpen}
+            onClose={() => setDeleteConfirmOpen(false)}
+            maxWidth="xs"
+            fullWidth
           >
-            Delete Dashboard
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <DialogTitle sx={{ fontSize: '1rem', fontWeight: 600 }}>
+              Delete Custom Dashboard
+            </DialogTitle>
+            <DialogContent>
+              <Typography sx={{ fontSize: '0.84rem', color: 'hsl(var(--muted-foreground))' }}>
+                Are you sure you want to delete <strong>{dashboard.name}</strong>? This removes its
+                configuration from the datastore.
+              </Typography>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button
+                onClick={() => setDeleteConfirmOpen(false)}
+                size="small"
+                sx={{ height: 32, textTransform: 'none' }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  setDeleteConfirmOpen(false);
+                  if (onDeleteDashboard) {
+                    await onDeleteDashboard(dashboard.id);
+                  }
+                }}
+                variant="contained"
+                size="small"
+                sx={{
+                  height: 32,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  bgcolor: NEON.red,
+                  '&:hover': { bgcolor: `${NEON.red}DD` },
+                }}
+              >
+                Delete Dashboard
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </>
+      )}
     </Box>
   );
 };

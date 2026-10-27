@@ -32,6 +32,8 @@ interface SyncFeatureUsage {
 interface UserInfo {
   username?: string;
   id?: string;
+  role?: string;
+  admin?: boolean;
   active_org?: Organization;
   orgs?: Organization[];
   support?: boolean;
@@ -124,6 +126,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const info = {
       username: data.username,
       id: data.id,
+      role: data.role,
+      admin: data.admin === true || data.admin === 'true',
       active_org: mappedActiveOrg,
       orgs: mappedOrgs,
       support: data.support === true || data.support === 'true',

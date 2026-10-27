@@ -66,6 +66,7 @@ import {
 } from '@/Shuffle-Core';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useAuth } from '@/context/AuthContext';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useSubOrgs } from '@/hooks/useSubOrgs';
 import { ChevronDown, ChevronUp, X as CloseIcon } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -542,6 +543,7 @@ const DashboardPage = () => {
   });
   const navigate = useNavigate();
   const { userInfo } = useAuth();
+  const isAdmin = useIsAdmin();
   const isSupport = userInfo?.support === true;
   const { notifications, isLoading, refresh: refreshNotifications } = useAgentNotifications();
   const { singular: entitySingular, basePath: entityBasePath } = useEntityPreference();
@@ -1179,7 +1181,7 @@ const DashboardPage = () => {
                     onGranChange={setDashboardGran}
                     onRefresh={handleDashboardRefresh}
                     customDashboards={customDashboards}
-                    onCreateDashboard={() => setCreateDashboardOpen(true)}
+                    onCreateDashboard={isAdmin ? () => setCreateDashboardOpen(true) : undefined}
                   />
                 );
                 return (
@@ -1189,6 +1191,7 @@ const DashboardPage = () => {
                       <CustomDashboard
                         dashboard={activeCustomDashboard}
                         orgId={effectiveOrgId}
+                        canEdit={isAdmin}
                         days={parseInt(dashboardDays, 10) || 30}
                         gran={dashboardGran}
                         customRange={dashboardCustomRange}
@@ -1198,13 +1201,21 @@ const DashboardPage = () => {
                         incidentsLoading={incidentsLoading}
                         vulnSeverityCounts={vulnSeverityCounts}
                         vulnLoading={vulnLoading}
-                        onUpdateDashboard={async (updated) => {
-                          await saveCustomDashboard(updated);
-                        }}
-                        onDeleteDashboard={async (id) => {
-                          await deleteCustomDashboard(id);
-                          setDashboardTab('security');
-                        }}
+                        onUpdateDashboard={
+                          isAdmin
+                            ? async (updated) => {
+                                await saveCustomDashboard(updated);
+                              }
+                            : undefined
+                        }
+                        onDeleteDashboard={
+                          isAdmin
+                            ? async (id) => {
+                                await deleteCustomDashboard(id);
+                                setDashboardTab('security');
+                              }
+                            : undefined
+                        }
                       />
                     ) : dashboardTab === 'agents' ? (
                       <AgentsDashboard
@@ -1558,17 +1569,19 @@ const DashboardPage = () => {
         onSubmitAnswers={handleSubmitAnswers}
       />
 
-      <Box sx={{ display: 'none' }}>
-        <CreateDashboardDialog
-          open={createDashboardOpen}
-          onClose={() => setCreateDashboardOpen(false)}
-          theme={resolvedTheme}
-          onSubmit={async ({ name, description, useStarterTemplate }) => {
-            const created = await createCustomDashboard(name, description, useStarterTemplate);
-            setDashboardTab(toCustomDashboardTab(created.id));
-          }}
-        />
-      </Box>
+      {isAdmin && (
+        <Box sx={{ display: 'none' }}>
+          <CreateDashboardDialog
+            open={createDashboardOpen}
+            onClose={() => setCreateDashboardOpen(false)}
+            theme={resolvedTheme}
+            onSubmit={async ({ name, description, useStarterTemplate }) => {
+              const created = await createCustomDashboard(name, description, useStarterTemplate);
+              setDashboardTab(toCustomDashboardTab(created.id));
+            }}
+          />
+        </Box>
+      )}
     </>
   );
 };

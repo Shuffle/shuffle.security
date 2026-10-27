@@ -1369,6 +1369,7 @@ import { fetchIocEntries, sumIocEntries } from '../utils/iocFeedTotals';
 import { usePageMeta } from '../usePageMeta';
 import { seedDefaultThreatFeeds } from '../hooks/useThreatFeeds';
 import { seedDefaultIOCTypes } from '@/hooks/useIOCTypes';
+import { recheckUntilConfirmed, createCoalescedFetcher, USECASE_RECHECK_DONE_EVENT } from './usecaseRecheck';
 import { useEnrichmentStatus, enableThreatIntelAutomation, disableThreatIntelAutomation } from '../hooks/useEnrichmentStatus';
 
 // Usecases that enable themselves end-to-end without needing the user to
@@ -1713,6 +1714,83 @@ export interface WorkflowSummary {
 let workflowsLiteCache: WorkflowSummary[] | null = null;
 let workflowsLiteFetchPromise: Promise<WorkflowSummary[]> | null = null;
 
+// Forced workflow reloads are shared across every hook instance so a burst of
+// "workflows updated" signals never stacks parallel heavy requests.
+let forcedWorkflowsFetcher: (() => Promise<any[]>) | null = null;
+let forcedWorkflowsFetchImpl: (() => Promise<any[]>) | null = null;
+
+// Latest recheck per automation label; a newer toggle cancels the older loop.
+const usecaseRecheckTokens = new Map<string, number>();
+
+/**
+ * Re-read workflows until the change for `label` shows up (or attempts run
+ * out), then tell the buttons to stop loading and listeners to re-read once.
+ */
+async function runUsecaseRecheck(
+  label: string,
+  enabled: boolean,
+  refetch: () => Promise<WorkflowSummary[] | undefined>,
+  getUsecases: () => UsecaseFlow[],
+) {
+  const token = (usecaseRecheckTokens.get(label) || 0) + 1;
+  usecaseRecheckTokens.set(label, token);
+  const flow = getUsecases().find((u) => u.automationLabel === label);
+  // Self-contained usecases are not confirmed through the workflow list.
+  const viaWorkflows = !(flow && SELF_CONTAINED_ENABLE[flow.id]);
+  const confirmed = viaWorkflows
+    ? await recheckUntilConfirmed({
+      fetchState: async () => (await refetch()) || [],
+      isConfirmed: (list) => computeWorkflowEnabledLabels(list, getUsecases()).has(label) === enabled,
+      isCancelled: () => usecaseRecheckTokens.get(label) !== token,
+    })
+    : (await refetch().catch(() => undefined), true);
+  if (usecaseRecheckTokens.get(label) !== token) return;
+  usecaseRecheckTokens.delete(label);
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(USECASE_RECHECK_DONE_EVENT, { detail: { label, enabled, confirmed } }));
+  window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
+  window.dispatchEvent(new CustomEvent('shuffle-category-automations-updated', { detail: { category: 'shuffle-security_incidents' } }));
+}
+
+/** automationLabel set for which at least one matching workflow exists (name or tag). */
+function computeWorkflowEnabledLabels(workflows: WorkflowSummary[], usecases: UsecaseFlow[]): Set<string> {
+  const set = new Set<string>();
+  for (const wf of workflows) {
+    const name = (wf.name || '').toLowerCase();
+    const tags = (wf.tags || []).map(t => String(t).toLowerCase());
+    for (const uc of usecases) {
+      if (!uc.automationLabel) continue;
+      const lbl = uc.automationLabel.toLowerCase();
+      if (lbl === 'vulnerability correlation') {
+        const hasActions = Array.isArray(wf.actions) && wf.actions.length > 0;
+        if (!hasActions) continue;
+      }
+      const aliases = [lbl];
+      if (lbl.includes('incident routing')) {
+        aliases.push('incident routing', 'incident_routing', 'incident_routing_rules');
+      }
+      if (lbl.includes('schedules & phone') || lbl.includes('schedules_notifications') || lbl.includes('phone notification')) {
+        aliases.push('schedules & phone notifications', 'schedules_&_phone_notifications', 'schedules_notifications', 'phone_notifications', 'assign & escalate', 'assign_&_escalate');
+      }
+      if (lbl.includes('threat feeds') || lbl.includes('ioc extraction')) {
+        aliases.push('enable threat feeds', 'enable threat feeds_webhook', 'realtime ioc extraction', 'threat intel');
+      }
+      if (lbl.includes('vulnerabilit') && (lbl.includes('ingest') || lbl.includes('ingestion'))) {
+        aliases.push('ingest vulnerabilities', 'ingest_vulnerabilities', 'vulnerabilities webhook', 'vulnerabilities_webhook');
+      }
+      const isMatch = aliases.some(a => {
+        const isWebhookWf = name.endsWith('_webhook') || name === 'ingestion webhook' || tags.some(t => t.endsWith('_webhook'));
+        if (!a.includes('webhook') && isWebhookWf) return false;
+        return name === a || name.includes(a) || tags.includes(a) || tags.some(t => t.includes(a));
+      });
+      if (isMatch) {
+        set.add(uc.automationLabel);
+      }
+    }
+  }
+  return set;
+}
+
 function useWorkflowsLite(preloadedWorkflows?: WorkflowSummary[]) {
   const { apiUrl, authHeader } = useApi();
   const [data, setData] = useState<WorkflowSummary[]>(() => {
@@ -1741,14 +1819,23 @@ function useWorkflowsLite(preloadedWorkflows?: WorkflowSummary[]) {
       }
     }
     try {
-      const list = await fetchWorkflowsCached(apiUrl('/api/v1/workflows'), {
+      const doFetch = () => fetchWorkflowsCached(apiUrl('/api/v1/workflows'), {
         credentials: 'include',
         headers: { ...authHeader() },
       }, force);
+      if (force) {
+        if (!forcedWorkflowsFetcher) {
+          forcedWorkflowsFetcher = createCoalescedFetcher(() => forcedWorkflowsFetchImpl!());
+        }
+        forcedWorkflowsFetchImpl = doFetch;
+      }
+      const list = force ? await forcedWorkflowsFetcher!() : await doFetch();
       workflowsLiteCache = list;
       setData(list);
+      return list as WorkflowSummary[];
     } catch {
       setData(workflowsLiteCache || []);
+      return (workflowsLiteCache || []) as WorkflowSummary[];
     }
   }, [apiUrl, authHeader, preloadedWorkflows]);
 
@@ -1764,7 +1851,7 @@ function useWorkflowsLite(preloadedWorkflows?: WorkflowSummary[]) {
     window.addEventListener('shuffle-workflows-updated', handleWorkflowsUpdated);
     return () => window.removeEventListener('shuffle-workflows-updated', handleWorkflowsUpdated);
   }, [fetchOnce]);
-  return { data, refetch: () => fetchOnce(true) };
+  return { data, refetch: () => fetchOnce(true) as Promise<WorkflowSummary[] | undefined> };
 }
 
 /**
@@ -2997,10 +3084,8 @@ const IntegrationStatusLite = React.memo(function IntegrationStatusLite({
 // this list renders a "Coming soon" affordance instead of a live Enable
 // button — both in the list cards and inside the detail page, so the two
 // stay in sync.
-/** Rechecks after a usecase enable/disable, until the server reflects it. */
-const USECASE_RECHECK_DELAYS_MS = [1200, 3000, 6000, 10000, 15000, 22000, 30000];
-/** Stop showing the loading state if the server never confirms the change. */
-const USECASE_CONFIRM_TIMEOUT_MS = 32000;
+/** Last-resort stop for the loading state if no recheck ever reports back. */
+const USECASE_CONFIRM_TIMEOUT_MS = 180000;
 
 const ACTIVE_USECASE_IDS = [
   'siem_case_management_1',
@@ -6081,43 +6166,7 @@ function UsecasesPageInner() {
 
   // Map: automationLabel -> whether at least one workflow exists for it.
   // Match by workflow name OR tag containing the label (case-insensitive).
-  const workflowEnabledLabels = useMemo(() => {
-    const set = new Set<string>();
-    for (const wf of workflows) {
-      const name = (wf.name || '').toLowerCase();
-      const tags = (wf.tags || []).map(t => String(t).toLowerCase());
-      for (const uc of usecases) {
-        if (!uc.automationLabel) continue;
-        const lbl = uc.automationLabel.toLowerCase();
-        if (lbl === 'vulnerability correlation') {
-          const hasActions = Array.isArray(wf.actions) && wf.actions.length > 0;
-          if (!hasActions) continue;
-        }
-        const aliases = [lbl];
-        if (lbl.includes('incident routing')) {
-          aliases.push('incident routing', 'incident_routing', 'incident_routing_rules');
-        }
-        if (lbl.includes('schedules & phone') || lbl.includes('schedules_notifications') || lbl.includes('phone notification')) {
-          aliases.push('schedules & phone notifications', 'schedules_&_phone_notifications', 'schedules_notifications', 'phone_notifications', 'assign & escalate', 'assign_&_escalate');
-        }
-        if (lbl.includes('threat feeds') || lbl.includes('ioc extraction')) {
-          aliases.push('enable threat feeds', 'enable threat feeds_webhook', 'realtime ioc extraction', 'threat intel');
-        }
-        if (lbl.includes('vulnerabilit') && (lbl.includes('ingest') || lbl.includes('ingestion'))) {
-          aliases.push('ingest vulnerabilities', 'ingest_vulnerabilities', 'vulnerabilities webhook', 'vulnerabilities_webhook');
-        }
-        const isMatch = aliases.some(a => {
-          const isWebhookWf = name.endsWith('_webhook') || name === 'ingestion webhook' || tags.some(t => t.endsWith('_webhook'));
-          if (!a.includes('webhook') && isWebhookWf) return false;
-          return name === a || name.includes(a) || tags.includes(a) || tags.some(t => t.includes(a));
-        });
-        if (isMatch) {
-          set.add(uc.automationLabel);
-        }
-      }
-    }
-    return set;
-  }, [workflows, usecases]);
+  const workflowEnabledLabels = useMemo(() => computeWorkflowEnabledLabels(workflows, usecases), [workflows, usecases]);
 
   useEffect(() => {
     setTrustedWorkflowStates((prev) => {
@@ -6496,22 +6545,10 @@ function UsecasesPageInner() {
       window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
     }
     cfgOnToggled?.(label, enabled);
-    refetchWorkflows();
-    for (const delay of USECASE_RECHECK_DELAYS_MS) {
-      window.setTimeout(() => { refetchWorkflows(); }, delay);
-    }
-    // Generated workflows (e.g. Incident Routing Rules) are hooked into the
-    // category automations by the backend, sometimes a few seconds later.
-    // Tell every listener (category config, routing editor) to re-read so
-    // the Linked Workflow and Active state show up without a reload.
-    if (typeof window !== 'undefined') {
-      for (const delay of USECASE_RECHECK_DELAYS_MS) {
-        window.setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
-          window.dispatchEvent(new CustomEvent('shuffle-category-automations-updated', { detail: { category: 'shuffle-security_incidents' } }));
-        }, delay);
-      }
-    }
+    // Sequential rechecks until the workflow list reflects the change; the
+    // done event lets the buttons stop loading and listeners (category
+    // config, routing editor) re-read once with confirmed data.
+    runUsecaseRecheck(label, enabled, refetchWorkflows, () => usecasesRef.current);
   }, [refetchWorkflows, cfgOnToggled]);
 
   // Set of usecase names the user has shown interest in. Sourced from both
@@ -7916,12 +7953,11 @@ function UsecaseDrawerInner({
   const canToggle = isAuthenticated && !!flow?.automationLabel;
   const hasValidatedSource = flow ? validatedCategories.has(flow.source) : true;
 
-  const handleToggled = React.useCallback(() => {
-    // Mirror handleUsecaseWorkflowGenerated: nudge workflows refetch so the
-    // drawer reflects the new state without requiring a page refresh.
-    for (const delay of USECASE_RECHECK_DELAYS_MS) {
-      window.setTimeout(() => { refetchWorkflows(); }, delay);
-    }
+  const usecasesRef = React.useRef(usecases);
+  usecasesRef.current = usecases;
+  const handleToggled = React.useCallback((label: string, enabled: boolean) => {
+    // Same smart recheck as the page so the drawer settles on confirmed data.
+    runUsecaseRecheck(label, enabled, refetchWorkflows, () => usecasesRef.current);
   }, [refetchWorkflows]);
 
   return (

@@ -2997,6 +2997,11 @@ const IntegrationStatusLite = React.memo(function IntegrationStatusLite({
 // this list renders a "Coming soon" affordance instead of a live Enable
 // button — both in the list cards and inside the detail page, so the two
 // stay in sync.
+/** Rechecks after a usecase enable/disable, until the server reflects it. */
+const USECASE_RECHECK_DELAYS_MS = [1200, 3000, 6000, 10000, 15000, 22000, 30000];
+/** Stop showing the loading state if the server never confirms the change. */
+const USECASE_CONFIRM_TIMEOUT_MS = 32000;
+
 const ACTIVE_USECASE_IDS = [
   'siem_case_management_1',
   'edr_case_management_1',
@@ -3664,6 +3669,9 @@ function UsecaseDetailContent({
   const [categoryAppsResolved, setCategoryAppsResolved] = useState(() => !!getCachedCategoryAppNames());
   const [toggling, setToggling] = useState(false);
   const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
+  // Stay in the loading state until the server-side state confirms the change
+  // (optimistic flag cleared) so the button never looks settled mid-recheck.
+  const busy = toggling || optimisticEnabled !== null;
   // Only surface the "what to fix" inline hint AFTER the user has actually
   // tried to enable this usecase — never as a default banner.
   const [enableAttempted, setEnableAttempted] = useState(false);
@@ -3762,11 +3770,11 @@ function UsecaseDetailContent({
       setOptimisticEnabled(null);
       if (willBeEnabled && !isEnabledRef.current && flow) {
         toast.warning(`${flow.label} did not confirm`, {
-          description: 'The backend accepted the request but the change has not been reflected after 8 seconds. Open Workflows to check whether the workflow was generated, or try again.',
+          description: 'The backend accepted the request but the change has not been reflected after 30 seconds. Open Workflows to check whether the workflow was generated, or try again.',
           duration: 10000,
         });
       }
-    }, 8000);
+    }, USECASE_CONFIRM_TIMEOUT_MS);
   };
 
   // For the Notifications usecase, the linked workflow is referenced by the
@@ -3835,7 +3843,7 @@ function UsecaseDetailContent({
 
 
   const handleToggle = async () => {
-    if (!flow?.automationLabel || toggling) return;
+    if (!flow?.automationLabel || busy) return;
     const willBeEnabled = !effectiveEnabled;
     if (willBeEnabled) setEnableAttempted(true);
     const sourceName = flow.source ? categoryLabel(flow.source) : 'source';
@@ -4512,9 +4520,9 @@ function UsecaseDetailContent({
                       size="small"
                       disableElevation
                       onClick={handleToggle}
-                      disabled={toggling}
+                      disabled={busy}
                       startIcon={
-                        toggling ? (
+                        busy ? (
                           <CircularProgress size={12} sx={{ color: 'inherit' }} />
                         ) : (
                           <Power
@@ -6489,15 +6497,15 @@ function UsecasesPageInner() {
     }
     cfgOnToggled?.(label, enabled);
     refetchWorkflows();
-    window.setTimeout(() => { refetchWorkflows(); }, 1200);
-    window.setTimeout(() => { refetchWorkflows(); }, 3000);
-    window.setTimeout(() => { refetchWorkflows(); }, 8000);
+    for (const delay of USECASE_RECHECK_DELAYS_MS) {
+      window.setTimeout(() => { refetchWorkflows(); }, delay);
+    }
     // Generated workflows (e.g. Incident Routing Rules) are hooked into the
     // category automations by the backend, sometimes a few seconds later.
     // Tell every listener (category config, routing editor) to re-read so
     // the Linked Workflow and Active state show up without a reload.
     if (typeof window !== 'undefined') {
-      for (const delay of [1200, 3000, 8000, 15000]) {
+      for (const delay of USECASE_RECHECK_DELAYS_MS) {
         window.setTimeout(() => {
           window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
           window.dispatchEvent(new CustomEvent('shuffle-category-automations-updated', { detail: { category: 'shuffle-security_incidents' } }));
@@ -7062,6 +7070,7 @@ export function UsecaseCard({
   const [toggling, setToggling] = useState(false);
   const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
   const effectiveEnabled = optimisticEnabled !== null ? optimisticEnabled : isEnabled;
+  const busy = toggling || optimisticEnabled !== null;
   const { environments } = useWorkflowHealth();
   const linkedWfs = useMemo(() => findWorkflowsForUsecase(flow, workflows), [flow, workflows]);
   const usecaseHealth = useMemo(() => diagnoseUsecase(linkedWfs, environments), [linkedWfs, environments]);
@@ -7097,7 +7106,7 @@ export function UsecaseCard({
   const handleToggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    if (!flow.automationLabel || toggling) return;
+    if (!flow.automationLabel || busy) return;
     const willBeEnabled = !effectiveEnabled;
 
     // Host Monitoring is presence-driven: "activating" means deploying a host monitor
@@ -7220,7 +7229,7 @@ export function UsecaseCard({
       toast.success(willBeEnabled ? `${cardDisplayLabel} enabled` : `${cardDisplayLabel} disabled`);
       onToggled?.(flow.automationLabel, willBeEnabled);
       // Hard safety net in case the server never reflects the change.
-      setTimeout(() => setOptimisticEnabled(null), 8000);
+      setTimeout(() => setOptimisticEnabled(null), USECASE_CONFIRM_TIMEOUT_MS);
     } catch (err: any) {
       setOptimisticEnabled(null);
       const raw = err?.message || '';
@@ -7433,7 +7442,7 @@ export function UsecaseCard({
                   className="uc-card-chip"
                   component="button"
                   type="button"
-                  disabled={toggling}
+                  disabled={busy}
                   onClick={
                     isMonitorsFlow
                       ? (e: React.MouseEvent) => {
@@ -7469,7 +7478,7 @@ export function UsecaseCard({
                     fontWeight: 700,
                     letterSpacing: '0.02em',
                     lineHeight: 1,
-                    cursor: isMonitorsFlow ? 'pointer' : canDisable ? (toggling ? 'default' : 'pointer') : 'default',
+                    cursor: isMonitorsFlow ? 'pointer' : canDisable ? (busy ? 'default' : 'pointer') : 'default',
                     outline: 'none',
                     boxShadow: 'none',
                     flexShrink: 0,
@@ -7487,7 +7496,7 @@ export function UsecaseCard({
                     } : {},
                   }}
                 >
-                  {toggling ? (
+                  {busy ? (
                     <CircularProgress size={11} sx={{ color: 'inherit', flexShrink: 0 }} />
                   ) : (
                     <Power size={11} style={{ color: 'inherit', flexShrink: 0 }} />
@@ -7588,7 +7597,7 @@ export function UsecaseCard({
                   className="uc-card-chip"
                   component="button"
                   type="button"
-                  disabled={toggling}
+                  disabled={busy}
                   onClick={handleToggle}
                   sx={{
                     display: 'inline-flex',
@@ -7608,7 +7617,7 @@ export function UsecaseCard({
                     fontWeight: 700,
                     letterSpacing: '0.02em',
                     lineHeight: 1,
-                    cursor: toggling ? 'default' : 'pointer',
+                    cursor: busy ? 'default' : 'pointer',
                     outline: 'none',
                     boxShadow: 'none',
                     flexShrink: 0,
@@ -7619,7 +7628,7 @@ export function UsecaseCard({
                     },
                   }}
                 >
-                  {toggling ? (
+                  {busy ? (
                     <CircularProgress size={11} sx={{ color: 'inherit', flexShrink: 0 }} />
                   ) : (
                     <Power size={11} style={{ color: 'inherit', flexShrink: 0 }} />
@@ -7910,8 +7919,9 @@ function UsecaseDrawerInner({
   const handleToggled = React.useCallback(() => {
     // Mirror handleUsecaseWorkflowGenerated: nudge workflows refetch so the
     // drawer reflects the new state without requiring a page refresh.
-    window.setTimeout(() => { refetchWorkflows(); }, 3000);
-    window.setTimeout(() => { refetchWorkflows(); }, 8000);
+    for (const delay of USECASE_RECHECK_DELAYS_MS) {
+      window.setTimeout(() => { refetchWorkflows(); }, delay);
+    }
   }, [refetchWorkflows]);
 
   return (

@@ -3,6 +3,7 @@ import {
   ASK_FIRST_PREFIX,
   asksForApproval,
   buildChatThread,
+  describeOperation,
   describeStep,
   getAnswersFromModelReplies,
   getAppsNeedingAuth,
@@ -15,6 +16,7 @@ import {
   getRunNodes,
   getWorkflowRuns,
   getWorkflowProblems,
+  pickRevisionBefore,
   stripModePrefix,
   toSeconds,
   type ChatDecision,
@@ -59,7 +61,7 @@ const swap: ChatDecision = {
   run_details: {
     id: 'swap',
     status: 'FINISHED',
-    raw_response: JSON.stringify({ success: true, status: 200, body: { success: true, operations_applied: 4, id_mapping: { notify: '7777' }, workflow: { actions: [{ id: 'c45c', label: 'append_sheet_values_1', errors: ['range is empty'] }] } } }),
+    raw_response: JSON.stringify({ success: true, status: 200, body: { success: true, operations_applied: 4, id_mapping: { notify: '7777' }, workflow: { actions: [{ id: 'c45c', label: 'append_sheet_values_1', errors: ['range is empty'] }, { id: '7777', label: 'notify' }] } } }),
   },
 };
 
@@ -86,6 +88,17 @@ describe('agent chat steps', () => {
     expect(getChangedNodeIds(swap)).toEqual(['c45c', '7777']);
     expect(getLatestChanges([readWorkflow, swap], labels).map((change) => change.nodeId)).toEqual(['c45c', '7777', undefined]);
     expect(getWorkflowProblems([swap])).toEqual([{ text: 'append_sheet_values_1: range is empty', nodeId: 'c45c' }]);
+  });
+
+  it('only links changes to nodes that are still in the workflow', () => {
+    const edit = (id: string, ops: object[], workflow: object): ChatDecision => ({
+      action: 'put_agent_update',
+      fields: [{ key: 'body', value: JSON.stringify({ operations: ops }) }],
+      run_details: { id, status: 'FINISHED', raw_response: JSON.stringify({ success: true, status: 200, body: { success: true, id_mapping: { t1: 'n1' }, workflow } }) },
+    });
+    const add = edit('a', [{ op: 'add_node', temp_id: 't1', data: JSON.stringify({ label: 'temp' }) }, { op: 'edit_node', id: 'keep' }], { actions: [{ id: 'n1' }, { id: 'keep' }] });
+    const remove = edit('b', [{ op: 'delete_node', id: 'n1' }, { op: 'delete_branch', id: 'edge1' }], { actions: [{ id: 'keep' }] });
+    expect(getLatestChanges([add, remove], {}).map((change) => change.nodeId)).toEqual([undefined, 'keep', undefined, undefined]);
   });
 
   it('finds why a step failed, including plain-text timeouts', () => {
@@ -150,6 +163,12 @@ describe('agent chat thread', () => {
     expect(summarize(thread)).toEqual(['user:q', 'steps:1', 'user:so tell me what is this workflow about?', 'agent:Second answer']);
   });
 
+  it('keeps the previous answer while a just-sent follow-up has not reached the run yet', () => {
+    const answeredRun = [readWorkflow, { i: 1, action: 'finish', category: 'finish', fields: [{ key: 'output', value: 'First answer' }], run_details: { id: 'b', status: 'FINISHED' } }];
+    const thread = buildChatThread({ prompt: 'q', decisions: answeredRun, finalAnswer: 'First answer', finished: false });
+    expect(summarize(thread)).toEqual(['user:q', 'steps:1', 'agent:First answer']);
+  });
+
   it('shows agent questions and the user answers in place', () => {
     const asked: ChatDecision = { action: 'ask', category: 'standalone', fields: [{ key: 'question', value: 'Which sheet?', answer: 'Sheet1' }], run_details: { id: 'q', status: 'FINISHED' } };
     expect(summarize(buildChatThread({ prompt: 'q', decisions: [lookup, asked], finished: false }))).toEqual(['user:q', 'steps:1', 'agent:Which sheet?', 'user:Sheet1']);
@@ -207,5 +226,32 @@ describe('agent workflow runs', () => {
 
   it('measures how long the run has made no progress', () => {
     expect(getRunIdleSeconds(execution, 1792172844352 + 180000)).toBeCloseTo(180);
+  });
+});
+
+describe('agent chat revert', () => {
+  it('picks the newest version saved before the chat started', () => {
+    const revisions = [
+      { revision_id: 'agent-edit', edited: 1793023260 },
+      { revision_id: 'saved-at-start', edited: 1793023208 },
+      { revision_id: 'older', edited: 1793020000 },
+    ];
+    expect(pickRevisionBefore(revisions, 1793023208)?.revision_id).toBe('saved-at-start');
+    expect(pickRevisionBefore([...revisions].reverse(), 1793023210)?.revision_id).toBe('saved-at-start');
+  });
+
+  it('finds nothing when every version is from the chat itself', () => {
+    expect(pickRevisionBefore([{ edited: 1793023260 }, { edited: 0 }], 1793023208)).toBeUndefined();
+    expect(pickRevisionBefore([], 1793023208)).toBeUndefined();
+  });
+});
+
+describe('agent chat wording', () => {
+  it('calls connections between nodes branches', () => {
+    const labels = { a: 'Get emails', b: 'Send report' };
+    expect(describeOperation({ op: 'edit_branch', data: { source_id: 'a', destination_id: 'b' } }, labels)).toBe('Reconnected Get emails to Send report');
+    expect(describeOperation({ op: 'edit_branch', data: {} }, labels)).toBe('Updated a branch');
+    expect(describeOperation({ op: 'delete_branch', id: 'x' }, labels)).toBe('Removed a branch');
+    expect(describeOperation({ op: 'add_condition', data: {} }, labels)).toMatch(/on a branch$/);
   });
 });

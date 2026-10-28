@@ -48,6 +48,7 @@ import {
   isAction,
   isAsk,
   isFinish,
+  pickRevisionBefore,
   parseJson,
   toSeconds,
   type AgentFocusNodeDetail,
@@ -86,6 +87,8 @@ export interface AgentChatViewProps {
   /** Answers a question, approval or continuation, using AgentUI's submitQuestions shape. */
   onSubmit: (decisionId: string, answers: Record<string, BackendJson>, isContinuation?: boolean) => void | Promise<void>;
   onStop: () => void;
+  /** True while a Stop request is in flight. */
+  stopping?: boolean;
   onRefresh: () => void;
   isAppAuthenticated: (appName: string, appId?: string | null) => boolean;
   /** Opens the credentials flow for an app (AgentUI's app drawer, or the app page). */
@@ -149,6 +152,7 @@ const RunCard: React.FC<{
   useEffect(() => {
     if (done) return undefined;
     let cancelled = false;
+    let lastText = '';
     const load = async () => {
       try {
         const resp = await fetch(resolveUrl('/api/v1/streams/results'), {
@@ -158,9 +162,11 @@ const RunCard: React.FC<{
           body: JSON.stringify({ execution_id: run.executionId, authorization: run.authorization }),
         });
         if (!resp.ok) throw new Error(`status ${resp.status}`);
-        const data = await resp.json();
+        const text = await resp.text();
         if (!cancelled) {
-          setExecution(data);
+          // An unchanged run keeps the same object, so the card's derived data isn't rebuilt
+          if (text !== lastText) setExecution(JSON.parse(text));
+          lastText = text;
           setFailedToLoad(false);
           setNow(Date.now());
         }
@@ -228,6 +234,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   onStart,
   onSubmit,
   onStop,
+  stopping = false,
   onRefresh,
   isAppAuthenticated,
   onAuthenticateApp,
@@ -255,13 +262,13 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   const [watchingAuth, setWatchingAuth] = useState(false);
   const [reverting, setReverting] = useState(false);
   const [showPastChats, setShowPastChats] = useState(false);
+  // A reply or follow-up the backend hasn't recorded yet, shown so it doesn't vanish until it has
+  const [pendingMessage, setPendingMessage] = useState('');
   const [now, setNow] = useState(() => Date.now());
 
   // Answers seen in this session, by finish decision id. A follow-up rewrites that
   // decision, so this keeps the answer on screen without waiting for the replies.
   const knownAnswersRef = useRef<Record<string, string>>({});
-  // Workflow as it was before the user's message, for "Revert".
-  const snapshotRef = useRef<{ workflow: BackendJson; executionId: string | null } | null>(null);
   const announcedEditsRef = useRef<{ executionId: string; ids: Set<string> } | null>(null);
   const autoAnsweredRef = useRef<string>('');
   const progressRef = useRef<{ signature: string; at: number }>({ signature: '', at: Date.now() });
@@ -313,11 +320,6 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     setRawSteps({});
     setWatchingAuth(false);
     autoAnsweredRef.current = '';
-    if (snapshotRef.current && snapshotRef.current.executionId === null && executionId) {
-      snapshotRef.current.executionId = executionId;
-    } else if (snapshotRef.current?.executionId !== executionId) {
-      snapshotRef.current = null;
-    }
   }, [executionId]);
 
   // Spot a stuck run: nothing new for a while although it should be working
@@ -389,6 +391,12 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     return () => window.clearInterval(id);
   }, [watchingAuth, onRefreshAuthenticatedApps]);
 
+  // Drop the pending message once the run shows it, or when sending it failed
+  const pendingRecorded = !!pendingMessage && thread.some((item) => item.type === 'user' && item.text === pendingMessage);
+  useEffect(() => {
+    if (pendingMessage && (pendingRecorded || (!busy && !isRunning))) setPendingMessage('');
+  }, [pendingMessage, pendingRecorded, busy, isRunning]);
+
   // Keep the newest message in view
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
@@ -403,51 +411,50 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
 
   const compose = (text: string) => (mode === 'ask' && workflowId ? ASK_FIRST_PREFIX + text : text);
 
-  const takeSnapshot = useCallback(async () => {
-    if (!workflowId) return;
-    try {
-      const resp = await fetch(resolveUrl(`/api/v1/workflows/${workflowId}`), {
-        credentials: 'include',
-        headers: { ...resolveHeaders() },
-      });
-      if (resp.ok) snapshotRef.current = { workflow: await resp.json(), executionId: null };
-    } catch { /* revert just won't be offered */ }
-  }, [workflowId, resolveUrl, resolveHeaders]);
-
   const send = async (raw?: string) => {
     const text = (raw ?? input).trim();
     if (!text || busy || (isRunning && !waitingQuestion)) return;
     setInput('');
 
     if (waitingQuestion?.run_details?.id) {
+      setPendingMessage(text);
       await onSubmit(waitingQuestion.run_details.id, { answer: { index: questionIndex, value: text } });
       return;
     }
     if (finished && finishDecision?.run_details?.id) {
+      setPendingMessage(text);
       await onSubmit(finishDecision.run_details.id, { continue: compose(text) }, true);
       return;
     }
-    await takeSnapshot();
     await onStart(compose(text));
   };
 
+  // The workflow as it was before this chat comes from its saved revisions, not from
+  // memory, so revert still works after closing the panel or reloading the page.
+  const chatStartedAt = Number(execution?.started_at) || 0;
   const revert = async () => {
-    const snapshot = snapshotRef.current;
-    if (!snapshot?.workflow?.id || reverting) return;
-    if (!window.confirm('Revert the workflow to how it was before this chat changed it?')) return;
+    if (!workflowId || !chatStartedAt || reverting) return;
+    if (!window.confirm('Revert the workflow to how it was before this chat changed it? Edits made since then, also by others, are replaced.')) return;
     setReverting(true);
     try {
-      // Sent as-is: it is the full workflow as it was before the agent ran
-      const resp = await fetch(resolveUrl(`/api/v1/workflows/${snapshot.workflow.id}`), {
+      const listResp = await fetch(resolveUrl(`/api/v1/workflows/${workflowId}/revisions?count=100`), {
+        credentials: 'include',
+        headers: { ...resolveHeaders() },
+      });
+      if (!listResp.ok) throw new Error(`loading saved versions failed with status ${listResp.status}`);
+      const revisions = await listResp.json();
+      const before = pickRevisionBefore(Array.isArray(revisions) ? revisions : [], chatStartedAt);
+      if (!before) throw new Error('there is no saved version from before this chat');
+      const { revision_id: _revisionId, ...workflow } = before;
+      const resp = await fetch(resolveUrl(`/api/v1/workflows/${workflowId}`), {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', ...resolveHeaders() },
-        body: JSON.stringify(snapshot.workflow),
+        body: JSON.stringify(workflow),
       });
       if (!resp.ok) throw new Error(`status ${resp.status}`);
-      snapshotRef.current = null;
       toast.success('Reverted the changes from this chat');
-      const detail: AgentWorkflowChangedDetail = { workflowId: snapshot.workflow.id, nodeIds: [], reverted: true };
+      const detail: AgentWorkflowChangedDetail = { workflowId, nodeIds: [], reverted: true };
       window.dispatchEvent(new CustomEvent(AGENT_WORKFLOW_CHANGED_EVENT, { detail }));
     } catch (err) {
       toast.error(`Failed to revert: ${err instanceof Error ? err.message : String(err)}`);
@@ -646,23 +653,38 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
       ...appsNeedingAuth.filter((app) => !isAppAuthenticated(app.name, app.id)).map((app) => ({ text: `${app.name} needs credentials before it can run`, nodeId: undefined as string | undefined })),
       ...getWorkflowProblems(decisions),
     ];
-    const canRevert = !!snapshotRef.current?.workflow && snapshotRef.current.executionId === executionId && changes.length > 0;
+    const canRevert = !!workflowId && !!chatStartedAt && changes.length > 0;
     if (changes.length === 0 && problems.length === 0) return null;
+    // The change list is folded by default, like finished steps
+    const changesOpen = !!openGroups['summary-changes'];
+    const toggleChanges = () => setOpenGroups((prev) => ({ ...prev, 'summary-changes': !changesOpen }));
 
     return (
       <Box sx={{ my: 1.25, p: 1.5, border: '1px solid hsl(var(--border))', borderRadius: 2 }}>
         {changes.length > 0 && (
           <>
-            <Typography sx={{ ...mutedSx, mb: 0.5 }}>Changed</Typography>
-            {changes.map((change, index) => (
-              <Typography
-                key={index}
-                onClick={() => focusNode(change.nodeId)}
-                sx={{ ...textSx, cursor: change.nodeId && workflowId ? 'pointer' : 'default', '&:hover': change.nodeId && workflowId ? { color: 'hsl(var(--primary))' } : undefined }}
-              >
-                {change.text}
-              </Typography>
-            ))}
+            <Box
+              role="button"
+              tabIndex={0}
+              onClick={toggleChanges}
+              onKeyDown={(e) => { if (e.key === 'Enter') toggleChanges(); }}
+              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', mb: changesOpen ? 0.5 : 0 }}
+            >
+              <Typography sx={{ ...mutedSx, flex: 1 }}>Changed · {changes.length} change{changes.length === 1 ? '' : 's'}</Typography>
+              <Typography sx={mutedSx}>{changesOpen ? 'Hide' : 'Show'}</Typography>
+            </Box>
+            {changesOpen && changes.map((change, index) => {
+              const linked = !!change.nodeId && !!workflowId;
+              return (
+                <Typography
+                  key={index}
+                  onClick={linked ? () => focusNode(change.nodeId) : undefined}
+                  sx={{ ...textSx, cursor: linked ? 'pointer' : 'default', '&:hover': linked ? { color: 'hsl(var(--primary))' } : undefined }}
+                >
+                  {change.text}
+                </Typography>
+              );
+            })}
           </>
         )}
         {problems.length > 0 && (
@@ -690,6 +712,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
 
   const composerPlaceholder = waitingQuestion
     ? 'Reply to the agent...'
+    : stopping ? 'Stopping the agent...'
     : isRunning ? 'The agent is working...'
     : finished && finishDecision ? 'Ask a follow-up or for more changes...'
     : placeholder || 'Ask about this workflow or describe a change...';
@@ -768,7 +791,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
         )}
         <Box sx={{ flex: 1 }} />
         {isRunning && !waitingQuestion ? (
-          <Button size="small" variant="outlined" onClick={onStop} sx={{ textTransform: 'none', fontSize: '0.75rem', minHeight: 0, py: 0.25 }}>Stop</Button>
+          <Button size="small" variant="outlined" disabled={stopping} onClick={onStop} sx={{ textTransform: 'none', fontSize: '0.75rem', minHeight: 0, py: 0.25 }}>{stopping ? 'Stopping...' : 'Stop'}</Button>
         ) : (
           <Button type="submit" size="small" variant="contained" disabled={!canType || !input.trim()} sx={{ textTransform: 'none', fontSize: '0.75rem', minHeight: 0, py: 0.25 }}>
             {busy ? 'Sending...' : 'Send'}
@@ -793,8 +816,9 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
       )}
 
       {thread.map(renderItem)}
-      {busy && thread.length === 0 && <Typography sx={{ ...mutedSx, my: 1 }}>Starting the agent...</Typography>}
-      {working && lastItem && !liveGroupKey && (
+      {pendingMessage && !pendingRecorded && renderItem({ type: 'user', text: pendingMessage, key: 'pending-message' })}
+      {/* Starting a run or sending a reply waits for the agent's first LLM round, which takes a while */}
+      {(busy || working) && !liveGroupKey && (busy || lastItem) && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, my: 1, px: 1.25, py: 0.75, border: '1px solid hsl(var(--border))', borderRadius: 2, bgcolor: 'hsl(var(--muted) / 0.2)' }}>
           <Typography sx={{ ...mutedSx, flex: 1 }}>Working</Typography>
           <CircularProgress size={11} sx={{ color: 'hsl(var(--primary))' }} />

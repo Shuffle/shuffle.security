@@ -196,15 +196,15 @@ export const describeOperation = (op: BackendJson, labels: Record<string, string
       return `Connected ${labelOf(data.source_id)} to ${labelOf(data.destination_id)}`;
     case 'edit_branch':
       return data.source_id && data.destination_id
-        ? `Re-linked ${labelOf(data.source_id)} to ${labelOf(data.destination_id)}`
-        : 'Updated a link';
+        ? `Reconnected ${labelOf(data.source_id)} to ${labelOf(data.destination_id)}`
+        : 'Updated a branch';
     case 'delete_branch':
     case 'remove_branch':
-      return 'Removed a link';
+      return 'Removed a branch';
     case 'add_condition':
     case 'edit_condition':
     case 'delete_condition':
-      return `${humanize(op.op).replace(/^\w/, (c) => c.toUpperCase())} on a link`;
+      return `${humanize(op.op).replace(/^\w/, (c) => c.toUpperCase())} on a branch`;
     case 'set_start_node':
       return `Set ${labelOf(op.id)} as the start`;
     case 'save_workflow':
@@ -269,18 +269,38 @@ export const getAppsNeedingAuth = (decisions: ChatDecision[]): { id: string; nam
   return Object.values(byId);
 };
 
-/** What the agent changed since the user's latest message. */
+/** The newest saved version of the workflow from before a chat started, from its
+ *  revisions (`edited` and `startedAt` both in unix seconds). Every save writes one,
+ *  and the editor saves right before starting a chat. */
+export const pickRevisionBefore = (revisions: BackendJson[], startedAt: number): BackendJson | undefined => {
+  let best: BackendJson | undefined;
+  for (const revision of revisions || []) {
+    const edited = Number(revision?.edited);
+    if (!edited || edited > startedAt) continue;
+    if (!best || edited > Number(best.edited)) best = revision;
+  }
+  return best;
+};
+
+const NODE_OPS = new Set(['add_node', 'edit_node', 'move_node', 'set_start_node']);
+
+/** What the agent changed since the user's latest message. Only changes to nodes that
+ *  are still in the workflow carry a nodeId; removals and branches have nothing to show. */
 export const getLatestChanges = (decisions: ChatDecision[], labels: Record<string, string>): { text: string; nodeId?: string }[] => {
   const lastContinue = decisions.map(isContinue).lastIndexOf(true);
   const list: { text: string; nodeId?: string }[] = [];
+  const lastUpdate = [...decisions].reverse().find((decision) => isAction(decision, 'put_agent_update') && getOpsResponse(decision)?.workflow);
+  const workflow = getOpsResponse(lastUpdate)?.workflow;
+  const existing = workflow ? new Set([...(workflow.actions || []), ...(workflow.triggers || [])].map((node: BackendJson) => node?.id)) : null;
   for (const decision of decisions.slice(lastContinue + 1)) {
     if (!isAction(decision, 'put_agent_update') || getStepStatus(decision) !== 'done') continue;
     const response = getOpsResponse(decision);
     for (const op of getOperations(decision)) {
       if (op?.op === 'save_workflow') continue;
+      const nodeId = !NODE_OPS.has(op?.op) ? undefined : op.op === 'add_node' ? response?.id_mapping?.[op.temp_id] : op.id;
       list.push({
         text: describeOperation(op, labels),
-        nodeId: op.op === 'add_node' ? response?.id_mapping?.[op.temp_id] : op.id,
+        nodeId: nodeId && (!existing || existing.has(nodeId)) ? nodeId : undefined,
       });
     }
   }
@@ -343,7 +363,10 @@ export const buildChatThread = ({
   const items: ChatThreadItem[] = [];
   if (prompt) items.push({ type: 'user', text: stripModePrefix(prompt), key: 'prompt' });
 
-  const answeredTurns = decisions.filter(isContinue).length + (finished ? 1 : 0);
+  // Right after a follow-up is sent the run already counts as working, but its last
+  // decision is still the previous answer until the backend turns it into a continuation.
+  const answered = finished || isFinish(decisions[decisions.length - 1]);
+  const answeredTurns = decisions.filter(isContinue).length + (answered ? 1 : 0);
   const offset = modelAnswers.length - answeredTurns;
   const recovered = (turn: number) => (offset + turn >= 0 ? modelAnswers[offset + turn] : '');
 
@@ -383,7 +406,7 @@ export const buildChatThread = ({
   }
   closeGroup();
 
-  if (finished) {
+  if (answered) {
     const answer = finalAnswer || recovered(turn);
     if (answer) items.push({ type: 'agent', text: answer, key: `answer-turn-${turn}` });
   }

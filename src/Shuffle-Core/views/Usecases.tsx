@@ -1726,7 +1726,7 @@ const usecaseRecheckTokens = new Map<string, number>();
  * Re-read workflows until the change for `label` shows up (or attempts run
  * out), then tell the buttons to stop loading and listeners to re-read once.
  */
-async function runUsecaseRecheck(
+export async function runUsecaseRecheck(
   label: string,
   enabled: boolean,
   refetch: () => Promise<WorkflowSummary[] | undefined>,

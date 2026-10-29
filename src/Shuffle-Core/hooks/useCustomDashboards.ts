@@ -80,7 +80,7 @@ export function useCustomDashboards(
   const orgId =
     typeof orgIdOrOptions === 'object' && orgIdOrOptions !== null
       ? orgIdOrOptions.orgId
-      : orgIdOrOptions;
+      : (orgIdOrOptions as string | null | undefined);
   const enabled =
     typeof orgIdOrOptions === 'object' && orgIdOrOptions !== null
       ? orgIdOrOptions.enabled !== false

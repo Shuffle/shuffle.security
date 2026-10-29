@@ -114,9 +114,6 @@ jobs:
             const tpl = JSON.parse(fs.readFileSync('package.tpl.json', 'utf8'));
             const isCore = process.env.ARTIFACT === 'shuffle-core';
             tpl.version = isCore ? process.env.CORE_VERSION : process.env.MCPS_VERSION;
-            if (!isCore && tpl.peerDependencies && tpl.peerDependencies['@shuffleio/shuffle-core']) {
-              tpl.peerDependencies['@shuffleio/shuffle-core'] = process.env.CORE_VERSION;
-            }
             fs.writeFileSync('package.json', JSON.stringify(tpl, null, 2) + '\n');
           "
           cat package.json
@@ -136,6 +133,22 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/${{ matrix.dir }}/node_modules
         run: npm run build
+
+      - name: Pin core peer to matching prerelease
+        if: matrix.artifact == 'shuffle-mcps'
+        working-directory: ${{ matrix.dir }}
+        env:
+          CORE_VERSION: ${{ needs.resolve.outputs.core_version }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            if (pkg.peerDependencies && pkg.peerDependencies['@shuffleio/shuffle-core']) {
+              pkg.peerDependencies['@shuffleio/shuffle-core'] = process.env.CORE_VERSION;
+            }
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          grep -A12 '"peerDependencies"' package.json
 
       - name: Pack
         working-directory: ${{ matrix.dir }}

@@ -1,0 +1,197 @@
+name: Publish libs prerelease (reusable)
+
+# Builds @shuffleio/shuffle-core + @shuffleio/shuffle-mcps from a commit and
+# publishes them under a non-latest dist-tag (staging, pr-123, ...).
+# Version format: <next patch of latest>-<label>-<sha7>, e.g. 0.0.69-pr-123-ab12cd3
+# The build job never sees secrets; only the publish job holds NPM_TOKEN.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Full commit SHA to build'
+        required: true
+        type: string
+      label:
+        description: 'Prerelease label, e.g. staging or pr-123'
+        required: true
+        type: string
+      dist_tag:
+        description: 'npm dist-tag to point at the new versions (never "latest")'
+        required: true
+        type: string
+    outputs:
+      core_version:
+        value: ${{ jobs.resolve.outputs.core_version }}
+      mcps_version:
+        value: ${{ jobs.resolve.outputs.mcps_version }}
+    secrets:
+      NPM_TOKEN:
+        required: false
+      NODE_AUTH_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      core_version: ${{ steps.v.outputs.core_version }}
+      mcps_version: ${{ steps.v.outputs.mcps_version }}
+    steps:
+      - name: Resolve prerelease versions
+        id: v
+        env:
+          REF: ${{ inputs.ref }}
+          LABEL: ${{ inputs.label }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+        run: |
+          set -euo pipefail
+
+          if [ "$DIST_TAG" = "latest" ]; then
+            echo "Refusing to publish a prerelease to the latest dist-tag"
+            exit 1
+          fi
+          if ! [[ "$LABEL" =~ ^[a-z0-9-]+$ ]]; then
+            echo "Invalid label: $LABEL"
+            exit 1
+          fi
+
+          SHA7="${REF:0:7}"
+
+          next_version() {
+            local current
+            current=$(npm view "$1" version 2>/dev/null || echo "0.0.0")
+            if ! [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Unable to parse latest version for $1: $current" >&2
+              exit 1
+            fi
+            IFS='.' read -r major minor patch <<< "$current"
+            echo "$major.$minor.$((patch + 1))-$LABEL-$SHA7"
+          }
+
+          CORE=$(next_version '@shuffleio/shuffle-core')
+          MCPS=$(next_version '@shuffleio/shuffle-mcps')
+          echo "core_version=$CORE" >> "$GITHUB_OUTPUT"
+          echo "mcps_version=$MCPS" >> "$GITHUB_OUTPUT"
+          echo "shuffle-core: $CORE"
+          echo "shuffle-mcps: $MCPS"
+
+  build:
+    needs: resolve
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - dir: src/Shuffle-Core
+            sibling: src/Shuffle-MCPs
+            artifact: shuffle-core
+          - dir: src/Shuffle-MCPs
+            sibling: src/Shuffle-Core
+            artifact: shuffle-mcps
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Materialize package.json
+        working-directory: ${{ matrix.dir }}
+        env:
+          ARTIFACT: ${{ matrix.artifact }}
+          CORE_VERSION: ${{ needs.resolve.outputs.core_version }}
+          MCPS_VERSION: ${{ needs.resolve.outputs.mcps_version }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const tpl = JSON.parse(fs.readFileSync('package.tpl.json', 'utf8'));
+            const isCore = process.env.ARTIFACT === 'shuffle-core';
+            tpl.version = isCore ? process.env.CORE_VERSION : process.env.MCPS_VERSION;
+            if (!isCore && tpl.peerDependencies && tpl.peerDependencies['@shuffleio/shuffle-core']) {
+              tpl.peerDependencies['@shuffleio/shuffle-core'] = process.env.CORE_VERSION;
+            }
+            fs.writeFileSync('package.json', JSON.stringify(tpl, null, 2) + '\n');
+          "
+          cat package.json
+
+      - name: Install library deps
+        working-directory: ${{ matrix.dir }}
+        run: npm install --no-package-lock
+
+      - name: Link node_modules to workspace root and sibling package
+        run: |
+          ln -sfn "$GITHUB_WORKSPACE/${{ matrix.dir }}/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          mkdir -p "$GITHUB_WORKSPACE/${{ matrix.sibling }}"
+          ln -sfn "$GITHUB_WORKSPACE/${{ matrix.dir }}/node_modules" "$GITHUB_WORKSPACE/${{ matrix.sibling }}/node_modules"
+
+      - name: Build library
+        working-directory: ${{ matrix.dir }}
+        env:
+          NODE_PATH: ${{ github.workspace }}/${{ matrix.dir }}/node_modules
+        run: npm run build
+
+      - name: Pack
+        working-directory: ${{ matrix.dir }}
+        run: npm pack
+
+      - name: Upload tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.dir }}/*.tgz
+          retention-days: 7
+
+  publish:
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: tarballs
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || secrets.NODE_AUTH_TOKEN }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+          CORE_VERSION: ${{ needs.resolve.outputs.core_version }}
+          MCPS_VERSION: ${{ needs.resolve.outputs.mcps_version }}
+        run: |
+          set -euo pipefail
+
+          publish() {
+            local name="$1" version="$2" tarball="$3"
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version already published, moving tag only"
+            else
+              npm publish "$tarball" --tag "$DIST_TAG" --access public
+            fi
+            npm dist-tag add "$name@$version" "$DIST_TAG"
+          }
+
+          publish '@shuffleio/shuffle-core' "$CORE_VERSION" tarballs/shuffle-core/*.tgz
+          publish '@shuffleio/shuffle-mcps' "$MCPS_VERSION" tarballs/shuffle-mcps/*.tgz
+
+      - name: Summary
+        env:
+          DIST_TAG: ${{ inputs.dist_tag }}
+          CORE_VERSION: ${{ needs.resolve.outputs.core_version }}
+          MCPS_VERSION: ${{ needs.resolve.outputs.mcps_version }}
+        run: |
+          {
+            echo "### Published to \`$DIST_TAG\`"
+            echo '```bash'
+            echo "yarn add @shuffleio/shuffle-core@$CORE_VERSION @shuffleio/shuffle-mcps@$MCPS_VERSION"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

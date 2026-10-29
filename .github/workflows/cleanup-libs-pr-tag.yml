@@ -1,0 +1,33 @@
+name: Clean up PR libs dist-tag
+
+# Removes the pr-<number> dist-tag when a PR is closed or merged.
+# Published versions stay on npm; only the tag is removed. No code is checked out.
+
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Remove dist-tags
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN || secrets.NODE_AUTH_TOKEN }}
+          TAG: pr-${{ github.event.pull_request.number }}
+        run: |
+          for pkg in '@shuffleio/shuffle-core' '@shuffleio/shuffle-mcps'; do
+            if npm dist-tag ls "$pkg" | grep -q "^$TAG:"; then
+              npm dist-tag rm "$pkg" "$TAG"
+            else
+              echo "$pkg has no $TAG tag"
+            fi
+          done

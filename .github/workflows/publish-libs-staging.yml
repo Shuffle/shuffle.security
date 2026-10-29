@@ -1,0 +1,36 @@
+name: Publish libs to staging
+
+# Every push to main that touches the libraries publishes a build under the
+# "staging" dist-tag. Install with: yarn add @shuffleio/shuffle-core@staging @shuffleio/shuffle-mcps@staging
+# Pushes whose latest commit is from Lovable (gpt-engineer-app[bot] / lovable-dev[bot]) are skipped;
+# a manual commit or "Run workflow" publishes everything on main up to that point.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/Shuffle-Core/**'
+      - 'src/Shuffle-MCPs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-libs-staging
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      !(contains(github.event.head_commit.author.email, 'gpt-engineer-app') ||
+        contains(github.event.head_commit.author.email, 'lovable') ||
+        contains(github.event.head_commit.author.name, 'gpt-engineer-app') ||
+        contains(github.event.head_commit.author.name, 'lovable'))
+    uses: ./.github/workflows/publish-libs-prerelease.yml
+    with:
+      ref: ${{ github.sha }}
+      label: staging
+      dist_tag: staging
+    secrets: inherit

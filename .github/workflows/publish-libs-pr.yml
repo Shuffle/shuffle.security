@@ -1,0 +1,119 @@
+name: Publish libs for PR
+
+# Publishes the PR's libraries under the "pr-<number>" dist-tag.
+# - Branches in this repo: runs automatically when the libs change.
+# - Fork PRs (no secrets on pull_request): an org member comments "/publish-libs".
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'src/Shuffle-Core/**'
+      - 'src/Shuffle-MCPs/**'
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-libs-pr-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    if: >-
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        startsWith(github.event.comment.body, '/publish-libs') &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    outputs:
+      pr: ${{ steps.pr.outputs.pr }}
+      sha: ${{ steps.pr.outputs.sha }}
+    steps:
+      - name: Resolve PR head
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let number, sha;
+            if (context.eventName === 'pull_request') {
+              number = context.payload.pull_request.number;
+              sha = context.payload.pull_request.head.sha;
+            } else {
+              number = context.payload.issue.number;
+              const { data: pr } = await github.rest.pulls.get({ ...context.repo, pull_number: number });
+              if (pr.state !== 'open') {
+                core.setFailed(`PR #${number} is not open`);
+                return;
+              }
+              sha = pr.head.sha;
+              await github.rest.reactions.createForIssueComment({
+                ...context.repo,
+                comment_id: context.payload.comment.id,
+                content: 'eyes',
+              });
+            }
+            core.setOutput('pr', String(number));
+            core.setOutput('sha', sha);
+
+  publish:
+    needs: prepare
+    uses: ./.github/workflows/publish-libs-prerelease.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+      label: pr-${{ needs.prepare.outputs.pr }}
+      dist_tag: pr-${{ needs.prepare.outputs.pr }}
+    secrets: inherit
+
+  comment:
+    needs: [prepare, publish]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Update PR comment
+        uses: actions/github-script@v7
+        env:
+          PR: ${{ needs.prepare.outputs.pr }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+          RESULT: ${{ needs.publish.result }}
+          CORE_VERSION: ${{ needs.publish.outputs.core_version }}
+          MCPS_VERSION: ${{ needs.publish.outputs.mcps_version }}
+        with:
+          script: |
+            const { PR, SHA, RESULT, CORE_VERSION, MCPS_VERSION } = process.env;
+            const marker = '<!-- shuffle-libs-pr -->';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const body = RESULT === 'success'
+              ? [
+                  marker,
+                  `📦 **Libraries published** for \`${SHA.slice(0, 7)}\` under dist-tag \`pr-${PR}\``,
+                  '',
+                  '```bash',
+                  `yarn add @shuffleio/shuffle-core@${CORE_VERSION} @shuffleio/shuffle-mcps@${MCPS_VERSION}`,
+                  '```',
+                  '',
+                  `To preview in shaffuru, comment on the shaffuru PR: \`demo shuffle-libs#${PR}\``,
+                ].join('\n')
+              : `${marker}\n❌ **Library publish failed** for \`${SHA.slice(0, 7)}\` — [logs](${runUrl})`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number: Number(PR),
+            });
+            const existing = comments.find(c => c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: Number(PR), body });
+            }

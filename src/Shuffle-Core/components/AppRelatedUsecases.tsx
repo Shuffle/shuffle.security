@@ -26,6 +26,7 @@ import {
   UsecaseDrawer,
   computeEnabledLabels,
   isUsecaseFlowEnabled,
+  runUsecaseRecheck,
   setPendingAutoEnableFlow,
   useUsecasesLite,
 } from '@/Shuffle-Core/views/Usecases';
@@ -144,10 +145,20 @@ export default function AppRelatedUsecases({
     return null;
   }
 
-  const handleWorkflowsChanged = () => {
+  const handleWorkflowsChanged = (label?: string, enabled?: boolean) => {
     queryClient.invalidateQueries({ queryKey: ['workflows'] });
     window.dispatchEvent(new CustomEvent('integrations-changed'));
-    refetchWorkflows();
+    if (!label || typeof enabled !== 'boolean') {
+      refetchWorkflows();
+      return;
+    }
+    // Same server-paced recheck as /usecases so the card stops loading once confirmed.
+    runUsecaseRecheck(
+      label,
+      enabled,
+      async () => ((await refetchWorkflows()).data as any[] | undefined),
+      () => usecases,
+    );
   };
 
   return (

@@ -1,2 +1,3 @@
 - Signed-out /dashboard (src/pages/dashboard/GuestDashboardPage.tsx) renders the real dashboards with sample data by temporarily answering dashboard API paths in the host app (src/lib/dashboardSampleData.ts); the shared libraries stay unaware of demo mode. Both dashboards use DashboardHeaderBar so the header never drifts.
 - Signed-out /agents, /infrastructure and /monitors use src/pages/dashboard/GuestSampleView.tsx (same sample fetch as /dashboard) inside the _cond route group.
+- Vulnerability reopening builds one payload through reopenVulnerability and saves once, so status changes preserve cleared resolutions and timeline events.

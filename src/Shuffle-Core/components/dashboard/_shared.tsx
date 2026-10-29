@@ -52,18 +52,26 @@ const startOfMonthMs = (ms: number): number => {
 };
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+const formatLocalYmd = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 /** Build N evenly-spaced buckets ending today, oldest first. */
 export const buildBuckets = (days: number, gran: Granularity): TimeBucket[] => {
   const out: TimeBucket[] = [];
+  const safeDays = Math.max(1, Math.min(3660, Math.floor(Number(days) || 30)));
   const now = Date.now();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+
   if (gran === 'monthly') {
     // How many months are needed to fully cover the requested range?
-    const cutoffMs = startOfDayMs(now - (days - 1) * 86400_000);
-    const startBucket = startOfMonthMs(cutoffMs);
-    const d = new Date(startBucket);
-    while (d.getTime() <= now) {
+    const cutoffDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (safeDays - 1));
+    const d = new Date(cutoffDate.getFullYear(), cutoffDate.getMonth(), 1);
+    let guard = 0;
+    while (d.getTime() <= now && guard < 240) {
+      guard++;
       const startMs = d.getTime();
-      const next = new Date(d); next.setMonth(next.getMonth() + 1);
+      const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       out.push({
         key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
         label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
@@ -74,15 +82,17 @@ export const buildBuckets = (days: number, gran: Granularity): TimeBucket[] => {
     }
     return out;
   }
-  // daily
-  for (let i = days - 1; i >= 0; i--) {
-    const startMs = startOfDayMs(now - i * 86400_000);
-    const dt = new Date(startMs);
+  // daily — step by calendar day so DST transitions never duplicate or skip a bucket
+  for (let i = safeDays - 1; i >= 0; i--) {
+    const dt = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const nextDt = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i + 1);
+    const startMs = dt.getTime();
+    const endMs = nextDt.getTime();
     out.push({
-      key: dt.toISOString().slice(0, 10),
+      key: formatLocalYmd(dt),
       label: `${MONTHS[dt.getMonth()]} ${dt.getDate()}`,
       startMs,
-      endMs: startMs + 86400_000,
+      endMs,
     });
   }
   return out;
@@ -94,12 +104,17 @@ export const buildBuckets = (days: number, gran: Granularity): TimeBucket[] => {
  */
 export const buildBucketsBetween = (fromMs: number, toMs: number, gran: Granularity): TimeBucket[] => {
   const out: TimeBucket[] = [];
-  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs < fromMs) return out;
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs < fromMs) {
+    return buildBuckets(30, gran);
+  }
   if (gran === 'monthly') {
-    const d = new Date(startOfMonthMs(fromMs));
-    while (d.getTime() <= toMs) {
+    const startD = new Date(startOfMonthMs(fromMs));
+    const d = new Date(startD.getFullYear(), startD.getMonth(), 1);
+    let guard = 0;
+    while (d.getTime() <= toMs && guard < 240) {
+      guard++;
       const startMs = d.getTime();
-      const next = new Date(d); next.setMonth(next.getMonth() + 1);
+      const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       out.push({
         key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
         label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
@@ -110,16 +125,20 @@ export const buildBucketsBetween = (fromMs: number, toMs: number, gran: Granular
     }
     return out;
   }
-  const start = startOfDayMs(fromMs);
-  const end = startOfDayMs(toMs);
-  for (let t = start; t <= end; t += 86400_000) {
-    const dt = new Date(t);
+  const startDt = new Date(startOfDayMs(fromMs));
+  const endMsLimit = startOfDayMs(toMs);
+  let cur = new Date(startDt.getFullYear(), startDt.getMonth(), startDt.getDate());
+  let guard = 0;
+  while (cur.getTime() <= endMsLimit && guard < 3660) {
+    guard++;
+    const next = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
     out.push({
-      key: dt.toISOString().slice(0, 10),
-      label: `${MONTHS[dt.getMonth()]} ${dt.getDate()}`,
-      startMs: t,
-      endMs: t + 86400_000,
+      key: formatLocalYmd(cur),
+      label: `${MONTHS[cur.getMonth()]} ${cur.getDate()}`,
+      startMs: cur.getTime(),
+      endMs: next.getTime(),
     });
+    cur = next;
   }
   return out;
 };
@@ -190,11 +209,13 @@ export const useChartRangeDrag = (
 
 /** Find the bucket index covering a given ms timestamp, or -1. */
 export const bucketIndexOf = (buckets: TimeBucket[], ms: number): number => {
+  if (!Number.isFinite(ms) || !Array.isArray(buckets) || buckets.length === 0) return -1;
   // buckets are sorted ascending; do a binary search.
   let lo = 0, hi = buckets.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     const b = buckets[mid];
+    if (!b) return -1;
     if (ms < b.startMs) hi = mid - 1;
     else if (ms >= b.endMs) lo = mid + 1;
     else return mid;
@@ -237,7 +258,7 @@ export const TooltipContent = ({ active, payload, label }: any) => {
 
 // ── KPI Tile ────────────────────────────────────────────────────────────────
 export interface KpiTileProps {
-  icon: LucideIcon;
+  icon?: LucideIcon;
   glow: string;
   value: number | string;
   label: string;
@@ -281,16 +302,28 @@ export const KpiTile = ({ icon: Icon, glow, value, label, delta, deltaTooltip, s
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.25, position: 'relative' }}>
-          <Box
-            sx={{
-              width: 32, height: 32, borderRadius: 1.25,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              backgroundColor: `${glow}1A`,
-              border: `1px solid ${glow}33`,
-            }}
-          >
-            <Icon size={16} style={{ color: glow }} />
-          </Box>
+          {Icon ? (
+            <Box
+              sx={{
+                width: 32, height: 32, borderRadius: 1.25,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                backgroundColor: `${glow}1A`,
+                border: `1px solid ${glow}33`,
+              }}
+            >
+              <Icon size={16} style={{ color: glow }} />
+            </Box>
+          ) : (
+            <Box
+              sx={{
+                width: 24,
+                height: 3,
+                borderRadius: 1,
+                backgroundColor: glow,
+                my: 0.5,
+              }}
+            />
+          )}
           {onClick && (
             <ArrowUpRight
               size={14}

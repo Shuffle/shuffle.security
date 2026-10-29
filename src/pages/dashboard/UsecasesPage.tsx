@@ -11,7 +11,9 @@ import { useWebhookStatus } from '@/hooks/useWebhookStatus';
 import { useVulnerabilityAutomationStatus, VULNERABILITY_WORKFLOW_LABELS } from '@/hooks/useVulnerabilityAutomationStatus';
 import { VulnerabilityReadinessBanner } from '@/components/vulnerabilities/VulnerabilityReadinessBanner';
 import { useWorkflows } from '@/hooks/useWorkflows';
-import { IncidentRoutingEditor } from '@/components/settings/IncidentRoutingEditor';
+import { IncidentRoutingEditor, DEFAULT_ROUTING_ENTITY_CATEGORY } from '@/components/settings/IncidentRoutingEditor';
+import { DATASTORE_CATEGORY_OPTIONS } from '@/Shuffle-Core/components/DatastoreCategorySelect';
+import { getRoutingAreaTitle } from '@/utils/routingWorkflowUtils';
 import MonitorsView from '@/Shuffle-Core/views/monitors/MonitorsView';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -45,6 +47,9 @@ const UsecasesPage = (props: UsecasesPageProps = {}) => {
   const { userInfo, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [directAddHost, setDirectAddHost] = useState(false);
+  // Category the routing-rules area is showing. The editor's dropdown and the
+  // area title both read this, so switching category renames the area.
+  const [routingCategory, setRoutingCategory] = useState<string>(DEFAULT_ROUTING_ENTITY_CATEGORY);
 
   useEffect(() => {
     if (workflows && workflows.length > 0) {
@@ -90,6 +95,14 @@ const UsecasesPage = (props: UsecasesPageProps = {}) => {
     } as any;
   }, [vulnAutomation, webhook, refetch]);
 
+  // The routing area title follows the selected category: "Incident Routing
+  // Rules" for incidents, "Vulnerability Routing Rules" for vulnerabilities.
+  const routingEntity = DATASTORE_CATEGORY_OPTIONS.find((o) => o.category === routingCategory);
+  const renderUsecaseDetailTitle = useCallback(({ flowId }: { flowId: string; flowLabel: string }) => {
+    if (flowId !== 'case_management_incident_routing_1') return undefined;
+    return getRoutingAreaTitle(routingEntity);
+  }, [routingEntity]);
+
   const renderUsecaseDetailSlot = useCallback(({ flowId, onOpenModal }: any) => {
     if (VULNERABILITY_FLOW_IDS.has(flowId)) {
       // Exact same readiness checker as /vulnerabilities.
@@ -98,8 +111,16 @@ const UsecasesPage = (props: UsecasesPageProps = {}) => {
     if (flowId === 'case_management_incident_routing_1') {
       // Same component used on /preferences — single source of truth so
       // changes apply in both places. The drawer has no paper of its own,
-      // so the editor drops its card styling here too.
-      return <IncidentRoutingEditor forceShow borderless />;
+      // so the editor drops its card styling here too. The category lives up
+      // here so the area title can follow it.
+      return (
+        <IncidentRoutingEditor
+          forceShow
+          borderless
+          entityCategory={routingCategory}
+          onCategoryChange={setRoutingCategory}
+        />
+      );
     }
     if (flowId === 'case_management_schedules_notifications_1') {
       return (
@@ -124,7 +145,7 @@ const UsecasesPage = (props: UsecasesPageProps = {}) => {
       );
     }
     return null;
-  }, [vulnAutomation, navigate, isAuthenticated]);
+  }, [vulnAutomation, navigate, isAuthenticated, routingCategory]);
 
   const renderUsecaseActionModal = useCallback(({ modal, open, onClose }: {
     modal: string;
@@ -152,6 +173,7 @@ const UsecasesPage = (props: UsecasesPageProps = {}) => {
         {...props}
         renderEndpointSlot={renderEndpointSlot}
         renderUsecaseDetailSlot={renderUsecaseDetailSlot}
+        renderUsecaseDetailTitle={renderUsecaseDetailTitle}
         renderUsecaseActionModal={renderUsecaseActionModal}
       />
       {directAddHost && (

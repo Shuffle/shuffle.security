@@ -76,10 +76,40 @@ export const isShuffleCloudDomain = (url?: string | null): boolean => {
  * - <subdomain>.shuffle.security -> preserved as https://<subdomain>.shuffle.security
  * - Self-hosted / on-prem / dev URLs -> preserved as-is
  */
+/**
+ * True when the library is embedded in Shuffle Core on shuffler.io (or a
+ * regional *.shuffler.io host). security.shuffler.io is Shuffle Security
+ * itself and is excluded. On these hosts the session cookie belongs to
+ * shuffler.io, so API calls must stay on *.shuffler.io and never be mapped
+ * to *.shuffle.security.
+ */
+export const isOnShufflerIoHost = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.toLowerCase();
+  if (host === 'security.shuffler.io') return false;
+  return host === 'shuffler.io' || host.endsWith('.shuffler.io');
+};
+
 export const mapCloudRegionUrl = (url?: string | null): string => {
   if (!url || typeof url !== 'string') return '';
   const trimmed = url.trim();
   if (!trimmed) return '';
+
+  if (isOnShufflerIoHost()) {
+    // Embedded in Shuffle Core: keep (or bring back) requests on shuffler.io.
+    try {
+      const parsed = new URL(/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`);
+      const h = parsed.hostname.toLowerCase();
+      if (h === 'shuffle.security' || h === 'www.shuffle.security') {
+        parsed.hostname = 'shuffler.io';
+      } else if (h.endsWith('.shuffle.security')) {
+        parsed.hostname = `${h.slice(0, -'.shuffle.security'.length)}.shuffler.io`;
+      }
+      return parsed.toString().replace(/\/+$/, '');
+    } catch {
+      return trimmed.replace(/\/+$/, '');
+    }
+  }
 
   const hasScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed);
   const toParse = hasScheme ? trimmed : `https://${trimmed}`;
@@ -213,6 +243,9 @@ export const getDefaultBaseUrl = (): string => {
     if (customHost) return customHost;
     return PROD_BACKEND;
   }
+  // Embedded in Shuffle Core on shuffler.io: use the host's own origin so the
+  // shuffler.io session cookie is sent.
+  if (isOnShufflerIoHost()) return window.location.origin;
   // Cloud domains always default to uk.shuffle.security; region_url from getinfo may override later
   if (isCloudDomain()) return PROD_BACKEND;
   // Self-hosted / on-prem: use current domain (nginx proxies /api/* to backend)
@@ -431,8 +464,11 @@ export const setHostBaseUrl = (url: string | undefined | null) => {
   // On Shuffle Cloud the tenant's region_url decides the backend. A cloud URL
   // handed in as globalUrl (often API_CONFIG.baseUrl captured before the
   // region was known, i.e. the UK default) must never pin requests to that
-  // region. Host overrides are only honored for self-hosted backends.
-  if (next && isShuffleCloudDomain(next) && !isDevEnvironment()) next = null;
+  // region. Exception: when embedded in Shuffle Core on *.shuffler.io, the
+  // host's globalUrl always wins (kept on shuffler.io so its cookie is sent).
+  if (next && isShuffleCloudDomain(next) && !isDevEnvironment()) {
+    next = isOnShufflerIoHost() ? (mapCloudRegionUrl(next) || null) : null;
+  }
   if (next === _hostBaseUrl) return;
   _hostBaseUrl = next;
   if (next) {
@@ -486,7 +522,16 @@ export const clearAuthTokens = () => {
 export const getSessionToken = (): string | null => {
   try {
     if (typeof localStorage === 'undefined') return null;
-    if (localStorage.getItem(LEGACY_API_KEY_STORAGE_KEY) !== null) {
+    // Migrate (never silently drop) a legacy API key: cross-origin test
+    // backends such as tunnel.schemaless.org authenticate with it via the
+    // Authorization header, so deleting it signs the user out on refresh.
+    const legacy = localStorage.getItem(LEGACY_API_KEY_STORAGE_KEY);
+    if (legacy !== null) {
+      const current = localStorage.getItem('session_token');
+      const legacyValid = legacy.trim().length > 0 && legacy !== 'null' && legacy !== 'undefined';
+      if (legacyValid && (!current || current === 'null' || current === 'undefined')) {
+        localStorage.setItem('session_token', legacy.trim());
+      }
       localStorage.removeItem(LEGACY_API_KEY_STORAGE_KEY);
     }
     const stored = localStorage.getItem('session_token');

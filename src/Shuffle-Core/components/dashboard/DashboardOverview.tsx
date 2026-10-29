@@ -35,6 +35,7 @@ import { useSyncHostBaseUrl } from '../../useSyncHostBaseUrl';
 import type { ShuffleCoreHostProps } from '../../types/host-props';
 import { fetchIocEntries, sumIocEntries } from '../../utils/iocFeedTotals';
 import { isSlaBreached, type SlaTargets } from '../../utils/slaBreach';
+import { incidentSloAttainment } from '../../utils/taskSla';
 
 interface OverviewIncident {
   status: string;
@@ -72,6 +73,10 @@ export interface OverviewProps extends ShuffleCoreHostProps {
   /** Per-severity respond/resolve targets in minutes. When set, the
    *  dashboard shows SLA breaches in Incident Activity and as a tile. */
   slaTargets?: SlaTargets;
+  /** Optional SLO target percent; when set with slaTargets, shows an SLO attainment tile. */
+  sloTargetPercent?: number;
+  /** Targets used for SLO attainment when SLA timers are off. Defaults to slaTargets. */
+  sloSlaTargets?: SlaTargets;
 }
 
 // Resolved first so it sits at the bottom of the stack; the top edge is
@@ -98,6 +103,8 @@ export const DashboardOverview = ({
   onRangeSelect,
   onOpenUsecase,
   slaTargets,
+  sloTargetPercent,
+  sloSlaTargets,
   // Standard Shuffle-Core host props — accepted for API consistency across
   // components mounted in multiple places. Not currently consumed because this
   // surface is purely presentational over host-supplied data.
@@ -242,6 +249,14 @@ export const DashboardOverview = ({
     const now = Date.now();
     return incidents.filter(i => i.status !== 'resolved' && i.status !== 'closed' && isSlaBreached(i, slaTargets, now)).length;
   }, [incidents, slaTargets]);
+  const sloAttainment = useMemo(
+    () => {
+      const t = sloSlaTargets || slaTargets;
+      return t && sloTargetPercent ? incidentSloAttainment(incidents, t) : null;
+    },
+    [incidents, slaTargets, sloSlaTargets, sloTargetPercent],
+  );
+  const showSlo = Boolean((sloSlaTargets || slaTargets) && sloTargetPercent);
   const seriesColors: Record<string, string> = slaTargets ? { ...STATUS_COLORS, 'SLA Breached': NEON.red } : STATUS_COLORS;
 
   const trendHasData = trendData.some(d => d.New || d['In Progress'] || d.Resolved);
@@ -275,7 +290,7 @@ export const DashboardOverview = ({
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: slaTargets ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)' },
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: `repeat(${4 + (slaTargets ? 1 : 0) + (showSlo ? 1 : 0)}, 1fr)` },
           gap: 1.5,
           mb: 1.5,
         }}
@@ -317,6 +332,17 @@ export const DashboardOverview = ({
             isLoading={incidentsLoading}
             onClick={() => navigate('/incidents')}
             delay={0.08}
+          />
+        )}
+        {showSlo && (
+          <KpiTile
+            icon={AlertTriangle}
+            glow={sloAttainment !== null && sloAttainment < (sloTargetPercent || 0) ? NEON.red : NEON.green}
+            value={sloAttainment === null ? '-' : `${Math.round(sloAttainment)}%`}
+            label={`SLO Attainment (target ${sloTargetPercent}%)`}
+            isLoading={incidentsLoading}
+            onClick={() => navigate('/incidents')}
+            delay={0.09}
           />
         )}
         <KpiTile
@@ -382,16 +408,13 @@ export const DashboardOverview = ({
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={32} />
                   <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
                   <RechartsTooltip content={<TooltipContent />} cursor={{ stroke: NEON.violet, strokeOpacity: 0.3, strokeWidth: 1 }} />
-                  {/* Resolved, New and In Progress are stacked so the top edge
-                      is every incident created that day. SLA Breached counts
-                      only the open ones past their target, so it is drawn on
-                      its own and always sits at or below the top edge. */}
+                  {/* Each series is drawn at its own count (not stacked), so a
+                      line's height always equals that status's real number. */}
                   {Object.entries(seriesColors).map(([k, c]) => (
                     <Area
                       key={k}
                       type="monotone"
                       dataKey={k}
-                      stackId={k === 'SLA Breached' ? undefined : 'open'}
                       hide={trendSeries.isHidden(k)}
                       stroke={c}
                       strokeWidth={2}

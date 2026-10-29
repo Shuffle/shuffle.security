@@ -28,6 +28,7 @@ import {
   QueryClientContext,
 } from "@tanstack/react-query";
 import { AuthFallbackProvider } from "@/context/AuthContext";
+import { useSyncHostBaseUrl } from "./useSyncHostBaseUrl";
 
 import UsecasesRaw, {
   UsecaseDrawer as UsecaseDrawerRaw,
@@ -42,6 +43,7 @@ import AutomationDashboardRaw from "./components/dashboard/AutomationDashboard";
 import DashboardOverviewRaw from "./components/dashboard/DashboardOverview";
 import AgentsDashboardRaw from "./components/dashboard/AgentsDashboard";
 import VulnerabilitiesDashboardRaw from "./components/dashboard/VulnerabilitiesDashboard";
+import CustomDashboardRaw from "./components/dashboard/CustomDashboard";
 import CombinedDashboardRaw from "./components/dashboard/CombinedDashboard";
 import BillingRaw from "./views/Billing";
 import TenantManagementRaw from "./views/TenantManagement";
@@ -62,7 +64,7 @@ import AdminSetupRaw, { type AdminSetupProps } from "./views/AdminSetup";
  * (e.g. AutomationDashboard's `mode: 'apps' | 'workflows'`).
  */
 export type ShuffleTheme = "light" | "dark" | "system";
-type WithTheme<P> = P & { theme?: ShuffleTheme; colorMode?: ShuffleColorMode };
+type WithTheme<P> = P & { theme?: ShuffleTheme; colorMode?: ShuffleColorMode; /** Backend base URL. On *.shuffler.io hosts it always wins; on Shuffle Cloud elsewhere only self-hosted URLs are honored. */ globalUrl?: string };
 
 const resolveMode = (
   theme?: ShuffleTheme,
@@ -108,7 +110,9 @@ const withTheme = <P extends object>(
   Inner: React.ComponentType<P>,
   displayName: string,
 ) => {
-  const Wrapped: React.FC<WithTheme<P>> = ({ theme, colorMode, ...rest }) => (
+  const Wrapped: React.FC<WithTheme<P>> = ({ theme, colorMode, ...rest }) => {
+    useSyncHostBaseUrl((rest as any).globalUrl);
+    return (
     <EnsureQueryClient>
       <AuthFallbackProvider>
       <ShuffleCoreThemeProvider mode={resolveMode(theme, colorMode)}>
@@ -121,7 +125,8 @@ const withTheme = <P extends object>(
       </ShuffleCoreThemeProvider>
       </AuthFallbackProvider>
     </EnsureQueryClient>
-  );
+    );
+  };
   Wrapped.displayName = `ShuffleCore(${displayName})`;
   return Wrapped;
 };
@@ -130,7 +135,9 @@ const withThemeRef = <P extends object, R>(
   Inner: React.ForwardRefExoticComponent<P & React.RefAttributes<R>>,
   displayName: string,
 ) => {
-  const Wrapped = React.forwardRef<R, WithTheme<P>>(({ theme, colorMode, ...rest }, ref) => (
+  const Wrapped = React.forwardRef<R, WithTheme<P>>(({ theme, colorMode, ...rest }, ref) => {
+    useSyncHostBaseUrl((rest as any).globalUrl);
+    return (
     <EnsureQueryClient>
       <AuthFallbackProvider>
         <ShuffleCoreThemeProvider mode={resolveMode(theme, colorMode)}>
@@ -138,7 +145,8 @@ const withThemeRef = <P extends object, R>(
         </ShuffleCoreThemeProvider>
       </AuthFallbackProvider>
     </EnsureQueryClient>
-  ));
+    );
+  });
   Wrapped.displayName = `ShuffleCore(${displayName})`;
   return Wrapped as React.ForwardRefExoticComponent<WithTheme<P> & React.RefAttributes<R>>;
 };
@@ -166,6 +174,10 @@ export const VulnerabilitiesDashboard = withTheme(
   VulnerabilitiesDashboardRaw,
   "VulnerabilitiesDashboard",
 );
+export const CustomDashboard = withTheme(
+  CustomDashboardRaw,
+  "CustomDashboard",
+);
 export const CombinedDashboard = withTheme(
   CombinedDashboardRaw,
   "CombinedDashboard",
@@ -185,9 +197,60 @@ export type { TenantManagementProps } from "./views/TenantManagement";
 export type { AutomationDashboardProps } from "./components/dashboard/AutomationDashboard";
 export type { AgentsDashboardProps } from "./components/dashboard/AgentsDashboard";
 export type { VulnerabilitiesDashboardProps } from "./components/dashboard/VulnerabilitiesDashboard";
+export type { CustomDashboardProps } from "./components/dashboard/CustomDashboard";
+import {
+  CreateDashboardDialog as CreateDashboardDialogRaw,
+  WidgetEditorDialog as WidgetEditorDialogRaw,
+  DashboardJsonDialog as DashboardJsonDialogRaw,
+  type CreateDashboardDialogProps,
+  type WidgetEditorDialogProps,
+  type DashboardJsonDialogProps,
+} from "./components/dashboard/CustomDashboardEditorDialog";
+export const CreateDashboardDialog = withTheme<CreateDashboardDialogProps>(
+  CreateDashboardDialogRaw,
+  "CreateDashboardDialog",
+);
+export const WidgetEditorDialog = withTheme<WidgetEditorDialogProps>(
+  WidgetEditorDialogRaw,
+  "WidgetEditorDialog",
+);
+export const DashboardJsonDialog = withTheme<DashboardJsonDialogProps>(
+  DashboardJsonDialogRaw,
+  "DashboardJsonDialog",
+);
+export type {
+  CreateDashboardDialogProps,
+  WidgetEditorDialogProps,
+  DashboardJsonDialogProps,
+};
+export {
+  isCustomDashboardAdmin,
+  isCustomDashboardTab,
+  toCustomDashboardTab,
+  fromCustomDashboardTab,
+  createStarterCustomDashboard,
+  validateCustomDashboardConfig,
+  BUILTIN_METRICS,
+  KNOWN_DATASTORE_CATEGORIES,
+  VISUALIZATION_OPTIONS,
+  WIDGET_SPAN_OPTIONS,
+  type CustomDashboardConfig,
+  type CustomDashboardWidget,
+  type CustomWidgetDataSource,
+  type CustomWidgetVisualization,
+  type CustomDashboardTab,
+  type WidgetSpan,
+  type BuiltinMetricId,
+} from "./components/dashboard/customDashboardTypes";
+export {
+  useCustomDashboards,
+  type UseCustomDashboardsOptions,
+  type UseCustomDashboardsResult,
+} from "./hooks/useCustomDashboards";
 export type {
   CombinedDashboardProps,
   DashboardTab,
+  BuiltinDashboardTab,
 } from "./components/dashboard/CombinedDashboard";
 export {
   DASHBOARD_TABS,

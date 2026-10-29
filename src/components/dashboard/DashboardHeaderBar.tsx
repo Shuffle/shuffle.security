@@ -6,7 +6,14 @@
 import { forwardRef } from 'react';
 import { Box, FormControl, IconButton, InputLabel, ListSubheader, MenuItem, Select, Tooltip } from '@mui/material';
 import { RefreshCw as RefreshIcon, X as CloseIcon } from 'lucide-react';
-import { AUTOMATION_RANGE_OPTIONS, TAB_LABELS, type DashboardTab } from '@/Shuffle-Core';
+import {
+  AUTOMATION_RANGE_OPTIONS,
+  TAB_LABELS,
+  isCustomDashboardTab,
+  toCustomDashboardTab,
+  type CustomDashboardConfig,
+  type DashboardTab,
+} from '@/Shuffle-Core';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 
 export interface DashboardHeaderBarProps {
@@ -21,9 +28,18 @@ export interface DashboardHeaderBarProps {
   gran: 'daily' | 'monthly';
   onGranChange: (gran: 'daily' | 'monthly') => void;
   onRefresh: () => void;
+  customDashboards?: CustomDashboardConfig[];
+  onCreateDashboard?: () => void;
 }
 
-const subheaderSx = { fontSize: '0.68rem', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 2.4, color: 'hsl(var(--muted-foreground))', bgcolor: 'transparent' } as const;
+const subheaderSx = {
+  fontSize: '0.68rem',
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  lineHeight: 2.4,
+  color: 'hsl(var(--muted-foreground))',
+  bgcolor: 'transparent',
+} as const;
 
 const fmtShort = (ms: number) => {
   const d = new Date(ms);
@@ -32,18 +48,44 @@ const fmtShort = (ms: number) => {
 };
 
 export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarProps>(function DashboardHeaderBar(
-  { tab, onTabChange, days, onDaysChange, customRange, onClearCustomRange, mode, onModeChange, gran, onGranChange, onRefresh },
+  {
+    tab,
+    onTabChange,
+    days,
+    onDaysChange,
+    customRange,
+    onClearCustomRange,
+    mode,
+    onModeChange,
+    gran,
+    onGranChange,
+    onRefresh,
+    customDashboards = [],
+    onCreateDashboard,
+  },
   ref,
 ) {
+  const daysStr = String(days ?? '30');
   const customRangeLabel = customRange ? `${fmtShort(customRange.fromMs)} → ${fmtShort(customRange.toMs)}` : null;
   const isAutomation = tab === 'automation';
+  const hasMatchingCustom =
+    isCustomDashboardTab(tab) && customDashboards.some((d) => toCustomDashboardTab(d.id) === tab);
+  const selectValue = isCustomDashboardTab(tab) && !hasMatchingCustom ? 'security' : tab;
+
   return (
     <Box ref={ref} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 36 }}>
         <FormControl size="small" sx={{ minWidth: 210 }}>
           <Select
-            value={tab}
-            onChange={(e) => onTabChange(e.target.value as DashboardTab)}
+            value={selectValue}
+            onChange={(e) => {
+              const val = String(e.target.value);
+              if (val === '__new_custom__') {
+                onCreateDashboard?.();
+                return;
+              }
+              onTabChange?.(val as DashboardTab);
+            }}
             inputProps={{ 'aria-label': 'Dashboard view' }}
             sx={{
               height: 36,
@@ -60,6 +102,22 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
             <ListSubheader sx={subheaderSx}>Automation</ListSubheader>
             <MenuItem value="automation">{TAB_LABELS.automation}</MenuItem>
             <MenuItem value="agents">{TAB_LABELS.agents}</MenuItem>
+            {(customDashboards.length > 0 || onCreateDashboard) && (
+              <ListSubheader sx={subheaderSx}>Custom</ListSubheader>
+            )}
+            {customDashboards.map((d) => (
+              <MenuItem key={d.id} value={toCustomDashboardTab(d.id)}>
+                {d.name}
+              </MenuItem>
+            ))}
+            {onCreateDashboard && (
+              <MenuItem
+                value="__new_custom__"
+                sx={{ fontWeight: 600, color: 'hsl(var(--primary))' }}
+              >
+                + New custom dashboard...
+              </MenuItem>
+            )}
           </Select>
         </FormControl>
       </Box>
@@ -68,19 +126,19 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
           <InputLabel>Last</InputLabel>
           <Select
             label="Last"
-            value={customRange ? '__custom__' : days}
+            value={customRange ? '__custom__' : daysStr}
             onChange={(e) => {
               const v = String(e.target.value);
               if (v === '__custom__') return;
-              onClearCustomRange();
-              onDaysChange(v);
+              onClearCustomRange?.();
+              onDaysChange?.(v);
             }}
-            renderValue={() => customRangeLabel ?? (AUTOMATION_RANGE_OPTIONS.find(o => o.value === days)?.label ?? `${days} days`)}
+            renderValue={() => customRangeLabel ?? (AUTOMATION_RANGE_OPTIONS.find(o => o.value === daysStr)?.label ?? `${daysStr} days`)}
             endAdornment={customRange ? (
               <IconButton
                 size="small"
                 onMouseDown={(e) => { e.stopPropagation(); }}
-                onClick={(e) => { e.stopPropagation(); onClearCustomRange(); }}
+                onClick={(e) => { e.stopPropagation(); onClearCustomRange?.(); }}
                 sx={{ mr: 3, p: 0.25, color: 'hsl(var(--muted-foreground))' }}
                 aria-label="Clear custom range"
               >
@@ -101,7 +159,7 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
             <SegmentedControl
               ariaLabel="Mode"
               value={mode}
-              onChange={(v) => onModeChange(v as 'workflows' | 'apps')}
+              onChange={(v) => onModeChange?.(v as 'workflows' | 'apps')}
               options={[
                 { value: 'workflows', label: 'Workflows' },
                 { value: 'apps', label: 'Apps' },
@@ -113,14 +171,14 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
           <SegmentedControl
             ariaLabel="Granularity"
             value={gran}
-            onChange={(v) => onGranChange(v as 'daily' | 'monthly')}
+            onChange={(v) => onGranChange?.(v as 'daily' | 'monthly')}
             options={[{ value: 'daily', label: 'Daily' }, { value: 'monthly', label: 'Monthly' }]}
           />
         </Box>
         <Tooltip title="Refresh">
           <IconButton
             size="small"
-            onClick={onRefresh}
+            onClick={() => onRefresh?.()}
             sx={{ color: 'hsl(var(--muted-foreground))', alignSelf: 'flex-end', width: 36, height: 36, borderRadius: '8px' }}
           >
             <RefreshIcon size={16} />

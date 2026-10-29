@@ -732,6 +732,39 @@ export interface AgentUIApp {
   icon?: string;
 }
 
+/** Normalizes an app name so "Shuffle Workflows Builder" and "shuffle_workflows_builder" match. */
+const agentAppKey = (name?: string) =>
+  String(name || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+
+/**
+ * Removes duplicate apps (same id, or same normalized name). The latest
+ * addition stays, but keeps an id/icon the newer entry lacks.
+ */
+export function dedupeAgentApps(list: AgentUIApp[] | null | undefined): AgentUIApp[] {
+  if (!Array.isArray(list)) return [];
+  const out: AgentUIApp[] = [];
+  for (const app of list) {
+    if (!app?.name && !app?.id) continue;
+    const key = agentAppKey(app.name);
+    const existingIndex = out.findIndex(
+      (a) => (key && agentAppKey(a.name) === key) || (!!app.id && !!a.id && a.id === app.id),
+    );
+    if (existingIndex >= 0) {
+      const existing = out[existingIndex];
+      // The latest addition wins; carry over id/icon it does not have.
+      out[existingIndex] = {
+        ...existing,
+        name: app.name || existing.name,
+        id: app.id || existing.id,
+        icon: app.icon || existing.icon,
+      };
+      continue;
+    }
+    out.push({ ...app });
+  }
+  return out;
+}
+
 /** Top-level views of AgentUI. */
 export type AgentUIView = 'start' | 'simple' | 'detailed' | 'chat';
 type RunViewMode = Exclude<AgentUIView, 'start'>;
@@ -2869,13 +2902,18 @@ const AgentUI: React.FC<AgentUIProps> = ({
     { name: 'http' },
     { name: 'shuffle_tools' },
   ];
-  const [chosenApps, setChosenApps] = useState<AgentUIApp[]>(() => {
-    if (apps) return apps;
-    if (defaultApps !== undefined) return defaultApps.slice(0, MAX_AUTO_ASSIGNED_TOOLS);
+  const [chosenApps, setChosenAppsRaw] = useState<AgentUIApp[]>(() => {
+    if (apps) return dedupeAgentApps(apps);
+    if (defaultApps !== undefined) return dedupeAgentApps(defaultApps).slice(0, MAX_AUTO_ASSIGNED_TOOLS);
     const saved = readPresetAppsOverride(NO_PRESET_KEY);
-    if (saved) return saved;
+    if (saved) return dedupeAgentApps(saved);
     return BUILTIN_DEFAULT_APPS;
   });
+  // Every write goes through dedupe so the same app can never be attached twice,
+  // whichever path (preset, picker, execution restore, override) adds it.
+  const setChosenApps = useCallback((next: AgentUIApp[] | ((prev: AgentUIApp[]) => AgentUIApp[])) => {
+    setChosenAppsRaw((prev) => dedupeAgentApps(typeof next === 'function' ? next(prev) : next));
+  }, []);
   const isInitialMountChosenAppsRef = useRef(true);
   const isInitialMountPresetOverrideRef = useRef(true);
 

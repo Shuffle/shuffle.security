@@ -23,7 +23,7 @@ COPY . .
 RUN bun run build
 
 # Stage 2: Serve with Node.js + Nginx reverse proxy
-FROM node:20-alpine
+FROM node:24.22.1-alpine
 
 # Install nginx, openssl, gettext (for envsubst), and bash
 RUN apk add --no-cache nginx openssl gettext bash

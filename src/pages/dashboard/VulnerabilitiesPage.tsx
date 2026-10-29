@@ -271,8 +271,8 @@ const AuthenticatedVulnerabilitiesView = () => {
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-6">
-      {/* Vulnerability Automation */}
-      <VulnerabilityAutomationBanner />
+      {/* Vulnerability Automation — only useful while it is not running yet */}
+      <VulnerabilityAutomationBanner hideWhenActive />
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -598,6 +598,7 @@ const VulnTable = ({
   }
 
   return (
+    <>
     <div className="rounded-lg border border-border bg-transparent backdrop-blur-md overflow-hidden">
       <Table>
         <TableHeader>
@@ -674,6 +675,8 @@ const VulnTable = ({
           <ListLoadMoreButton onLoadMore={onLoadMore} isLoading={isLoading} />
         </Box>
       )}
+    </div>
+    {/* Outside the blurred table box: backdrop-filter would otherwise pin the fixed bar to the table. */}
       <ListPaginationBar
         currentPage={currentPage}
         totalItems={sorted.length}
@@ -684,7 +687,7 @@ const VulnTable = ({
         onLoadMore={onLoadMore}
         loadMoreTitle="Load more vulnerabilities"
       />
-    </div>
+    </>
   );
 };
 

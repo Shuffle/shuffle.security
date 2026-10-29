@@ -241,11 +241,51 @@ export function buildSampleAgentRuns(now = Date.now(), count = 400) {
   });
 }
 
+export function buildSampleCustomDashboards(now = Date.now()) {
+  const sampleDashboard = {
+    version: 1,
+    id: 'sample-soc-exec',
+    name: 'Executive SOC Summary',
+    description: 'High-level custom dashboard combining built-in security metrics, datastore breakdowns, and custom workflow stats.',
+    createdAt: now - 7 * DAY,
+    updatedAt: now - DAY,
+    widgets: [
+      { id: 'w-open-inc', title: 'Open Incidents', visualization: 'kpi', span: 3, accentColor: 'magenta', dataSource: { kind: 'builtin', builtinId: 'open_incidents' } },
+      { id: 'w-crit-inc', title: 'Critical / High Incidents', visualization: 'kpi', span: 3, accentColor: 'red', dataSource: { kind: 'builtin', builtinId: 'critical_high_incidents' } },
+      { id: 'w-phishing', title: 'Phishing Reports Handled', visualization: 'kpi', span: 3, accentColor: 'cyan', dataSource: { kind: 'custom_stat', statKey: 'phishing_reports_handled' } },
+      { id: 'w-hours', title: 'Analyst Hours Saved', visualization: 'kpi', span: 3, accentColor: 'green', dataSource: { kind: 'builtin', builtinId: 'hours_saved' } },
+      { id: 'w-inc-act', title: 'Incident Volume Over Time', visualization: 'bar', span: 6, accentColor: 'magenta', dataSource: { kind: 'builtin', builtinId: 'incident_activity' } },
+      { id: 'w-iocs', title: 'IOCs Enriched per Day', visualization: 'area', span: 6, accentColor: 'violet', dataSource: { kind: 'custom_stat', statKey: 'iocs_enriched' } },
+      { id: 'w-ds-sev', title: 'Incidents by Severity (Datastore)', visualization: 'horizontal_bar', span: 6, accentColor: 'amber', dataSource: { kind: 'datastore_category', category: 'shuffle-security_incidents', aggregation: 'group_by', groupByField: 'severity' } },
+      { id: 'w-ds-vuln', title: 'Vulnerabilities by Source (Datastore)', visualization: 'radial', span: 6, accentColor: 'cyan', dataSource: { kind: 'datastore_category', category: 'shuffle-security_vulns', aggregation: 'group_by', groupByField: 'source' } },
+    ],
+  };
+  return {
+    success: true,
+    keys: [
+      {
+        key: sampleDashboard.id,
+        category: 'shuffle-security_dashboards',
+        value: JSON.stringify(sampleDashboard),
+        created: Math.floor(sampleDashboard.createdAt / 1000),
+        edited: Math.floor(sampleDashboard.updatedAt / 1000),
+      },
+    ],
+  };
+}
+
 // ── Fetch interception ────────────────────────────────────────────────────
 type Responder = (url: URL, init?: RequestInit) => unknown | undefined;
 
 const RESPONDERS: Responder[] = [
-  (u) => (/\/api\/v1\/orgs\/[^/]+\/list_cache$/.test(u.pathname) ? buildSampleIncidentList() : undefined),
+  (u) => {
+    if (!/\/api\/v1\/orgs\/[^/]+\/list_cache$/.test(u.pathname)) return undefined;
+    const category = u.searchParams.get('category') || '';
+    if (category === 'shuffle-security_dashboards') return buildSampleCustomDashboards();
+    if (category === 'shuffle-security_vulns') return buildSampleVulns();
+    return buildSampleIncidentList();
+  },
+  (u) => (/\/api\/v1\/orgs\/[^/]+\/(set_cache|delete_cache)$/.test(u.pathname) ? { success: true } : undefined),
   (u) => (u.pathname.endsWith('/api/v1/apps/authentication') ? buildSampleAppAuth() : undefined),
   (u) => (/\/api\/v1\/orgs\/[^/]+\/stats$/.test(u.pathname) ? buildSampleStats() : undefined),
   (u) => (u.pathname.endsWith('/api/v1/notifications') ? { success: true, notifications: buildSampleNotifications() } : undefined),

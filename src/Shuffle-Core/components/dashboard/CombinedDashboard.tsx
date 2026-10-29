@@ -26,6 +26,16 @@ import DashboardOverview, { type OverviewProps } from './DashboardOverview';
 import AutomationDashboard, { type AutomationDashboardProps, AUTOMATION_RANGE_OPTIONS } from './AutomationDashboard';
 import AgentsDashboard from './AgentsDashboard';
 import VulnerabilitiesDashboard from './VulnerabilitiesDashboard';
+import CustomDashboard from './CustomDashboard';
+import { CreateDashboardDialog } from './CustomDashboardEditorDialog';
+import {
+  fromCustomDashboardTab,
+  isCustomDashboardAdmin,
+  isCustomDashboardTab,
+  toCustomDashboardTab,
+  type CustomDashboardTab,
+} from './customDashboardTypes';
+import { useCustomDashboards } from '../../hooks/useCustomDashboards';
 import { SegmentedControl } from '../ui/segmented-control';
 import type { ShuffleCoreHostProps } from '../../types/host-props';
 import { useSyncHostBaseUrl } from '../../useSyncHostBaseUrl';
@@ -49,11 +59,12 @@ export interface CombinedDashboardProps
 }
 
 /** Available dashboard surfaces, grouped in the header dropdown under
- *  "Security" (Security Operations, Vulnerabilities) and "Automation"
- *  (Automation, Agents). */
-export type DashboardTab = 'security' | 'vulnerabilities' | 'automation' | 'agents';
-export const DASHBOARD_TABS: DashboardTab[] = ['security', 'vulnerabilities', 'automation', 'agents'];
-export const TAB_LABELS: Record<DashboardTab, string> = {
+ *  "Security" (Security Operations, Vulnerabilities), "Automation"
+ *  (Automation, Agents), and "Custom" (user-created custom dashboards). */
+export type BuiltinDashboardTab = 'security' | 'vulnerabilities' | 'automation' | 'agents';
+export type DashboardTab = BuiltinDashboardTab | CustomDashboardTab;
+export const DASHBOARD_TABS: BuiltinDashboardTab[] = ['security', 'vulnerabilities', 'automation', 'agents'];
+export const TAB_LABELS: Record<BuiltinDashboardTab, string> = {
   security: 'Security Operations',
   vulnerabilities: 'Vulnerabilities',
   automation: 'Automation',
@@ -116,11 +127,35 @@ const CombinedDashboard = ({
   const [tab, setTab] = useState<DashboardTab>(() => {
     try {
       const stored = localStorage.getItem('shuffle_dashboard_tab') as DashboardTab | null;
-      if (stored && DASHBOARD_TABS.includes(stored)) return stored;
+      if (stored && (DASHBOARD_TABS.includes(stored as BuiltinDashboardTab) || isCustomDashboardTab(stored))) {
+        return stored;
+      }
     } catch { /* noop */ }
     return defaultTab;
   });
   useEffect(() => { try { localStorage.setItem('shuffle_dashboard_tab', tab); } catch { /* noop */ } }, [tab]);
+
+  const effectiveOrgId = orgId ?? (host.userdata as { active_org?: { id?: string } } | undefined)?.active_org?.id ?? null;
+  const canManageDashboards = useMemo(
+    () => isCustomDashboardAdmin(host.userdata, effectiveOrgId),
+    [host.userdata, effectiveOrgId],
+  );
+  const {
+    dashboards: customDashboards,
+    createDashboard,
+    saveDashboard,
+    deleteDashboard,
+  } = useCustomDashboards({
+    orgId: effectiveOrgId,
+    enabled: host.isLoaded !== false,
+  });
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  const activeCustomDashboard = useMemo(() => {
+    const customId = fromCustomDashboardTab(tab);
+    if (!customId) return null;
+    return customDashboards.find((d) => d.id === customId) || null;
+  }, [tab, customDashboards]);
 
   const [days, setDays] = useState<string>('30');
   const [gran, setGran] = useState<'daily' | 'monthly'>('daily');
@@ -328,7 +363,7 @@ const CombinedDashboard = ({
           const table = await buildSectionTable(def.id, {
             fromMs: rangeFrom,
             toMs: rangeTo,
-            orgId: orgId ?? undefined,
+            orgId: effectiveOrgId ?? undefined,
             userdata: host.userdata,
             incidentsCategory: DATASTORE_CATEGORIES.INCIDENTS,
           });
@@ -369,13 +404,22 @@ const CombinedDashboard = ({
 
 
 
+  const selectValue = isCustomDashboardTab(tab) && !activeCustomDashboard ? 'security' : tab;
+
   const sharedHeader = (
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 36 }}>
         <FormControl size="small" sx={{ minWidth: 210 }}>
           <Select
-            value={tab}
-            onChange={(e) => setTab(e.target.value as DashboardTab)}
+            value={selectValue}
+            onChange={(e) => {
+              const val = String(e.target.value);
+              if (val === '__new_custom__') {
+                setCreateDialogOpen(true);
+                return;
+              }
+              setTab(val as DashboardTab);
+            }}
             inputProps={{ 'aria-label': 'Dashboard view' }}
             sx={{
               height: 36,
@@ -396,6 +440,24 @@ const CombinedDashboard = ({
             </ListSubheader>
             <MenuItem value="automation">{TAB_LABELS.automation}</MenuItem>
             <MenuItem value="agents">{TAB_LABELS.agents}</MenuItem>
+            {(customDashboards.length > 0 || canManageDashboards) && (
+              <ListSubheader sx={{ fontSize: '0.68rem', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 2.4, color: 'hsl(var(--muted-foreground))', bgcolor: 'transparent' }}>
+                Custom
+              </ListSubheader>
+            )}
+            {customDashboards.map((d) => (
+              <MenuItem key={d.id} value={toCustomDashboardTab(d.id)}>
+                {d.name}
+              </MenuItem>
+            ))}
+            {canManageDashboards && (
+              <MenuItem
+                value="__new_custom__"
+                sx={{ fontWeight: 600, color: 'hsl(var(--primary))' }}
+              >
+                + New custom dashboard...
+              </MenuItem>
+            )}
           </Select>
         </FormControl>
       </Box>
@@ -482,10 +544,42 @@ const CombinedDashboard = ({
     <Box sx={{ maxWidth: 1100, width: '100%', mx: 'auto', pt: '25px', display: 'flex', flexDirection: 'column', gap: 3 }}>
       {sharedHeader}
       <Box ref={dashboardRef}>
-        {tab === 'agents' ? (
+        {activeCustomDashboard ? (
+          <CustomDashboard
+            {...host}
+            orgId={effectiveOrgId}
+            dashboard={activeCustomDashboard}
+            canEdit={canManageDashboards}
+            onUpdateDashboard={
+              canManageDashboards
+                ? async (updated) => {
+                    await saveDashboard(updated);
+                  }
+                : undefined
+            }
+            onDeleteDashboard={
+              canManageDashboards
+                ? async (id) => {
+                    await deleteDashboard(id);
+                    setTab('security');
+                  }
+                : undefined
+            }
+            onCreateDashboard={canManageDashboards ? () => setCreateDialogOpen(true) : undefined}
+            days={parseInt(days, 10) || 30}
+            gran={gran}
+            customRange={customRange}
+            onRangeSelect={(fromMs, toMs) => setCustomRange({ fromMs, toMs })}
+            refreshKey={(refreshKeyProp ?? 0) + internalRefreshKey}
+            incidents={eIncidents}
+            incidentsLoading={eIncidentsLoading}
+            vulnSeverityCounts={eVulns}
+            vulnLoading={eVulnLoading}
+          />
+        ) : tab === 'agents' ? (
           <AgentsDashboard
             {...host}
-            orgId={orgId ?? undefined}
+            orgId={effectiveOrgId ?? undefined}
             days={parseInt(days, 10) || 30}
             gran={gran}
             customRange={customRange}
@@ -495,7 +589,7 @@ const CombinedDashboard = ({
         ) : tab === 'vulnerabilities' ? (
           <VulnerabilitiesDashboard
             {...host}
-            orgId={orgId ?? undefined}
+            orgId={effectiveOrgId ?? undefined}
             days={parseInt(days, 10) || 30}
             gran={gran}
             customRange={customRange}
@@ -505,7 +599,7 @@ const CombinedDashboard = ({
         ) : tab === 'automation' ? (
           <AutomationDashboard
             {...host}
-            orgId={orgId}
+            orgId={effectiveOrgId}
             displayName={displayName}
             headerLeft={headerLeft}
             days={days}
@@ -537,6 +631,17 @@ const CombinedDashboard = ({
           />
         )}
       </Box>
+
+      {canManageDashboards && (
+        <CreateDashboardDialog
+          open={createDialogOpen}
+          onClose={() => setCreateDialogOpen(false)}
+          onSubmit={async ({ name, description, useStarterTemplate }) => {
+            const created = await createDashboard(name, description, useStarterTemplate);
+            setTab(toCustomDashboardTab(created.id));
+          }}
+        />
+      )}
 
       {/* Export progress — rendered OUTSIDE the captured node so it never
        *  ends up in the screenshots. */}

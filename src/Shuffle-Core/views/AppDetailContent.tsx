@@ -1162,6 +1162,7 @@ export default function AppDetailContent({
                   document.getElementById('app-auth-section')?.scrollIntoView({ behavior: 'smooth' });
                 }}
                 mode={mode}
+                theme={theme as any}
               />
             )}
 

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback, useRef } from 'react';
+import { type Context, createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback, useRef } from 'react';
 import { registerTenantRegions } from '@/lib/tenantApiUrl';
 import { setRegionCookie } from '@/lib/regionRouting';
 import { getApiUrl, getAuthHeader, getSessionAuthHeader, setRegionUrl, resetRegionUrl, getTrackedOrgId, applyRegionFromPayload, setHostBaseUrl, getHostBaseUrl, setSessionToken as persistSessionToken, clearAuthTokens, getSessionToken, isDevEnvironment, isCloud, mapCloudRegionUrl, getDefaultBaseUrl, getRegionUrl, isCapacitorNative, isCrossDomainBackend } from '@/Shuffle-Core/api';
@@ -32,6 +32,8 @@ interface SyncFeatureUsage {
 interface UserInfo {
   username?: string;
   id?: string;
+  role?: string;
+  admin?: boolean;
   active_org?: Organization;
   orgs?: Organization[];
   support?: boolean;
@@ -56,7 +58,12 @@ interface AuthContextType {
   dismissOrgMismatch: () => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Keep one context instance across hot reloads. Without this, re-evaluating
+// this module creates a new context while the mounted AuthProvider still
+// serves the old one, and every useAuth() caller throws.
+const AUTH_CONTEXT_KEY = '__shuffleAuthContext__';
+const AuthContext: Context<AuthContextType | undefined> =
+  ((globalThis as any)[AUTH_CONTEXT_KEY] ??= createContext<AuthContextType | undefined>(undefined));
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Optimistic hydration: if a previous session's userInfo is cached in
@@ -119,6 +126,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const info = {
       username: data.username,
       id: data.id,
+      role: data.role,
+      admin: data.admin === true || data.admin === 'true',
       active_org: mappedActiveOrg,
       orgs: mappedOrgs,
       support: data.support === true || data.support === 'true',

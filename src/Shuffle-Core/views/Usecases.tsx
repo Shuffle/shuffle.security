@@ -35,6 +35,7 @@ import ReactGA from 'react-ga4';
 import shuffleSecurityIcon from '../assets/shuffle-icon.png';
 import UsecaseAlluvialDiagram, { extractNotificationWorkflowAppNames, matchesCategory } from './UsecaseAlluvialDiagram';
 import { findForwardTicketsWorkflow } from '../ingestionDetection';
+import { getUsecaseToggleChip } from './usecaseToggleChip';
 import { useEntityPreference } from '@/hooks/useEntityLabel';
 import AppSearchDrawer from './AppSearchDrawer';
 import {
@@ -1200,6 +1201,11 @@ interface UsecasesPageConfig {
    *  Routing editor or the vulnerability readiness banner) instead of
    *  bundling it into Shuffle-Core. */
   renderUsecaseDetailSlot?: (params: { flowId: string; flowLabel: string; onOpenModal?: (modal: string) => void }) => React.ReactNode;
+  /** Optional host slot that replaces the title shown at the top of the detail
+   *  view. Return undefined to keep the usecase's own label. Lets the host
+   *  rename the area from its own state — e.g. "Vulnerability Routing Rules"
+   *  while the routing editor is showing the vulnerabilities category. */
+  renderUsecaseDetailTitle?: (params: { flowId: string; flowLabel: string }) => React.ReactNode;
   /** Optional host slot that renders an inline modal for a usecase whose
    *  `customAction.modal` key matches. Lets the host embed dialogs (e.g.
    *  "Add Host" for the Add Host-Monitors usecase) directly in the sidebar
@@ -1232,6 +1238,7 @@ const DEFAULT_CONFIG: UsecasesPageConfig = {
   isLoaded: true,
   renderEndpointSlot: undefined,
   renderUsecaseDetailSlot: undefined,
+  renderUsecaseDetailTitle: undefined,
   renderUsecaseActionModal: undefined,
   onToggled: undefined,
   preloadedWorkflows: undefined,
@@ -1362,6 +1369,7 @@ import { fetchIocEntries, sumIocEntries } from '../utils/iocFeedTotals';
 import { usePageMeta } from '../usePageMeta';
 import { seedDefaultThreatFeeds } from '../hooks/useThreatFeeds';
 import { seedDefaultIOCTypes } from '@/hooks/useIOCTypes';
+import { recheckUntilConfirmed, createCoalescedFetcher, USECASE_RECHECK_DONE_EVENT } from './usecaseRecheck';
 import { useEnrichmentStatus, enableThreatIntelAutomation, disableThreatIntelAutomation } from '../hooks/useEnrichmentStatus';
 
 // Usecases that enable themselves end-to-end without needing the user to
@@ -1706,6 +1714,83 @@ export interface WorkflowSummary {
 let workflowsLiteCache: WorkflowSummary[] | null = null;
 let workflowsLiteFetchPromise: Promise<WorkflowSummary[]> | null = null;
 
+// Forced workflow reloads are shared across every hook instance so a burst of
+// "workflows updated" signals never stacks parallel heavy requests.
+let forcedWorkflowsFetcher: (() => Promise<any[]>) | null = null;
+let forcedWorkflowsFetchImpl: (() => Promise<any[]>) | null = null;
+
+// Latest recheck per automation label; a newer toggle cancels the older loop.
+const usecaseRecheckTokens = new Map<string, number>();
+
+/**
+ * Re-read workflows until the change for `label` shows up (or attempts run
+ * out), then tell the buttons to stop loading and listeners to re-read once.
+ */
+async function runUsecaseRecheck(
+  label: string,
+  enabled: boolean,
+  refetch: () => Promise<WorkflowSummary[] | undefined>,
+  getUsecases: () => Usecase[],
+) {
+  const token = (usecaseRecheckTokens.get(label) || 0) + 1;
+  usecaseRecheckTokens.set(label, token);
+  const flow = getUsecases().find((u) => u.automationLabel === label);
+  // Self-contained usecases are not confirmed through the workflow list.
+  const viaWorkflows = !(flow && SELF_CONTAINED_ENABLE[flow.id]);
+  const confirmed = viaWorkflows
+    ? await recheckUntilConfirmed({
+      fetchState: async () => (await refetch()) || [],
+      isConfirmed: (list) => computeWorkflowEnabledLabels(list, getUsecases()).has(label) === enabled,
+      isCancelled: () => usecaseRecheckTokens.get(label) !== token,
+    })
+    : (await refetch().catch(() => undefined), true);
+  if (usecaseRecheckTokens.get(label) !== token) return;
+  usecaseRecheckTokens.delete(label);
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(USECASE_RECHECK_DONE_EVENT, { detail: { label, enabled, confirmed } }));
+  window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
+  window.dispatchEvent(new CustomEvent('shuffle-category-automations-updated', { detail: { category: 'shuffle-security_incidents' } }));
+}
+
+/** automationLabel set for which at least one matching workflow exists (name or tag). */
+function computeWorkflowEnabledLabels(workflows: WorkflowSummary[], usecases: Usecase[]): Set<string> {
+  const set = new Set<string>();
+  for (const wf of workflows) {
+    const name = (wf.name || '').toLowerCase();
+    const tags = (wf.tags || []).map(t => String(t).toLowerCase());
+    for (const uc of usecases) {
+      if (!uc.automationLabel) continue;
+      const lbl = uc.automationLabel.toLowerCase();
+      if (lbl === 'vulnerability correlation') {
+        const hasActions = Array.isArray(wf.actions) && wf.actions.length > 0;
+        if (!hasActions) continue;
+      }
+      const aliases = [lbl];
+      if (lbl.includes('incident routing')) {
+        aliases.push('incident routing', 'incident_routing', 'incident_routing_rules');
+      }
+      if (lbl.includes('schedules & phone') || lbl.includes('schedules_notifications') || lbl.includes('phone notification')) {
+        aliases.push('schedules & phone notifications', 'schedules_&_phone_notifications', 'schedules_notifications', 'phone_notifications', 'assign & escalate', 'assign_&_escalate');
+      }
+      if (lbl.includes('threat feeds') || lbl.includes('ioc extraction')) {
+        aliases.push('enable threat feeds', 'enable threat feeds_webhook', 'realtime ioc extraction', 'threat intel');
+      }
+      if (lbl.includes('vulnerabilit') && (lbl.includes('ingest') || lbl.includes('ingestion'))) {
+        aliases.push('ingest vulnerabilities', 'ingest_vulnerabilities', 'vulnerabilities webhook', 'vulnerabilities_webhook');
+      }
+      const isMatch = aliases.some(a => {
+        const isWebhookWf = name.endsWith('_webhook') || name === 'ingestion webhook' || tags.some(t => t.endsWith('_webhook'));
+        if (!a.includes('webhook') && isWebhookWf) return false;
+        return name === a || name.includes(a) || tags.includes(a) || tags.some(t => t.includes(a));
+      });
+      if (isMatch) {
+        set.add(uc.automationLabel);
+      }
+    }
+  }
+  return set;
+}
+
 function useWorkflowsLite(preloadedWorkflows?: WorkflowSummary[]) {
   const { apiUrl, authHeader } = useApi();
   const [data, setData] = useState<WorkflowSummary[]>(() => {
@@ -1734,14 +1819,23 @@ function useWorkflowsLite(preloadedWorkflows?: WorkflowSummary[]) {
       }
     }
     try {
-      const list = await fetchWorkflowsCached(apiUrl('/api/v1/workflows'), {
+      const doFetch = () => fetchWorkflowsCached(apiUrl('/api/v1/workflows'), {
         credentials: 'include',
         headers: { ...authHeader() },
       }, force);
+      if (force) {
+        if (!forcedWorkflowsFetcher) {
+          forcedWorkflowsFetcher = createCoalescedFetcher(() => forcedWorkflowsFetchImpl!());
+        }
+        forcedWorkflowsFetchImpl = doFetch;
+      }
+      const list = force ? await forcedWorkflowsFetcher!() : await doFetch();
       workflowsLiteCache = list;
       setData(list);
+      return list as WorkflowSummary[];
     } catch {
       setData(workflowsLiteCache || []);
+      return (workflowsLiteCache || []) as WorkflowSummary[];
     }
   }, [apiUrl, authHeader, preloadedWorkflows]);
 
@@ -1757,7 +1851,7 @@ function useWorkflowsLite(preloadedWorkflows?: WorkflowSummary[]) {
     window.addEventListener('shuffle-workflows-updated', handleWorkflowsUpdated);
     return () => window.removeEventListener('shuffle-workflows-updated', handleWorkflowsUpdated);
   }, [fetchOnce]);
-  return { data, refetch: () => fetchOnce(true) };
+  return { data, refetch: () => fetchOnce(true) as Promise<WorkflowSummary[] | undefined> };
 }
 
 /**
@@ -2990,6 +3084,9 @@ const IntegrationStatusLite = React.memo(function IntegrationStatusLite({
 // this list renders a "Coming soon" affordance instead of a live Enable
 // button — both in the list cards and inside the detail page, so the two
 // stay in sync.
+/** Last-resort stop for the loading state if no recheck ever reports back. */
+const USECASE_CONFIRM_TIMEOUT_MS = 180000;
+
 const ACTIVE_USECASE_IDS = [
   'siem_case_management_1',
   'edr_case_management_1',
@@ -3637,7 +3734,7 @@ function UsecaseDetailContent({
   const primaryColor = theme.palette.primary.main;
   const navigate = useNavigate();
   const { apiUrl, authHeader } = useApi();
-  const { renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal } = useUsecasesConfig();
+  const { renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal, renderUsecaseDetailTitle } = useUsecasesConfig();
   // Tracks whether a `customAction.modal` dialog is open for this flow.
   const [actionModalOpen, setActionModalOpen] = useState(false);
   // Same handle used by the default Source/Destination tile popover so the
@@ -3657,6 +3754,9 @@ function UsecaseDetailContent({
   const [categoryAppsResolved, setCategoryAppsResolved] = useState(() => !!getCachedCategoryAppNames());
   const [toggling, setToggling] = useState(false);
   const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
+  // Stay in the loading state until the server-side state confirms the change
+  // (optimistic flag cleared) so the button never looks settled mid-recheck.
+  const busy = toggling || optimisticEnabled !== null;
   // Only surface the "what to fix" inline hint AFTER the user has actually
   // tried to enable this usecase — never as a default banner.
   const [enableAttempted, setEnableAttempted] = useState(false);
@@ -3720,6 +3820,7 @@ function UsecaseDetailContent({
   const linkedWfs = useMemo(() => (flow ? findWorkflowsForUsecase(flow, workflows) : []), [flow, workflows]);
   const detailHealth = useMemo(() => diagnoseUsecase(linkedWfs, environments), [linkedWfs, environments]);
   const detailIsBlocked = effectiveEnabled && detailHealth.hasProblem;
+  const detailChip = getUsecaseToggleChip(effectiveEnabled, detailIsBlocked);
   // App-search drawer state — mirrors the alluvial diagram's "+" buttons so
   // users can force-add a Source or Destination tool from this view too.
   const [addToolFor, setAddToolFor] = useState<null | { side: 'source' | 'destination'; categoryId: string; multiDest?: boolean }>(null);
@@ -3749,16 +3850,35 @@ function UsecaseDetailContent({
   // change, and surface a clear warning toast if it didn't.
   const isEnabledRef = React.useRef(isEnabled);
   useEffect(() => { isEnabledRef.current = isEnabled; }, [isEnabled]);
+  // Stop loading when the shared recheck for this usecase reports back.
+  useEffect(() => {
+    const label = flow?.automationLabel;
+    if (!label || typeof window === 'undefined') return;
+    const onDone = (e: Event) => {
+      const d = (e as CustomEvent).detail || {};
+      if (d.label !== label) return;
+      setOptimisticEnabled(null);
+      if (d.enabled && !d.confirmed && flow) {
+        toast.warning(`${flow.label} did not confirm`, {
+          description: 'The backend accepted the request but the change has not shown up after several checks. Open Workflows to check whether the workflow was generated, or try again.',
+          duration: 10000,
+        });
+      }
+    };
+    window.addEventListener(USECASE_RECHECK_DONE_EVENT, onDone);
+    return () => window.removeEventListener(USECASE_RECHECK_DONE_EVENT, onDone);
+  }, [flow?.automationLabel]);
+
   const scheduleEnableVerification = (willBeEnabled: boolean) => {
     setTimeout(() => {
       setOptimisticEnabled(null);
       if (willBeEnabled && !isEnabledRef.current && flow) {
         toast.warning(`${flow.label} did not confirm`, {
-          description: 'The backend accepted the request but the change has not been reflected after 8 seconds. Open Workflows to check whether the workflow was generated, or try again.',
+          description: 'The backend accepted the request but the change has not been reflected. Open Workflows to check whether the workflow was generated, or try again.',
           duration: 10000,
         });
       }
-    }, 8000);
+    }, USECASE_CONFIRM_TIMEOUT_MS);
   };
 
   // For the Notifications usecase, the linked workflow is referenced by the
@@ -3827,7 +3947,7 @@ function UsecaseDetailContent({
 
 
   const handleToggle = async () => {
-    if (!flow?.automationLabel || toggling) return;
+    if (!flow?.automationLabel || busy) return;
     const willBeEnabled = !effectiveEnabled;
     if (willBeEnabled) setEnableAttempted(true);
     const sourceName = flow.source ? categoryLabel(flow.source) : 'source';
@@ -4421,9 +4541,9 @@ function UsecaseDetailContent({
       }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2.5 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1 }}>
-              <Typography sx={{ fontSize: '1.35rem', fontWeight: 800, color: FG, lineHeight: 1.2, flex: 1, minWidth: 0 }}>
-                {flowDisplayLabel}
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5, mb: 1 }}>
+              <Typography sx={{ fontSize: { xs: '1.15rem', sm: '1.35rem' }, fontWeight: 800, color: FG, lineHeight: 1.2, flex: '1 1 180px', minWidth: 0 }}>
+                {renderUsecaseDetailTitle?.({ flowId: flow?.id ?? '', flowLabel: flowDisplayLabel }) ?? flowDisplayLabel}
               </Typography>
               {isComingSoon ? (
                 <Box
@@ -4489,12 +4609,12 @@ function UsecaseDetailContent({
                     detailIsBlocked
                       ? `${detailHealth.primaryProblem?.title || 'Execution blocked'}: ${detailHealth.primaryProblem?.description || 'Runtime location is offline.'} Click to disable.`
                       : !effectiveEnabled && !hasValidatedSource && !isShuffleSourcedFlow
-                        ? `No active ${sourceCatLabel} integration is connected. Activating will not do anything until a ${sourceCatLabel} tool is authenticated — the workflow will be disabled again automatically.`
+                        ? `No active ${sourceCatLabel} integration is connected. Enabling will not do anything until a ${sourceCatLabel} tool is authenticated — the workflow will be disabled again automatically.`
                         : !effectiveEnabled && (flow.id === 'case_management_cases_forward_1' || flow.id === 'case_management_communication_1')
-                          ? 'Click to activate (choose a destination tool)'
+                          ? 'Click to enable (choose a destination tool)'
                           : effectiveEnabled
                             ? 'Click to disable'
-                            : 'Click to activate'
+                            : 'Click to enable'
                   }
                   placement="bottom"
                   arrow
@@ -4504,65 +4624,50 @@ function UsecaseDetailContent({
                       size="small"
                       disableElevation
                       onClick={handleToggle}
-                      disabled={toggling}
+                      disabled={busy}
                       startIcon={
-                        toggling ? (
+                        busy ? (
                           <CircularProgress size={12} sx={{ color: 'inherit' }} />
                         ) : (
                           <Power
                             size={13}
-                            style={{
-                              color: detailIsBlocked
-                                ? 'hsl(var(--destructive))'
-                                : effectiveEnabled
-                                  ? 'hsl(var(--severity-low))'
-                                  : 'hsl(var(--destructive))',
-                            }}
+                            style={{ color: 'inherit' }}
                           />
                         )
                       }
                       sx={{
                         flexShrink: 0,
                         textTransform: 'none',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
+                        fontSize: '0.7rem',
+                        fontWeight: 500,
                         minHeight: 0,
                         py: 0.5,
                         px: 1.2,
                         borderRadius: 1,
-                        bgcolor: detailIsBlocked
-                          ? 'hsl(var(--destructive) / 0.12)'
-                          : effectiveEnabled
-                            ? 'hsl(var(--severity-low) / 0.12)'
-                            : 'hsl(var(--destructive) / 0.12)',
-                        color: detailIsBlocked
-                          ? 'hsl(var(--destructive))'
-                          : effectiveEnabled
-                            ? 'hsl(var(--severity-low))'
-                            : 'hsl(var(--destructive))',
-                        border: detailIsBlocked
-                          ? '1px solid hsl(var(--destructive) / 0.45)'
-                          : effectiveEnabled
-                            ? '1px solid hsl(var(--severity-low) / 0.4)'
-                            : '1px solid hsl(var(--destructive) / 0.4)',
+                        bgcolor: detailChip.positive
+                          ? 'hsl(var(--severity-low) / 0.12)'
+                          : 'hsl(var(--destructive) / 0.12)',
+                        color: detailChip.positive
+                          ? 'hsl(var(--severity-low))'
+                          : 'hsl(var(--destructive))',
+                        border: detailChip.positive
+                          ? '1px solid hsl(var(--severity-low) / 0.4)'
+                          : '1px solid hsl(var(--destructive) / 0.4)',
+                        whiteSpace: 'nowrap',
                         letterSpacing: 0.2,
                         boxShadow: 'none',
                         '&:hover': {
-                          bgcolor: detailIsBlocked
-                            ? 'hsl(var(--destructive) / 0.22)'
-                            : effectiveEnabled
-                              ? 'hsl(var(--severity-low) / 0.22)'
-                              : 'hsl(var(--destructive) / 0.22)',
-                          borderColor: detailIsBlocked
-                            ? 'hsl(var(--destructive) / 0.7)'
-                            : effectiveEnabled
-                              ? 'hsl(var(--severity-low) / 0.7)'
-                              : 'hsl(var(--destructive) / 0.7)',
+                          bgcolor: detailChip.positive
+                            ? 'hsl(var(--severity-low) / 0.22)'
+                            : 'hsl(var(--destructive) / 0.22)',
+                          borderColor: detailChip.positive
+                            ? 'hsl(var(--severity-low) / 0.7)'
+                            : 'hsl(var(--destructive) / 0.7)',
                           boxShadow: 'none',
                         },
                       }}
                     >
-                      {detailIsBlocked ? 'Active · Blocked' : effectiveEnabled ? 'Active' : 'Activate'}
+                      {detailChip.label}
                     </Button>
                   </span>
                 </Tooltip>
@@ -4572,7 +4677,7 @@ function UsecaseDetailContent({
                   to={`/register?view=${encodeURIComponent(`/usecases/${slugify(flow.label)}`)}`}
                   size="small"
                   disableElevation
-                  startIcon={<Power size={13} style={{ color: 'hsl(var(--destructive))' }} />}
+                  startIcon={<Power size={13} style={{ color: 'hsl(var(--severity-low))' }} />}
                   sx={{
                     flexShrink: 0,
                     textTransform: 'none',
@@ -4582,19 +4687,19 @@ function UsecaseDetailContent({
                     py: 0.5,
                     px: 1.2,
                     borderRadius: 1,
-                    bgcolor: 'hsl(var(--destructive) / 0.12)',
-                    color: 'hsl(var(--destructive))',
-                    border: '1px solid hsl(var(--destructive) / 0.4)',
+                    bgcolor: 'hsl(var(--severity-low) / 0.12)',
+                    color: 'hsl(var(--severity-low))',
+                    border: '1px solid hsl(var(--severity-low) / 0.4)',
                     letterSpacing: 0.2,
                     boxShadow: 'none',
                     '&:hover': {
-                      bgcolor: 'hsl(var(--destructive) / 0.22)',
-                      borderColor: 'hsl(var(--destructive) / 0.7)',
+                      bgcolor: 'hsl(var(--severity-low) / 0.22)',
+                      borderColor: 'hsl(var(--severity-low) / 0.7)',
                       boxShadow: 'none',
                     },
                   }}
                 >
-                  Activate
+                  Enable
                 </Button>
               ) : null}
             </Box>
@@ -4749,7 +4854,13 @@ function UsecaseDetailContent({
         if (!isAuthenticated) {
           message = 'Sign in to enable this usecase.';
         } else if (flow.id === 'case_management_incident_routing_1') {
-          message = `Configure at least one routing rule below to enable ${flow.label}.`;
+          // The rules live in the editor below; what actually gates "Active"
+          // is the routing workflow existing and being hooked into
+          // Automation for Incidents. Only hint while it is still missing.
+          const routingWf = findRoutingWorkflow(workflows as any, { singular: 'incident', plural: 'incidents' }, 'shuffle-security_incidents');
+          message = routingWf
+            ? null
+            : `Creating the ${flow.label} workflow. This can take a few seconds.`;
         } else if (flow.id === 'case_management_schedules_notifications_1') {
           message = `Click Enable to generate the Schedules & Phone Notifications workflow.`;
         } else if (isShuffleSourcedFlow) {
@@ -5817,6 +5928,13 @@ export interface UsecasesPageProps {
    */
   renderUsecaseDetailSlot?: (params: { flowId: string; flowLabel: string; onOpenModal?: (modal: string) => void }) => React.ReactNode;
   /**
+   * Optional host slot that replaces the title shown at the top of the
+   * usecase detail view. Return undefined to keep the usecase's own label.
+   * Use it to rename the area from host state — e.g. "Vulnerability Routing
+   * Rules" while the routing editor is showing the vulnerabilities category.
+   */
+  renderUsecaseDetailTitle?: (params: { flowId: string; flowLabel: string }) => React.ReactNode;
+  /**
    * Optional host slot that renders an inline modal for a usecase whose
    * `customAction.modal` matches. Used to embed dialogs like "Add Host"
    * directly from the usecase sidebar.
@@ -5874,6 +5992,8 @@ function UsecasesPageInner() {
   const { apiUrl, authHeader } = useApi();
   const { scopeClassName: cfgScopeClassName, onToggled: cfgOnToggled, preloadedWorkflows } = useUsecasesConfig();
   const { usecases, apiLoaded, getDrift } = useUsecasesLite();
+  const usecasesRef = React.useRef(usecases);
+  usecasesRef.current = usecases;
   const { userInfo, isAuthenticated, refetch: refetchAuth } = useAuthLite();
   const { data: workflows = [], refetch: refetchWorkflows } = useWorkflowsLite(preloadedWorkflows);
   const isSupport = userInfo?.support === true;
@@ -6067,43 +6187,7 @@ function UsecasesPageInner() {
 
   // Map: automationLabel -> whether at least one workflow exists for it.
   // Match by workflow name OR tag containing the label (case-insensitive).
-  const workflowEnabledLabels = useMemo(() => {
-    const set = new Set<string>();
-    for (const wf of workflows) {
-      const name = (wf.name || '').toLowerCase();
-      const tags = (wf.tags || []).map(t => String(t).toLowerCase());
-      for (const uc of usecases) {
-        if (!uc.automationLabel) continue;
-        const lbl = uc.automationLabel.toLowerCase();
-        if (lbl === 'vulnerability correlation') {
-          const hasActions = Array.isArray(wf.actions) && wf.actions.length > 0;
-          if (!hasActions) continue;
-        }
-        const aliases = [lbl];
-        if (lbl.includes('incident routing')) {
-          aliases.push('incident routing', 'incident_routing', 'incident_routing_rules');
-        }
-        if (lbl.includes('schedules & phone') || lbl.includes('schedules_notifications') || lbl.includes('phone notification')) {
-          aliases.push('schedules & phone notifications', 'schedules_&_phone_notifications', 'schedules_notifications', 'phone_notifications', 'assign & escalate', 'assign_&_escalate');
-        }
-        if (lbl.includes('threat feeds') || lbl.includes('ioc extraction')) {
-          aliases.push('enable threat feeds', 'enable threat feeds_webhook', 'realtime ioc extraction', 'threat intel');
-        }
-        if (lbl.includes('vulnerabilit') && (lbl.includes('ingest') || lbl.includes('ingestion'))) {
-          aliases.push('ingest vulnerabilities', 'ingest_vulnerabilities', 'vulnerabilities webhook', 'vulnerabilities_webhook');
-        }
-        const isMatch = aliases.some(a => {
-          const isWebhookWf = name.endsWith('_webhook') || name === 'ingestion webhook' || tags.some(t => t.endsWith('_webhook'));
-          if (!a.includes('webhook') && isWebhookWf) return false;
-          return name === a || name.includes(a) || tags.includes(a) || tags.some(t => t.includes(a));
-        });
-        if (isMatch) {
-          set.add(uc.automationLabel);
-        }
-      }
-    }
-    return set;
-  }, [workflows, usecases]);
+  const workflowEnabledLabels = useMemo(() => computeWorkflowEnabledLabels(workflows, usecases), [workflows, usecases]);
 
   useEffect(() => {
     setTrustedWorkflowStates((prev) => {
@@ -6272,7 +6356,7 @@ function UsecasesPageInner() {
   const [incidentsCategoryConfig, setIncidentsCategoryConfig] = useState<any>(null);
   useEffect(() => {
     let cancelled = false;
-    const fetchIncidentsCat = async () => {
+    const fetchIncidentsCat = async (force: boolean = false) => {
       try {
         const info = localStorage.getItem('shuffle_user_info');
         const orgId = info ? JSON.parse(info)?.active_org?.id : null;
@@ -6280,6 +6364,7 @@ function UsecasesPageInner() {
         const data = await fetchCategoryAutomationsCached(
           apiUrl(`/api/v1/orgs/${orgId}/list_cache?category=shuffle-security_incidents&top=1`),
           { credentials: 'include', headers: { ...authHeader() } },
+          force,
         );
         if (!data) return;
         if (!cancelled && (data?.category_config || data?.categoryConfig)) {
@@ -6297,7 +6382,9 @@ function UsecasesPageInner() {
     fetchIncidentsCat();
 
     const handleCatUpdate = () => {
-      fetchIncidentsCat();
+      // Always bypass the 2-minute cache here: this event means the
+      // category automations just changed on the backend.
+      fetchIncidentsCat(true);
     };
     if (typeof window !== 'undefined') {
       window.addEventListener('shuffle-category-automations-updated', handleCatUpdate);
@@ -6479,10 +6566,10 @@ function UsecasesPageInner() {
       window.dispatchEvent(new CustomEvent('shuffle-workflows-updated'));
     }
     cfgOnToggled?.(label, enabled);
-    refetchWorkflows();
-    window.setTimeout(() => { refetchWorkflows(); }, 1200);
-    window.setTimeout(() => { refetchWorkflows(); }, 3000);
-    window.setTimeout(() => { refetchWorkflows(); }, 8000);
+    // Sequential rechecks until the workflow list reflects the change; the
+    // done event lets the buttons stop loading and listeners (category
+    // config, routing editor) re-read once with confirmed data.
+    runUsecaseRecheck(label, enabled, refetchWorkflows, () => usecasesRef.current);
   }, [refetchWorkflows, cfgOnToggled]);
 
   // Set of usecase names the user has shown interest in. Sourced from both
@@ -6823,9 +6910,9 @@ function UsecasesPageInner() {
 
       {/* Grouped card grid */}
       {grouped.map((group) => (
-        <Box key={group.id} sx={{ mb: 6 }}>
+        <Box key={group.id} sx={{ mb: { xs: 4, sm: 6 } }}>
           {/* Phase header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5, pt: 5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: { xs: 1.5, sm: 2.5 }, pt: { xs: 2, sm: 5 }, flexWrap: 'wrap' }}>
             <Chip
               label={group.step}
               size="small"
@@ -6846,12 +6933,15 @@ function UsecasesPageInner() {
             </Typography>
           </Box>
 
-          {/* Cards grid */}
+          {/* Cards grid (single-column list on mobile/narrow viewports, responsive grid on larger viewports) */}
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' },
-              gap: 1.5,
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'repeat(auto-fill, minmax(290px, 1fr))',
+              },
+              gap: { xs: 1, sm: 1.5 },
             }}
           >
             {group.flows.map((flow) => (
@@ -7038,6 +7128,16 @@ export function UsecaseCard({
   const [toggling, setToggling] = useState(false);
   const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
   const effectiveEnabled = optimisticEnabled !== null ? optimisticEnabled : isEnabled;
+  const busy = toggling || optimisticEnabled !== null;
+  useEffect(() => {
+    const label = flow.automationLabel;
+    if (!label || typeof window === 'undefined') return;
+    const onDone = (e: Event) => {
+      if ((e as CustomEvent).detail?.label === label) setOptimisticEnabled(null);
+    };
+    window.addEventListener(USECASE_RECHECK_DONE_EVENT, onDone);
+    return () => window.removeEventListener(USECASE_RECHECK_DONE_EVENT, onDone);
+  }, [flow.automationLabel]);
   const { environments } = useWorkflowHealth();
   const linkedWfs = useMemo(() => findWorkflowsForUsecase(flow, workflows), [flow, workflows]);
   const usecaseHealth = useMemo(() => diagnoseUsecase(linkedWfs, environments), [linkedWfs, environments]);
@@ -7049,6 +7149,14 @@ export function UsecaseCard({
   const cardDisplayLabel = flow.id === 'case_management_cases_forward_1' ? dynamicForwardTicketsLabel : flow.label;
   const isMonitorsFlow = flow.id === 'case_management_asset_management_monitors_1';
   const canDisable = canToggle && !isMonitorsFlow;
+  // Chip text is the state the usecase is in, not the click action — the
+  // tooltip carries "Click to enable" / "Click to disable".
+  const statusChip = getUsecaseToggleChip(
+    true,
+    isMonitorsFlow ? false : isBlocked,
+    isMonitorsFlow ? 'Active' : 'Enabled',
+  );
+  const enableChip = getUsecaseToggleChip(false);
 
   const theme = useTheme()
   const primaryColor = theme.palette.primary.main
@@ -7065,7 +7173,7 @@ export function UsecaseCard({
   const handleToggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    if (!flow.automationLabel || toggling) return;
+    if (!flow.automationLabel || busy) return;
     const willBeEnabled = !effectiveEnabled;
 
     // Host Monitoring is presence-driven: "activating" means deploying a host monitor
@@ -7188,7 +7296,7 @@ export function UsecaseCard({
       toast.success(willBeEnabled ? `${cardDisplayLabel} enabled` : `${cardDisplayLabel} disabled`);
       onToggled?.(flow.automationLabel, willBeEnabled);
       // Hard safety net in case the server never reflects the change.
-      setTimeout(() => setOptimisticEnabled(null), 8000);
+      setTimeout(() => setOptimisticEnabled(null), USECASE_CONFIRM_TIMEOUT_MS);
     } catch (err: any) {
       setOptimisticEnabled(null);
       const raw = err?.message || '';
@@ -7230,6 +7338,8 @@ export function UsecaseCard({
       sx={{
         position: 'relative',
         height: '100%',
+        minWidth: 0,
+        overflow: 'hidden',
         bgcolor: isBlocked
           ? 'hsl(var(--destructive) / 0.05)'
           : effectiveEnabled
@@ -7256,11 +7366,41 @@ export function UsecaseCard({
           from: { opacity: 0, transform: 'scale(0.96)' },
           to: { opacity: 1, transform: 'scale(1)' },
         },
-        '&:hover .uc-card-action': {
-          display: 'inline-flex',
-          opacity: 1,
-          pointerEvents: 'auto',
-          animation: 'ucCardActionIn 0.15s ease-out',
+        '@media (hover: hover)': {
+          '&:hover .uc-card-action': {
+            display: 'inline-flex',
+            opacity: 1,
+            pointerEvents: 'auto',
+            animation: 'ucCardActionIn 0.15s ease-out',
+          },
+          // The status chip sits collapsed on its icon; hovering the card
+          // slides the state word open beside it. Collapsed it is an exact
+          // 22x22 square, so the hover has to release the fixed width first.
+          '&:hover .uc-card-chip': {
+            width: 'auto',
+            pr: 0.85,
+          },
+          '&:hover .uc-card-chip-label': {
+            maxWidth: 92,
+            opacity: 1,
+            marginLeft: 0.5,
+          },
+        },
+        '@media (hover: none), (max-width: 599.95px)': {
+          '& .uc-card-action': {
+            display: 'inline-flex',
+            opacity: 1,
+            pointerEvents: 'auto',
+          },
+          '& .uc-card-chip': {
+            width: 'auto',
+            pr: 0.85,
+          },
+          '& .uc-card-chip-label': {
+            maxWidth: 92,
+            opacity: 1,
+            marginLeft: 0.5,
+          },
         },
       }}
     >
@@ -7268,13 +7408,16 @@ export function UsecaseCard({
         component="div"
         onClick={onClick}
         sx={{
-          px: 2,
-          py: '14.5px',
+          px: { xs: 1.5, sm: 2 },
+          py: { xs: 1.5, sm: '14.5px' },
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-start',
           justifyContent: showImage && flow.referenceImage ? 'flex-start' : 'center',
           height: '100%',
+          minWidth: 0,
+          width: '100%',
+          boxSizing: 'border-box',
           cursor: 'pointer',
         }}
       >
@@ -7296,26 +7439,26 @@ export function UsecaseCard({
             }}
           />
         )}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 0, gap: 1 }}>
           {/* Left: Label + Route */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, gap: 0.25 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: '1 1 0%', overflow: 'hidden', gap: 0.25 }}>
             <Typography variant="body2" title={cardDisplayLabel} sx={{ fontWeight: 600, color: 'hsl(var(--foreground))', fontSize: '0.82rem', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {cardDisplayLabel}
             </Typography>
             {/* Source → Target */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, overflow: 'hidden' }}>
+              <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1 }}>
                 {flow.source === 'case_management' ? 'Shuffle' : sourceCat}
               </Typography>
-              <ArrowRight size={10} style={{ color: 'hsl(var(--muted-foreground))' }} />
-              <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem' }}>
+              <ArrowRight size={10} style={{ color: 'hsl(var(--muted-foreground))', flexShrink: 0 }} />
+              <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
                 {MULTI_DEST_FLOW_IDS.has(flow.id) ? 'Communication & Cases' : targetCat}
               </Typography>
             </Box>
           </Box>
 
           {/* Right: Badges & Unified Action / Status Chip-Button */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0, maxWidth: '55%' }}>
             {showDrift && (
               <Tooltip title={driftTooltip} placement="top" arrow>
                 <Box
@@ -7363,9 +7506,10 @@ export function UsecaseCard({
                 arrow
               >
                 <Box
+                  className="uc-card-chip"
                   component="button"
                   type="button"
-                  disabled={toggling}
+                  disabled={busy}
                   onClick={
                     isMonitorsFlow
                       ? (e: React.MouseEvent) => {
@@ -7380,45 +7524,68 @@ export function UsecaseCard({
                   sx={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 0.5,
-                    px: 0.85,
-                    py: 0.2,
+                    justifyContent: 'center',
+                    gap: 0,
+                    boxSizing: 'border-box',
+                    width: 22,
                     height: 22,
+                    px: 0.4,
+                    py: 0,
                     borderRadius: 0.75,
-                    bgcolor: isBlocked
-                      ? 'hsl(var(--destructive) / 0.12)'
-                      : 'hsl(var(--severity-low) / 0.12)',
-                    border: isBlocked
-                      ? '1px solid hsl(var(--destructive) / 0.45)'
-                      : '1px solid hsl(var(--severity-low) / 0.4)',
-                    color: isBlocked
-                      ? 'hsl(var(--destructive))'
-                      : 'hsl(var(--severity-low))',
+                    bgcolor: statusChip.positive
+                      ? 'hsl(var(--severity-low) / 0.12)'
+                      : 'hsl(var(--destructive) / 0.12)',
+                    border: statusChip.positive
+                      ? '1px solid hsl(var(--severity-low) / 0.4)'
+                      : '1px solid hsl(var(--destructive) / 0.4)',
+                    color: statusChip.positive
+                      ? 'hsl(var(--severity-low))'
+                      : 'hsl(var(--destructive))',
                     fontSize: '0.65rem',
                     fontWeight: 700,
                     letterSpacing: '0.02em',
                     lineHeight: 1,
-                    cursor: isMonitorsFlow ? 'pointer' : canDisable ? (toggling ? 'default' : 'pointer') : 'default',
+                    cursor: isMonitorsFlow ? 'pointer' : canDisable ? (busy ? 'default' : 'pointer') : 'default',
                     outline: 'none',
                     boxShadow: 'none',
                     flexShrink: 0,
+                    maxWidth: '100%',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
                     transition: 'all 0.15s ease',
                     '&:hover': (isMonitorsFlow || canDisable) ? {
-                      bgcolor: isBlocked
-                        ? 'hsl(var(--destructive) / 0.22)'
-                        : 'hsl(var(--severity-low) / 0.22)',
-                      borderColor: isBlocked
-                        ? 'hsl(var(--destructive) / 0.7)'
-                        : 'hsl(var(--severity-low) / 0.7)',
+                      bgcolor: statusChip.positive
+                        ? 'hsl(var(--severity-low) / 0.22)'
+                        : 'hsl(var(--destructive) / 0.22)',
+                      borderColor: statusChip.positive
+                        ? 'hsl(var(--severity-low) / 0.7)'
+                        : 'hsl(var(--destructive) / 0.7)',
                     } : {},
                   }}
                 >
-                  {toggling ? (
-                    <CircularProgress size={11} sx={{ color: 'inherit' }} />
+                  {busy ? (
+                    <CircularProgress size={11} sx={{ color: 'inherit', flexShrink: 0 }} />
                   ) : (
-                    <Power size={11} style={{ color: 'inherit' }} />
+                    <Power size={11} style={{ color: 'inherit', flexShrink: 0 }} />
                   )}
-                  <span>{isBlocked ? 'Active · Blocked' : 'Active'}</span>
+                  <Box
+                    component="span"
+                    className="uc-card-chip-label"
+                    sx={{
+                      maxWidth: 0,
+                      opacity: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      marginLeft: 0,
+                      fontSize: '0.6rem',
+                      fontWeight: 500,
+                      letterSpacing: 0,
+                      transition: 'max-width 0.18s ease, opacity 0.12s ease, margin-left 0.18s ease',
+                    }}
+                  >
+                    {statusChip.label}
+                  </Box>
                 </Box>
               </Tooltip>
             ) : (flow.customAction?.href || flow.customAction?.url) && (!canToggle || (flow.id !== 'threat_intel_ingest_1' && flow.id !== 'case_management_agent_ai_incident_handling_1')) ? (
@@ -7484,84 +7651,31 @@ export function UsecaseCard({
                 </Box>
               </Tooltip>
             ) : canToggle ? (
-              <Box
-                className="uc-card-action"
-                sx={{
-                  display: 'none',
-                  opacity: 0,
-                  pointerEvents: 'none',
-                  flexShrink: 0,
-                }}
-              >
-                <Tooltip
-                  title={
-                    !hasValidatedSource
-                      ? `No active ${sourceCat} integration is connected. Activating will not do anything until a ${sourceCat} tool is authenticated — the workflow will be disabled again automatically.`
-                      : 'Click to activate'
-                  }
-                  placement="top"
-                  arrow
-                >
-                  <Box
-                    component="button"
-                    type="button"
-                    disabled={toggling}
-                    onClick={handleToggle}
-                    sx={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 0.5,
-                      px: 0.85,
-                      py: 0.25,
-                      height: 22,
-                      borderRadius: 0.75,
-                      bgcolor: 'hsl(var(--destructive) / 0.12)',
-                      border: '1px solid hsl(var(--destructive) / 0.4)',
-                      color: 'hsl(var(--destructive))',
-                      fontSize: '0.65rem',
-                      fontWeight: 700,
-                      letterSpacing: '0.02em',
-                      lineHeight: 1,
-                      cursor: toggling ? 'default' : 'pointer',
-                      outline: 'none',
-                      boxShadow: 'none',
-                      transition: 'all 0.15s ease',
-                      '&:hover': {
-                        bgcolor: 'hsl(var(--destructive) / 0.22)',
-                        borderColor: 'hsl(var(--destructive) / 0.7)',
-                      },
-                    }}
-                  >
-                    {toggling ? (
-                      <CircularProgress size={11} sx={{ color: 'inherit' }} />
-                    ) : (
-                      <Power size={11} style={{ color: 'hsl(var(--destructive))' }} />
-                    )}
-                    <span>Activate</span>
-                  </Box>
-                </Tooltip>
-              </Box>
-            ) : !isAuthenticated && flow.automationLabel ? (
-              <Box
-                className="uc-card-action"
-                sx={{
-                  display: 'none',
-                  opacity: 0,
-                  pointerEvents: 'none',
-                  flexShrink: 0,
-                }}
+              <Tooltip
+                title={
+                  !hasValidatedSource
+                    ? `No active ${sourceCat} integration is connected. Enabling will not do anything until a ${sourceCat} tool is authenticated — the workflow will be disabled again automatically.`
+                    : 'Click to enable'
+                }
+                placement="top"
+                arrow
               >
                 <Box
-                  component={Link}
-                  to={`/register?view=${encodeURIComponent(`/usecases/${slugify(flow.label)}`)}`}
-                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                  className="uc-card-chip"
+                  component="button"
+                  type="button"
+                  disabled={busy}
+                  onClick={handleToggle}
                   sx={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 0.5,
-                    px: 0.85,
-                    py: 0.25,
+                    justifyContent: 'center',
+                    gap: 0,
+                    boxSizing: 'border-box',
+                    width: 22,
                     height: 22,
+                    px: 0.4,
+                    py: 0,
                     borderRadius: 0.75,
                     bgcolor: 'hsl(var(--destructive) / 0.12)',
                     border: '1px solid hsl(var(--destructive) / 0.4)',
@@ -7570,8 +7684,10 @@ export function UsecaseCard({
                     fontWeight: 700,
                     letterSpacing: '0.02em',
                     lineHeight: 1,
-                    textDecoration: 'none',
-                    cursor: 'pointer',
+                    cursor: busy ? 'default' : 'pointer',
+                    outline: 'none',
+                    boxShadow: 'none',
+                    flexShrink: 0,
                     transition: 'all 0.15s ease',
                     '&:hover': {
                       bgcolor: 'hsl(var(--destructive) / 0.22)',
@@ -7579,8 +7695,82 @@ export function UsecaseCard({
                     },
                   }}
                 >
-                  <Power size={11} style={{ color: 'hsl(var(--destructive))' }} />
-                  <span>Activate</span>
+                  {busy ? (
+                    <CircularProgress size={11} sx={{ color: 'inherit', flexShrink: 0 }} />
+                  ) : (
+                    <Power size={11} style={{ color: 'inherit', flexShrink: 0 }} />
+                  )}
+                  <Box
+                    component="span"
+                    className="uc-card-chip-label"
+                    sx={{
+                      maxWidth: 0,
+                      opacity: 0,
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                      marginLeft: 0,
+                      fontSize: '0.6rem',
+                      fontWeight: 500,
+                      letterSpacing: 0,
+                      transition: 'max-width 0.18s ease, opacity 0.12s ease, margin-left 0.18s ease',
+                    }}
+                  >
+                    {enableChip.label}
+                  </Box>
+                </Box>
+              </Tooltip>
+            ) : !isAuthenticated && flow.automationLabel ? (
+              <Box
+                className="uc-card-chip"
+                component={Link}
+                to={`/register?view=${encodeURIComponent(`/usecases/${slugify(flow.label)}`)}`}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 0,
+                  boxSizing: 'border-box',
+                  width: 22,
+                  height: 22,
+                  px: 0.4,
+                  py: 0,
+                  borderRadius: 0.75,
+                  bgcolor: 'hsl(var(--severity-low) / 0.12)',
+                  border: '1px solid hsl(var(--severity-low) / 0.4)',
+                  color: 'hsl(var(--severity-low))',
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.02em',
+                  lineHeight: 1,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease',
+                  '&:hover': {
+                    bgcolor: 'hsl(var(--severity-low) / 0.22)',
+                    borderColor: 'hsl(var(--severity-low) / 0.7)',
+                  },
+                }}
+              >
+                <Power size={11} style={{ color: 'inherit', flexShrink: 0 }} />
+                <Box
+                  component="span"
+                  className="uc-card-chip-label"
+                  sx={{
+                    maxWidth: 0,
+                    opacity: 0,
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                    marginLeft: 0,
+                    fontSize: '0.6rem',
+                    fontWeight: 500,
+                    letterSpacing: 0,
+                    transition: 'max-width 0.18s ease, opacity 0.12s ease, margin-left 0.18s ease',
+                  }}
+                >
+                  Enable
                 </Box>
               </Box>
             ) : null}
@@ -7611,7 +7801,7 @@ export default function UsecasesPage(props: UsecasesPageProps = {}) {
     url: '/usecases',
   });
   useInjectScopedStyles();
-  const { globalUrl, userdata, isLoaded, isLoggedIn, theme = 'system', renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal, onToggled, workflows } = props;
+  const { globalUrl, userdata, isLoaded, isLoggedIn, theme = 'system', renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseDetailTitle, renderUsecaseActionModal, onToggled, workflows } = props;
   // Sync host-injected `globalUrl` into the Shuffle-Core api.ts runtime so
   // every internal `getApiUrl()` call (hooks, helpers, etc.) targets the host
   // backend instead of the bundled default.
@@ -7659,12 +7849,13 @@ export default function UsecasesPage(props: UsecasesPageProps = {}) {
       isLoaded: loaded,
       renderEndpointSlot,
       renderUsecaseDetailSlot,
+      renderUsecaseDetailTitle,
       renderUsecaseActionModal,
       onToggled,
       preloadedWorkflows: workflows,
       scopeClassName: themeClass ? `${SCOPE_CLASS} ${themeClass}` : SCOPE_CLASS,
     };
-  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
+  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseDetailTitle, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
 
   return (
     <UsecasesPageConfigContext.Provider value={config}>
@@ -7792,11 +7983,11 @@ function UsecaseDrawerInner({
   const canToggle = isAuthenticated && !!flow?.automationLabel;
   const hasValidatedSource = flow ? validatedCategories.has(flow.source) : true;
 
-  const handleToggled = React.useCallback(() => {
-    // Mirror handleUsecaseWorkflowGenerated: nudge workflows refetch so the
-    // drawer reflects the new state without requiring a page refresh.
-    window.setTimeout(() => { refetchWorkflows(); }, 3000);
-    window.setTimeout(() => { refetchWorkflows(); }, 8000);
+  const usecasesRef = React.useRef(usecases);
+  usecasesRef.current = usecases;
+  const handleToggled = React.useCallback((label: string, enabled: boolean) => {
+    // Same smart recheck as the page so the drawer settles on confirmed data.
+    runUsecaseRecheck(label, enabled, refetchWorkflows, () => usecasesRef.current);
   }, [refetchWorkflows]);
 
   return (
@@ -7903,6 +8094,7 @@ export function UsecaseDrawer(props: UsecaseDrawerProps) {
     theme = 'system',
     renderEndpointSlot,
     renderUsecaseDetailSlot,
+    renderUsecaseDetailTitle,
     renderUsecaseActionModal,
     onToggled,
     workflows,
@@ -7938,12 +8130,13 @@ export function UsecaseDrawer(props: UsecaseDrawerProps) {
       isLoaded: loaded,
       renderEndpointSlot,
       renderUsecaseDetailSlot,
+      renderUsecaseDetailTitle,
       renderUsecaseActionModal,
       onToggled,
       preloadedWorkflows: workflows,
       scopeClassName: themeClass ? `${SCOPE_CLASS} ${themeClass}` : SCOPE_CLASS,
     };
-  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
+  }, [globalUrl, userdata, isLoaded, isLoggedIn, hostManaged, renderEndpointSlot, renderUsecaseDetailSlot, renderUsecaseDetailTitle, renderUsecaseActionModal, onToggled, workflows, themeClass, stableAuthHeader]);
 
   return (
     <UsecasesPageConfigContext.Provider value={config}>

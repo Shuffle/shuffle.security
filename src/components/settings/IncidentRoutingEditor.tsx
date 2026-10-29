@@ -62,6 +62,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { getDatastoreByCategory } from '@/Shuffle-Core/datastore';
+import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from '@/Shuffle-Core/components/DatastoreCategorySelect';
 import {
   findRoutingWorkflow,
   getExpectedRoutingWorkflowLabel,
@@ -321,14 +322,78 @@ interface IncidentRoutingEditorProps {
    * drawer, which has no paper of its own.
    */
   borderless?: boolean;
+  /**
+   * Show the shared datastore category dropdown in the rules toolbar so rules
+   * can be managed per category. Defaults to true. Hosts that already render
+   * the same dropdown (the "Automation for X" dialog) pass false.
+   */
+  showCategorySelect?: boolean;
+  /**
+   * Compact category control rendered next to the "Add rule" button. Set by
+   * the wrapper when showCategorySelect is true; hosts that render their own
+   * dropdown leave it undefined.
+   */
+  categorySelect?: React.ReactNode;
+  /**
+   * Called when the user picks another category in the shared dropdown. When
+   * provided, the dropdown is controlled: `entityCategory` is the current
+   * selection and the component stops keeping the selection itself, so a host
+   * that shows the category elsewhere (e.g. the area title) can follow it.
+   */
+  onCategoryChange?: (category: string) => void;
 }
 
 export const IncidentRoutingEditor = ({
+  showCategorySelect = true,
+  onCategoryChange,
+  ...props
+}: IncidentRoutingEditorProps) => {
+  const initial = props.entityCategory || DEFAULT_ROUTING_ENTITY_CATEGORY;
+  const [selected, setSelected] = useState<string>(initial);
+  useEffect(() => { setSelected(initial); }, [initial]);
+  if (!showCategorySelect) return <IncidentRoutingEditorInner {...props} />;
+
+  // Controlled when the host owns the selection, uncontrolled otherwise.
+  const controlled = typeof onCategoryChange === 'function';
+  const value = controlled ? initial : selected;
+  const handleCategoryChange = (next: string) => {
+    if (controlled) {
+      if (next !== value) onCategoryChange?.(next);
+    } else {
+      setSelected(next);
+    }
+  };
+
+  const opt = DATASTORE_CATEGORY_OPTIONS.find(o => o.category === value);
+  // The category the host asked for keeps the host's own naming; a category
+  // picked from the dropdown uses the shared option naming instead.
+  const isInitial = controlled ? false : value === initial;
+  return (
+    <IncidentRoutingEditorInner
+      key={value}
+      {...props}
+      entityCategory={value}
+      entityLabel={isInitial ? props.entityLabel : (opt ? { singular: opt.singular, plural: opt.plural } : undefined)}
+      generateCategory={isInitial ? props.generateCategory : undefined}
+      categorySelect={
+        <DatastoreCategorySelect
+          value={value}
+          onChange={handleCategoryChange}
+          label="Category"
+          compact
+        />
+      }
+    />
+  );
+};
+
+const IncidentRoutingEditorInner = ({
   forceShow = false,
   entityCategory = DEFAULT_ROUTING_ENTITY_CATEGORY,
   entityLabel = { singular: 'incident', plural: 'incidents' },
   generateCategory,
   borderless = false,
+  categorySelect,
 }: IncidentRoutingEditorProps) => {
   const entityPluralCap = entityLabel.plural.charAt(0).toUpperCase() + entityLabel.plural.slice(1);
   const effectiveGenerateCategory =
@@ -411,6 +476,10 @@ export const IncidentRoutingEditor = ({
 
   useEffect(() => {
     fetchWorkflowHealth();
+    if (typeof window === 'undefined') return;
+    const handleCatUpdate = () => { fetchWorkflowHealth(); };
+    window.addEventListener('shuffle-category-automations-updated', handleCatUpdate);
+    return () => window.removeEventListener('shuffle-category-automations-updated', handleCatUpdate);
   }, [fetchWorkflowHealth]);
 
   const workflowHealth: RoutingWorkflowHealth = useMemo(() => {
@@ -932,237 +1001,32 @@ export const IncidentRoutingEditor = ({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {/* Workflow automation status banner */}
-      <Paper
-        variant="outlined"
-        sx={{
-          p: borderless ? 0 : 1.5,
-          borderRadius: 1.5,
-          border: borderless ? 'none' : '1px solid',
-          borderColor:
-            workflowHealth.status === 'automated'
-              ? 'hsl(var(--severity-low) / 0.35)'
-              : workflowHealth.status === 'hook_missing'
-                ? 'hsl(var(--severity-medium) / 0.35)'
-                : workflowHealth.status === 'execution_error'
-                  ? 'hsl(var(--destructive) / 0.35)'
-                  : 'hsl(var(--border))',
-          bgcolor: borderless
-            ? 'transparent'
-            : workflowHealth.status === 'automated'
-              ? 'hsl(var(--severity-low) / 0.05)'
-              : workflowHealth.status === 'hook_missing'
-                ? 'hsl(var(--severity-medium) / 0.05)'
-                : workflowHealth.status === 'execution_error'
-                  ? 'hsl(var(--destructive) / 0.05)'
-                  : 'hsl(var(--muted) / 0.25)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 2,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
-          <Chip
-            label={workflowHealth.label}
-            size="small"
-            sx={{
-              height: 22,
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              flexShrink: 0,
-              bgcolor:
-                workflowHealth.status === 'automated'
-                  ? 'hsl(var(--severity-low) / 0.15)'
-                  : workflowHealth.status === 'hook_missing'
-                    ? 'hsl(var(--severity-medium) / 0.15)'
-                    : workflowHealth.status === 'execution_error'
-                      ? 'hsl(var(--destructive) / 0.15)'
-                      : 'hsl(var(--muted))',
-              color:
-                workflowHealth.status === 'automated'
-                  ? 'hsl(var(--severity-low))'
-                  : workflowHealth.status === 'hook_missing'
-                    ? 'hsl(var(--severity-medium))'
-                    : workflowHealth.status === 'execution_error'
-                      ? 'hsl(var(--destructive))'
-                      : 'hsl(var(--muted-foreground))',
-              border: '1px solid',
-              borderColor:
-                workflowHealth.status === 'automated'
-                  ? 'hsl(var(--severity-low) / 0.4)'
-                  : workflowHealth.status === 'hook_missing'
-                    ? 'hsl(var(--severity-medium) / 0.4)'
-                    : workflowHealth.status === 'execution_error'
-                      ? 'hsl(var(--destructive) / 0.4)'
-                      : 'hsl(var(--border))',
-              '& .MuiChip-label': { px: 1 },
-            }}
-          />
-          <Typography
-            variant="body2"
-            sx={{
-              fontSize: '0.8rem',
-              color: 'hsl(var(--foreground))',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {workflowHealth.status === 'checking' ? (
-              'Checking workflow automation and category settings...'
-            ) : workflowHealth.status === 'automated' && matchedWorkflow ? (
-              <>
-                Rules evaluated in realtime by{' '}
-                <Box component="span" sx={{ fontWeight: 600 }}>
-                  {matchedWorkflow.name}
-                </Box>
-                {lastExecution?.started_at ? ` · Last run: ${new Date(typeof lastExecution.started_at === 'number' && lastExecution.started_at < 1e11 ? lastExecution.started_at * 1000 : lastExecution.started_at).toLocaleTimeString()}` : ''}
-              </>
-            ) : workflowHealth.status === 'hook_missing' && matchedWorkflow ? (
-              <>
-                Workflow exists ({matchedWorkflow.name}), but is not in "Automation for {entityPluralCap}" category settings. Edits will not trigger rules.
-              </>
-            ) : workflowHealth.status === 'execution_error' && matchedWorkflow ? (
-              <>
-                Workflow {matchedWorkflow.name} run error: {lastExecution?.error || 'Last execution encountered an error.'}
-              </>
-            ) : (
-              `No workflow found for ${entityLabel.plural}. Rules will not run until a workflow is created.`
-            )}
-          </Typography>
-        </Box>
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={handleOpenTestModal}
-            sx={{
-              height: 28,
-              fontSize: '0.75rem',
-              textTransform: 'none',
-              borderColor: 'hsl(var(--border))',
-              color: 'hsl(var(--foreground))',
-              '&:hover': {
-                borderColor: 'hsl(var(--primary))',
-                color: 'hsl(var(--primary))',
-              },
-            }}
-          >
-            Test rules
-          </Button>
-
-          {workflowHealth.status === 'hook_missing' && (
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={isHookingWorkflow}
-              onClick={handleLinkHook}
-              sx={{
-                height: 28,
-                fontSize: '0.75rem',
-                textTransform: 'none',
-                borderColor: 'hsl(var(--severity-medium) / 0.5)',
-                color: 'hsl(var(--severity-medium))',
-                bgcolor: 'hsl(var(--severity-medium) / 0.08)',
-                '&:hover': {
-                  borderColor: 'hsl(var(--severity-medium))',
-                  bgcolor: 'hsl(var(--severity-medium) / 0.15)',
-                },
-              }}
-            >
-              {isHookingWorkflow ? 'Adding…' : 'Add to category automations'}
-            </Button>
-          )}
-
-          {workflowHealth.status === 'not_automated' && (
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={isGeneratingWorkflow}
-              onClick={handleGenerateWorkflow}
-              sx={{
-                height: 28,
-                fontSize: '0.75rem',
-                textTransform: 'none',
-                borderColor: 'hsl(var(--border))',
-                color: 'hsl(var(--foreground))',
-                '&:hover': {
-                  borderColor: 'hsl(var(--primary))',
-                  color: 'hsl(var(--primary))',
-                },
-              }}
-            >
-              {isGeneratingWorkflow ? 'Creating…' : 'Create workflow'}
-            </Button>
-          )}
-
-          {matchedWorkflow ? (
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => window.open(`/workflows/${matchedWorkflow.id}`, '_blank')}
-              sx={{
-                height: 28,
-                fontSize: '0.75rem',
-                textTransform: 'none',
-                borderColor: 'hsl(var(--border))',
-                color: 'hsl(var(--foreground))',
-                '&:hover': {
-                  borderColor: 'hsl(var(--primary))',
-                  color: 'hsl(var(--primary))',
-                },
-              }}
-            >
-              Open workflow
-            </Button>
-          ) : (
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={isGeneratingWorkflow}
-              onClick={handleGenerateWorkflow}
-              sx={{
-                height: 28,
-                fontSize: '0.75rem',
-                textTransform: 'none',
-                borderColor: 'hsl(var(--border))',
-                color: 'hsl(var(--foreground))',
-                '&:hover': {
-                  borderColor: 'hsl(var(--primary))',
-                  color: 'hsl(var(--primary))',
-                },
-              }}
-            >
-              {isGeneratingWorkflow ? 'Creating…' : 'Create workflow'}
-            </Button>
-          )}
-        </Box>
-      </Paper>
-
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
         <Box>
           <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
             {hasFetched ? `${sortedRules.length} rule${sortedRules.length === 1 ? '' : 's'}` : 'Loading…'}
             {hasFetched && sortedRules.length > 0 && ' · evaluated low-to-high priority'}
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<AddIcon size={16} />}
-          onClick={handleAdd}
-          sx={{
-            height: 36,
-            borderColor: 'hsl(var(--border))',
-            color: 'hsl(var(--foreground))',
-            textTransform: 'none',
-            '&:hover': { borderColor: 'hsl(var(--primary))', color: 'hsl(var(--primary))' },
-          }}
-        >
-          Add rule
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {categorySelect}
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<AddIcon size={16} />}
+            onClick={handleAdd}
+            sx={{
+              height: 36,
+              borderColor: 'hsl(var(--border))',
+              color: 'hsl(var(--foreground))',
+              textTransform: 'none',
+              whiteSpace: 'nowrap',
+              '&:hover': { borderColor: 'hsl(var(--primary))', color: 'hsl(var(--primary))' },
+            }}
+          >
+            Add {entityLabel.singular} rule
+          </Button>
+        </Box>
       </Box>
 
       {isLoading && !hasFetched && (

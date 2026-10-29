@@ -37,6 +37,7 @@ import { useAuthenticatedApps } from '../useAuthenticatedApps';
 
 import { CategoryAutomation, DATASTORE_CATEGORIES, getDatastoreByCategory, RBACConfig } from '@/Shuffle-Core/datastore';
 import { ShareAccessModal } from '@/components/common/ShareAccessModal';
+import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from './DatastoreCategorySelect';
 import { IncidentRoutingEditor } from '@/components/settings/IncidentRoutingEditor';
 import { useIsSupport } from '@/hooks/useIsSupport';
 import { propagateAutomationsToChildren } from '@/lib/automationPropagation';
@@ -96,15 +97,7 @@ export interface CategoryAutomationsDialogProps {
 /** Datastore categories Shuffle Security supports automation for. All of these
  *  are pre-loaded (top=1 lookup) when the dialog opens so the "When" dropdown
  *  can show which ones already have automation enabled and swap between them. */
-const CATEGORY_OPTIONS: { category: string; singular: string; plural: string }[] = [
-  { category: DATASTORE_CATEGORIES.INCIDENTS, singular: 'incident', plural: 'incidents' },
-  { category: DATASTORE_CATEGORIES.VULNERABILITIES, singular: 'vulnerability', plural: 'vulnerabilities' },
-  { category: DATASTORE_CATEGORIES.INFRASTRUCTURE, singular: 'sensor', plural: 'sensors' },
-  { category: DATASTORE_CATEGORIES.ASSETS, singular: 'asset', plural: 'assets' },
-  { category: DATASTORE_CATEGORIES.PACKAGES, singular: 'package', plural: 'packages' },
-  { category: DATASTORE_CATEGORIES.SOFTWARE, singular: 'software', plural: 'software' },
-  { category: DATASTORE_CATEGORIES.USERS, singular: 'user', plural: 'users' },
-];
+const CATEGORY_OPTIONS = DATASTORE_CATEGORY_OPTIONS;
 
 
 interface CategoryEntry {
@@ -1136,35 +1129,6 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
           )}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {isSupportUser && (
-            <Tooltip
-              title={
-                currentView === 'routing'
-                  ? `Switch to Automation for ${entityPluralCap}`
-                  : 'Routing rules are a support-only preview and are not visible to regular users yet.'
-              }
-            >
-              <IconButton
-                size="small"
-                onClick={() => setCurrentView(currentView === 'routing' ? 'automations' : 'routing')}
-                sx={{
-                  color: currentView === 'routing' ? 'hsl(var(--primary))' : 'text.secondary',
-                  border: '1px solid hsl(var(--border))',
-                  borderColor: currentView === 'routing' ? 'hsl(var(--primary))' : 'hsl(var(--border))',
-                  borderRadius: 1.5,
-                  p: 0.75,
-                  bgcolor: currentView === 'routing' ? 'hsl(var(--muted) / 0.5)' : 'transparent',
-                  '&:hover': {
-                    color: 'text.primary',
-                    bgcolor: 'hsl(var(--muted) / 0.5)',
-                    borderColor: 'hsl(var(--primary))',
-                  },
-                }}
-              >
-                <RouteIcon size={18} />
-              </IconButton>
-            </Tooltip>
-          )}
           {showViewToggle && (
             <Tooltip
               title={
@@ -1221,16 +1185,31 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18, ease: 'easeInOut' }}
             >
-              <Box>
+              {/* Default min-height so the dialog does not jump around when
+                  switching category or while rules load. */}
+              <Box sx={{ minHeight: 560 }}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.8rem' }}>
                   Rules are evaluated when a {entitySingular} is created or edited. Conditions are
                   generic field checks, so the same mechanism works for every category.
                 </Typography>
                 <IncidentRoutingEditor
                   forceShow
+                  showCategorySelect={false}
                   entityCategory={activeCategory}
                   entityLabel={{ singular: entitySingular, plural: entityPlural }}
                   generateCategory={routingGenerateCategory}
+                  categorySelect={
+                    <DatastoreCategorySelect
+                      value={activeCategory}
+                      options={categoryOptions}
+                      onChange={(next) => {
+                        if (hasChanges && !window.confirm('You have unsaved changes. Switch area and discard them?')) return;
+                        setActiveCategory(next);
+                      }}
+                      label="Category"
+                      compact
+                    />
+                  }
                 />
               </Box>
             </motion.div>
@@ -1257,59 +1236,24 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
           >
             {currentView === 'automations' ? 'When' : 'Category'}
           </Typography>
-          <FormControl fullWidth size="small">
-            <Select
-              value={activeCategory}
-              onChange={(e) => {
-                const next = String(e.target.value);
-                if (next === activeCategory) return;
-                if (hasChanges && !window.confirm('You have unsaved changes. Switch area and discard them?')) return;
-                setActiveCategory(next);
-              }}
-              sx={{
-                bgcolor: 'hsl(var(--muted) / 0.4)',
-                fontSize: '0.95rem',
-                '& .MuiSelect-select': { py: 1.5, px: 2 },
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'hsl(var(--border))' },
-              }}
-              MenuProps={{
-                PaperProps: {
-                  sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' },
-                },
-              }}
-            >
-              {categoryOptions.map((opt) => {
-                const count = enabledCountFor(opt.category);
-                return (
-                  <MenuItem key={opt.category} value={opt.category}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-                      <Box
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          flexShrink: 0,
-                          bgcolor: count > 0 ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground) / 0.5)',
-                        }}
-                      />
-                      <Typography sx={{ fontSize: '0.95rem', flex: 1 }}>
-                        {currentView === 'automations'
-                          ? `A${/^[aeiou]/i.test(opt.singular) ? 'n' : ''} ${opt.singular} is edited`
-                          : `${opt.plural.charAt(0).toUpperCase() + opt.plural.slice(1)} (${opt.category})`}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: 'text.disabled' }}>
-                        {loadingCategories && !categoryEntries[opt.category]
-                          ? 'Loading…'
-                          : count > 0
-                            ? `${count} enabled`
-                            : 'No automation'}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                );
-              })}
-            </Select>
-          </FormControl>
+          <DatastoreCategorySelect
+            value={activeCategory}
+            options={categoryOptions}
+            labelMode={currentView === 'automations' ? 'when' : 'category'}
+            onChange={(next) => {
+              if (hasChanges && !window.confirm('You have unsaved changes. Switch area and discard them?')) return;
+              setActiveCategory(next);
+            }}
+            isActive={(c) => enabledCountFor(c) > 0}
+            getStatus={(c) => {
+              const count = enabledCountFor(c);
+              return loadingCategories && !categoryEntries[c]
+                ? 'Loading…'
+                : count > 0
+                  ? `${count} enabled`
+                  : 'No automation';
+            }}
+          />
         </Box>
 
         <Divider sx={{ mb: 3, borderColor: 'hsl(var(--border))' }} />
@@ -1639,6 +1583,42 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
                 </Box>
               );
             })}
+            {/* Support-only: routing rules as one of the "Do" items. Clicking
+                swaps the dialog to the routing view (same as the old top-right
+                route button). */}
+            {isSupportUser && (
+              <Box
+                sx={{
+                  borderRadius: 1.5,
+                  transition: 'all 0.15s',
+                  border: '1px solid',
+                  borderColor: 'hsl(var(--border))',
+                  bgcolor: 'transparent',
+                  '&:hover': { bgcolor: 'hsl(var(--muted) / 0.45)' },
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    py: 1.5,
+                    px: 1.5,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setCurrentView('routing')}
+                >
+                  <RouteIcon size={22} style={{ color: 'hsl(var(--muted-foreground))' }} />
+                  <Typography sx={{ flex: 1, fontSize: '0.95rem', color: 'text.primary', fontWeight: 500 }}>
+                    Routing rules
+                  </Typography>
+                  <ExpandMoreIcon
+                    size={20}
+                    style={{ color: 'hsl(var(--muted-foreground))', transform: 'rotate(-90deg)' }}
+                  />
+                </Box>
+              </Box>
+            )}
           </Box>
         </Box>
       ) : (
@@ -1861,7 +1841,16 @@ export const CategoryAutomationsDialog: React.FC<CategoryAutomationsDialogProps>
 
       <DialogActions sx={{ px: 4, py: 2.5, justifyContent: currentView === 'routing' ? 'flex-end' : 'space-between' }}>
         {currentView === 'routing' ? (
-          <Button onClick={onClose}>Close</Button>
+          <>
+            <Button
+              startIcon={<RocketLaunchIcon size={18} />}
+              onClick={() => setCurrentView('automations')}
+              sx={{ textTransform: 'none', fontSize: '0.85rem' }}
+            >
+              Automation for {entityPluralCap}
+            </Button>
+            <Button onClick={onClose}>Close</Button>
+          </>
         ) : (
         <>
         <Button

@@ -2,6 +2,7 @@
  * Dashboard Page — CTA-focused setup guide + AI Agent notifications.
  */
 
+import { useSlaControls } from '@/hooks/useSlaControls';
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
   Box,
@@ -50,9 +51,22 @@ import { AutomationDashboard } from '@/components/dashboard/AutomationDashboard'
 import { AgentsDashboard } from '@/components/dashboard/AgentsDashboard';
 import { DashboardHeaderBar } from '@/components/dashboard/DashboardHeaderBar';
 import { VulnerabilitiesDashboard } from '@/components/dashboard/VulnerabilitiesDashboard';
-import { AUTOMATION_RANGE_OPTIONS, DASHBOARD_TABS, TAB_LABELS, type DashboardTab } from '@/Shuffle-Core';
+import { CustomDashboard } from '@/components/dashboard/CustomDashboard';
+import { useCustomDashboards } from '@/hooks/useCustomDashboards';
+import { useTheme } from '@/context/ThemeContext';
+import {
+  AUTOMATION_RANGE_OPTIONS,
+  CreateDashboardDialog,
+  DASHBOARD_TABS,
+  TAB_LABELS,
+  fromCustomDashboardTab,
+  isCustomDashboardTab,
+  toCustomDashboardTab,
+  type DashboardTab,
+} from '@/Shuffle-Core';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useAuth } from '@/context/AuthContext';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useSubOrgs } from '@/hooks/useSubOrgs';
 import { ChevronDown, ChevronUp, X as CloseIcon } from 'lucide-react';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -520,6 +534,7 @@ const NotificationRow = ({ notification, entityBasePath, onApprove, onQuickView,
 const ITEMS_PER_PAGE = 10;
 
 const DashboardPage = () => {
+  const { resolvedTheme } = useTheme();
 
   usePageMeta({
     title: 'Dashboard',
@@ -528,6 +543,7 @@ const DashboardPage = () => {
   });
   const navigate = useNavigate();
   const { userInfo } = useAuth();
+  const isAdmin = useIsAdmin();
   const isSupport = userInfo?.support === true;
   const { notifications, isLoading, refresh: refreshNotifications } = useAgentNotifications();
   const { singular: entitySingular, basePath: entityBasePath } = useEntityPreference();
@@ -565,7 +581,7 @@ const DashboardPage = () => {
   const [dashboardTab, setDashboardTab] = useState<DashboardTab>(() => {
     try {
       const stored = localStorage.getItem('shuffle_dashboard_tab') as DashboardTab | null;
-      if (stored && DASHBOARD_TABS.includes(stored)) return stored;
+      if (stored && ((DASHBOARD_TABS as readonly string[]).includes(stored) || isCustomDashboardTab(stored))) return stored;
     } catch { return 'security'; }
     return 'security';
   });
@@ -647,6 +663,19 @@ const DashboardPage = () => {
   const effectiveOrgId = viewOrgId || currentOrgId;
   const isViewingChild = !!viewOrgId && viewOrgId !== currentOrgId;
 
+  const {
+    dashboards: customDashboards,
+    createDashboard: createCustomDashboard,
+    saveDashboard: saveCustomDashboard,
+    deleteDashboard: deleteCustomDashboard,
+  } = useCustomDashboards(effectiveOrgId);
+  const [createDashboardOpen, setCreateDashboardOpen] = useState(false);
+  const activeCustomDashboardId = fromCustomDashboardTab(dashboardTab);
+  const activeCustomDashboard = useMemo(
+    () => (activeCustomDashboardId ? customDashboards.find((d) => d.id === activeCustomDashboardId) ?? null : null),
+    [activeCustomDashboardId, customDashboards],
+  );
+
   // Default datastore/vulnerability hooks — only used when viewing the active org.
   const { items: incidentItems, isLoading: incidentsLoadingDefault, fetchItems: fetchIncidents, hasFetched: incidentsFetched, hasMore: incidentsHasMoreDefault, totalAmount: incidentTotalAmount } = useDatastore({
     category: DATASTORE_CATEGORIES.INCIDENTS,
@@ -688,7 +717,7 @@ const DashboardPage = () => {
       if (!cancelled) setSubOrgIncidentItems(results.flat());
     })();
     return () => { cancelled = true; };
-  }, [isParentOrg, subOrgs, currentOrgId, isViewingChild]);
+  }, [isParentOrg, subOrgs, currentOrgId, isViewingChild, dashboardRefreshKey]);
 
   // When viewing a specific child tenant, fetch incidents + vulnerabilities
   // scoped to that org via Org-Id header (no active-org change).
@@ -741,7 +770,7 @@ const DashboardPage = () => {
       setViewLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [isViewingChild, viewOrgId]);
+  }, [isViewingChild, viewOrgId, dashboardRefreshKey]);
 
   // Effective values used by the rest of the page
   const effectiveIncidentItems = isViewingChild ? viewIncidentItems : incidentItems;
@@ -751,6 +780,7 @@ const DashboardPage = () => {
   const vulnLoading = isViewingChild ? viewLoading : vulnLoadingDefault;
 
   const slaConfig = useSlaConfig();
+  const slaControls = useSlaControls();
   const overviewIncidents = useMemo(() => {
     const out: { status: string; severity: string; createdTs: number }[] = [];
     const sevMap: Record<number, string> = { 1: 'informational', 2: 'low', 3: 'medium', 4: 'high', 5: 'critical', 6: 'critical' };
@@ -834,7 +864,7 @@ const DashboardPage = () => {
       }
     };
     checkSensors();
-  }, [isViewingChild, viewOrgId]);
+  }, [isViewingChild, viewOrgId, dashboardRefreshKey]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -1150,12 +1180,44 @@ const DashboardPage = () => {
                     gran={dashboardGran}
                     onGranChange={setDashboardGran}
                     onRefresh={handleDashboardRefresh}
+                    customDashboards={customDashboards}
+                    onCreateDashboard={isAdmin ? () => setCreateDashboardOpen(true) : undefined}
                   />
                 );
                 return (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
                     {sharedHeader}
-                    {dashboardTab === 'agents' ? (
+                    {activeCustomDashboard ? (
+                      <CustomDashboard
+                        dashboard={activeCustomDashboard}
+                        orgId={effectiveOrgId}
+                        canEdit={isAdmin}
+                        days={parseInt(dashboardDays, 10) || 30}
+                        gran={dashboardGran}
+                        customRange={dashboardCustomRange}
+                        onRangeSelect={(fromMs, toMs) => setDashboardCustomRange({ fromMs, toMs })}
+                        refreshKey={dashboardRefreshKey}
+                        incidents={overviewIncidents}
+                        incidentsLoading={incidentsLoading}
+                        vulnSeverityCounts={vulnSeverityCounts}
+                        vulnLoading={vulnLoading}
+                        onUpdateDashboard={
+                          isAdmin
+                            ? async (updated) => {
+                                await saveCustomDashboard(updated);
+                              }
+                            : undefined
+                        }
+                        onDeleteDashboard={
+                          isAdmin
+                            ? async (id) => {
+                                await deleteCustomDashboard(id);
+                                setDashboardTab('security');
+                              }
+                            : undefined
+                        }
+                      />
+                    ) : dashboardTab === 'agents' ? (
                       <AgentsDashboard
                         orgId={effectiveOrgId}
                         days={parseInt(dashboardDays, 10) || 30}
@@ -1190,7 +1252,9 @@ const DashboardPage = () => {
                     ) : (
                       <DashboardOverview
                         incidents={overviewIncidents}
-                        slaTargets={slaConfig}
+                        slaTargets={slaControls.incidentSlaEnabled ? slaConfig : undefined}
+                        sloTargetPercent={slaControls.sloEnabled ? slaControls.incidentSloPercent : undefined}
+                        sloSlaTargets={slaConfig}
                         incidentsLoading={incidentsLoading}
                         incidentsHasMore={!isViewingChild && incidentsHasMoreDefault}
                         vulnSeverityCounts={vulnSeverityCounts}
@@ -1504,6 +1568,20 @@ const DashboardPage = () => {
         onConfigureApprove={handleConfigureApprove}
         onSubmitAnswers={handleSubmitAnswers}
       />
+
+      {isAdmin && (
+        <Box sx={{ display: 'none' }}>
+          <CreateDashboardDialog
+            open={createDashboardOpen}
+            onClose={() => setCreateDashboardOpen(false)}
+            theme={resolvedTheme}
+            onSubmit={async ({ name, description, useStarterTemplate }) => {
+              const created = await createCustomDashboard(name, description, useStarterTemplate);
+              setDashboardTab(toCustomDashboardTab(created.id));
+            }}
+          />
+        </Box>
+      )}
     </>
   );
 };

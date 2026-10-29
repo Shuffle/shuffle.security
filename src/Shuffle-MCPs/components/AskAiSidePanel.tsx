@@ -109,6 +109,8 @@ export interface AskAiSidePanelProps extends ShuffleHostProps {
   isSupport?: boolean;
   /** Distance in px from the right edge of the screen, for hosts that dock their own panel there. Default 0. */
   rightOffset?: number;
+  /** Keep the agent mounted while the panel is closed, e.g. so a run in progress is still followed. Default false. */
+  keepMounted?: boolean;
   /** Panel width in pixels. Default: 380 */
   width?: number;
   /** Theme override forwarded to AgentUI */
@@ -155,6 +157,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   rules,
   isSupport,
   rightOffset = 0,
+  keepMounted = false,
   width = 380,
   theme,
   globalUrl,
@@ -210,13 +213,14 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   const [contentReady, setContentReady] = useState(false);
   useEffect(() => {
     if (!isVisible) {
+      if (keepMounted) return undefined;
       // Keep content mounted until the slide-out has finished.
       const closeTimer = window.setTimeout(() => setContentReady(false), 320);
       return () => window.clearTimeout(closeTimer);
     }
     const timer = window.setTimeout(() => setContentReady(true), 280);
     return () => window.clearTimeout(timer);
-  }, [isVisible]);
+  }, [isVisible, keepMounted]);
 
   // Auto-close if currently open when user navigates to an agent route
   useEffect(() => {
@@ -797,6 +801,8 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
         component="aside"
         aria-label="Ask Shuffle"
         aria-hidden={!isVisible}
+        // Hosts use this to keep their keyboard shortcuts out of the panel
+        data-ask-ai-panel=""
         className={themeScope?.scopeClassName}
         sx={[
           {

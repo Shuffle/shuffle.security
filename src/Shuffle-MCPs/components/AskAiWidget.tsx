@@ -63,7 +63,7 @@ export interface AskAiWidgetProps extends Omit<AskAiSidePanelProps, 'open' | 'on
   sideshift?: boolean;
 }
 
-export const AskAiWidget: React.FC<AskAiWidgetProps> = ({
+const AskAiWidgetInner: React.FC<AskAiWidgetProps> = ({
   open: controlledOpen,
   onOpenChange,
   mode = 'panel',
@@ -290,5 +290,8 @@ export const useContextAwareAgent = (pathname?: string, search?: string) => {
 
   return activeContext;
 };
+
+// Hosts like the workflow editor re-render constantly; skip the whole agent tree when props are unchanged
+export const AskAiWidget = React.memo(AskAiWidgetInner);
 
 export default AskAiWidget;

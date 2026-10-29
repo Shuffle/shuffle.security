@@ -887,8 +887,18 @@ export interface AgentUIProps {
     workflow?: { id?: string; name?: string };
     [k: string]: any;
   };
-  /** Called whenever a run finishes (success or failure). */
+  /** Called once the request to start a run returns: success with the new execution, or the error it failed to start with. */
   onRun?: (info: { input: string; success: boolean; executionId?: string; authorization?: string; error?: string }) => void;
+  /** Awaited before a run starts or continues, e.g. so the host can save its unsaved changes first. */
+  onBeforeRun?: () => void | Promise<void>;
+  /**
+   * Called when the shown run's status changes. `previousStatus` is the status this
+   * same run had before, so it is missing for a run that was just opened or started.
+   * `status` is empty once no run is shown (e.g. after stopping one that never started).
+   * `waiting` is true while the agent waits for the user (a question or an approval);
+   * the run itself still counts as running then.
+   */
+  onRunStatusChange?: (info: { executionId: string; status: string; previousStatus?: string; running: boolean; waiting: boolean }) => void;
   /** Called whenever the chip set under the prompt changes (add/remove apps). */
   onAppsChange?: (apps: AgentUIApp[]) => void;
   /** Called whenever the active top-level view changes (start / simple / detailed / chat). */
@@ -2372,6 +2382,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
   authorization,
   initialExecution,
   onRun,
+  onBeforeRun,
+  onRunStatusChange,
   onAppsChange,
   onViewChange,
   initialView,
@@ -3841,8 +3853,13 @@ const AgentUI: React.FC<AgentUIProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify((agentData as any)?.allowed_actions || []), availableApps]);
 
+  const onBeforeRunRef = useRef(onBeforeRun);
+  onBeforeRunRef.current = onBeforeRun;
+
   // ── Fetch execution result (poll-friendly) ──
-  const getExecution = useCallback(async (executionId: string, authorization?: string) => {
+  // Last polled payload, so an unchanged poll doesn't rebuild every piece of state
+  const lastPollTextRef = useRef('');
+  const getExecution = useCallback(async (executionId: string, authorization?: string, skipIfUnchanged = false) => {
     const pollGeneration = executionPollGenerationRef.current;
     if (loadedExecutionIdRef.current !== executionId) hasExecutionDataRef.current = false;
     if (!executionId || executionId.startsWith('demo-') || executionId.startsWith('dummy-')) return;
@@ -3888,16 +3905,26 @@ const AgentUI: React.FC<AgentUIProps> = ({
         }
         return;
       }
-      const json = await resp.json();
+      const text = await resp.text();
       if (
         activeExecutionIdRef.current !== executionId ||
         executionPollGenerationRef.current !== pollGeneration
       ) return;
+      if (skipIfUnchanged && hasExecutionDataRef.current && loadedExecutionIdRef.current === executionId && text === lastPollTextRef.current) {
+        setError(null);
+        setPollWarning(null);
+        return;
+      }
+      lastPollTextRef.current = text;
+      const json = JSON.parse(text);
       if (json?.success === false) {
         if (!hasExecutionDataRef.current) setError(json.reason || 'Failed to load agent data.');
         else setPollWarning(json.reason || 'Live updates are failing. Showing the last known state.');
         return;
       }
+      // The fetch may have used the execution id as a stand-in token. Keep the
+      // real one the backend returns, so continuations don't send the id as auth.
+      const realAuth = (typeof json?.authorization === 'string' && json.authorization) || authorization || undefined;
 
       // Find AI Agent result for the timeline
       let actionResult: any = null;
@@ -3914,17 +3941,17 @@ const AgentUI: React.FC<AgentUIProps> = ({
       // none, keep the last good state and just clear the error.
       const payloadHasResults = Array.isArray(json?.results) ? json.results.length > 0 : Boolean(json);
       if (hasExecutionDataRef.current && !payloadHasResults) {
-        setExecution((prev) => (prev ? { ...prev, ...json, results: (prev as any).results, execution_id: executionId, authorization: auth } : { ...json, execution_id: executionId, authorization: auth }));
+        setExecution((prev) => (prev ? { ...prev, ...json, results: (prev as any).results, execution_id: executionId, authorization: realAuth } : { ...json, execution_id: executionId, authorization: realAuth }));
         setError(null);
         setPollWarning(null);
         return;
       }
 
-      setExecution({ ...json, execution_id: executionId, authorization: auth });
+      setExecution({ ...json, execution_id: executionId, authorization: realAuth });
       if (contextStorageKey) {
         setPageContextChoice(contextStorageKey, {
           executionId,
-          authorization: auth || undefined,
+          authorization: realAuth,
           executionStatus: json.status,
         });
       }
@@ -4141,7 +4168,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     if (settled) keepPollingUntilRef.current = 0;
     const intervalMs = settled ? 15000 : isTerminal ? 5000 : 3000;
     const id = setInterval(() => {
-      getExecution(execution.execution_id!, execution.authorization);
+      getExecution(execution.execution_id!, execution.authorization, true);
     }, intervalMs);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4177,6 +4204,16 @@ const AgentUI: React.FC<AgentUIProps> = ({
     try { runAbortRef.current?.abort(); } catch { /* noop */ }
     const controller = new AbortController();
     runAbortRef.current = controller;
+
+    // Let the host save first, so the agent doesn't work on a stale copy. Only before
+    // a new run: by an answer or follow-up the host may not have reloaded the agent's
+    // edits yet, and saving then would overwrite them.
+    try {
+      await onBeforeRunRef.current?.();
+    } catch (err) {
+      console.warn('[AgentUI] onBeforeRun failed, starting the run anyway:', err);
+    }
+    if (myGeneration !== runGenerationRef.current || controller.signal.aborted) return;
 
     // Snapshot prior run state so a failed network request does not leave
     // the user staring at an empty page with no way to retry. We only
@@ -4279,8 +4316,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
       const raw: any = (result as any)?.rawData;
       const eid = raw?.execution_id;
       const auth = raw?.authorization;
-      const wfId = raw?.workflow?.id;
-      if (eid && wfId) {
+      const wfId = raw?.workflow?.id || eid;
+      if (eid) {
         try {
           fetch(
             resolveUrl(`/api/v1/workflows/${wfId}/executions/${eid}/abort`),
@@ -4640,8 +4677,14 @@ const AgentUI: React.FC<AgentUIProps> = ({
     flushSync(() => setAbortLoading(true));
     const execId = execution?.execution_id;
     const auth = execution?.authorization;
-    const wfId = (execution as any)?.workflow?.id;
+    // The workflow is only known after the first poll. The abort endpoint just needs a
+    // workflow-shaped id in the path (it finds the run by execution id), so fall back
+    // to the execution id like continuations do. A run that has started must be aborted.
+    const wfId = (execution as any)?.workflow?.id || execId;
     if (execId) broadcastAgentAborted(execId);
+    // A reply or follow-up sent just before shows the run as working until the agent records
+    // a new step, which an aborted run never does. Without this it looks like it keeps running.
+    setOptimisticContinue(null);
 
     // Bump the run-generation counter and abort any in-flight POST /agent
     // request immediately. This guarantees a slow initial request that
@@ -4677,7 +4720,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     };
 
     // Agent never produced an execution — nothing to abort server-side.
-    if (!execId || !wfId) {
+    if (!execId) {
       resetToStart();
       toast({ title: 'Run aborted', description: 'The agent had not started yet — reset to Start.' });
       setAbortLoading(false);
@@ -4698,11 +4741,21 @@ const AgentUI: React.FC<AgentUIProps> = ({
       );
       if (!resp.ok) {
         const txt = await resp.text().catch(() => '');
+        // Already finished or aborted: nothing failed, just catch up with that status.
+        if (txt.includes("can't be aborted")) {
+          getExecution(execId, auth!);
+          setAbortLoading(false);
+          return;
+        }
         toast({ title: 'Abort failed', description: txt || `HTTP ${resp.status}`, variant: 'destructive' });
         setAbortLoading(false);
         return;
       }
-      
+
+      // The backend saved ABORTED before answering, so show it now instead of waiting for a
+      // poll. Drop polls already in flight too, or one can land afterwards and undo this.
+      executionPollGenerationRef.current += 1;
+      setExecution((prev) => (prev?.execution_id === execId ? { ...prev, status: 'ABORTED' } : prev));
       // Nudge the poll loop to refresh sooner so the UI reflects the change.
       setTimeout(() => getExecution(execId, auth!), 500);
       setTimeout(() => getExecution(execId, auth!), 2500);
@@ -5655,6 +5708,32 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const tabBarRef = useRef<HTMLDivElement | null>(null);
   const runStatusUpper = resolveRunStatus(execution?.status, agentData?.status);
   const runIsActive = hasExecution && !['FINISHED', 'FAILURE', 'ABORTED', 'CANCELLED', 'CANCELED'].includes(runStatusUpper);
+
+  // Tell the host what the shown run is doing (presence, analytics, refreshing its view)
+  const onRunStatusChangeRef = useRef(onRunStatusChange);
+  onRunStatusChangeRef.current = onRunStatusChange;
+  const reportedRunRef = useRef<{ executionId: string; status: string; running: boolean; waiting: boolean } | null>(null);
+  const shownExecutionId = execution?.execution_id || '';
+  const shownStatus = shownExecutionId ? runStatusUpper : '';
+  const shownRunning = runIsActive || optimisticRunning;
+  // The run stays EXECUTING while one of its decisions waits for an answer
+  const shownWaiting = shownRunning && !optimisticRunning && ((agentData as any)?.decisions || []).some(
+    (decision: any) => String(decision?.run_details?.status || '').toUpperCase() === 'WAITING',
+  );
+  useEffect(() => {
+    const prev = reportedRunRef.current;
+    if (prev && prev.executionId === shownExecutionId && prev.status === shownStatus && prev.running === shownRunning && prev.waiting === shownWaiting) return;
+    if (!prev && !shownExecutionId) return;
+    reportedRunRef.current = { executionId: shownExecutionId, status: shownStatus, running: shownRunning, waiting: shownWaiting };
+    onRunStatusChangeRef.current?.({
+      executionId: shownExecutionId,
+      status: shownStatus,
+      previousStatus: prev && prev.executionId === shownExecutionId ? prev.status : undefined,
+      running: shownRunning,
+      waiting: shownWaiting,
+    });
+  }, [shownExecutionId, shownStatus, shownRunning, shownWaiting]);
+
   const tabBar = (
     <Box
       ref={tabBarRef}
@@ -6641,6 +6720,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
                   }
                 }}
                 onBlur={(e) => {
+                  // MUI also calls onBlur without an event when a focused input gets disabled (a run is
+                  // starting). Saving the draft then would bring back the prompt that was just sent.
+                  if (!e) return;
                   const node = e.target as HTMLTextAreaElement;
                   if (contextStorageKey) {
                     setPageContextChoice(contextStorageKey, { draftPrompt: node.value || '' });
@@ -7693,6 +7775,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
             onStart={(text) => submitInput(text)}
             onSubmit={submitQuestions}
             onStop={safeHandler('Stop', abortAgent)}
+            stopping={abortLoading}
             onRefresh={() => {
               if (execution?.execution_id) getExecution(execution.execution_id, execution.authorization);
             }}

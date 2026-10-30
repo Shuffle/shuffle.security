@@ -144,7 +144,7 @@ function mapApiUsecaseToFrontend(apiCategory: ApiUsecaseCategory, apiUsecase: Ap
     blogpost: apiUsecase.blogpost || localUsecase?.blogpost,
     referenceImage: apiUsecase.reference_image || localUsecase?.referenceImage,
     customAction: (localUsecase?.customAction || apiUsecase.custom_action)
-      ? { ...localUsecase?.customAction, ...apiUsecase.custom_action }
+      ? { label: '', ...localUsecase?.customAction, ...apiUsecase.custom_action }
       : undefined,
   };
 }

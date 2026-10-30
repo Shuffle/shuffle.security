@@ -12,6 +12,7 @@ import { getCachedConnectedTools, mergeConnectedTools, MAX_AUTO_ASSIGNED_TOOLS }
 import { composeDocPromptInput, isDocsRoute } from '@/lib/docsPromptContext';
 import { composeIncidentPromptInput } from '@/lib/incidentPromptContext';
 import { getDocGroup } from '@/lib/docGroups';
+import { composeUsecasePromptInput, getUsecaseDisplayName } from '@/lib/usecasePromptContext';
 
 export interface AgentContextApp {
   name: string;
@@ -1075,6 +1076,30 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     getStorageKey: (params, pathname) => `docs_${pathname.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
     description: 'Assistant for Shuffle legal and article references',
     sideshift: true,
+  },
+
+  // 7i. Usecases overview and a specific usecase (/usecases, /usecases/:flowId)
+  {
+    id: 'usecases',
+    match: (pathname) => {
+      const parts = pathname.replace(/\/+$/, '').split('/');
+      if (parts[1] !== 'usecases') return null;
+      if (parts.length === 2) return {} as Record<string, string>;
+      if (parts.length >= 3 && parts[2]) return { flowId: parts[2] } as Record<string, string>;
+      return null;
+    },
+    defaultApps: [],
+    defaultPresetId: null,
+    isBeta: true,
+    buttonLabel: (params) => `Ask about ${params.flowId ? getUsecaseDisplayName(params.flowId) : 'Usecases'}`,
+    headerTitle: (params) => `Ask about ${params.flowId ? getUsecaseDisplayName(params.flowId) : 'Usecases'}`,
+    title: (params) => `How can we help with ${params.flowId ? getUsecaseDisplayName(params.flowId) : 'Usecases'}?`,
+    subtitle: (params) => (params.flowId ? 'Shuffle Security Usecase' : 'Shuffle Security Usecases'),
+    defaultPrompt: (params) => `Help me understand ${params.flowId ? getUsecaseDisplayName(params.flowId) : 'Usecases'}: `,
+    placeholder: 'Ask how this usecase works, what it needs, or how to set it up...',
+    getStorageKey: (params) => (params.flowId ? `usecase_${params.flowId}` : 'usecases_list'),
+    description: 'Usecase assistant with the usecase details and required APIs',
+    composeInput: (raw, params) => composeUsecasePromptInput(raw, params.flowId),
   },
 
   // ==========================================

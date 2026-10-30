@@ -8354,7 +8354,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                         agentRequestLoading={agentRequestLoading}
                         getFormUrl={getFormUrl}
                         runFinished={detailedRunFinished}
-                        onAuthenticateApp={(name, id) => setAuthDrawerApp({ name, id })}
+                        onAuthenticateApp={(name, id) => setAuthDrawerApp({ name, id, focusAuth: true })}
                         onRefreshAuthenticatedApps={() => { loadAuthenticatedApps(); }}
                         isAppAuthenticated={isAppAuthenticated}
                         authAppsLoading={authAppsLoading}
@@ -8392,7 +8392,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                       agentRequestLoading={agentRequestLoading}
                       getFormUrl={getFormUrl}
                       runFinished={false}
-                      onAuthenticateApp={(name, id) => setAuthDrawerApp({ name, id })}
+                      onAuthenticateApp={(name, id) => setAuthDrawerApp({ name, id, focusAuth: true })}
                       onRefreshAuthenticatedApps={() => { loadAuthenticatedApps(); }}
                       isAppAuthenticated={isAppAuthenticated}
                       authAppsLoading={authAppsLoading}
@@ -8604,7 +8604,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
             onRefresh: () => { loadAuthenticatedApps(); },
             appName: authDrawerApp?.name || null,
             appId: authDrawerApp?.id || null,
-            appImage: authDrawerApp?.icon || null,
+            appImage: authDrawerApp?.icon || null, focusAuthentication: !!authDrawerApp?.focusAuth,
             activeOrgId: orgId || null,
             globalUrl: apiBaseUrl,
             theme,

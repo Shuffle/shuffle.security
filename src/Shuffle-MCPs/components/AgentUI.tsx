@@ -765,6 +765,20 @@ export function dedupeAgentApps(list: AgentUIApp[] | null | undefined): AgentUIA
   return out;
 }
 
+export type AgentAppChipTone = 'normal' | 'unavailable';
+
+/**
+ * Visual tone of a chosen-app chip in the tool picker row.
+ *
+ * An app that still needs credentials is rendered exactly like an
+ * authenticated one: the missing-credentials warning lives in the advisory
+ * banner under the row, so the chip carries no extra colour or badge for it.
+ * Only an app that is not configured in this workspace stands out.
+ */
+export function agentAppChipTone(app: { needsAuth?: boolean; isUnavailable?: boolean }): AgentAppChipTone {
+  return app.isUnavailable ? 'unavailable' : 'normal';
+}
+
 /** Top-level views of AgentUI. */
 export type AgentUIView = 'start' | 'simple' | 'detailed' | 'chat';
 type RunViewMode = Exclude<AgentUIView, 'start'>;
@@ -7481,7 +7495,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                   const isUnavailable = !authAppsLoading && !isAvailable && !needsAuth;
                   const isRequired = isRequiredPresetApp(selectedPreset, app.name || '');
                   const appDisplayName = formatAppDisplayName(app.name || '');
-                  const chipTone = agentAppChipTone({ isUnavailable });
+                  const chipTone = agentAppChipTone({ needsAuth, isUnavailable });
                   const appIcon =
                     app.icon ||
                     availableApps.find((a) => normalizeAgentAppName(a.name || '') === slug)?.icon ||

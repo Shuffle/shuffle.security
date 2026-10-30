@@ -120,7 +120,36 @@ const linkButtonSx = {
   color: 'hsl(var(--muted-foreground))',
   p: 0,
   minWidth: 0,
-  '&:hover': { color: 'hsl(var(--primary))', bgcolor: 'transparent' },
+  '&:hover': { color: 'hsl(var(--foreground))', bgcolor: 'transparent' },
+} as const;
+const primaryActionButtonSx = {
+  textTransform: 'none',
+  fontSize: '0.75rem',
+  minHeight: 0,
+  py: 0.25,
+  bgcolor: 'hsl(var(--foreground))',
+  color: 'hsl(var(--background))',
+  boxShadow: 'none',
+  '&:hover': {
+    bgcolor: 'hsl(var(--foreground) / 0.88)',
+    boxShadow: 'none',
+  },
+  '&.Mui-disabled': {
+    bgcolor: 'hsl(var(--muted))',
+    color: 'hsl(var(--muted-foreground))',
+  },
+} as const;
+const outlinedActionButtonSx = {
+  textTransform: 'none',
+  fontSize: '0.75rem',
+  minHeight: 0,
+  py: 0.25,
+  borderColor: 'hsl(var(--border))',
+  color: 'hsl(var(--foreground))',
+  '&:hover': {
+    borderColor: 'hsl(var(--foreground) / 0.4)',
+    bgcolor: 'hsl(var(--muted) / 0.5)',
+  },
 } as const;
 const replySx = {
   textTransform: 'none',
@@ -195,7 +224,7 @@ const RunCard: React.FC<{
     <Box sx={{ my: 1, p: 1.25, border: '1px solid hsl(var(--border))', borderRadius: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography sx={{ ...textSx, flex: 1, fontWeight: 600 }}>{heading}</Typography>
-        {!done && execution && <CircularProgress size={11} sx={{ color: 'hsl(var(--primary))' }} />}
+        {!done && execution && <CircularProgress size={11} sx={{ color: 'hsl(var(--muted-foreground))' }} />}
       </Box>
       {!execution && <Typography sx={{ ...mutedSx, mt: 0.5 }}>{failedToLoad ? 'Could not load this run.' : 'Loading the run...'}</Typography>}
       {nodes.map((node) => (
@@ -536,13 +565,15 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
 
   const renderItem = (item: ChatThreadItem) => {
     if (item.type === 'user') {
+      const cleanUserText = stripModePrefix(item.text);
+      if (!cleanUserText) return null;
       return (
         <Box key={item.key} sx={{ display: 'flex', justifyContent: 'flex-end', my: 1.25 }}>
           <Box sx={{
             ...textSx, maxWidth: '85%', px: 1.5, py: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            bgcolor: 'hsl(var(--primary) / 0.12)', border: '1px solid hsl(var(--primary) / 0.25)', borderRadius: '12px 12px 2px 12px',
+            bgcolor: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', borderRadius: '12px 12px 2px 12px',
           }}>
-            {item.text}
+            {cleanUserText}
           </Box>
         </Box>
       );
@@ -582,7 +613,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
             {` · ${item.steps.length} step${item.steps.length === 1 ? '' : 's'}`}
             {failed > 0 ? ` · ${failed} failed` : ''}
           </Typography>
-          {live && <CircularProgress size={11} sx={{ color: 'hsl(var(--primary))' }} />}
+          {live && <CircularProgress size={11} sx={{ color: 'hsl(var(--muted-foreground))' }} />}
           <Typography sx={mutedSx}>{open ? 'Hide' : 'Show'}</Typography>
         </Box>
         {open && <Box sx={{ px: 1.25, pb: 0.5, borderTop: '1px solid hsl(var(--border))' }}>{item.steps.map(renderStep)}</Box>}
@@ -605,12 +636,12 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
       const { label } = describeStep(waitingApproval, labels);
       const approvalId = waitingApproval.run_details.id;
       return (
-        <Box sx={{ my: 1.25, p: 1.5, border: '1px solid hsl(var(--primary) / 0.5)', borderRadius: 2 }}>
+        <Box sx={{ my: 1.25, p: 1.5, border: '1px solid hsl(var(--border))', borderRadius: 2, bgcolor: 'hsl(var(--muted) / 0.25)' }}>
           <Typography sx={textSx}>The agent wants to: {label}</Typography>
           {waitingApproval.reason && <Typography sx={{ ...mutedSx, mt: 0.5 }}>{waitingApproval.reason}</Typography>}
           <Box sx={{ display: 'flex', gap: 1, mt: 1.25 }}>
-            <Button size="small" variant="contained" disabled={busy} onClick={() => onSubmit(approvalId, { approve: 'true' })} sx={{ textTransform: 'none' }}>Approve</Button>
-            <Button size="small" variant="outlined" disabled={busy} onClick={() => onSubmit(approvalId, { approve: 'false' })} sx={{ textTransform: 'none' }}>Deny</Button>
+            <Button size="small" variant="contained" disabled={busy} onClick={() => onSubmit(approvalId, { approve: 'true' })} sx={primaryActionButtonSx}>Approve</Button>
+            <Button size="small" variant="outlined" disabled={busy} onClick={() => onSubmit(approvalId, { approve: 'false' })} sx={outlinedActionButtonSx}>Deny</Button>
           </Box>
         </Box>
       );
@@ -623,7 +654,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
           <Typography key={app.id} sx={{ ...mutedSx, mb: 0.75 }}>{app.name} connected</Typography>
         ))}
         {pendingAuth.map((app) => (
-          <Box key={app.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.25, mb: 1, border: '1px solid hsl(var(--primary) / 0.5)', borderRadius: 2 }}>
+          <Box key={app.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.25, mb: 1, border: '1px solid hsl(var(--border))', borderRadius: 2, bgcolor: 'hsl(var(--muted) / 0.25)' }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography sx={textSx}>Connect {app.name}</Typography>
               <Typography sx={mutedSx}>
@@ -632,7 +663,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
                   : (needsApproval ? 'Add credentials, then reply to the agent.' : 'Add credentials and the agent continues by itself.')}
               </Typography>
             </Box>
-            <Button size="small" variant="contained" onClick={() => connect(app)} sx={{ textTransform: 'none', flexShrink: 0 }}>Connect</Button>
+            <Button size="small" variant="contained" onClick={() => connect(app)} sx={{ ...primaryActionButtonSx, flexShrink: 0 }}>Connect</Button>
           </Box>
         ))}
         {replies.length > 0 && (
@@ -679,7 +710,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
                 <Typography
                   key={index}
                   onClick={linked ? () => focusNode(change.nodeId) : undefined}
-                  sx={{ ...textSx, cursor: linked ? 'pointer' : 'default', '&:hover': linked ? { color: 'hsl(var(--primary))' } : undefined }}
+                  sx={{ ...textSx, cursor: linked ? 'pointer' : 'default', '&:hover': linked ? { color: 'hsl(var(--foreground))', textDecoration: 'underline' } : undefined }}
                 >
                   {change.text}
                 </Typography>
@@ -739,7 +770,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
       component="form"
       onSubmit={(e) => { e.preventDefault(); send(); }}
       sx={{
-        border: waitingQuestion ? '1px solid hsl(var(--primary) / 0.6)' : '1px solid hsl(var(--border))',
+        border: waitingQuestion ? '1px solid hsl(var(--foreground) / 0.4)' : '1px solid hsl(var(--border))',
         borderRadius: 2,
         bgcolor: 'hsl(var(--background))',
         px: 1.25,
@@ -791,9 +822,9 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
         )}
         <Box sx={{ flex: 1 }} />
         {isRunning && !waitingQuestion ? (
-          <Button size="small" variant="outlined" disabled={stopping} onClick={onStop} sx={{ textTransform: 'none', fontSize: '0.75rem', minHeight: 0, py: 0.25 }}>{stopping ? 'Stopping...' : 'Stop'}</Button>
+          <Button size="small" variant="outlined" disabled={stopping} onClick={onStop} sx={outlinedActionButtonSx}>{stopping ? 'Stopping...' : 'Stop'}</Button>
         ) : (
-          <Button type="submit" size="small" variant="contained" disabled={!canType || !input.trim()} sx={{ textTransform: 'none', fontSize: '0.75rem', minHeight: 0, py: 0.25 }}>
+          <Button type="submit" size="small" variant="contained" disabled={!canType || !input.trim()} sx={primaryActionButtonSx}>
             {busy ? 'Sending...' : 'Send'}
           </Button>
         )}
@@ -821,7 +852,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
       {(busy || working) && !liveGroupKey && (busy || lastItem) && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, my: 1, px: 1.25, py: 0.75, border: '1px solid hsl(var(--border))', borderRadius: 2, bgcolor: 'hsl(var(--muted) / 0.2)' }}>
           <Typography sx={{ ...mutedSx, flex: 1 }}>Working</Typography>
-          <CircularProgress size={11} sx={{ color: 'hsl(var(--primary))' }} />
+          <CircularProgress size={11} sx={{ color: 'hsl(var(--muted-foreground))' }} />
         </Box>
       )}
       {renderWaiting()}

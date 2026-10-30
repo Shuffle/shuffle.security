@@ -7876,7 +7876,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
               </AvatarGroup>
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--foreground))', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {extractCleanDisplayPrompt(agentData?.original_input) || actionInput || 'Agent run'}
+                  {extractCleanDisplayPrompt(agentData?.original_input) || extractCleanDisplayPrompt(actionInput) || 'Agent run'}
                 </Typography>
                 <Typography sx={{ fontSize: '0.7rem', color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.25 }}>
                   <span>Status: {execution?.status || agentData?.status || '—'} · {execution?.execution_id?.slice(0, 8) || ''}</span>

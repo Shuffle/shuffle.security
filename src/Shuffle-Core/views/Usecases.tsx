@@ -86,7 +86,14 @@ import { ThreatIntelReadinessBanner } from '@/components/threat-intel/ThreatInte
 import { useWorkflowHealth } from '@/hooks/useWorkflowHealth';
 import { diagnoseUsecase } from '@/services/workflowHealth';
 import { resolveSkillAllowedApps, isBuiltInSkillApp } from '@/lib/agentTools';
-import { setActiveUsecasePromptContext, clearActiveUsecasePromptContext, type ActiveUsecasePromptContext } from '@/lib/usecasePromptContext';
+import {
+  setActiveUsecasePromptContext,
+  clearActiveUsecasePromptContext,
+  setActiveUsecasesOverviewContext,
+  clearActiveUsecasesOverviewContext,
+  type ActiveUsecasePromptContext,
+  type ActiveUsecasesOverviewContext,
+} from '@/lib/usecasePromptContext';
 import { findRoutingWorkflow, isWorkflowHookedToCategory } from '@/utils/routingWorkflowUtils';
 // ── Flow phases ────────────────────────────────────────────────────────────────
 
@@ -3844,12 +3851,20 @@ function UsecaseDetailContent({
       tags: flow.tags,
       automationLabel: flow.automationLabel,
       automationCategory: flow.automationCategory,
+      automationArea: flow.automationArea,
+      manualVerification: flow.manualVerification,
+      customAction: flow.customAction,
+      healthStatus: detailIsBlocked
+        ? (detailHealth.summary || 'Enabled but requires attention (missing credentials or failing workflow node)')
+        : effectiveEnabled
+          ? 'Healthy and active'
+          : 'Not enabled yet',
       enabled: effectiveEnabled,
       categoryApps: pick(categoryAppNames, (n) => String(n)),
       connectedApps: pick(validatedAppsByCategory, (a) => a?.name),
       linkedWorkflows: linkedWfs.map((w: any) => w?.name).filter(Boolean),
     });
-  }, [flow, flowDisplayLabel, effectiveEnabled, categoryAppNames, validatedAppsByCategory, linkedWfs]);
+  }, [flow, flowDisplayLabel, effectiveEnabled, detailIsBlocked, detailHealth.summary, categoryAppNames, validatedAppsByCategory, linkedWfs]);
   useEffect(() => () => clearActiveUsecasePromptContext(ownUsecaseContextRef.current), []);
   const detailChip = getUsecaseToggleChip(effectiveEnabled, detailIsBlocked);
   // App-search drawer state — mirrors the alluvial diagram's "+" buttons so
@@ -4260,11 +4275,14 @@ function UsecaseDetailContent({
   // toggleable flow that is not already on. This is what lets a user click
   // Enable on a card and immediately watch the workflow materialize inside the
   // detail view (linked workflow appearing, Enabled chip, etc.).
-  const [detailSearchParams, setDetailSearchParams] = useSearchParams();
+  const [detailSearchParams] = useSearchParams();
+  const hasActivateActionParam =
+    detailSearchParams.get('action') === 'activate' ||
+    (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('action') === 'activate');
   const hasAutoEnableIntent =
     autoEnable ||
     (Boolean(flow?.id) && getPendingAutoEnableFlow() === flow?.id) ||
-    detailSearchParams.get('action') === 'activate';
+    hasActivateActionParam;
 
   const autoEnableFiredForFlowRef = React.useRef<string | null>(null);
   useEffect(() => {
@@ -4305,10 +4323,14 @@ function UsecaseDetailContent({
     autoEnableFiredForFlowRef.current = flow.id;
     setPendingAutoEnableFlow(null);
     onAutoEnableConsumed?.();
-    if (detailSearchParams.get('action') === 'activate') {
-      const nextParams = new URLSearchParams(detailSearchParams);
-      nextParams.delete('action');
-      setDetailSearchParams(nextParams, { replace: true });
+    if (typeof window !== 'undefined') {
+      const nextParams = new URLSearchParams(window.location.search);
+      if (nextParams.has('action')) {
+        nextParams.delete('action');
+        const qs = nextParams.toString();
+        const target = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
+        History.prototype.replaceState.call(window.history, window.history.state, '', target);
+      }
     }
     handleToggle();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -6074,9 +6096,29 @@ function UsecasesPageInner() {
   //
   // URL slug convention: lowercase + underscores (e.g. /usecases/siem_alerts).
   // We still accept legacy URL-encoded labels ("SIEM%20alerts") for back-compat.
-  const drawerLabel = routeParams.flowId ? decodeURIComponent(routeParams.flowId) : null;
-  const [drawerFlowId, setDrawerFlowIdState] = useState<string | null>(null);
-  const [displayedDrawerFlowId, setDisplayedDrawerFlowId] = useState<string | null>(null);
+  const getCurrentUrlSlug = React.useCallback((): string | null => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path === '/usecases' || path === '/usecases/') return null;
+      const m = path.match(/^\/usecases\/([^/]+)\/?$/);
+      if (m && m[1]) {
+        try {
+          return decodeURIComponent(m[1]);
+        } catch {
+          return m[1];
+        }
+      }
+    }
+    return routeParams.flowId ? decodeURIComponent(routeParams.flowId) : null;
+  }, [routeParams.flowId]);
+
+  const drawerLabel = getCurrentUrlSlug();
+  const [drawerFlowId, setDrawerFlowIdState] = useState<string | null>(() => {
+    const initialSlug = getCurrentUrlSlug();
+    if (!initialSlug) return null;
+    return resolveUsecaseBySlug(initialSlug, usecases)?.id ?? null;
+  });
+  const [displayedDrawerFlowId, setDisplayedDrawerFlowId] = useState<string | null>(() => drawerFlowId);
   useEffect(() => {
     if (drawerFlowId) setDisplayedDrawerFlowId(drawerFlowId);
   }, [drawerFlowId]);
@@ -6090,7 +6132,7 @@ function UsecasesPageInner() {
   // redirect to the canonical /usecases/:slug URL so the rest of the page
   // logic only needs to handle one shape.
   useEffect(() => {
-    if (routeParams.flowId) return;
+    if (getCurrentUrlSlug()) return;
     const selected = searchParams.get('selected_object') || searchParams.get('tab') || searchParams.get('flow');
     if (!selected) return;
     const slug = slugify(selected);
@@ -6102,47 +6144,48 @@ function UsecasesPageInner() {
     const qs = next.toString();
     const match = resolveUsecaseBySlug(selected, usecases);
     if (match) {
-      setDrawerFlowIdState(match.id);
+      setDrawerFlowIdState((prev) => (prev === match.id ? prev : match.id));
     }
     if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `/usecases/${slug}${qs ? `?${qs}` : ''}`);
+      const target = `/usecases/${slug}${qs ? `?${qs}` : ''}`;
+      if (window.location.pathname + window.location.search !== target) {
+        History.prototype.replaceState.call(window.history, window.history.state, '', target);
+      }
     }
-  }, [routeParams.flowId, searchParams, usecases]);
+  }, [getCurrentUrlSlug, searchParams, usecases]);
 
   useEffect(() => {
-    if (!drawerLabel) {
-      setDrawerFlowIdState(null);
+    const activeSlug = getCurrentUrlSlug();
+    if (!activeSlug) {
+      setDrawerFlowIdState((prev) => (prev === null ? prev : null));
       return;
     }
-    const match = resolveUsecaseBySlug(drawerLabel, usecases);
+    const match = resolveUsecaseBySlug(activeSlug, usecases);
     if (match) {
-      setDrawerFlowIdState(match.id);
+      setDrawerFlowIdState((prev) => (prev === match.id ? prev : match.id));
     } else if (usecases.length > 0) {
-      console.warn('[UsecasesPage] No matching usecase for URL slug:', drawerLabel,
+      console.warn('[UsecasesPage] No matching usecase for URL slug:', activeSlug,
         '— available labels:', usecases.map(u => u.label));
     }
-  }, [drawerLabel, usecases]);
+  }, [drawerLabel, getCurrentUrlSlug, usecases]);
 
   // Handle browser back/forward buttons smoothly without unmounting the page
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handlePopState = () => {
-      const path = window.location.pathname;
-      if (path === '/usecases' || path === '/usecases/') {
-        setDrawerFlowIdState(null);
+      const slug = getCurrentUrlSlug();
+      if (!slug) {
+        setDrawerFlowIdState((prev) => (prev === null ? prev : null));
         return;
       }
-      const match = path.match(/^\/usecases\/([^/]+)/);
-      if (match && match[1]) {
-        const flow = resolveUsecaseBySlug(decodeURIComponent(match[1]), usecases);
-        if (flow) {
-          setDrawerFlowIdState(flow.id);
-        }
+      const flow = resolveUsecaseBySlug(slug, usecases);
+      if (flow) {
+        setDrawerFlowIdState((prev) => (prev === flow.id ? prev : flow.id));
       }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [usecases]);
+  }, [getCurrentUrlSlug, usecases]);
 
   // Synchronize workflow enable/disable state across the application
   useEffect(() => {
@@ -6161,7 +6204,9 @@ function UsecasesPageInner() {
 
   const setDrawerFlowId = (id: string | null, isActivateAction = false) => {
     setDrawerFlowIdState(id);
-    const params = new URLSearchParams(searchParams);
+    if (id) setDisplayedDrawerFlowId(id);
+    const liveSearch = typeof window !== 'undefined' ? window.location.search : searchParams.toString();
+    const params = new URLSearchParams(liveSearch);
     if (isActivateAction) {
       params.set('action', 'activate');
     } else {
@@ -6172,7 +6217,11 @@ function UsecasesPageInner() {
       if (typeof window !== 'undefined') {
         const target = `/usecases${search}`;
         if (window.location.pathname + window.location.search !== target) {
-          window.history.pushState(null, '', target);
+          // Use History.prototype.pushState directly so @tanstack/history's
+          // patched window.history.pushState does not trigger a route transition
+          // between /_cond/usecases/ and /_cond/usecases/$flowId/ (which would
+          // unmount and remount UsecasesPage).
+          History.prototype.pushState.call(window.history, window.history.state, '', target);
         }
       }
       return;
@@ -6211,7 +6260,7 @@ function UsecasesPageInner() {
     if (typeof window !== 'undefined') {
       const target = `/usecases/${slug}${search}`;
       if (window.location.pathname + window.location.search !== target) {
-        window.history.pushState(null, '', target);
+        History.prototype.pushState.call(window.history, window.history.state, '', target);
       }
     }
   };
@@ -6641,6 +6690,42 @@ function UsecasesPageInner() {
     usecases.forEach((u) => u.tags.forEach((t) => tagSet.add(t)));
     return Array.from(tagSet).sort();
   }, [usecases]);
+
+  // Register live overview state so the AI assistant on /usecases has full
+  // visibility into enabled/disabled usecases, connected apps, and active workflows.
+  const ownOverviewContextRef = React.useRef<ActiveUsecasesOverviewContext | null>(null);
+  useEffect(() => {
+    const visibleList = filterVisibleUsecases(usecases, { isSupport, showAllAsSupport, isAuthenticated });
+    const enabledUsecases: NonNullable<ActiveUsecasesOverviewContext['enabledUsecases']> = [];
+    const disabledUsecases: NonNullable<ActiveUsecasesOverviewContext['disabledUsecases']> = [];
+    for (const u of visibleList) {
+      const entry = {
+        id: u.id,
+        label: u.label,
+        phase: u.phase,
+        source: u.source,
+        target: u.target,
+        automationLabel: u.automationLabel,
+      };
+      if (isFlowEnabled(u)) enabledUsecases.push(entry);
+      else disabledUsecases.push(entry);
+    }
+    ownOverviewContextRef.current = setActiveUsecasesOverviewContext({
+      enabledUsecases,
+      disabledUsecases,
+      validatedCategories: Array.from(validatedCategories),
+      validatedApps: Array.from(validatedAppNames),
+      activeWorkflows: workflows.map((w: any) => w?.name).filter(Boolean),
+      activeFilters: {
+        phase: phaseFilter,
+        category: categoryFilter,
+        area: areaFilter,
+        tag: tagFilter,
+        search: search.trim() || undefined,
+      },
+    });
+  }, [usecases, isSupport, showAllAsSupport, isAuthenticated, isFlowEnabled, validatedCategories, validatedAppNames, workflows, phaseFilter, categoryFilter, areaFilter, tagFilter, search]);
+  useEffect(() => () => clearActiveUsecasesOverviewContext(ownOverviewContextRef.current), []);
 
   // Memoize workflow-derived app names and workflowsByAppName mapping so that
   // opening/closing a drawer or re-rendering UsecasesPageInner does not construct

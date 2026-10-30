@@ -57,11 +57,21 @@ export type AgentFocusNodeDetail = { workflowId: string; nodeId: string };
 export const AGENT_OPEN_EXECUTION_EVENT = 'shuffle:agent_open_execution';
 export type AgentOpenExecutionDetail = { workflowId: string; executionId: string; authorization: string };
 
+import { extractCleanDisplayPrompt } from '@/lib/docsPromptContext';
+
 /** Prepended to the user's message in "Ask before changing" mode. */
 export const ASK_FIRST_PREFIX =
   '(Mode: ask before changing) Before changing the workflow, use the ask action to show me a short numbered plan of the changes and wait for my confirmation. Then make the changes.\n\n';
 
-export const stripModePrefix = (text?: string | null): string => (text || '').replace(ASK_FIRST_PREFIX, '');
+export const stripModePrefix = (text?: string | null): string => {
+  if (!text) return '';
+  const withoutMode = text
+    .replace(ASK_FIRST_PREFIX, '')
+    .replace(/\n*=== USECASE CONTEXT ===[\s\S]*?(?:=== END USECASE CONTEXT ===|$)/g, '')
+    .replace(/\n*=== DOCS ARTICLE CONTEXT ===[\s\S]*?(?:=== END DOCS CONTEXT ===|$)/g, '')
+    .trim();
+  return extractCleanDisplayPrompt(withoutMode);
+};
 
 export const parseJson = (value: unknown): BackendJson => {
   if (value && typeof value === 'object') return value;
@@ -392,7 +402,7 @@ export const buildChatThread = ({
 
       const question = getField(decision, 'question');
       if (question?.value) items.push({ type: 'agent', text: question.value, key: `ask-${id}`, question: true });
-      if (question?.answer) items.push({ type: 'user', text: question.answer, key: `answer-${id}` });
+      if (question?.answer) items.push({ type: 'user', text: stripModePrefix(question.answer), key: `answer-${id}` });
       continue;
     }
 

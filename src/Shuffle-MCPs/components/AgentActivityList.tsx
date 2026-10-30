@@ -438,7 +438,9 @@ const getRunPrompt = (run: AgentRun): string | null => {
  */
 const stripMarkdown = (input: string): string => {
   if (!input) return '';
-  let s = input;
+  let s = input
+    .replace(/\n*=== USECASE CONTEXT ===[\s\S]*?(?:=== END USECASE CONTEXT ===|$)/g, '')
+    .replace(/\n*=== DOCS ARTICLE CONTEXT ===[\s\S]*?(?:=== END DOCS CONTEXT ===|$)/g, '');
   // Fenced/inline code
   s = s.replace(/```[\s\S]*?```/g, ' ');
   s = s.replace(/`([^`]*)`/g, '$1');

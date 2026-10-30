@@ -142,14 +142,20 @@ export const isDocInjectedPrompt = (prompt?: string | null): boolean => {
 };
 
 import { extractCleanIncidentPrompt, isIncidentInjectedPrompt } from './incidentPromptContext';
+import { extractCleanUsecasePrompt, isUsecaseInjectedPrompt } from './usecasePromptContext';
 
 /**
- * Extracts the user's actual question from a doc-injected or incident-injected prompt,
- * so the UI header and rerun forms stay completely clean.
+ * Extracts the user's actual question from a doc-injected, incident-injected,
+ * or usecase-injected prompt, so the UI header, chat thread, and rerun forms
+ * stay completely clean.
  */
 export const extractCleanDisplayPrompt = (prompt?: string | null): string => {
   if (!prompt || typeof prompt !== 'string') return '';
-  const trimmed = prompt.trim();
+  let trimmed = prompt.trim();
+
+  if (isUsecaseInjectedPrompt(trimmed)) {
+    trimmed = extractCleanUsecasePrompt(trimmed);
+  }
 
   // If this is an incident-injected prompt or task assignment, clean it cleanly
   if (isIncidentInjectedPrompt(trimmed)) {

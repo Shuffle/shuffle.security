@@ -8,6 +8,7 @@
  * Self-contained: No host-app `@/` imports.
  */
 
+import { USECASE_CONTEXT_EVENT } from '@/lib/usecasePromptContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AskAiButton, AskAiButtonProps } from '@/Shuffle-MCPs/components/AskAiButton';
 import { AskAiSidePanel, AskAiSidePanelProps } from '@/Shuffle-MCPs/components/AskAiSidePanel';
@@ -122,9 +123,20 @@ const AskAiWidgetInner: React.FC<AskAiWidgetProps> = ({
   // Synchronously compute resolved context for immediate label & hints
   const currentSearch = search ?? browserLocation.search;
 
+  // Re-resolve when a page registers new hidden context (e.g. the usecase
+  // detail view), so labels like "Ask about <usecase>" update.
+  const [contextTick, setContextTick] = useState(0);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const bump = () => setContextTick((t) => t + 1);
+    window.addEventListener(USECASE_CONTEXT_EVENT, bump);
+    return () => window.removeEventListener(USECASE_CONTEXT_EVENT, bump);
+  }, []);
+
   const resolvedContext = useMemo(() => {
     return resolveAgentContext(currentPath, currentSearch, rules);
-  }, [currentPath, currentSearch, rules]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPath, currentSearch, rules, contextTick]);
 
   // Track resolved context reported from side panel / drawer with its associated route
   const [reportedContext, setReportedContext] = useState<{ path: string; search: string; ctx: AgentResolvedContext } | null>(null);

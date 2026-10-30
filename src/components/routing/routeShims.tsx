@@ -3,7 +3,7 @@
  * the TanStack Start migration. These were previously defined inline in
  * App.tsx; route files under src/routes/ import them from here.
  */
-import { lazy, useState } from 'react';
+import { lazy, useEffect, useState } from 'react';
 import { Box } from '@mui/material';
 import { Navigate, Outlet, useNavigate, useParams } from '@/lib/router-compat';
 import { API_CONFIG } from '@/Shuffle-MCPs';
@@ -37,8 +37,12 @@ export const ConditionalDashboardLayout = () => {
   // Render the frame from the app's own best guess right away instead of a
   // bare page while the session check runs: a cached session means the
   // sidebar, no cached session means the top bar. The check then corrects it.
+  // The session cache lives in browser storage, so the server always renders
+  // the signed-out frame; re-render with the cached guess right after mount.
   const { isAuthenticated } = useAuth();
-  if (isAuthenticated) return <DashboardLayout />;
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  if (hydrated && isAuthenticated) return <DashboardLayout />;
   return (
     <>
       <LandingNavbar />

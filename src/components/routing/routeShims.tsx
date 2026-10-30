@@ -34,8 +34,10 @@ export const IncidentDetailPage = () => {
 
 /** Layout that conditionally shows sidebar for authenticated users, navbar + content for guests */
 export const ConditionalDashboardLayout = () => {
-  const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <Outlet />;
+  // Render the frame from the app's own best guess right away instead of a
+  // bare page while the session check runs: a cached session means the
+  // sidebar, no cached session means the top bar. The check then corrects it.
+  const { isAuthenticated } = useAuth();
   if (isAuthenticated) return <DashboardLayout />;
   return (
     <>

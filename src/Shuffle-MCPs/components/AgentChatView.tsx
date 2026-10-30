@@ -58,6 +58,7 @@ import {
   type ChatDecision,
   type ChatThreadItem,
   type ChatWorkflowRun,
+  stripModePrefix,
 } from '@/Shuffle-MCPs/agentChat';
 
 const STALL_MS = 90 * 1000;

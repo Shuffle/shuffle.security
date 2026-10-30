@@ -3855,7 +3855,7 @@ function UsecaseDetailContent({
       manualVerification: flow.manualVerification,
       customAction: flow.customAction,
       healthStatus: detailIsBlocked
-        ? (detailHealth.summary || 'Enabled but requires attention (missing credentials or failing workflow node)')
+        ? (detailHealth.primaryProblem?.title || 'Enabled but requires attention (missing credentials or failing workflow node)')
         : effectiveEnabled
           ? 'Healthy and active'
           : 'Not enabled yet',
@@ -3864,7 +3864,7 @@ function UsecaseDetailContent({
       connectedApps: pick(validatedAppsByCategory, (a) => a?.name),
       linkedWorkflows: linkedWfs.map((w: any) => w?.name).filter(Boolean),
     });
-  }, [flow, flowDisplayLabel, effectiveEnabled, detailIsBlocked, detailHealth.summary, categoryAppNames, validatedAppsByCategory, linkedWfs]);
+  }, [flow, flowDisplayLabel, effectiveEnabled, detailIsBlocked, detailHealth.primaryProblem?.title, categoryAppNames, validatedAppsByCategory, linkedWfs]);
   useEffect(() => () => clearActiveUsecasePromptContext(ownUsecaseContextRef.current), []);
   const detailChip = getUsecaseToggleChip(effectiveEnabled, detailIsBlocked);
   // App-search drawer state — mirrors the alluvial diagram's "+" buttons so
@@ -6707,7 +6707,7 @@ function UsecasesPageInner() {
         target: u.target,
         automationLabel: u.automationLabel,
       };
-      if (isFlowEnabled(u)) enabledUsecases.push(entry);
+      if (isFlowVisuallyEnabled(u)) enabledUsecases.push(entry);
       else disabledUsecases.push(entry);
     }
     ownOverviewContextRef.current = setActiveUsecasesOverviewContext({
@@ -6724,7 +6724,7 @@ function UsecasesPageInner() {
         search: search.trim() || undefined,
       },
     });
-  }, [usecases, isSupport, showAllAsSupport, isAuthenticated, isFlowEnabled, validatedCategories, validatedAppNames, workflows, phaseFilter, categoryFilter, areaFilter, tagFilter, search]);
+  }, [usecases, isSupport, showAllAsSupport, isAuthenticated, isFlowVisuallyEnabled, validatedCategories, validatedAppNames, workflows, phaseFilter, categoryFilter, areaFilter, tagFilter, search]);
   useEffect(() => () => clearActiveUsecasesOverviewContext(ownOverviewContextRef.current), []);
 
   // Memoize workflow-derived app names and workflowsByAppName mapping so that

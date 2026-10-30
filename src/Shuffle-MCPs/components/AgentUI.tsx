@@ -1017,6 +1017,10 @@ export interface AppDetailDrawerRenderProps {
   theme?: string;
   colorMode?: 'light' | 'dark' | 'auto';
   onRefresh?: () => void;
+  /** When true, the drawer should expand and scroll to its Authentication area
+   *  as soon as that area is rendered. Set when the drawer is opened from an
+   *  "authenticate this app" affordance rather than a plain "open the app". */
+  focusAuthentication?: boolean;
 }
 
 /** Set of confirmed live built-in Shuffle services that are always available in the platform */
@@ -2943,7 +2947,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const [appSearchQuery, setAppSearchQuery] = useState('');
   /** Category chip the app search was opened for, so the pick can replace it. */
   const [categoryTarget, setCategoryTarget] = useState<string | null>(null);
-  const [authDrawerApp, setAuthDrawerApp] = useState<{ name: string; id?: string | null; icon?: string | null } | null>(null);
+  const [authDrawerApp, setAuthDrawerApp] = useState<{ name: string; id?: string | null; icon?: string | null; focusAuth?: boolean } | null>(null);
   const [agentRequestLoading, setAgentRequestLoading] = useState(false);
   // Optimistic UI: track which decision the user just clicked Rerun on so we
   // can immediately hide later decisions and show a spinner on that row while

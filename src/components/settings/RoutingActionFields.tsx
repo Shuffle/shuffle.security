@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthenticatedApps, AUTHENTICATED_APPS_QUERY_KEY } from '@/Shuffle-Core/useAuthenticatedApps';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { invalidateAuthCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { getShuffleOpenApiAuthState, SHUFFLE_OPENAPI_APP_ID } from './moveActionAuth';
 import type { RoutingAction, RoutingActionType } from './IncidentRoutingEditor';
 
@@ -234,7 +235,8 @@ const MoveActionAuthNotice = () => {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (isLoading) return null;
+  const [added, setAdded] = useState(false);
+  if (isLoading || added) return null;
   const state = getShuffleOpenApiAuthState(data || []);
   if (state === 'valid') return null;
   const text = state === 'missing'
@@ -285,6 +287,9 @@ const MoveActionAuthNotice = () => {
       if (!assignRes.ok || assigned?.success === false) {
         throw new Error('Could not assign the authentication everywhere the app is used.');
       }
+      // A brand-new authentication has not been validated yet; it was
+      // created and assigned successfully, so stop warning about it.
+      setAdded(true);
     } catch (e) {
       // 3. Roll back the authentication we just created
       if (createdId) {
@@ -298,6 +303,7 @@ const MoveActionAuthNotice = () => {
         `${e instanceof Error ? e.message : 'Could not add the credentials.'}${createdId ? ' The new authentication was removed.' : ''}`,
       );
     } finally {
+      invalidateAuthCache();
       await queryClient.invalidateQueries({ queryKey: AUTHENTICATED_APPS_QUERY_KEY });
       setSaving(false);
     }

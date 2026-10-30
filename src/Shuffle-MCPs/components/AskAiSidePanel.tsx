@@ -137,6 +137,16 @@ export interface AskAiSidePanelProps extends ShuffleHostProps {
    * Default: true
    */
   sideshift?: boolean;
+  /**
+   * How the panel is presented. 'shift' (default) pushes the page content aside;
+   * 'overlay' places the panel on top of the page and any open drawers.
+   * When set, this takes precedence over `sideshift`.
+   */
+  layout?: 'shift' | 'overlay';
+  /** Overlay layout only: show a dimmed backdrop behind the panel. Clicking it closes the panel. Default: false */
+  backdrop?: boolean;
+  /** z-index of the panel. Default: 1200 in shift layout, 1500 in overlay layout. */
+  zIndex?: number;
   /** Style overrides for the root panel container */
   sx?: SxProps<Theme>;
 }
@@ -164,6 +174,9 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   agentUIProps,
   onContextResolved,
   sideshift,
+  layout,
+  backdrop = false,
+  zIndex: propZIndex,
   userdata,
   isLoaded,
   isLoggedIn,
@@ -722,7 +735,15 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       ? Math.max(panelWidth, 520)
       : panelWidth;
 
-  const effectiveSideshift = sideshift !== undefined ? sideshift : (context.sideshift ?? true);
+  const effectiveSideshift =
+    layout !== undefined
+      ? layout === 'shift'
+      : sideshift !== undefined
+        ? sideshift
+        : (context.sideshift ?? true);
+  const isOverlay = !effectiveSideshift;
+  const panelZIndex = propZIndex ?? (layout === 'overlay' ? 1500 : 1200);
+  const showBackdrop = isOverlay && backdrop;
 
   // Manage UI sideshifting via CSS variable `--ask-ai-panel-width`
   useEffect(() => {
@@ -788,8 +809,8 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
           position: 'fixed',
           inset: 0,
           bgcolor: 'rgba(0, 0, 0, 0.45)',
-          zIndex: 1199,
-          display: { xs: isVisible ? 'block' : 'none', sm: 'none' },
+          zIndex: panelZIndex - 1,
+          display: { xs: isVisible ? 'block' : 'none', sm: isVisible && showBackdrop ? 'block' : 'none' },
           backdropFilter: 'blur(2px)',
           transition: 'opacity 0.2s ease',
         }}
@@ -817,7 +838,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
             bgcolor: 'hsl(var(--card))',
             borderLeft: '1px solid hsl(var(--border))',
             boxShadow: isVisible ? '-6px 0 24px rgba(0, 0, 0, 0.16)' : 'none',
-            zIndex: 1200,
+            zIndex: panelZIndex,
             display: 'flex',
             flexDirection: 'column',
             transform: isVisible ? 'translateX(0)' : 'translateX(100%)',

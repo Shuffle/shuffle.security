@@ -60,6 +60,8 @@ export interface AskAiWidgetProps extends Omit<AskAiSidePanelProps, 'open' | 'on
   /**
    * Whether opening the side panel should sideshift the page layout.
    * Default: true (or controlled per route rule). Set false for pure overlay mode.
+   * Prefer `layout`, which takes precedence when set. `backdrop` and `zIndex`
+   * are forwarded to the side panel as well.
    */
   sideshift?: boolean;
 }

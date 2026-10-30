@@ -47,11 +47,12 @@ import {
   Code2,
   UserCheck,
 } from 'lucide-react';
-import { getApiUrl, getAuthHeader } from '../../api';
+import { ensureShuffleSecurityApiUrl, getApiUrl, getAuthHeader } from '../../api';
 import { toast } from '../../toast';
 import { safeRandomUUID } from '@/utils/uuid';
 import { ShuffleCompanyLogo } from '@/components/common/ShuffleLogo';
 import { useOptionalAuth } from '@/context/AuthContext';
+import { AppFallbackIcon } from '../AppFallbackIcon';
 
 export interface OrganizationLike {
   id: string;
@@ -377,6 +378,26 @@ interface ClientProfile {
   iconBg: string;
   iconColor: string;
   description: string;
+  logoUrl?: string;
+  iconLookupName?: string;
+}
+
+interface BackendConsentScope {
+  scope: string;
+  name?: string;
+  description?: string;
+  category?: string;
+}
+
+interface BackendConsentInfo {
+  client_id?: string;
+  client_name?: string;
+  client_uri?: string;
+  logo_uri?: string;
+  issuer?: string;
+  scopes?: BackendConsentScope[];
+  available_orgs?: OrganizationLike[];
+  selected_org_id?: string;
 }
 
 const isUuidLike = (val?: string): boolean => {
@@ -390,78 +411,123 @@ const isUuidLike = (val?: string): boolean => {
   );
 };
 
-const getAppFromRedirectUri = (
-  redirectUri?: string,
-): { name: string; vendor: string; iconBg: string; iconColor: string; description: string } | null => {
-  if (!redirectUri) return null;
-  let decoded = redirectUri;
-  try {
-    decoded = decodeURIComponent(redirectUri);
-  } catch {
-    // ignore
-  }
-  const lower = decoded.toLowerCase();
+const matchKnownPlatform = (
+  signal: string,
+): ClientProfile | null => {
+  const lower = signal.toLowerCase();
 
-  if (lower.includes('chatgpt.com') || lower.includes('openai.com')) {
+  if (lower.includes('chatgpt.com') || lower.includes('openai.com') || lower.includes('chatgpt') || lower.includes('openai')) {
     return {
       name: 'ChatGPT',
       vendor: 'OpenAI',
       iconBg: '#10A37F',
       iconColor: '#FFFFFF',
-      description: 'OpenAI custom assistant & platform integration',
+      description: 'OpenAI custom assistant & MCP platform integration',
+      iconLookupName: 'OpenAI',
     };
   }
 
-  if (lower.includes('claude.ai') || lower.includes('anthropic.com')) {
+  if (lower.includes('claude.ai') || lower.includes('anthropic.com') || lower.includes('claude') || lower.includes('anthropic')) {
     return {
       name: 'Claude',
       vendor: 'Anthropic',
       iconBg: '#D97706',
       iconColor: '#FFFFFF',
-      description: 'Anthropic Claude assistant integration',
+      description: 'Anthropic Claude assistant & MCP integration',
+      iconLookupName: 'Claude',
     };
   }
 
-  if (lower.includes('cursor.sh') || lower.includes('cursor.com') || lower.includes('cursor://')) {
+  if (
+    lower.includes('gemini.google.com') ||
+    lower.includes('aistudio.google.com') ||
+    lower.includes('makersuite.google.com') ||
+    lower.includes('vertexai') ||
+    lower.includes('gemini')
+  ) {
+    return {
+      name: 'Google Gemini',
+      vendor: 'Google',
+      iconBg: '#1A73E8',
+      iconColor: '#FFFFFF',
+      description: 'Google Gemini assistant & agent integration',
+      iconLookupName: 'Google Gemini',
+    };
+  }
+
+  if (lower.includes('cursor.sh') || lower.includes('cursor.com') || lower.includes('cursor://') || lower.includes('cursor')) {
     return {
       name: 'Cursor',
       vendor: 'Anysphere',
       iconBg: '#000000',
       iconColor: '#FFFFFF',
       description: 'Cursor IDE tool & context runner',
+      iconLookupName: 'Cursor',
     };
   }
 
-  if (lower.includes('copilot') || lower.includes('github.com')) {
+  if (lower.includes('copilot') || lower.includes('github.com') || lower.includes('github')) {
     return {
       name: 'GitHub Copilot',
       vendor: 'GitHub / Microsoft',
       iconBg: '#24292F',
       iconColor: '#FFFFFF',
-      description: 'GitHub Copilot Workspace integration',
+      description: 'GitHub Copilot Workspace & agent integration',
+      iconLookupName: 'GitHub',
     };
   }
 
-  if (lower.includes('vscode://') || lower.includes('vscode.dev')) {
+  if (lower.includes('vscode://') || lower.includes('vscode.dev') || lower.includes('vscode') || lower.includes('visual studio code')) {
     return {
       name: 'VS Code Extension',
       vendor: 'Microsoft',
-      iconBg: '#07ACC',
+      iconBg: '#007ACC',
       iconColor: '#FFFFFF',
       description: 'Visual Studio Code extension integration',
+      iconLookupName: 'Visual Studio Code',
     };
   }
 
-  if (lower.includes('127.0.0.1') || lower.includes('localhost')) {
+  if (lower.includes('windsurf') || lower.includes('codeium')) {
     return {
-      name: 'Shuffle Agent',
-      vendor: 'Shuffle',
-      iconBg: '#f85f38',
+      name: 'Windsurf',
+      vendor: 'Codeium',
+      iconBg: '#09B6A2',
       iconColor: '#FFFFFF',
-      description: 'Shuffle Agent runner requesting access to execute tools and actions on your behalf.',
+      description: 'Windsurf AI IDE & MCP tool runner',
+      iconLookupName: 'Windsurf',
     };
   }
 
+  if (lower.includes('raycast')) {
+    return {
+      name: 'Raycast',
+      vendor: 'Raycast',
+      iconBg: '#FF6363',
+      iconColor: '#FFFFFF',
+      description: 'Raycast AI extension & tool integration',
+      iconLookupName: 'Raycast',
+    };
+  }
+
+  return null;
+};
+
+const getAppFromRedirectUri = (
+  redirectUri?: string,
+  clientUri?: string,
+): ClientProfile | null => {
+  const candidates = [redirectUri, clientUri].filter(Boolean) as string[];
+  for (const raw of candidates) {
+    let decoded = raw;
+    try {
+      decoded = decodeURIComponent(raw);
+    } catch {
+      // ignore
+    }
+    const matched = matchKnownPlatform(decoded);
+    if (matched) return matched;
+  }
   return null;
 };
 
@@ -469,110 +535,100 @@ const getClientProfile = (
   clientId?: string,
   clientName?: string,
   redirectUri?: string,
+  logoUri?: string,
+  clientUri?: string,
 ): ClientProfile => {
-  // 1. Identify source application via redirect_uri (e.g. ChatGPT, Claude, Cursor, Shuffle Agent)
-  const fromRedirect = getAppFromRedirectUri(redirectUri);
-  if (fromRedirect) {
-    if (clientName && !isUuidLike(clientName)) {
-      return {
-        ...fromRedirect,
-        name: clientName,
-      };
-    }
-    return fromRedirect;
+  const cleanName = clientName && !isUuidLike(clientName) ? clientName.trim() : '';
+  const id = (clientId || '').toLowerCase();
+  const nameLower = cleanName.toLowerCase();
+  const redirectLower = (redirectUri || '').toLowerCase();
+
+  // 1. Identify known platforms via redirect_uri or client_uri first
+  const fromUri = getAppFromRedirectUri(redirectUri, clientUri);
+  if (fromUri) {
+    const customName =
+      cleanName &&
+      nameLower !== 'shuffle agent' &&
+      nameLower !== 'mcp client' &&
+      nameLower !== 'application'
+        ? cleanName
+        : fromUri.name;
+    return {
+      ...fromUri,
+      name: customName,
+      logoUrl: logoUri || fromUri.logoUrl,
+    };
   }
 
-  const id = (clientId || '').toLowerCase();
-  const name = (clientName || '').toLowerCase();
-
-  // 2. Identify Shuffle Agent or dynamic runner
-  if (
-    id.startsWith('shuffle_client_') ||
-    id.includes('shuffle-agent') ||
-    id.includes('shuffle_agent') ||
-    id.includes('shuffle') ||
-    name.includes('shuffle') ||
-    name.includes('agent')
-  ) {
-    const resolvedName = clientName && !isUuidLike(clientName) ? clientName : 'Shuffle Agent';
+  // 2. Identify known platforms via registered client_name or client_id
+  const fromNameOrId = matchKnownPlatform(`${cleanName} ${id}`);
+  if (fromNameOrId) {
+    const customName =
+      cleanName &&
+      nameLower !== 'shuffle agent' &&
+      nameLower !== 'mcp client' &&
+      nameLower !== 'application'
+        ? cleanName
+        : fromNameOrId.name;
     return {
-      name: resolvedName,
+      ...fromNameOrId,
+      name: customName,
+      logoUrl: logoUri || fromNameOrId.logoUrl,
+    };
+  }
+
+  // 3. Identify explicit Shuffle Agent (do NOT match generic shuffle_client_<uuid> IDs!)
+  const idWithoutPrefix = id.replace(/^shuffle[_-]client[_-]/i, '');
+  if (
+    id === 'shuffle-agent' ||
+    id.includes('shuffle_agent') ||
+    idWithoutPrefix.includes('shuffle') ||
+    nameLower.includes('shuffle')
+  ) {
+    return {
+      name: cleanName || 'Shuffle Agent',
       vendor: 'Shuffle',
       iconBg: '#f85f38',
       iconColor: '#FFFFFF',
       description: 'Shuffle Agent runner requesting access to execute tools and actions on your behalf.',
+      logoUrl: logoUri,
     };
   }
 
-  // 3. Identify known applications via client_id or client_name
-  if (id.includes('chatgpt') || name.includes('chatgpt') || id.includes('openai') || name.includes('openai')) {
+  // 4. Local loopback MCP clients (127.0.0.1 / localhost)
+  if (redirectLower.includes('127.0.0.1') || redirectLower.includes('localhost') || redirectLower.includes('[::1]')) {
     return {
-      name: clientName && !isUuidLike(clientName) ? clientName : 'ChatGPT',
-      vendor: 'OpenAI',
-      iconBg: '#10A37F',
-      iconColor: '#FFFFFF',
-      description: 'OpenAI custom assistant & platform integration',
-    };
-  }
-
-  if (id.includes('claude') || name.includes('claude') || id.includes('anthropic') || name.includes('anthropic')) {
-    return {
-      name: clientName && !isUuidLike(clientName) ? clientName : 'Claude',
-      vendor: 'Anthropic',
-      iconBg: '#D97706',
-      iconColor: '#FFFFFF',
-      description: 'Anthropic Claude assistant integration',
-    };
-  }
-
-  if (id.includes('cursor') || name.includes('cursor')) {
-    return {
-      name: clientName && !isUuidLike(clientName) ? clientName : 'Cursor',
-      vendor: 'Anysphere',
-      iconBg: '#000000',
-      iconColor: '#FFFFFF',
-      description: 'Cursor IDE tool & context runner',
-    };
-  }
-
-  if (id.includes('copilot') || name.includes('copilot') || id.includes('github') || name.includes('github')) {
-    return {
-      name: clientName && !isUuidLike(clientName) ? clientName : 'GitHub Copilot',
-      vendor: 'GitHub / Microsoft',
-      iconBg: '#24292F',
-      iconColor: '#FFFFFF',
-      description: 'GitHub Copilot Workspace integration',
-    };
-  }
-
-  if (id.includes('vscode') || name.includes('vscode')) {
-    return {
-      name: clientName && !isUuidLike(clientName) ? clientName : 'VS Code Extension',
-      vendor: 'Microsoft',
-      iconBg: '#007ACC',
-      iconColor: '#FFFFFF',
-      description: 'Visual Studio Code extension integration',
-    };
-  }
-
-  // 4. User-friendly client name if provided (and not a raw UUID)
-  if (clientName && !isUuidLike(clientName)) {
-    return {
-      name: clientName,
-      vendor: 'Third-Party Developer',
+      name: cleanName || 'Local MCP Client',
+      vendor: cleanName ? 'Local MCP Integration' : 'Local Developer Tool',
       iconBg: '#3B82F6',
       iconColor: '#FFFFFF',
-      description: 'External application requesting permission to access your Shuffle tenant.',
+      description: 'Local Model Context Protocol (MCP) client requesting access to execute tools on your behalf.',
+      logoUrl: logoUri,
+      iconLookupName: cleanName || undefined,
     };
   }
 
-  // 5. Default clean fallback ("Authorize Application", no messy UUID)
+  // 5. User-friendly client name if provided (and not a raw UUID)
+  if (cleanName) {
+    return {
+      name: cleanName,
+      vendor: 'Connected Application',
+      iconBg: '#3B82F6',
+      iconColor: '#FFFFFF',
+      description: `${cleanName} is requesting permission to access your Shuffle tenant.`,
+      logoUrl: logoUri,
+      iconLookupName: cleanName,
+    };
+  }
+
+  // 6. Default clean fallback ("Application", no messy UUID)
   return {
     name: 'Application',
     vendor: 'Third-Party Developer',
     iconBg: '#3B82F6',
     iconColor: '#FFFFFF',
     description: 'External application requesting permission to access your Shuffle tenant.',
+    logoUrl: logoUri,
   };
 };
 
@@ -656,6 +712,13 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
     queryParams.get('app_name') ||
     queryParams.get('name') ||
     '';
+  const clientUriParam = queryParams.get('client_uri') || '';
+  const logoUriParam = queryParams.get('logo_uri') || '';
+  const issuerParam =
+    queryParams.get('issuer') ||
+    queryParams.get('backend_url') ||
+    queryParams.get('iss') ||
+    '';
   const redirectUri = queryParams.get('redirect_uri') || '';
   const scopeParam = queryParams.get('scope') || queryParams.get('scopes') || '';
   const state = queryParams.get('state') || '';
@@ -665,33 +728,148 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
   const prompt = queryParams.get('prompt') || '';
   const requestedOrgId = queryParams.get('org_id') || queryParams.get('org') || '';
 
+  const [backendConsentInfo, setBackendConsentInfo] = useState<BackendConsentInfo | null>(null);
+
+  // Resolve target backend authorize endpoint(s): if an explicit issuer/tunnel URL was passed,
+  // normalize Shuffle Cloud shuffler.io hosts to *.shuffle.security so session cookies apply,
+  // try it first, and fall back to the default regional backend getApiUrl('/api/v1/oauth2/authorize').
+  const authorizeEndpoints = useMemo<string[]>(() => {
+    const defaultEndpoint = getApiUrl('/api/v1/oauth2/authorize');
+    if (issuerParam) {
+      try {
+        const parsedIssuer = new URL(issuerParam);
+        if (parsedIssuer.protocol === 'https:' || parsedIssuer.protocol === 'http:') {
+          const rawIssuerEndpoint = `${parsedIssuer.origin}/api/v1/oauth2/authorize`;
+          const mappedIssuerEndpoint = ensureShuffleSecurityApiUrl(rawIssuerEndpoint);
+          const candidates = [mappedIssuerEndpoint];
+          if (rawIssuerEndpoint !== mappedIssuerEndpoint) {
+            candidates.push(rawIssuerEndpoint);
+          }
+          if (!candidates.includes(defaultEndpoint)) {
+            candidates.push(defaultEndpoint);
+          }
+          return candidates;
+        }
+      } catch {
+        // Ignore invalid issuer URL
+      }
+    }
+    return [defaultEndpoint];
+  }, [issuerParam]);
+
+  // Fetch registered OAuth client metadata and consent details from the backend
+  useEffect(() => {
+    if (!clientId || clientId === 'external-app') return;
+    let cancelled = false;
+
+    const fetchConsentMetadata = async () => {
+      const search = new URLSearchParams();
+      search.set('client_id', clientId);
+      if (redirectUri) search.set('redirect_uri', redirectUri);
+      if (responseType) search.set('response_type', responseType);
+      if (scopeParam) search.set('scope', scopeParam);
+      if (state) search.set('state', state);
+      if (codeChallenge) search.set('code_challenge', codeChallenge);
+      if (codeChallengeMethod) search.set('code_challenge_method', codeChallengeMethod);
+      if (clientNameParam) search.set('client_name', clientNameParam);
+      if (clientUriParam) search.set('client_uri', clientUriParam);
+      if (logoUriParam) search.set('logo_uri', logoUriParam);
+
+      for (const endpoint of authorizeEndpoints) {
+        try {
+          const res = await fetch(`${endpoint}?${search.toString()}`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              Accept: 'application/json',
+              ...getAuthHeader(requestedOrgId || undefined, endpoint),
+            },
+          });
+          // Both 200 OK (authenticated) and 401 Unauthorized return public client metadata (client_name, logo_uri, scopes)
+          if (res.ok || res.status === 401) {
+            const data = (await res.json()) as BackendConsentInfo;
+            if (!cancelled && data && (data.client_name || data.logo_uri || data.scopes || data.available_orgs)) {
+              setBackendConsentInfo(data);
+              return;
+            }
+          }
+        } catch {
+          // Try next endpoint fallback
+        }
+      }
+    };
+
+    fetchConsentMetadata();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    authorizeEndpoints,
+    clientId,
+    clientNameParam,
+    clientUriParam,
+    codeChallenge,
+    codeChallengeMethod,
+    logoUriParam,
+    redirectUri,
+    requestedOrgId,
+    responseType,
+    scopeParam,
+    state,
+  ]);
+
+  const effectiveClientName = clientNameParam || backendConsentInfo?.client_name || '';
+  const effectiveLogoUri = logoUriParam || backendConsentInfo?.logo_uri || '';
+  const effectiveClientUri = clientUriParam || backendConsentInfo?.client_uri || '';
+
   const clientProfile = useMemo(
-    () => getClientProfile(clientId, clientNameParam, redirectUri),
-    [clientId, clientNameParam, redirectUri],
+    () => getClientProfile(clientId, effectiveClientName, redirectUri, effectiveLogoUri, effectiveClientUri),
+    [clientId, effectiveClientName, redirectUri, effectiveLogoUri, effectiveClientUri],
   );
 
-  // Parse scopes dynamically
+  // Parse scopes dynamically, enriching with backend scope metadata when available
   const scopes = useMemo<OAuthScopeDetail[]>(() => {
+    const backendScopes = backendConsentInfo?.scopes || [];
     const rawTokens = scopeParam
       ? scopeParam.split(/[\s,+]+/).map((s) => s.trim()).filter(Boolean)
-      : DEFAULT_SCOPES;
+      : backendScopes.length > 0
+        ? backendScopes.map((s) => s.scope).filter(Boolean)
+        : DEFAULT_SCOPES;
     const uniqueTokens = Array.from(new Set(rawTokens));
-    return uniqueTokens.map(parseDynamicScope);
-  }, [scopeParam]);
+    return uniqueTokens.map((token) => {
+      const parsed = parseDynamicScope(token);
+      const fromBackend = backendScopes.find((bs) => bs.scope === token);
+      if (fromBackend && parsed.category === 'system') {
+        return {
+          ...parsed,
+          title: fromBackend.name || parsed.title,
+          description: fromBackend.description || parsed.description,
+        };
+      }
+      return parsed;
+    });
+  }, [scopeParam, backendConsentInfo?.scopes]);
 
-  // Tenant resolution
+  // Tenant resolution (merge local orgs with available_orgs from backend consent metadata)
   const activeOrg = propActiveOrg || resolvedUserInfo?.active_org;
   const userOrgs = useMemo(() => {
     const list = [...(resolvedUserInfo?.orgs || [])];
+    if (backendConsentInfo?.available_orgs) {
+      for (const bOrg of backendConsentInfo.available_orgs) {
+        if (bOrg?.id && !list.some((o) => o.id === bOrg.id)) {
+          list.push(bOrg);
+        }
+      }
+    }
     if (activeOrg && !list.some((o) => o.id === activeOrg.id)) {
       list.unshift(activeOrg);
     }
     return list.length > 0 ? list : (activeOrg ? [activeOrg] : []);
-  }, [resolvedUserInfo?.orgs, activeOrg]);
+  }, [resolvedUserInfo?.orgs, backendConsentInfo?.available_orgs, activeOrg]);
 
   const sortedUserOrgs = useMemo(() => sortOrgsWithHierarchy(userOrgs), [userOrgs]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>(
-    requestedOrgId || activeOrg?.id || userOrgs[0]?.id || '',
+    requestedOrgId || backendConsentInfo?.selected_org_id || activeOrg?.id || userOrgs[0]?.id || '',
   );
 
   const currentSelectedOrg = useMemo(() => {
@@ -707,12 +885,14 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
   useEffect(() => {
     if (requestedOrgId && userOrgs.some((o) => o.id === requestedOrgId)) {
       setSelectedOrgId(requestedOrgId);
+    } else if (backendConsentInfo?.selected_org_id && userOrgs.some((o) => o.id === backendConsentInfo.selected_org_id)) {
+      setSelectedOrgId(backendConsentInfo.selected_org_id);
     } else if (activeOrg?.id) {
       setSelectedOrgId(activeOrg.id);
     } else if (userOrgs[0]?.id) {
       setSelectedOrgId(userOrgs[0].id);
     }
-  }, [activeOrg?.id, requestedOrgId, userOrgs]);
+  }, [activeOrg?.id, backendConsentInfo?.selected_org_id, requestedOrgId, userOrgs]);
 
   // Support Mode detection
   const isSupportUser = Boolean(
@@ -849,31 +1029,49 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
       const generatedCode = `shf_auth_${safeRandomUUID().replace(/-/g, '')}`;
       const approvedScopeString = Array.from(selectedScopeIds).join(' ');
 
-      // Backend authorization sync
-      let response: Response;
-      try {
-        response = await fetch(getApiUrl('/api/v1/oauth2/authorize'), {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeader(selectedOrgId),
-          },
-          body: JSON.stringify({
-            client_id: clientId,
-            client_name: clientProfile.name,
-            redirect_uri: redirectUri,
-            scope: approvedScopeString,
-            state,
-            code_challenge: codeChallenge,
-            code_challenge_method: codeChallengeMethod,
-            org_id: selectedOrgId,
-            decision: 'approved',
-            auth_code: generatedCode,
-          }),
-        });
-      } catch (networkErr: unknown) {
-        const msg = networkErr instanceof Error ? networkErr.message : 'Server could not be reached';
+      // Backend authorization sync (try issuer endpoint first if specified, with fallback to regional backend)
+      let response: Response | null = null;
+      let lastNetworkErr: unknown = null;
+      const requestBody = JSON.stringify({
+        client_id: clientId,
+        client_name: clientProfile.name,
+        client_uri: effectiveClientUri || undefined,
+        logo_uri: clientProfile.logoUrl || undefined,
+        redirect_uri: redirectUri,
+        scope: approvedScopeString,
+        state,
+        code_challenge: codeChallenge,
+        code_challenge_method: codeChallengeMethod,
+        org_id: selectedOrgId,
+        decision: 'approved',
+        auth_code: generatedCode,
+      });
+
+      for (let i = 0; i < authorizeEndpoints.length; i++) {
+        const endpoint = authorizeEndpoints[i];
+        try {
+          const candidateResp = await fetch(endpoint, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeader(selectedOrgId, endpoint),
+            },
+            body: requestBody,
+          });
+          response = candidateResp;
+          // Fall back to next candidate endpoint if the primary returned 401/404 (e.g. session cookie scoped to regional shuffle.security host)
+          if ((candidateResp.status === 401 || candidateResp.status === 404) && i < authorizeEndpoints.length - 1) {
+            continue;
+          }
+          break;
+        } catch (networkErr: unknown) {
+          lastNetworkErr = networkErr;
+        }
+      }
+
+      if (!response) {
+        const msg = lastNetworkErr instanceof Error ? lastNetworkErr.message : 'Server could not be reached';
         setErrorMsg(`Authorization failed: ${msg}. The backend authorization server could not be reached.`);
         setAuthorizingStep('idle');
         return;
@@ -1142,7 +1340,7 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
               width: 56,
               height: 56,
               borderRadius: '50%',
-              bgcolor: 'hsl(var(--background))',
+              bgcolor: clientProfile.iconBg,
               border: '2px solid hsl(var(--border))',
               display: 'flex',
               alignItems: 'center',
@@ -1152,7 +1350,19 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
               overflow: 'hidden',
             }}
           >
-            <ShuffleCompanyLogo size={38} alt="Shuffle AS" style={{ borderRadius: 0 }} />
+            {clientProfile.vendor === 'Shuffle' ? (
+              <ShuffleCompanyLogo size={38} alt={clientProfile.name} style={{ borderRadius: 0 }} />
+            ) : clientProfile.logoUrl || clientProfile.iconLookupName ? (
+              <AppFallbackIcon
+                name={clientProfile.iconLookupName || clientProfile.name}
+                imageUrl={clientProfile.logoUrl}
+                size={56}
+                alt={clientProfile.name}
+                style={{ borderRadius: '50%', objectFit: 'cover' }}
+              />
+            ) : (
+              <ShuffleCompanyLogo size={38} alt="Shuffle AS" style={{ borderRadius: 0 }} />
+            )}
           </Box>
 
           <Typography variant="h5" sx={{ fontWeight: 700, color: 'hsl(var(--foreground))', mb: 1 }}>
@@ -1401,10 +1611,19 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
                 fontSize: '1.2rem',
                 border: '2px solid hsl(var(--border))',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                overflow: 'hidden',
               }}
             >
               {clientProfile.vendor === 'Shuffle' ? (
                 <ShuffleCompanyLogo size={32} alt={clientProfile.name} />
+              ) : clientProfile.logoUrl || clientProfile.iconLookupName ? (
+                <AppFallbackIcon
+                  name={clientProfile.iconLookupName || clientProfile.name}
+                  imageUrl={clientProfile.logoUrl}
+                  size={48}
+                  alt={clientProfile.name}
+                  style={{ borderRadius: '50%', objectFit: 'cover' }}
+                />
               ) : (
                 clientProfile.name.charAt(0).toUpperCase()
               )}

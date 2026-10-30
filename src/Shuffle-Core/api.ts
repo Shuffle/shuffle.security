@@ -766,7 +766,7 @@ export const API_ENDPOINTS = {
   passwordReset: '/api/v1/users/passwordreset',
 };
 
-export const getAuthHeader = (overrideOrgId?: string | null): Record<string, string> => {
+export const getAuthHeader = (overrideOrgId?: string | null, targetUrl?: string): Record<string, string> => {
   const headers: Record<string, string> = {};
 
   // Normal cookie login is the primary authentication method when the frontend
@@ -775,7 +775,7 @@ export const getAuthHeader = (overrideOrgId?: string | null): Record<string, str
   // backend connection, Capacitor native app, or explicit bearer fallback mode).
   const authMode = typeof localStorage !== 'undefined' ? localStorage.getItem('shuffle_auth_mode') : null;
   const token = getSessionToken();
-  if (token && (authMode === 'bearer' || isCapacitorNative() || isCrossDomainBackend())) {
+  if (token && (authMode === 'bearer' || isCapacitorNative() || isCrossDomainBackend(targetUrl))) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 

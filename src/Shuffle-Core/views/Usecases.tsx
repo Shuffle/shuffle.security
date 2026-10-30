@@ -86,6 +86,7 @@ import { ThreatIntelReadinessBanner } from '@/components/threat-intel/ThreatInte
 import { useWorkflowHealth } from '@/hooks/useWorkflowHealth';
 import { diagnoseUsecase } from '@/services/workflowHealth';
 import { resolveSkillAllowedApps, isBuiltInSkillApp } from '@/lib/agentTools';
+import { setActiveUsecasePromptContext } from '@/lib/usecasePromptContext';
 import { findRoutingWorkflow, isWorkflowHookedToCategory } from '@/utils/routingWorkflowUtils';
 // ── Flow phases ────────────────────────────────────────────────────────────────
 
@@ -3823,6 +3824,32 @@ function UsecaseDetailContent({
   const linkedWfs = useMemo(() => (flow ? findWorkflowsForUsecase(flow, workflows) : []), [flow, workflows]);
   const detailHealth = useMemo(() => diagnoseUsecase(linkedWfs, environments), [linkedWfs, environments]);
   const detailIsBlocked = effectiveEnabled && detailHealth.hasProblem;
+
+  // Hidden context for "Ask about <usecase>" — appended to the assistant
+  // prompt the same way documentation is on /docs/*. Cleared on unmount.
+  useEffect(() => {
+    if (!flow) return;
+    const cats = [flow.source, flow.target].filter(Boolean) as string[];
+    const pick = (rec: Record<string, any[]>, map: (v: any) => string) =>
+      Object.fromEntries(cats.map((c) => [c, (rec[c] || []).map(map).filter(Boolean)]));
+    setActiveUsecasePromptContext({
+      id: flow.id,
+      label: flowDisplayLabel || flow.label,
+      description: flow.description,
+      agenticDescription: flow.agenticDescription,
+      source: flow.source,
+      target: flow.target,
+      phase: flow.phase,
+      tags: flow.tags,
+      automationLabel: flow.automationLabel,
+      automationCategory: flow.automationCategory,
+      enabled: effectiveEnabled,
+      categoryApps: pick(categoryAppNames, (n) => String(n)),
+      connectedApps: pick(validatedAppsByCategory, (a) => a?.name),
+      linkedWorkflows: linkedWfs.map((w: any) => w?.name).filter(Boolean),
+    });
+  }, [flow, flowDisplayLabel, effectiveEnabled, categoryAppNames, validatedAppsByCategory, linkedWfs]);
+  useEffect(() => () => setActiveUsecasePromptContext(null), []);
   const detailChip = getUsecaseToggleChip(effectiveEnabled, detailIsBlocked);
   // App-search drawer state — mirrors the alluvial diagram's "+" buttons so
   // users can force-add a Source or Destination tool from this view too.

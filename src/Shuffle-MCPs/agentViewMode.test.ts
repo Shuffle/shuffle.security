@@ -16,7 +16,7 @@ describe('resolveAgentRunView', () => {
     expect(resolveAgentRunView({ storedView: 'chat', initialView: 'detailed' })).toBe('chat');
   });
 
-  it('keeps this page's choice over the browser-wide one', () => {
+  it('keeps the choice saved for this page over the browser-wide one', () => {
     expect(resolveAgentRunView({ contextView: 'chat', storedView: 'detailed' })).toBe('chat');
   });
 

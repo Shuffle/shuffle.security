@@ -5454,7 +5454,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const hasExecution = !!execution?.execution_id;
   // Hosts that open in Chat keep the tabs visible, so Start stays reachable
   // before the first run.
-  const showRunSwitcher = hasExecution || agentRequestLoading || initialView === 'chat';
+  const showRunSwitcher =
+    hasExecution || agentRequestLoading || initialView === 'chat' || initialView === 'simple';
   useEffect(() => {
     onViewChange?.(activeTab);
   }, [activeTab, onViewChange]);

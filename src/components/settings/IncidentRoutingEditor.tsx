@@ -1000,7 +1000,15 @@ const IncidentRoutingEditorInner = ({
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+        // Plain small text fields match the height of the small dropdowns next to them.
+        '& .MuiInputBase-sizeSmall:not(.MuiInputBase-multiline)': { minHeight: 40 },
+      }}
+    >
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
         <Box>
           <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>

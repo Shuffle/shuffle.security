@@ -3106,34 +3106,24 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const initialViewParam = searchParams.get('agentView');
 
   const readStoredViewMode = (): RunViewMode => {
-    if (initialViewParam === 'detailed') return 'detailed';
-    if (contextStorageKey) {
-      const saved = getPageContextChoice(contextStorageKey);
-      if (saved?.viewMode === 'detailed' || saved?.viewMode === 'simple') {
-        return saved.viewMode;
-      }
-      if (saved?.viewMode === 'chat') return 'chat';
-    }
-    if (initialView === 'chat' || initialView === 'simple' || initialView === 'detailed') return initialView;
-    if (typeof window === 'undefined') return 'simple';
+    let storedView: string | null = null;
     try {
-      const stored = window.localStorage.getItem('shuffle-agents-view-mode');
-      if (stored === 'detailed' || stored === 'simple') return stored;
+      if (typeof window !== 'undefined') {
+        storedView = window.localStorage.getItem('shuffle-agents-view-mode');
+      }
     } catch { /* localStorage unavailable — ignore */ }
-    return 'simple';
+    return resolveAgentRunView({
+      urlView: initialViewParam,
+      contextView: contextStorageKey ? getPageContextChoice(contextStorageKey)?.viewMode : null,
+      storedView,
+      initialView,
+    });
   };
 
   const [viewMode, setViewMode] = useState<RunViewMode>(readStoredViewMode);
   // Footer element the Chat view renders its composer into (sidebar layout)
   const [chatComposerEl, setChatComposerEl] = useState<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('shuffle-agents-view-mode', viewMode);
-      }
-    } catch { /* localStorage unavailable — ignore */ }
-  }, [viewMode]);
 
   const [attachedImages, setAttachedImages] = useState<{ dataUrl: string; name: string }[]>([]);
   const [previewImage, setPreviewImage] = useState<{ dataUrl: string; name: string } | null>(null);
@@ -5483,10 +5473,18 @@ const AgentUI: React.FC<AgentUIProps> = ({
     } else {
       setShowStarter(false);
       userPickedStartRef.current = false;
-      setViewMode(t);
+      const nextView: RunViewMode = t === 'simple' ? 'chat' : t;
+      setViewMode(nextView);
+      // The tab the user last clicked is the tab they get next time, in every
+      // embed on this browser.
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('shuffle-agents-view-mode', nextView);
+        }
+      } catch { /* localStorage unavailable — ignore */ }
       if (contextStorageKey) {
         setPageContextChoice(contextStorageKey, {
-          viewMode: t,
+          viewMode: nextView,
         });
       }
       if (readUrlParams) {

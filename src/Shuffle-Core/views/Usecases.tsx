@@ -3827,7 +3827,7 @@ function UsecaseDetailContent({
 
   // Hidden context for "Ask about <usecase>" — appended to the assistant
   // prompt the same way documentation is on /docs/*. Cleared on unmount.
-  const ownUsecaseContextRef = useRef<ActiveUsecasePromptContext | null>(null);
+  const ownUsecaseContextRef = React.useRef<ActiveUsecasePromptContext | null>(null);
   useEffect(() => {
     if (!flow) return;
     const cats = [flow.source, flow.target].filter(Boolean) as string[];

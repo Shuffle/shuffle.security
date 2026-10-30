@@ -11,9 +11,9 @@
  *  - `variant="compact"` -> stacked full-width controls for the small popover
  */
 
-import { MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useAuthenticatedApps } from '@/Shuffle-Core/useAuthenticatedApps';
-import { getShuffleOpenApiAuthState } from './moveActionAuth';
+import { getShuffleOpenApiAuthState, SHUFFLE_OPENAPI_APP_ID } from './moveActionAuth';
 import type { RoutingAction, RoutingActionType } from './IncidentRoutingEditor';
 
 export const ROUTING_ACTION_TYPE_LABELS: Record<RoutingActionType, string> = {
@@ -235,12 +235,21 @@ const MoveActionAuthNotice = () => {
     ? 'Moving to a tenant requires authentication for the Shuffle OpenAPI app, with permission to access the target tenant. No authentication was found.'
     : 'The Shuffle OpenAPI authentication has not been validated. Moving to a tenant needs a working authentication with permission to access the target tenant.';
   return (
-    <Typography
-      variant="caption"
-      sx={{ color: 'hsl(var(--destructive))', flexBasis: '100%', lineHeight: 1.4 }}
-    >
-      {text}
-    </Typography>
+    <Box sx={{ flexBasis: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.75 }}>
+      <Typography variant="caption" sx={{ color: 'hsl(var(--destructive))', lineHeight: 1.4 }}>
+        {text}
+      </Typography>
+      <Button
+        size="small"
+        variant="outlined"
+        href={`/apps/${SHUFFLE_OPENAPI_APP_ID}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        sx={{ textTransform: 'none', fontSize: '0.75rem', height: 28, borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+      >
+        {state === 'missing' ? 'Set up authentication' : 'Fix authentication'}
+      </Button>
+    </Box>
   );
 };
 

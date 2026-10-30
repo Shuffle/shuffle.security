@@ -15,7 +15,7 @@ import { Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography }
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthenticatedApps, AUTHENTICATED_APPS_QUERY_KEY } from '@/Shuffle-Core/useAuthenticatedApps';
-import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
+import { getApiUrl, getAuthHeader, isCloud } from '@/Shuffle-Core/api';
 import { invalidateAuthCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { getShuffleOpenApiAuthState, SHUFFLE_OPENAPI_APP_ID } from './moveActionAuth';
 import type { RoutingAction, RoutingActionType } from './IncidentRoutingEditor';
@@ -95,11 +95,83 @@ export const validateRoutingAction = (action: RoutingAction): string | null => {
   return null;
 };
 
+export interface RoutingOrgOption {
+  id: string;
+  name: string;
+  region_url?: string;
+  region?: string;
+}
+
+/**
+ * Normalizes a tenant's region URL / region code for Shuffle Cloud.
+ * On-prem does not depend on region and returns only the tenant's id and name.
+ */
+export const resolveTenantRegionPatch = (
+  orgId: string,
+  orgOptions: RoutingOrgOption[] = [],
+): Partial<RoutingAction> => {
+  const picked = orgOptions.find((o) => o.id === orgId);
+  const basePatch: Partial<RoutingAction> = {
+    targetOrgId: orgId,
+    targetOrgName: picked?.name || undefined,
+  };
+
+  if (!isCloud()) {
+    return {
+      ...basePatch,
+      region: undefined,
+      targetRegion: undefined,
+      region_url: undefined,
+      targetRegionUrl: undefined,
+    };
+  }
+
+  const rawUrl = (picked?.region_url || getApiUrl('') || '').trim().replace(/\/+$/, '');
+  let apiRegionUrl = rawUrl;
+  let regionCode = (picked?.region || '').trim().toLowerCase();
+
+  try {
+    if (rawUrl) {
+      const parsed = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+      const host = parsed.hostname.toLowerCase();
+      if (host.endsWith('.shuffle.security')) {
+        const sub = host.slice(0, -'.shuffle.security'.length);
+        if (!regionCode && sub && sub !== 'www') regionCode = sub;
+        apiRegionUrl = sub && sub !== 'www' ? `https://${sub}.shuffler.io` : 'https://shuffler.io';
+      } else if (host === 'shuffle.security') {
+        if (!regionCode) regionCode = 'us';
+        apiRegionUrl = 'https://shuffler.io';
+      } else if (host.endsWith('.shuffler.io')) {
+        const sub = host.slice(0, -'.shuffler.io'.length);
+        if (!regionCode && sub && sub !== 'www') regionCode = sub;
+        apiRegionUrl = `${parsed.protocol}//${host}`;
+      } else if (host === 'shuffler.io') {
+        if (!regionCode) regionCode = 'us';
+        apiRegionUrl = 'https://shuffler.io';
+      }
+    }
+  } catch {
+    // Keep rawUrl if URL parsing fails
+  }
+
+  if (!regionCode && apiRegionUrl) {
+    regionCode = 'us';
+  }
+
+  return {
+    ...basePatch,
+    region: regionCode || undefined,
+    targetRegion: regionCode || undefined,
+    region_url: apiRegionUrl || undefined,
+    targetRegionUrl: apiRegionUrl || undefined,
+  };
+};
+
 export interface RoutingActionFieldsProps {
   action: RoutingAction;
   onChange: (patch: Partial<RoutingAction>) => void;
   onTypeChange: (type: RoutingActionType) => void;
-  orgOptions?: { id: string; name: string }[];
+  orgOptions?: RoutingOrgOption[];
   variant?: 'editor' | 'compact';
   /** Extra z-index for dropdown menus rendered above high-z popovers. */
   menuZIndex?: number;
@@ -159,7 +231,7 @@ export const RoutingActionFields = ({
           size="small"
           select
           value={action.targetOrgId || ''}
-          onChange={(e) => onChange({ targetOrgId: e.target.value })}
+          onChange={(e) => onChange(resolveTenantRegionPatch(e.target.value, orgOptions))}
           sx={compact ? undefined : { minWidth: 240 }}
           fullWidth={fullWidth}
           label={compact ? undefined : 'Target tenant'}

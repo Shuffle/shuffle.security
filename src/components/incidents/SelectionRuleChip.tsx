@@ -56,6 +56,7 @@ import {
   RoutingActionFields,
   defaultRoutingAction,
   validateRoutingAction,
+  resolveTenantRegionPatch,
 } from '@/components/settings/RoutingActionFields';
 
 import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
@@ -235,7 +236,7 @@ export const SelectionRuleChip = ({ incidentId }: SelectionRuleChipProps) => {
 
 
   const orgOptions = useMemo(
-    () => (subOrgs || []).map((o: any) => ({ id: o.id, name: o.name })),
+    () => (subOrgs || []).map((o: any) => ({ id: o.id, name: o.name, region_url: o.region_url })),
     [subOrgs],
   );
 
@@ -544,6 +545,10 @@ export const SelectionRuleChip = ({ incidentId }: SelectionRuleChipProps) => {
     const id = newRuleId();
     const nowTs = Date.now();
     const conditionLeaf = { kind: 'condition' as const, field, op, value: trimmedValue };
+    const enrichedAction: RoutingAction =
+      action.type === 'suggest_move' && action.targetOrgId
+        ? { ...action, ...resolveTenantRegionPatch(action.targetOrgId, orgOptions) }
+        : action;
     const rule: RoutingRule = {
       id,
       name: ruleName.trim() || `Auto-rule: "${truncate(trimmedValue, 32)}"`,
@@ -552,7 +557,7 @@ export const SelectionRuleChip = ({ incidentId }: SelectionRuleChipProps) => {
       matchMode: 'all',
       conditions: [{ field, op, value: trimmedValue }],
       conditionTree: { kind: 'group', op: 'and', children: [conditionLeaf] } as any,
-      actions: [action],
+      actions: [enrichedAction],
       createdBy: userInfo?.username || userInfo?.id,
       createdTs: nowTs,
       updatedTs: nowTs,

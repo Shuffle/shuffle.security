@@ -582,6 +582,16 @@ export function clearInjectedUsecaseApps(flowId: string) {
 
 export const DEFAULT_USECASES: Usecase[] = [
   {
+    id: 'email_case_management_1', phase: 'ingest', source: 'email', target: 'case_management',
+    label: 'Email reports', animated: true,
+    tags: ['Alert', 'Logs'],
+    description: 'User-reported phishing emails create cases for triage. Automating intake with deduplication and auto-enrichment drastically cuts analyst workload.',
+    agenticDescription: 'An agent parses reported emails, extracts and enriches all IOCs, determines phishing verdict using threat intel, and auto-closes low-risk reports while escalating confirmed campaigns.',
+    automationLabel: 'Ingest Tickets',
+    automationCategory: 'cases',
+    automationArea: 'automatic_ingestion',
+  },
+  {
     id: 'siem_case_management_1', phase: 'ingest', source: 'siem', target: 'case_management',
     label: 'SIEM alerts', animated: true,
     tags: ['Alert', 'Detection', 'Logs'],
@@ -602,14 +612,46 @@ export const DEFAULT_USECASES: Usecase[] = [
     automationArea: 'automatic_ingestion',
   },
   {
-    id: 'email_case_management_1', phase: 'ingest', source: 'email', target: 'case_management',
-    label: 'Email reports', animated: true,
-    tags: ['Alert', 'Logs'],
-    description: 'User-reported phishing emails create cases for triage. Automating intake with deduplication and auto-enrichment drastically cuts analyst workload.',
-    agenticDescription: 'An agent parses reported emails, extracts and enriches all IOCs, determines phishing verdict using threat intel, and auto-closes low-risk reports while escalating confirmed campaigns.',
-    automationLabel: 'Ingest Tickets',
-    automationCategory: 'cases',
+    id: 'network_siem_1', phase: 'ingest', source: 'network', target: 'siem',
+    label: 'Flow logs',
+    tags: ['Logs', 'Detection'],
+    manualVerification: true,
+    description: 'Network flow logs (NetFlow, DNS, proxy) give the SIEM east-west and north-south visibility. Without them, lateral movement and C2 traffic go undetected.',
+    agenticDescription: 'An agent monitors ingested flow logs for anomalous patterns (beaconing, port scans, unusual data volumes), generates hypotheses, and creates enriched SIEM alerts with analyst-ready summaries.',
     automationArea: 'automatic_ingestion',
+  },
+  {
+    id: 'cloud_siem_1', phase: 'ingest', source: 'cloud', target: 'siem',
+    label: 'Audit logs',
+    tags: ['Logs', 'Detection'],
+    manualVerification: true,
+    description: 'Cloud audit logs (CloudTrail, Activity Log, Audit Logs) provide visibility into API calls, configuration changes, and access patterns across cloud environments.',
+    agenticDescription: 'An agent detects anomalous API call patterns, privilege escalation, and misconfiguration events in cloud audit logs, then generates prioritized SIEM alerts with remediation context.',
+    automationArea: 'automatic_ingestion',
+  },
+  {
+    id: 'asset_management_siem_1', phase: 'ingest', source: 'asset_management', target: 'siem',
+    label: 'Endpoint logs',
+    tags: ['Logs', 'Detection', 'Alert'],
+    manualVerification: true,
+    description: 'Forwarding endpoint telemetry and asset logs (process events, file changes, network connections, vulnerability scan results) to the SIEM enriches correlation and enables asset-aware detections.',
+    agenticDescription: 'An agent normalises endpoint telemetry from diverse agents, tags each event with asset criticality and owner from the CMDB, and forwards structured logs to the SIEM with context that tunes alert priority.',
+    automationArea: 'automatic_ingestion',
+  },
+  {
+    id: 'vulnerability_ingestion_1', phase: 'ingest', source: 'asset_management', target: 'case_management',
+    label: 'Vulnerability Ingestion', animated: true,
+    tags: ['Ingest', 'Vulnerability', 'Logs'],
+    description: 'Ingest vulnerability findings (CVEs, misconfigurations, missing patches) from your scanners into a unified inventory so they can be correlated with assets and incidents.',
+    agenticDescription: 'An agent normalizes scanner output across vendors, deduplicates findings per asset, enriches each CVE with exploitability and threat intel, and keeps the vulnerability inventory continuously up to date.',
+    automationArea: 'automatic_ingestion',
+    automationLabel: 'Ingest Vulnerabilities',
+    automationCategory: 'vulnerabilities',
+    customAction: {
+      label: 'Configure Vulnerabilities',
+      href: '/vulnerabilities',
+      description: 'Open the vulnerability inventory to ingest CVEs from your scanners.',
+    },
   },
   {
     id: 'threat_intel_ingest_1', phase: 'ingest', source: 'threat_intel', target: 'case_management',
@@ -625,15 +667,6 @@ export const DEFAULT_USECASES: Usecase[] = [
       href: '/incidents/threat-feeds',
       description: 'IOC feeds and Threat feeds refer to the same thing — manage your configured threat feeds and IOC sources.',
     },
-  },
-  {
-    id: 'network_siem_1', phase: 'ingest', source: 'network', target: 'siem',
-    label: 'Flow logs',
-    tags: ['Logs', 'Detection'],
-    manualVerification: true,
-    description: 'Network flow logs (NetFlow, DNS, proxy) give the SIEM east-west and north-south visibility. Without them, lateral movement and C2 traffic go undetected.',
-    agenticDescription: 'An agent monitors ingested flow logs for anomalous patterns (beaconing, port scans, unusual data volumes), generates hypotheses, and creates enriched SIEM alerts with analyst-ready summaries.',
-    automationArea: 'automatic_ingestion',
   },
   {
     id: 'edr_siem_1', phase: 'correlation', source: 'edr', target: 'siem',
@@ -659,9 +692,65 @@ export const DEFAULT_USECASES: Usecase[] = [
     tags: ['Intel', 'Correlation', 'Context'],
     description: 'Threat intelligence enriches cases with reputation scores, malware families, threat actor attribution, and related IOCs — giving analysts immediate context.',
     agenticDescription: 'An agent autonomously enriches all observables in a case, maps findings to MITRE ATT&CK, identifies related campaigns, and updates case severity and recommended playbook based on findings.',
-    automationLabel: 'Realtime IOC extraction',
+    automationLabel: 'Enable Threat feeds',
     automationCategory: 'cases',
     automationArea: 'threat_intel',
+  },
+  {
+    id: 'asset_management_case_management_1', phase: 'correlation', source: 'asset_management', target: 'case_management',
+    label: 'Asset context',
+    tags: ['Context', 'Correlation'],
+    description: 'Asset context (owner, criticality, business unit, OS) helps analysts prioritize cases and understand blast radius during an incident.',
+    agenticDescription: 'An agent automatically fetches asset owner, business criticality, and known vulnerabilities for every observable in a case, recalculates impact score, and suggests prioritization.',
+    automationArea: 'correlation',
+    automationLabel: 'Asset context',
+    automationCategory: 'cases',
+  },
+  {
+    id: 'asset_management_case_management_vuln_1', phase: 'correlation', source: 'asset_management', target: 'case_management',
+    label: 'Vulnerability Correlation', animated: true,
+    tags: ['Context', 'Correlation', 'Vulnerability'],
+    description: 'Correlate known vulnerabilities (CVEs, misconfigurations, missing patches) on affected assets with active incidents — surfacing exploitable weaknesses that elevate risk and guide containment priorities.',
+    agenticDescription: 'An agent matches observables and affected hosts in a case against the vulnerability inventory, identifies exploitable CVEs aligned with the attack technique, recalculates incident severity, and recommends remediation or compensating controls.',
+    automationArea: 'correlation',
+    automationLabel: 'Vulnerability Correlation',
+    automationCategory: 'cases',
+  },
+  {
+    id: 'email_threat_intel_1', phase: 'correlation', source: 'email', target: 'threat_intel',
+    label: 'Phishing IOCs',
+    tags: ['Intel', 'Correlation', 'Logs'],
+    description: 'Extracting IOCs from phishing emails (sender domains, URLs, attachments) and feeding them into threat intel platforms helps detect broader campaigns.',
+    agenticDescription: 'An agent detonates suspicious attachments and URLs in a sandbox, extracts all IOCs, correlates with known campaigns, and auto-publishes confirmed indicators to the threat intel platform.',
+    automationArea: 'threat_intel',
+  },
+  {
+    id: 'cloud_iam_1', phase: 'correlation', source: 'cloud', target: 'iam',
+    label: 'Identity events',
+    tags: ['Logs', 'Correlation', 'Detection'],
+    manualVerification: true,
+    description: 'Cloud identity events (role changes, permission grants, federation configs) feed IAM monitoring to detect privilege escalation in cloud environments.',
+    agenticDescription: 'An agent tracks excessive permission grants, detects role assumption chains indicating privilege escalation, and triggers automated least-privilege review recommendations in IAM.',
+    automationArea: 'correlation',
+  },
+  {
+    id: 'cloud_asset_management_1', phase: 'correlation', source: 'cloud', target: 'asset_management',
+    label: 'Resource inventory',
+    tags: ['Logs', 'Context'],
+    manualVerification: true,
+    description: 'Auto-syncing cloud resources into the asset inventory ensures the CMDB stays current, preventing blind spots in vulnerability management and incident response.',
+    agenticDescription: 'An agent continuously reconciles cloud inventory with the CMDB, flags newly exposed resources, identifies shadow IT, and marks assets with missing security controls for immediate action.',
+    automationArea: 'correlation',
+  },
+  {
+    id: 'case_management_incident_routing_1', phase: 'correlation', source: 'case_management', target: 'case_management',
+    label: 'Incident Routing Rules', animated: true,
+    tags: ['Context', 'Correlation', 'Routing'],
+    description: 'Route incoming incidents to the right sub-organization based on tenant, source, severity, observables, or any field in the incident payload. Keeps multi-tenant environments tidy and ensures the right team owns each incident from the start.',
+    agenticDescription: 'An agent evaluates each new incident against your routing rules, decides which sub-organization should own it, and either suggests or executes the move with full audit trail.',
+    automationArea: 'correlation',
+    automationLabel: 'Incident Routing Rules',
+    automationCategory: 'cases',
   },
   {
     id: 'threat_intel_network_1', phase: 'response', source: 'threat_intel', target: 'network',
@@ -708,90 +797,6 @@ export const DEFAULT_USECASES: Usecase[] = [
     description: 'Network isolation or process killing on compromised endpoints contains the threat, preventing lateral movement while preserving forensic evidence.',
     agenticDescription: 'An agent determines the right containment scope (process, network, host), triggers isolation, collects forensic artifacts autonomously, and creates a detailed timeline for the investigation.',
     automationArea: 'response',
-  },
-  {
-    id: 'asset_management_case_management_1', phase: 'correlation', source: 'asset_management', target: 'case_management',
-    label: 'Asset context',
-    tags: ['Context', 'Correlation'],
-    description: 'Asset context (owner, criticality, business unit, OS) helps analysts prioritize cases and understand blast radius during an incident.',
-    agenticDescription: 'An agent automatically fetches asset owner, business criticality, and known vulnerabilities for every observable in a case, recalculates impact score, and suggests prioritization.',
-    automationArea: 'correlation',
-    automationLabel: 'Asset context',
-    automationCategory: 'cases',
-  },
-  {
-    id: 'case_management_incident_routing_1', phase: 'correlation', source: 'case_management', target: 'case_management',
-    label: 'Incident Routing Rules', animated: true,
-    tags: ['Context', 'Correlation', 'Routing'],
-    description: 'Route incoming incidents to the right sub-organization based on tenant, source, severity, observables, or any field in the incident payload. Keeps multi-tenant environments tidy and ensures the right team owns each incident from the start.',
-    agenticDescription: 'An agent evaluates each new incident against your rules, decides which sub-organization should own it, and either suggests or executes the move with full audit trail.',
-    automationArea: 'correlation',
-    automationLabel: 'Incident Routing Rules',
-    automationCategory: 'cases',
-  },
-  {
-    id: 'asset_management_case_management_vuln_1', phase: 'correlation', source: 'asset_management', target: 'case_management',
-    label: 'Vulnerability Correlation',
-    tags: ['Context', 'Correlation', 'Vulnerability'],
-    description: 'Correlate known vulnerabilities (CVEs, misconfigurations, missing patches) on affected assets with active incidents — surfacing exploitable weaknesses that elevate risk and guide containment priorities.',
-    agenticDescription: 'An agent matches observables and affected hosts in a case against the vulnerability inventory, identifies exploitable CVEs aligned with the attack technique, recalculates incident severity, and recommends remediation or compensating controls.',
-    automationArea: 'correlation',
-    automationLabel: 'Vulnerability Correlation',
-    automationCategory: 'cases',
-  },
-  {
-    id: 'vulnerability_ingestion_1', phase: 'ingest', source: 'asset_management', target: 'case_management',
-    label: 'Vulnerability Ingestion', animated: true,
-    tags: ['Ingest', 'Vulnerability', 'Logs'],
-    description: 'Ingest vulnerability findings (CVEs, misconfigurations, missing patches) from your scanners into a unified inventory so they can be correlated with assets and incidents.',
-    agenticDescription: 'An agent normalizes scanner output across vendors, deduplicates findings per asset, enriches each CVE with exploitability and threat intel, and keeps the vulnerability inventory continuously up to date.',
-    automationArea: 'automatic_ingestion',
-    automationLabel: 'Ingest Vulnerabilities',
-    automationCategory: 'vulnerabilities',
-    customAction: {
-      label: 'Configure Vulnerabilities',
-      href: '/vulnerabilities',
-      description: 'Open the vulnerability inventory to ingest CVEs from your scanners.',
-    },
-  },
-  {
-    id: 'asset_management_case_management_vuln_response_1', phase: 'response', source: 'asset_management', target: 'case_management',
-    label: 'Vulnerability Response', animated: false, supportOnly: true,
-    tags: ['Response', 'Vulnerability', 'Remediation'],
-    description: 'Automatically open remediation tasks, patch tickets, or compensating-control workflows for vulnerabilities discovered during incident investigation — closing the loop between detection and fix.',
-    agenticDescription: 'An agent triages each confirmed exploitable CVE on an affected host, opens a remediation ticket with owner and SLA, applies a compensating control where possible, and tracks the fix back to the originating incident.',
-    automationArea: 'response',
-    customAction: {
-      label: 'Configure Vulnerabilities',
-      href: '/vulnerabilities',
-      description: 'Open the vulnerability inventory to wire up remediation workflows.',
-    },
-  },
-  {
-    id: 'email_threat_intel_1', phase: 'correlation', source: 'email', target: 'threat_intel',
-    label: 'Phishing IOCs',
-    tags: ['Intel', 'Correlation', 'Logs'],
-    description: 'Extracting IOCs from phishing emails (sender domains, URLs, attachments) and feeding them into threat intel platforms helps detect broader campaigns.',
-    agenticDescription: 'An agent detonates suspicious attachments and URLs in a sandbox, extracts all IOCs, correlates with known campaigns, and auto-publishes confirmed indicators to the threat intel platform.',
-    automationArea: 'threat_intel',
-  },
-  {
-    id: 'cloud_siem_1', phase: 'ingest', source: 'cloud', target: 'siem',
-    label: 'Audit logs',
-    tags: ['Logs', 'Detection'],
-    manualVerification: true,
-    description: 'Cloud audit logs (CloudTrail, Activity Log, Audit Logs) provide visibility into API calls, configuration changes, and access patterns across cloud environments.',
-    agenticDescription: 'An agent detects anomalous API call patterns, privilege escalation, and misconfiguration events in cloud audit logs, then generates prioritized SIEM alerts with remediation context.',
-    automationArea: 'automatic_ingestion',
-  },
-  {
-    id: 'cloud_iam_1', phase: 'correlation', source: 'cloud', target: 'iam',
-    label: 'Identity events',
-    tags: ['Logs', 'Correlation', 'Detection'],
-    manualVerification: true,
-    description: 'Cloud identity events (role changes, permission grants, federation configs) feed IAM monitoring to detect privilege escalation in cloud environments.',
-    agenticDescription: 'An agent tracks excessive permission grants, detects role assumption chains indicating privilege escalation, and triggers automated least-privilege review recommendations in IAM.',
-    automationArea: 'correlation',
   },
   {
     id: 'case_management_cloud_1', phase: 'response', source: 'case_management', target: 'cloud',
@@ -848,6 +853,19 @@ export const DEFAULT_USECASES: Usecase[] = [
     automationArea: 'schedules_notifications',
   },
   {
+    id: 'asset_management_case_management_vuln_response_1', phase: 'response', source: 'asset_management', target: 'case_management',
+    label: 'Vulnerability Response', animated: false, supportOnly: true,
+    tags: ['Response', 'Vulnerability', 'Remediation'],
+    description: 'Automatically open remediation tasks, patch tickets, or compensating-control workflows for vulnerabilities discovered during incident investigation — closing the loop between detection and fix.',
+    agenticDescription: 'An agent triages each confirmed exploitable CVE on an affected host, opens a remediation ticket with owner and SLA, applies a compensating control where possible, and tracks the fix back to the originating incident.',
+    automationArea: 'response',
+    customAction: {
+      label: 'Configure Vulnerabilities',
+      href: '/vulnerabilities',
+      description: 'Open the vulnerability inventory to wire up remediation workflows.',
+    },
+  },
+  {
     id: 'case_management_asset_management_monitors_1', phase: 'response', source: 'case_management', target: 'asset_management',
     label: 'Host Monitoring', animated: true,
     tags: ['Response', 'Monitoring', 'Endpoint'],
@@ -877,24 +895,6 @@ export const DEFAULT_USECASES: Usecase[] = [
       href: '/agents',
       description: 'Open the Agents page to enable AI incident handling and choose which tools the agent may use.',
     },
-  },
-  {
-    id: 'cloud_asset_management_1', phase: 'correlation', source: 'cloud', target: 'asset_management',
-    label: 'Resource inventory', animated: true,
-    tags: ['Logs', 'Context'],
-    manualVerification: true,
-    description: 'Auto-syncing cloud resources into the asset inventory ensures the CMDB stays current, preventing blind spots in vulnerability management and incident response.',
-    agenticDescription: 'An agent continuously reconciles cloud inventory with the CMDB, flags newly exposed resources, identifies shadow IT, and marks assets with missing security controls for immediate action.',
-    automationArea: 'correlation',
-  },
-  {
-    id: 'asset_management_siem_1', phase: 'ingest', source: 'asset_management', target: 'siem',
-    label: 'Endpoint logs',
-    tags: ['Logs', 'Detection', 'Alert'],
-    manualVerification: true,
-    description: 'Forwarding endpoint telemetry and asset logs (process events, file changes, network connections, vulnerability scan results) to the SIEM enriches correlation and enables asset-aware detections.',
-    agenticDescription: 'An agent normalises endpoint telemetry from diverse agents, tags each event with asset criticality and owner from the CMDB, and forwards structured logs to the SIEM with context that tunes alert priority.',
-    automationArea: 'automatic_ingestion',
   },
 ];
 
@@ -2146,6 +2146,7 @@ function mapApiToFrontend(cat: ApiUsecaseCategory, api: ApiUsecase, local?: Usec
   const resolvedPhase = (cat.phase && (cat.phase === 'ingest' || cat.phase === 'correlation' || cat.phase === 'response'))
     ? cat.phase
     : apiCategoryToPhase(cat.name);
+  const isNonIngestIocFeed = api.name === 'IOC feeds' && resolvedPhase !== 'ingest';
   return {
     id: local?.id || (api as any).id || buildApiOnlyId(api),
     source: getApiSource(api),
@@ -2155,7 +2156,9 @@ function mapApiToFrontend(cat: ApiUsecaseCategory, api: ApiUsecase, local?: Usec
     agenticDescription: local?.agenticDescription || api.agentic_description || api.description || '',
     phase: resolvedPhase,
     tags: api.tags || local?.tags || [],
-    animated: typeof api.disabled === 'boolean' ? !api.disabled : (local ? local.animated : true),
+    animated: isNonIngestIocFeed
+      ? false
+      : (typeof api.disabled === 'boolean' ? !api.disabled : (local ? local.animated : true)),
     supportOnly: typeof (api as any).support_only === 'boolean' ? (api as any).support_only : local?.supportOnly,
     automationLabel: api.automation_label || local?.automationLabel,
     automationCategory: api.automation_category || local?.automationCategory,
@@ -2166,7 +2169,9 @@ function mapApiToFrontend(cat: ApiUsecaseCategory, api: ApiUsecase, local?: Usec
     video: api.video || local?.video,
     blogpost: api.blogpost || local?.blogpost,
     referenceImage: api.reference_image || local?.referenceImage,
-    customAction: api.custom_action || local?.customAction,
+    customAction: (local?.customAction || api.custom_action)
+      ? { ...local?.customAction, ...api.custom_action }
+      : undefined,
   };
 }
 
@@ -2177,7 +2182,7 @@ function buildBackendUsecases(cats: ApiUsecaseCategory[]) {
   for (const cat of cats) {
     for (const api of cat.list || []) {
       if ((api as any).id === 'threat_intel_cloud_1') continue;
-      if (api.name === 'IOC feeds' && (getApiTarget(api) === 'cloud' || (cat.phase && cat.phase !== 'ingest') || apiCategoryToPhase(cat.name) !== 'ingest')) continue;
+      if (api.name === 'IOC feeds' && getApiTarget(api) === 'cloud') continue;
       if (!getApiSource(api) || !getApiTarget(api)) continue;
       const local = getMatchingLocal(api, matched);
       if (local) matched.add(local.id);
@@ -3088,21 +3093,19 @@ const IntegrationStatusLite = React.memo(function IntegrationStatusLite({
 const USECASE_CONFIRM_TIMEOUT_MS = 180000;
 
 const ACTIVE_USECASE_IDS = [
+  'email_case_management_1',
   'siem_case_management_1',
   'edr_case_management_1',
-  'email_case_management_1',
+  'vulnerability_ingestion_1',
   'threat_intel_ingest_1',
   'threat_intel_case_management_1',
-  'case_management_cases_forward_1',
-  'case_management_communication_1',
-  'case_management_asset_management_monitors_1',
-  'case_management_assign_escalate_1',
   'asset_management_case_management_vuln_1',
-  'vulnerability_ingestion_1',
-  'threat_intel_network_1',
-  'threat_intel_edr_1',
   'case_management_incident_routing_1',
+  'case_management_communication_1',
+  'case_management_cases_forward_1',
+  'case_management_assign_escalate_1',
   'case_management_schedules_notifications_1',
+  'case_management_asset_management_monitors_1',
   'case_management_agent_ai_incident_handling_1',
 ];
 
@@ -3833,7 +3836,7 @@ function UsecaseDetailContent({
   const [pinnedTool, setPinnedTool] = useState<ToolSideState>({ source: null, destination: null });
   // Mirror the card's "Coming soon" gate so the detail page does not show a
   // live "Enable" button for usecases that are not yet wired up server-side.
-  const isComingSoon = !!flow && !ACTIVE_USECASE_IDS.includes(flow.id);
+  const isComingSoon = !flow || flow.animated === false || !ACTIVE_USECASE_IDS.includes(flow.id);
 
   // Clear the optimistic flag only once the server-side `isEnabled` actually
   // reflects the new value. Without this, a fast refetch that lands before the
@@ -7123,7 +7126,7 @@ export function UsecaseCard({
   onEnable,
 }: UsecaseCardProps) {
   const sourceCat = categoryLabel(flow.source) || 'source';
-  const isComingSoon = !ACTIVE_USECASE_IDS.includes(flow.id);
+  const isComingSoon = flow.animated === false || !ACTIVE_USECASE_IDS.includes(flow.id);
   const targetCat = categoryLabel(flow.target) || 'destination';
   const [toggling, setToggling] = useState(false);
   const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);

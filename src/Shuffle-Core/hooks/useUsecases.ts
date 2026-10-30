@@ -118,6 +118,7 @@ function mapApiUsecaseToFrontend(apiCategory: ApiUsecaseCategory, apiUsecase: Ap
   const resolvedPhase = (apiCategory.phase && (apiCategory.phase === 'ingest' || apiCategory.phase === 'correlation' || apiCategory.phase === 'response'))
     ? apiCategory.phase
     : apiCategoryToPhase(apiCategory.name);
+  const isNonIngestIocFeed = apiUsecase.name === 'IOC feeds' && resolvedPhase !== 'ingest';
   return {
     id: localUsecase?.id || (apiUsecase as any).id || buildApiOnlyId(apiUsecase),
     source: getApiSource(apiUsecase),
@@ -129,7 +130,9 @@ function mapApiUsecaseToFrontend(apiCategory: ApiUsecaseCategory, apiUsecase: Ap
     tags: apiUsecase.tags || localUsecase?.tags || [],
     // Backend is the source of truth — anything returned by the API counts as
     // active/animated unless the local override explicitly says otherwise.
-    animated: typeof apiUsecase.disabled === 'boolean' ? !apiUsecase.disabled : (localUsecase ? localUsecase.animated : true),
+    animated: isNonIngestIocFeed
+      ? false
+      : (typeof apiUsecase.disabled === 'boolean' ? !apiUsecase.disabled : (localUsecase ? localUsecase.animated : true)),
     supportOnly: typeof (apiUsecase as any).support_only === 'boolean' ? (apiUsecase as any).support_only : localUsecase?.supportOnly,
     automationLabel: apiUsecase.automation_label || localUsecase?.automationLabel,
     automationCategory: apiUsecase.automation_category || localUsecase?.automationCategory,
@@ -140,7 +143,9 @@ function mapApiUsecaseToFrontend(apiCategory: ApiUsecaseCategory, apiUsecase: Ap
     video: apiUsecase.video || localUsecase?.video,
     blogpost: apiUsecase.blogpost || localUsecase?.blogpost,
     referenceImage: apiUsecase.reference_image || localUsecase?.referenceImage,
-    customAction: apiUsecase.custom_action || localUsecase?.customAction,
+    customAction: (localUsecase?.customAction || apiUsecase.custom_action)
+      ? { ...localUsecase?.customAction, ...apiUsecase.custom_action }
+      : undefined,
   };
 }
 
@@ -152,7 +157,7 @@ function buildBackendUsecases(apiCategories: ApiUsecaseCategory[]): Pick<FetchRe
   for (const apiCategory of apiCategories) {
     for (const apiUsecase of apiCategory.list || []) {
       if ((apiUsecase as any).id === 'threat_intel_cloud_1') continue;
-      if (apiUsecase.name === 'IOC feeds' && (getApiTarget(apiUsecase) === 'cloud' || (apiCategory.phase && apiCategory.phase !== 'ingest') || apiCategoryToPhase(apiCategory.name) !== 'ingest')) continue;
+      if (apiUsecase.name === 'IOC feeds' && getApiTarget(apiUsecase) === 'cloud') continue;
       if (!getApiSource(apiUsecase) || !getApiTarget(apiUsecase)) continue;
 
       const localUsecase = getMatchingLocalUsecase(apiUsecase, matchedLocalIds);

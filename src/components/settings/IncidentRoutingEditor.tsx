@@ -31,6 +31,8 @@ import {
   ROUTING_FIELD_SUGGESTIONS,
   defaultRoutingAction,
   validateRoutingAction,
+  resolveTenantRegionPatch,
+  type RoutingOrgOption,
 } from './RoutingActionFields';
 
 import {
@@ -127,6 +129,14 @@ export interface RoutingAction {
   type: RoutingActionType;
   /** Target tenant id — only for suggest_move. */
   targetOrgId?: string;
+  /** Target tenant display name — only for suggest_move. */
+  targetOrgName?: string;
+  /** Target tenant region code on Shuffle Cloud — only for suggest_move. */
+  region?: string;
+  targetRegion?: string;
+  /** Target tenant regional backend URL on Shuffle Cloud — only for suggest_move. */
+  region_url?: string;
+  targetRegionUrl?: string;
   /** Target field path — only for set_field. */
   field?: string;
   /** Value applied / suggested. Severity/status use the canonical string. */
@@ -245,6 +255,11 @@ const parseRule = (key: string, value: string): RoutingRule | null => {
       actions = [{
         type: (parsed.action.type as RoutingActionType) || 'suggest_move',
         targetOrgId: parsed.action.targetOrgId,
+        targetOrgName: parsed.action.targetOrgName,
+        region: parsed.action.region,
+        targetRegion: parsed.action.targetRegion,
+        region_url: parsed.action.region_url,
+        targetRegionUrl: parsed.action.targetRegionUrl,
         field: parsed.action.field,
         value: parsed.action.value,
         reason: parsed.action.reason,
@@ -773,6 +788,25 @@ const IncidentRoutingEditorInner = ({
     });
   };
 
+  const orgOptions = useMemo(() => {
+    const opts: RoutingOrgOption[] = [];
+    if (currentOrgId) {
+      opts.push({
+        id: currentOrgId,
+        name: `${userInfo?.active_org?.name || 'This tenant'} (current)`,
+        region_url: userInfo?.active_org?.region_url,
+      });
+    }
+    for (const so of subOrgs) {
+      opts.push({
+        id: so.id,
+        name: so.name || so.id.slice(0, 8),
+        region_url: so.region_url,
+      });
+    }
+    return opts;
+  }, [subOrgs, currentOrgId, userInfo]);
+
   const handleSave = async (rule: RoutingRule) => {
     if (!rule.name.trim()) {
       toast.error('Give the rule a name first');
@@ -805,8 +839,14 @@ const IncidentRoutingEditorInner = ({
       // consumers use `conditionTree` as the source of truth.
       const tree = rule.conditionTree || emptyGroup('and', [emptyLeaf()]);
       const legacy = flattenTreeToLegacy(tree);
+      const enrichedActions = rule.actions.map((a) =>
+        a.type === 'suggest_move' && a.targetOrgId
+          ? { ...a, ...resolveTenantRegionPatch(a.targetOrgId, orgOptions) }
+          : a,
+      );
       const payload: RoutingRule = {
         ...rule,
+        actions: enrichedActions,
         conditions: legacy.conditions,
         matchMode: legacy.matchMode,
         conditionTree: tree,
@@ -930,8 +970,10 @@ const IncidentRoutingEditorInner = ({
   };
 
   const handleAdd = () => {
+    const defaultTargetOrgId = subOrgs[0]?.id || '';
+    const regionPatch = defaultTargetOrgId ? resolveTenantRegionPatch(defaultTargetOrgId, orgOptions) : {};
     const fresh = emptyRule({
-      actions: [{ type: 'suggest_move', targetOrgId: subOrgs[0]?.id || '', reason: '' }],
+      actions: [{ type: 'suggest_move', targetOrgId: defaultTargetOrgId, reason: '', ...regionPatch }],
       entityCategory,
     });
     setDrafts((prev) => ({ ...prev, [fresh.id]: fresh }));
@@ -957,7 +999,12 @@ const IncidentRoutingEditorInner = ({
       const prevReason = actions[idx]?.reason;
       actions[idx] = { ...defaultActionFor(type), reason: prevReason };
       if (type === 'suggest_move' && !actions[idx].targetOrgId) {
-        actions[idx].targetOrgId = subOrgs[0]?.id || '';
+        const defaultTargetOrgId = subOrgs[0]?.id || '';
+        actions[idx] = {
+          ...actions[idx],
+          targetOrgId: defaultTargetOrgId,
+          ...(defaultTargetOrgId ? resolveTenantRegionPatch(defaultTargetOrgId, orgOptions) : {}),
+        };
       }
       return { ...prev, [ruleId]: { ...r, actions, updatedTs: Date.now() } };
     });
@@ -983,13 +1030,6 @@ const IncidentRoutingEditorInner = ({
   const toggleExpanded = (id: string) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
-
-  const orgOptions = useMemo(() => {
-    const opts: { id: string; name: string }[] = [];
-    if (currentOrgId) opts.push({ id: currentOrgId, name: `${userInfo?.active_org?.name || 'This tenant'} (current)` });
-    for (const so of subOrgs) opts.push({ id: so.id, name: so.name || so.id.slice(0, 8) });
-    return opts;
-  }, [subOrgs, currentOrgId, userInfo]);
 
   if (!isParentOrg && !forceShow) {
     return (

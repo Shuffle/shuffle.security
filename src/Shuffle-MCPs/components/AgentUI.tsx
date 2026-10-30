@@ -7496,7 +7496,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                     arrow
                   >
                   <Box
-                    onClick={!agentRequestLoading ? () => setAuthDrawerApp({ name: app.name, id: app.id || null, icon: appIcon || null }) : undefined}
+                    onClick={!agentRequestLoading ? () => setAuthDrawerApp({ name: app.name, id: app.id || null, icon: appIcon || null, focusAuth: needsAuth }) : undefined}
                     sx={{
                       display: 'inline-flex', alignItems: 'center', gap: 0.5,
                       pl: 0.5,
@@ -7506,26 +7506,20 @@ const AgentUI: React.FC<AgentUIProps> = ({
                       boxSizing: 'border-box',
                       lineHeight: 1,
                       borderRadius: 999,
-                      bgcolor: isUnavailable
+                      bgcolor: chipTone === 'unavailable'
                         ? 'hsl(var(--severity-medium) / 0.08)'
-                        : needsAuth
-                          ? 'hsl(var(--severity-medium) / 0.12)'
-                          : 'hsl(var(--muted) / 0.6)',
-                      border: isUnavailable
+                        : 'hsl(var(--muted) / 0.6)',
+                      border: chipTone === 'unavailable'
                         ? '1px dashed hsl(var(--severity-medium) / 0.7)'
-                        : needsAuth
-                          ? '1px solid hsl(var(--severity-medium) / 0.55)'
-                          : '1px solid transparent',
+                        : '1px solid transparent',
                       fontSize: '0.8rem',
                       color: 'hsl(var(--foreground))',
                       cursor: !agentRequestLoading ? 'pointer' : 'default',
                       transition: 'background-color 0.12s ease',
                       '&:hover': !agentRequestLoading ? {
-                        bgcolor: isUnavailable
+                        bgcolor: chipTone === 'unavailable'
                           ? 'hsl(var(--severity-medium) / 0.16)'
-                          : needsAuth
-                            ? 'hsl(var(--severity-medium) / 0.18)'
-                            : 'hsl(var(--muted) / 0.9)',
+                          : 'hsl(var(--muted) / 0.9)',
                       } : {},
                     }}
                   >
@@ -7553,27 +7547,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                         {formatAppDisplayName(app.name || '')}
                       </Typography>
                     )}
-                    {needsAuth ? (
-                      <Box
-                        component="span"
-                        sx={{
-                          fontSize: '0.65rem',
-                          fontWeight: 600,
-                          color: 'hsl(var(--destructive))',
-                          bgcolor: 'hsl(var(--destructive) / 0.12)',
-                          border: '1px solid hsl(var(--destructive) / 0.3)',
-                          borderRadius: 1,
-                          px: 0.6,
-                          py: 0.1,
-                          letterSpacing: '0.02em',
-                          textTransform: 'uppercase',
-                          ml: 0.5,
-                          mr: 0.25,
-                        }}
-                      >
-                        Missing auth
-                      </Box>
-                    ) : isUnavailable ? (
+                    {isUnavailable ? (
                       <Box
                         component="span"
                         sx={{

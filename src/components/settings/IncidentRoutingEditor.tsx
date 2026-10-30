@@ -23,6 +23,21 @@
 import { Plus as AddIcon, Trash as DeleteOutlineIcon, Copy as ContentCopyIcon, ChevronDown as ExpandMoreIcon, ChevronUp as ExpandLessIcon } from 'lucide-react';
 import { useEffect, useMemo, useState, useCallback, type JSX } from 'react';
 import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+} from 'recharts';
+import {
+  NEON,
+  TooltipContent,
+  buildBuckets,
+  bucketIndexOf,
+} from '@/Shuffle-Core/components/dashboard/_shared';
+import {
   RoutingActionFields,
   ROUTING_ACTION_TYPE_LABELS,
   ROUTING_SEVERITY_OPTIONS,
@@ -402,6 +417,25 @@ export const IncidentRoutingEditor = ({
   );
 };
 
+export { IncidentRoutingEditor as RoutingEditor };
+
+const extractRuleStatValue = (entry: any, ruleId: string): number => {
+  if (!entry || typeof entry !== 'object' || !ruleId) return 0;
+  const statKey = `routing_rule_${ruleId}`;
+  const totalKey = `total_routing_rule_${ruleId}`;
+  if (entry[statKey] != null && typeof entry[statKey] !== 'object') {
+    return Number(entry[statKey]) || 0;
+  }
+  if (entry[totalKey] != null && typeof entry[totalKey] !== 'object') {
+    return Number(entry[totalKey]) || 0;
+  }
+  const additions = Array.isArray(entry.additions) ? entry.additions : [];
+  const hit = additions.find(
+    (a: any) => a?.key === statKey || a?.key === totalKey || a?.key === ruleId,
+  );
+  return hit ? Number(hit.value) || 0 : 0;
+};
+
 const IncidentRoutingEditorInner = ({
   forceShow = false,
   entityCategory = DEFAULT_ROUTING_ENTITY_CATEGORY,
@@ -446,6 +480,56 @@ const IncidentRoutingEditorInner = ({
   const [lastExecution, setLastExecution] = useState<RoutingWorkflowExecutionSummary | null>(null);
   const [isLoadingHealth, setIsLoadingHealth] = useState(false);
   const [isHookingWorkflow, setIsHookingWorkflow] = useState(false);
+  const [orgStats, setOrgStats] = useState<any>(null);
+
+  const fetchOrgStats = useCallback(async () => {
+    if (!currentOrgId) return;
+    try {
+      const res = await fetch(getApiUrl(`/api/v1/orgs/${currentOrgId}/stats`), {
+        credentials: 'include',
+        headers: { ...getAuthHeader() },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOrgStats(data);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch org stats for routing rules:', e);
+    }
+  }, [currentOrgId]);
+
+  useEffect(() => {
+    fetchOrgStats();
+  }, [fetchOrgStats]);
+
+  const buckets30d = useMemo(() => buildBuckets(30, 'daily'), []);
+
+  const getRuleTriggerStats = useCallback(
+    (ruleId: string): { totalLast30Days: number; dailySeries: Array<{ date: string; Triggers: number }> } => {
+      const acc = new Array(buckets30d.length).fill(0);
+      const dailyList = Array.isArray(orgStats?.daily_statistics) ? orgStats.daily_statistics : [];
+      for (const d of dailyList) {
+        if (!d?.date) continue;
+        const idx = bucketIndexOf(buckets30d, new Date(d.date).getTime());
+        if (idx >= 0) {
+          acc[idx] += extractRuleStatValue(d, ruleId);
+        }
+      }
+      let dailySum = acc.reduce((a, b) => a + b, 0);
+      if (dailySum === 0 && orgStats && acc.length > 0) {
+        const topVal = extractRuleStatValue(orgStats, ruleId);
+        if (topVal > 0) {
+          acc[acc.length - 1] = topVal;
+          dailySum = topVal;
+        }
+      }
+      return {
+        totalLast30Days: dailySum,
+        dailySeries: buckets30d.map((b, i) => ({ date: b.label, Triggers: acc[i] })),
+      };
+    },
+    [orgStats, buckets30d],
+  );
 
   const fetchWorkflowHealth = useCallback(async () => {
     if (!currentOrgId) return;
@@ -1120,6 +1204,8 @@ const IncidentRoutingEditorInner = ({
                 return `${c.field} ${OP_LABELS[c.op]}${c.op !== 'exists' ? ` "${c.value || ''}"` : ''}`;
               })()
             : `${leafCount} conditions${depth > 1 ? ` · ${depth} levels` : ''}`;
+        const ruleStats = getRuleTriggerStats(rule.id);
+        const safeGradId = `rule-stat-grad-${rule.id.replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
         return (
         <Paper
@@ -1162,6 +1248,48 @@ const IncidentRoutingEditorInner = ({
                   When {condSummary} → {actionSummary}
                 </Typography>
               </Box>
+              <Tooltip title={`Triggered ${ruleStats.totalLast30Days.toLocaleString()} time${ruleStats.totalLast30Days === 1 ? '' : 's'} in the past 30 days (key: routing_rule_${rule.id})`}>
+                <Box
+                  onClick={() => toggleExpanded(rule.id)}
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    justifyContent: 'center',
+                    px: 1.25,
+                    height: 36,
+                    borderRadius: 1,
+                    border: '1px solid hsl(var(--border))',
+                    bgcolor: 'hsl(var(--muted) / 0.25)',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    minWidth: 68,
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      lineHeight: 1.15,
+                      color: ruleStats.totalLast30Days > 0 ? NEON.violet : 'hsl(var(--muted-foreground))',
+                    }}
+                  >
+                    {ruleStats.totalLast30Days.toLocaleString()}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontSize: '0.58rem',
+                      color: 'hsl(var(--muted-foreground))',
+                      lineHeight: 1.1,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    last month
+                  </Typography>
+                </Box>
+              </Tooltip>
               <Tooltip title={rule.enabled ? 'Disable rule' : 'Enable rule'}>
                 <Switch
                   checked={rule.enabled}
@@ -1836,10 +1964,114 @@ const IncidentRoutingEditorInner = ({
             </Button>
           </Box>
 
+          {/* 30-day Trigger History (Stats API) */}
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+              pt: 1.25,
+              borderTop: '1px solid hsl(var(--border))',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'hsl(var(--muted-foreground))',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    fontSize: '0.65rem',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  Rule triggers (past 30 days)
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'hsl(var(--muted-foreground))',
+                    fontSize: '0.65rem',
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  }}
+                >
+                  routing_rule_{rule.id}
+                </Typography>
+              </Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  color: ruleStats.totalLast30Days > 0 ? NEON.violet : 'hsl(var(--muted-foreground))',
+                }}
+              >
+                {ruleStats.totalLast30Days.toLocaleString()} trigger{ruleStats.totalLast30Days === 1 ? '' : 's'} last month
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                height: 180,
+                width: '100%',
+                p: 1,
+                borderRadius: 1.5,
+                bgcolor: 'hsl(var(--muted) / 0.2)',
+                border: '1px solid hsl(var(--border))',
+              }}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={ruleStats.dailySeries} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id={safeGradId} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={NEON.violet} stopOpacity={0.55} />
+                      <stop offset="100%" stopColor={NEON.violet} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="2 4" stroke="hsl(var(--border))" strokeOpacity={0.35} vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={28}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    width={32}
+                  />
+                  <RechartsTooltip
+                    content={<TooltipContent />}
+                    cursor={{ stroke: NEON.violet, strokeOpacity: 0.3, strokeWidth: 1 }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="Triggers"
+                    name="Triggers"
+                    stroke={NEON.violet}
+                    strokeWidth={2}
+                    fill={`url(#${safeGradId})`}
+                    fillOpacity={0.6}
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Box>
+          </Box>
+
           {/* Footer: stats + save */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5 }}>
             <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem' }}>
-              {rule.matchCount ? `${rule.matchCount} match${rule.matchCount === 1 ? '' : 'es'}` : 'No matches yet'}
+              {ruleStats.totalLast30Days > 0
+                ? `${ruleStats.totalLast30Days.toLocaleString()} trigger${ruleStats.totalLast30Days === 1 ? '' : 's'} in last 30 days`
+                : rule.matchCount
+                  ? `${rule.matchCount} match${rule.matchCount === 1 ? '' : 'es'}`
+                  : 'No matches yet'}
               {rule.lastMatchedTs ? ` · last ${new Date(rule.lastMatchedTs).toLocaleString()}` : ''}
             </Typography>
             <Button

@@ -2171,7 +2171,7 @@ function mapApiToFrontend(cat: ApiUsecaseCategory, api: ApiUsecase, local?: Usec
     blogpost: api.blogpost || local?.blogpost,
     referenceImage: api.reference_image || local?.referenceImage,
     customAction: (local?.customAction || api.custom_action)
-      ? { ...local?.customAction, ...api.custom_action }
+      ? { label: '', ...local?.customAction, ...api.custom_action }
       : undefined,
   };
 }

@@ -1084,8 +1084,8 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     match: (pathname) => {
       const parts = pathname.replace(/\/+$/, '').split('/');
       if (parts[1] !== 'usecases') return null;
-      if (parts.length === 2) return {};
-      if (parts.length >= 3 && parts[2]) return { flowId: parts[2] };
+      if (parts.length === 2) return {} as Record<string, string>;
+      if (parts.length >= 3 && parts[2]) return { flowId: parts[2] } as Record<string, string>;
       return null;
     },
     defaultApps: [],

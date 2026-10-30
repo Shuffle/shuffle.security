@@ -525,12 +525,12 @@ const FinishAnswerMarkdown: React.FC<{ text: string }> = ({ text }) => {
 };
 
 /**
- * Shared "Run finished" summary used by both the Simple and Detailed views.
+ * Shared "Run finished" summary used by the Timeline view.
  * Renders the status header (with optional steps/duration meta and a
  * Raw/Rendered toggle) and the agent's final answer body underneath.
  *
- * `children` is rendered between the header row and the answer body — used by
- * the Simple view to insert auth-required banners or pending question forms.
+ * `children` is rendered between the header row and the answer body — used to
+ * insert auth-required banners or pending question forms.
  */
 interface RunFinishedSummaryProps {
   status: string;
@@ -781,7 +781,11 @@ export function agentAppChipTone(app: { needsAuth?: boolean; isUnavailable?: boo
 
 /** Top-level views of AgentUI. */
 export type AgentUIView = 'start' | 'simple' | 'detailed' | 'chat';
-type RunViewMode = Exclude<AgentUIView, 'start'>;
+/**
+ * The run views that actually render. 'simple' is no longer one of them: hosts
+ * and old saved choices that ask for it are mapped onto Chat.
+ */
+type RunViewMode = 'chat' | 'detailed';
 
 export interface AgentUIProps {
   /** Optional React key to force re-mounting when context changes */
@@ -885,7 +889,7 @@ export interface AgentUIProps {
   authorization?: string;
   /**
    * Pre-loaded execution payload. When provided, AgentUI skips the starter
-   * and renders Simple/Detailed views immediately — no `/streams/results`
+   * and renders the Chat/Timeline views immediately — no `/streams/results`
    * fetch, no `authorization` token required. Useful for embedding inside
    * a list/drawer that already has the execution data in hand. If the run
    * is still EXECUTING and an `authorization` is also present, polling
@@ -915,12 +919,13 @@ export interface AgentUIProps {
   onRunStatusChange?: (info: { executionId: string; status: string; previousStatus?: string; running: boolean; waiting: boolean }) => void;
   /** Called whenever the chip set under the prompt changes (add/remove apps). */
   onAppsChange?: (apps: AgentUIApp[]) => void;
-  /** Called whenever the active top-level view changes (start / simple / detailed / chat). */
+  /** Called whenever the active top-level view changes (start / chat / detailed). */
   onViewChange?: (view: AgentUIView) => void;
   /**
    * View to open on mount. 'chat' shows the run as a conversation and lets the
    * user start, answer and continue runs from there. When omitted, the stored
-   * Simple/Detailed preference is used (unchanged behaviour).
+   * Chat/Timeline preference is used. 'simple' is accepted for backwards
+   * compatibility and opens Chat.
    */
   initialView?: AgentUIView;
   /**
@@ -3003,8 +3008,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
       }
     }
     // Chat has its own composer, so it opens without the Start form unless the
-    // user last chose Start here.
-    if (initialView === 'chat') {
+    // user last chose Start here. 'simple' is the retired name for Chat.
+    if (initialView === 'chat' || initialView === 'simple') {
       return !!contextStorageKey && getPageContextChoice(contextStorageKey)?.viewMode === 'start';
     }
     return true;
@@ -3079,7 +3084,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // "continue in the area below" CTA. Cleared on a timer.
   const [continueHighlighted, setContinueHighlighted] = useState(false);
   const [questionAnswers, setQuestionAnswers] = useState<Record<string, { index: number; value: string }>>({});
-  const [simpleSubmitAttempted, setSimpleSubmitAttempted] = useState(false);
   const [finishAnswerRaw, setFinishAnswerRaw] = useState(false);
   const [continuationText, setContinuationText] = useState('');
   /**
@@ -3123,22 +3127,24 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const [searchParams, setSearchParams] = useSearchParams();
   const initialViewParam = searchParams.get('agentView');
 
+  // Chat is the default run view; Timeline only wins when the user last chose
+  // it. The retired 'simple' view (from older saved choices or host props)
+  // maps onto Chat.
   const readStoredViewMode = (): RunViewMode => {
     if (initialViewParam === 'detailed') return 'detailed';
+    if (initialViewParam === 'chat' || initialViewParam === 'simple') return 'chat';
     if (contextStorageKey) {
       const saved = getPageContextChoice(contextStorageKey);
-      if (saved?.viewMode === 'detailed' || saved?.viewMode === 'simple') {
-        return saved.viewMode;
-      }
-      if (saved?.viewMode === 'chat') return 'chat';
+      if (saved?.viewMode === 'detailed') return 'detailed';
+      if (saved?.viewMode === 'chat' || saved?.viewMode === 'simple') return 'chat';
     }
-    if (initialView === 'chat' || initialView === 'simple' || initialView === 'detailed') return initialView;
-    if (typeof window === 'undefined') return 'simple';
+    if (initialView === 'detailed') return 'detailed';
+    if (initialView === 'chat' || initialView === 'simple') return 'chat';
     try {
-      const stored = window.localStorage.getItem('shuffle-agents-view-mode');
-      if (stored === 'detailed' || stored === 'simple') return stored;
+      const stored = typeof window === 'undefined' ? null : window.localStorage.getItem('shuffle-agents-view-mode');
+      if (stored === 'detailed') return 'detailed';
     } catch { /* localStorage unavailable — ignore */ }
-    return 'simple';
+    return 'chat';
   };
 
   const [viewMode, setViewMode] = useState<RunViewMode>(readStoredViewMode);
@@ -3217,7 +3223,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const runGenerationRef = useRef(0);
   // Sticky flag set when the user manually clicks the "Start" tab while a run
   // is loaded. Prevents downstream effects (URL sync, initialExecution attach,
-  // etc.) from flipping back to Simple/Detailed when a poll response lands.
+  // etc.) from flipping back to Chat/Timeline when a poll response lands.
   // Cleared the moment the user actually submits a new run.
   const userPickedStartRef = useRef(false);
   // Mirror of state used inside async callbacks (e.g. submitInput) so we can
@@ -4100,8 +4106,11 @@ const AgentUI: React.FC<AgentUIProps> = ({
         userPickedStartRef.current = true;
       } else {
         if (!userPickedStartRef.current) setShowStarter(false);
-        if (savedViewMode === 'simple' || savedViewMode === 'detailed' || savedViewMode === 'chat') {
-          setViewMode(savedViewMode);
+        // 'simple' is retired: it opens Chat.
+        if (savedViewMode === 'detailed') {
+          setViewMode('detailed');
+        } else if (savedViewMode === 'simple' || savedViewMode === 'chat') {
+          setViewMode('chat');
         }
       }
       activeExecutionIdRef.current = eid;
@@ -4111,8 +4120,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
   }, [readUrlParams, executionId, authorization, getExecution, contextStorageKey]);
 
   // Attach to a pre-loaded execution (e.g. embedded inside a list/drawer
-  // that already has the run data). Skips the starter and seeds Simple/
-  // Detailed views directly — no `/streams/results` fetch, no
+  // that already has the run data). Skips the starter and seeds the
+  // Chat/Timeline views directly — no `/streams/results` fetch, no
   // `authorization` token required.
   useEffect(() => {
     if (!initialExecution || !initialExecution.execution_id) return;
@@ -4249,9 +4258,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
 
     // Hard reset NOW — kill the previous run's poll loop, blank the
     // execution/timeline state, drop the previous execution_id +
-    // agentView from the URL, and reset the view to simple. Otherwise
+    // agentView from the URL, and reset the view to Chat. Otherwise
     // the previous run's poll keeps writing into state during the
-    // in-flight request and the user sees the old "Detailed" tab flash
+    // in-flight request and the user sees the old "Timeline" tab flash
     // back in.
     executionPollGenerationRef.current += 1;
     activeExecutionIdRef.current = null;
@@ -4264,22 +4273,19 @@ const AgentUI: React.FC<AgentUIProps> = ({
     setOpenIndexes(new Set());
     setQuestionAnswers({});
     setContinuationText('');
-    setSimpleSubmitAttempted(false);
     
     setError(null);
     setLocalRunStart(null);
-    // When starting a new run, respect the user's stored Simple/Detailed
-    // preference rather than forcing Simple every time. A run started from
-    // Chat stays in Chat.
+    // A new run opens in Chat, unless the user's last choice was Timeline.
     try {
       const stored = typeof window !== 'undefined' ? window.localStorage.getItem('shuffle-agents-view-mode') : null;
-      setViewMode((current) => (current === 'chat' ? 'chat' : stored === 'detailed' ? 'detailed' : 'simple'));
+      setViewMode(stored === 'detailed' ? 'detailed' : 'chat');
     } catch {
-      setViewMode((current) => (current === 'chat' ? 'chat' : 'simple'));
+      setViewMode('chat');
     }
     setShowStarter(false);
     // The user is starting a new run — drop any sticky "manual Start" pin so
-    // future polls/effects can populate Simple/Detailed normally.
+    // future polls/effects can populate Chat/Timeline normally.
     userPickedStartRef.current = false;
     if (readUrlParams) {
       setSearchParams((prev) => {
@@ -4402,7 +4408,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
           executionId: eid,
           authorization: auth,
           executionStatus: 'EXECUTING',
-          viewMode: viewMode === 'chat' || viewMode === 'detailed' ? viewMode : 'simple',
+          viewMode,
         });
       }
       setExecution({ execution_id: eid, authorization: auth, status: 'EXECUTING' });
@@ -4424,7 +4430,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
           executionId: eid,
           authorization: auth || undefined,
           executionStatus: 'FINISHED',
-          viewMode: viewMode === 'chat' || viewMode === 'detailed' ? viewMode : 'simple',
+          viewMode,
         });
       }
       // Direct response (no async execution): synthesize a single-step view
@@ -4661,7 +4667,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       if (!disableStartTab) {
         setShowStarter(true);
       } else {
-        setViewMode('simple');
+        setViewMode('chat');
         setError('Could not resolve the original prompt for this run. Type it below and start a new run.');
       }
       setRerunAgentPending(false);
@@ -5440,15 +5446,16 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // restart() removed — Start tab now toggles via goToTab() while preserving the execution.
 
 
-  // The top-level "tabs": Start (the prompt form), Simple summary, Detailed
-  // timeline and Chat. They're all available once an execution exists, so the
-  // user can flip back and forth without losing the run.
+  // The top-level "tabs": Start (the prompt form), Chat and Timeline. Chat and
+  // Timeline are available once an execution exists, so the user can flip back
+  // and forth without losing the run.
   type TabKey = AgentUIView;
   const activeTab: TabKey = showStarter ? 'start' : viewMode;
   const hasExecution = !!execution?.execution_id;
   // Hosts that open in Chat keep the tabs visible, so Start stays reachable
   // before the first run.
-  const showRunSwitcher = hasExecution || agentRequestLoading || initialView === 'chat';
+  const showRunSwitcher =
+    hasExecution || agentRequestLoading || initialView === 'chat' || initialView === 'simple';
   useEffect(() => {
     onViewChange?.(activeTab);
   }, [activeTab, onViewChange]);
@@ -5487,7 +5494,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       setShowStarter(true);
       // Pin: user manually chose Start. Stay here even when polls land or
       // initialExecution is re-attached, until they explicitly start a new run
-      // or click Simple/Detailed themselves.
+      // or click Chat/Timeline themselves.
       userPickedStartRef.current = true;
       if (contextStorageKey) {
         setPageContextChoice(contextStorageKey, {
@@ -5505,18 +5512,20 @@ const AgentUI: React.FC<AgentUIProps> = ({
         }, { replace: true });
       }
     } else {
+      // 'simple' is retired: links and hosts that ask for it land on Chat.
+      const nextView: RunViewMode = t === 'simple' ? 'chat' : t;
       setShowStarter(false);
       userPickedStartRef.current = false;
-      setViewMode(t);
+      setViewMode(nextView);
       if (contextStorageKey) {
         setPageContextChoice(contextStorageKey, {
-          viewMode: t,
+          viewMode: nextView,
         });
       }
       if (readUrlParams) {
         setSearchParams((prev) => {
           const next = new URLSearchParams(prev);
-          next.set('agentView', t);
+          next.set('agentView', nextView);
           // Keep the execution shareable when returning to a run view from Start.
           if (execution?.execution_id && execution?.authorization) {
             next.set('execution_id', execution.execution_id);
@@ -5528,7 +5537,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     }
   };
 
-  // Schedule discovery: one shared mechanism for Start / Simple / Detailed.
+  // Schedule discovery: one shared mechanism for Start / Chat / Timeline.
   // The only hard block is an unfinished run; everything else is advisory.
   const { scheduleDisabledReasons, scheduleWarnings } = useMemo(() => {
     const decisions: any[] = (agentData?.decisions as any[]) || [];
@@ -5586,7 +5595,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     const reasons: string[] = [];
     const warnings: string[] = [];
     if (isNotFinished) {
-      // The ONLY hard block, and it is identical on Start / Simple / Detailed.
+      // The ONLY hard block, and it is identical on Start / Chat / Timeline.
       reasons.push('Wait for the agent to finish before scheduling.');
     }
     // Quality gates are advisory only — they surface in the tooltip but never
@@ -5777,13 +5786,20 @@ const AgentUI: React.FC<AgentUIProps> = ({
         value={activeTab}
         onChange={(v) => goToTab(v as TabKey)}
         options={[
-          { value: 'start', label: 'Start', disabled: disableStartTab, title: disableStartTab ? 'Open a new agent run from the /agents page to start a new prompt' : undefined },
-          { value: 'simple', label: 'Simple', disabled: !hasExecution },
+          {
+            value: 'start',
+            label: 'Start',
+            disabled: disableStartTab,
+            title: disableStartTab
+              ? 'Open a new agent run from the /agents page to start a new prompt'
+              : 'Write a new prompt and pick the tools to run it with',
+          },
+          { value: 'chat', label: 'Chat', title: 'The run as a conversation: ask questions, answer the agent and continue' },
           {
             value: 'detailed',
             label: runIsActive ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                Detailed
+                Timeline
                 <Loader2Icon
                   size={12}
                   className="animate-spin"
@@ -5791,12 +5807,13 @@ const AgentUI: React.FC<AgentUIProps> = ({
                 />
               </span>
             ) : (
-              'Detailed'
+              'Timeline'
             ),
             disabled: !hasExecution,
-            title: runIsActive ? 'Current agent run is in progress — view live detailed timeline' : undefined,
+            title: runIsActive
+              ? 'Current agent run is in progress — view the live timeline'
+              : 'Every step the agent took, in order',
           },
-          { value: 'chat', label: 'Chat', title: 'The run as a conversation: ask questions, answer the agent and continue' },
           { type: 'divider', key: 'div' },
           {
             type: 'action',
@@ -5824,7 +5841,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
               }
             },
           },
-          // The live run indicator is rendered in the Detailed tab label above.
+          // The live run indicator is rendered in the Timeline tab label above.
         ]}
       />
     </Box>
@@ -8061,7 +8078,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
               onJumpToEvidence={(decisionIndex) => {
                 // Locate the timeline row for the offending decision and
                 // expand + scroll to it on the detailed view, regardless of
-                // whether the user is currently on Simple or Detailed.
+                // whether the user is currently on Chat or Timeline.
                 const dec = (agentData?.decisions || [])[decisionIndex];
                 let rowIndex = -1;
                 if (dec) {
@@ -8104,199 +8121,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
             />
 
 
-            {/* Simple summary view */}
-            {viewMode === 'simple' && (
-              <Box sx={{
-                borderRadius: 2,
-                border: '1px solid hsl(var(--border))',
-                bgcolor: 'hsl(var(--card))',
-                p: 2.5,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 1.5,
-              }}>
-                {(() => {
-                  const status = (execution?.status || agentData?.status || 'EXECUTING').toUpperCase();
-                  const decisionCount = (agentData?.decisions || []).length;
-                  const isRunning = optimisticRunning || !['FINISHED', 'FAILURE', 'ABORTED', 'CANCELLED', 'CANCELED'].includes(status);
-                  const rawStartedAt = agentData?.started_at || execution?.started_at || 0;
-                  // Normalize: backend may return Unix milliseconds (UnixMillis) or seconds.
-                  const startedAtSec = rawStartedAt > 1e12 ? Math.floor(rawStartedAt / 1000) : rawStartedAt;
-                  // Prefer our locally-captured start while the run is in
-                  // progress — the backend's `started_at` is sometimes
-                  // restamped on every poll, which made the counter look
-                  // frozen at "1s". Once finished, prefer the backend value
-                  // so the displayed total matches the recorded run.
-                  const effectiveStart = isRunning
-                    ? (localRunStart || startedAtSec || 0)
-                    : (startedAtSec || localRunStart || 0);
-                  let durationSec: number | null = null;
-                  if (isRunning && effectiveStart) {
-                    durationSec = Math.max(0, nowTick - effectiveStart);
-                  } else if (totalDuration && totalDuration > 0) {
-                    durationSec = totalDuration;
-                  }
-                  // Detect a pending ASK decision (agent waiting on a user answer)
-                  const pendingAsk = (agentData?.decisions || []).slice().reverse().find((d) => {
-                    const isAsk = isAskDecision(d, d.category);
-                    const st = (d.run_details?.status || '').toUpperCase();
-                    return isAsk && (st === 'RUNNING' || st === 'WAITING');
-                  });
-                  const pendingQuestions: { question: string; index: number }[] = [];
-                  if (pendingAsk) {
-                    for (const f of pendingAsk.fields || []) {
-                      const questionText = getQuestionFieldText(f, pendingAsk, pendingAsk.category);
-                      if (questionText) {
-                        pendingQuestions.push({ question: questionText, index: pendingQuestions.length + 1 });
-                      }
-                    }
-                    // Fallback to reason/description when no field text.
-                    if (pendingAsk && !pendingQuestions.length) {
-                      const fallback = getAskFallbackQuestion(pendingAsk);
-                      if (fallback) pendingQuestions.push({ question: fallback, index: 1 });
-                    }
-                  }
-                  const pendingAnswered = pendingQuestions.every((q) => questionAnswers[q.question]?.value);
-
-                  return (
-                    <>
-                      <RunFinishedSummary
-                        status={status}
-                        isRunning={isRunning}
-                        finishAnswer={finishAnswer}
-                        finishNote={finishNote}
-                        raw={finishAnswerRaw}
-                        onToggleRaw={() => setFinishAnswerRaw((v) => !v)}
-                        decisionCount={decisionCount}
-                        durationSec={durationSec}
-                        showMeta
-                        bottomContent={aiAuthSuggestionNode}
-                      >
-                        {/* Discovery: keep surfacing the schedule intent and the
-                            apps this prompt needs, now that the run finished. */}
-                        {!isRunning && postRunDiscovery}
-
-                      </RunFinishedSummary>
-
-                      {!finishAnswer && pendingAsk && pendingQuestions.length > 0 ? (
-
-                        (() => {
-                          const trySimpleSubmit = () => {
-                            if (agentRequestLoading) return;
-                            if (!pendingAnswered) {
-                              setSimpleSubmitAttempted(true);
-                              return;
-                            }
-                            if (pendingAsk.run_details?.id) {
-                              submitQuestions(pendingAsk.run_details.id, questionAnswers);
-                            }
-                          };
-                          return (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                              {pendingAsk?.reason && (
-                                <Box sx={{ fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))', lineHeight: 1.4 }}>
-                                  {truncateReason(pendingAsk.reason)}
-                                </Box>
-                              )}
-                              {pendingQuestions.map((q, qi) => {
-                                const value = questionAnswers[q.question]?.value || '';
-                                const isMissing = simpleSubmitAttempted && !value;
-                                return (
-                                  <Box key={qi}>
-                                    <Box sx={{ fontSize: '0.9rem', color: 'hsl(var(--foreground))', mb: 1, '& p': { my: 0.5 } }}>
-                                      <ShuffleMarkdown>{normalizeMarkdown(q.question)}</ShuffleMarkdown>
-                                    </Box>
-                                    <TextField
-                                      fullWidth
-                                      multiline
-                                      minRows={2}
-                                      placeholder="Your answer here…"
-                                      value={value}
-                                      error={isMissing}
-                                      helperText={isMissing ? 'Please answer this question' : undefined}
-                                      onChange={(e) => {
-                                        const v = e.target.value;
-                                        setQuestionAnswers((prev) => ({
-                                          ...prev,
-                                          [q.question]: { index: qi, value: v },
-                                        }));
-                                      }}
-                                      onKeyDown={(e) => {
-                                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                                          e.preventDefault();
-                                          trySimpleSubmit();
-                                        }
-                                      }}
-                                      size="small"
-                                      sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'hsl(var(--background))' } }}
-                                    />
-                                  </Box>
-                                );
-                              })}
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Tooltip title={!pendingAnswered ? 'Please answer all questions first' : ''} placement="top" arrow>
-                                  <span>
-                                    <Button
-                                      variant="contained"
-                                      size="small"
-                                      disabled={agentRequestLoading || !pendingAnswered}
-                                      onClick={trySimpleSubmit}
-                                      startIcon={agentRequestLoading ? <CircularProgress size={14} sx={{ color: 'hsl(var(--primary-foreground))' }} /> : undefined}
-                                    >
-                                      {agentRequestLoading ? 'Submitting…' : 'Submit'}
-                                    </Button>
-                                  </span>
-                                </Tooltip>
-                                {pendingAsk.run_details?.id && getFormUrl(pendingAsk.run_details.id) && (
-                                  <Tooltip title="Answer in the Form UI" placement="right">
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => {
-                                        const url = getFormUrl(pendingAsk.run_details!.id!);
-                                        if (url) window.open(url, '_blank', 'noopener,noreferrer');
-                                      }}
-                                      sx={{ color: 'hsl(var(--muted-foreground))', '&:hover': { color: 'hsl(var(--primary))' } }}
-                                    >
-                                      <OpenInNewIcon size={18} />
-                                    </IconButton>
-                                  </Tooltip>
-                                )}
-                              </Box>
-                            </Box>
-                          );
-                        })()
-                      ) : !finishAnswer && isRunning ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
-                          <Loader2Icon
-                            size={14}
-                            className="animate-spin"
-                            style={{ color: 'hsl(var(--muted-foreground))', flexShrink: 0 }}
-                          />
-                          <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))' }}>
-                            Agent is running…
-                          </Typography>
-                        </Box>
-                      ) : !finishAnswer ? (
-                        <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--muted-foreground))' }}>
-                          No final answer returned.
-                        </Typography>
-                      ) : null}
-
-                      <Box>
-                        <Button
-                          size="small"
-                          variant="text"
-                          onClick={() => setViewMode('detailed')}
-                          sx={{ color: 'hsl(var(--primary))', textTransform: 'none', px: 0 }}
-                        >
-                          {isRunning ? 'View live detailed timeline →' : 'View detailed timeline →'}
-                        </Button>
-                      </Box>
-                    </>
-                  );
-                })()}
-              </Box>
-            )}
 
             {/* Detailed timeline view */}
             {viewMode === 'detailed' && (() => {

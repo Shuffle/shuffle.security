@@ -43,7 +43,9 @@ import { useAppAuth } from '@/Shuffle-Core/useAppAuth';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { fetchAppsViaApiConfig } from '@/Shuffle-Core/appsCache';
 import { fetchAppConfig } from '@/Shuffle-Core/appConfigFetch';
-import AppTitleHeader from '@/Shuffle-Core/components/AppTitleHeader';
+import AppTitleHeader, { AppIngestButton } from '@/Shuffle-Core/components/AppTitleHeader';
+import { getShuffleCoreUrl } from '@/Shuffle-Core/lib/shuffleUrls';
+import { getAppEditUrl } from '@/Shuffle-Core/appEditUrl';
 import AppAuthSection from '@/Shuffle-Core/components/AppAuthSection';
 import TryMcpSection from '@/Shuffle-Core/views/TryMcpSection';
 import SingulActionsPreview from '@/Shuffle-Core/components/SingulActionsPreview';
@@ -872,6 +874,22 @@ export default function AppDetailContent({
     ? (resolvedAlgoliaId || (appInfo as any)?.id || '')
     : (matchingEntries[0]?.app?.id || matchingEntries[0]?.id || resolvedAlgoliaId || (appInfo as any)?.id || appName || '');
 
+  const isGeneratedApp = (appInfo as any)?.generated === true;
+  const editAppId = (appInfo as any)?.id || resolvedAlgoliaId || '';
+  const [fetchedUser, setFetchedUser] = useState<any>(null);
+  useEffect(() => {
+    if (!isGeneratedApp || userdata || !isAuthenticated) return;
+    let cancelled = false;
+    fetch(getApiUrl('/api/v1/getinfo'), { credentials: 'include', headers: { ...getAuthHeader() } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d) setFetchedUser(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isGeneratedApp, userdata, isAuthenticated]);
+  const { url: editUrl, canEdit: canEditApp } = isGeneratedApp && editAppId
+    ? getAppEditUrl(appInfo as any, editAppId, userdata || fetchedUser, getShuffleCoreUrl)
+    : { url: '', canEdit: false };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: mode === 'drawer' ? '100%' : 'auto' }}>
       {/* Drawer Header Bar (only rendered in drawer mode) */}
@@ -907,26 +925,38 @@ export default function AppDetailContent({
                   }}
                 />
               )}
-              {!appLoading && !isNameMismatch && typeof appInfo?.actions?.length === 'number' && appInfo.actions.length > 0 && (
-                <Chip
-                  size="small"
-                  label={`${appInfo.actions.length} action${appInfo.actions.length === 1 ? '' : 's'}`}
-                  sx={{
-                    height: 20,
-                    fontSize: '0.65rem',
-                    fontWeight: 600,
-                    bgcolor: 'hsl(var(--primary) / 0.12)',
-                    color: 'hsl(var(--primary))',
-                    border: '1px solid hsl(var(--primary) / 0.3)',
-                    '& .MuiChip-label': { px: 0.75 },
-                  }}
-                />
-              )}
             </Box>
             <Typography sx={{ color: (configError || (!isBuiltIn && isNameMismatch)) ? 'hsl(var(--severity-medium))' : 'hsl(var(--muted-foreground))', fontSize: '0.75rem' }}>
               {appLoading ? <Skeleton width={100} /> : (configError ? `Error ${configError.status || ''}`.trim() : (isBuiltIn ? 'Built-in app' : (isNameMismatch ? `Unavailable — showing closest catalog match (${displayName})` : (appNotFound ? 'App not found in catalog' : 'App configuration'))))}
             </Typography>
           </Box>
+          {editUrl && (
+            <Tooltip title={canEditApp ? `Edit ${displayName} in Shuffle Core` : `Fork ${displayName} in Shuffle Core to edit your own copy`}>
+              <Button
+                component="a"
+                href={editUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="outlined"
+                size="small"
+                sx={{
+                  height: 28,
+                  minWidth: 0,
+                  px: 1.25,
+                  textTransform: 'none',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  borderRadius: 1.5,
+                  color: 'hsl(var(--foreground))',
+                  borderColor: 'hsl(var(--border))',
+                  flexShrink: 0,
+                  '&:hover': { borderColor: 'hsl(var(--primary))', color: 'hsl(var(--primary))', bgcolor: 'hsl(var(--primary) / 0.08)' },
+                }}
+              >
+                Edit
+              </Button>
+            </Tooltip>
+          )}
           {onClose && (
             <IconButton
               size="small"
@@ -1033,9 +1063,7 @@ export default function AppDetailContent({
               isActivated={onAddToCanvas || isBuiltIn ? null : effectiveActivated}
               activateLoading={activateLoading}
               onActivateToggle={onAddToCanvas || isBuiltIn ? undefined : () => handleActivateToggle()}
-              isIngestEnabled={isIngestEnabled}
-              ingestLoading={ingestLoading}
-              onIngestToggle={handleToggleIngest}
+              hideStatusChips
               highlightActivate={autoActivatePulse}
               onAdd={onAddToCanvas && appName ? () => {
                 onAddToCanvas({ name: appName, icon: resolvedImage || '', algoliaId: resolvedAlgoliaId });
@@ -1125,6 +1153,30 @@ export default function AppDetailContent({
               </motion.div>
             )}
 
+            {/* Related Usecases */}
+            {appName && (
+              <AppRelatedUsecases
+                appName={appName}
+                displayName={displayName}
+                categories={appInfo?.categories}
+                hasValidAuth={hasValidAuth}
+                onNavigateToAuth={() => {
+                  setAuthExpanded(true);
+                  document.getElementById('app-auth-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                mode={mode}
+                theme={theme as any}
+                headerAction={isAuthenticated && !onAddToCanvas && isIngestEnabled !== null && isIngestEnabled !== undefined ? (
+                  <AppIngestButton
+                    name={displayName}
+                    isIngestEnabled={isIngestEnabled}
+                    ingestLoading={ingestLoading}
+                    onIngestToggle={handleToggleIngest}
+                  />
+                ) : undefined}
+              />
+            )}
+
             {/* Authentication Section */}
             {!skipAuthentication && (
               isAuthenticated ? (
@@ -1161,22 +1213,6 @@ export default function AppDetailContent({
                   />
                 </Box>
               ) : null
-            )}
-
-            {/* Related Usecases */}
-            {appName && (
-              <AppRelatedUsecases
-                appName={appName}
-                displayName={displayName}
-                categories={appInfo?.categories}
-                hasValidAuth={hasValidAuth}
-                onNavigateToAuth={() => {
-                  setAuthExpanded(true);
-                  document.getElementById('app-auth-section')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                mode={mode}
-                theme={theme as any}
-              />
             )}
 
             {/* MCP Chat + Individual Actions Testing */}

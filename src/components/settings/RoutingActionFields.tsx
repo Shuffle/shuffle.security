@@ -236,9 +236,29 @@ const MoveActionAuthNotice = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
-  if (isLoading || added) return null;
+  if (isLoading && !added) return null;
   const state = getShuffleOpenApiAuthState(data || []);
-  if (state === 'valid') return null;
+  if (state === 'valid' && !added) return null;
+  if (added) {
+    return (
+      <Box sx={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        <Typography variant="caption" sx={{ color: 'hsl(var(--severity-low))', lineHeight: 1.4, flex: 1, minWidth: 180 }}>
+          Credentials added for Shuffle OpenAPI and assigned everywhere the app is used.
+        </Typography>
+        <Button
+          size="small"
+          variant="contained"
+          disabled
+          sx={{
+            textTransform: 'none', fontSize: '0.75rem', height: 28, flexShrink: 0, whiteSpace: 'nowrap',
+            '&.Mui-disabled': { bgcolor: 'hsl(var(--severity-low))', color: 'hsl(var(--primary-foreground))' },
+          }}
+        >
+          Auth added
+        </Button>
+      </Box>
+    );
+  }
   const text = state === 'missing'
     ? 'Moving to a tenant requires authentication for the Shuffle OpenAPI app, with permission to access the target tenant. No authentication was found.'
     : 'The Shuffle OpenAPI authentication has not been validated. Moving to a tenant needs a working authentication with permission to access the target tenant.';
@@ -303,9 +323,10 @@ const MoveActionAuthNotice = () => {
         `${e instanceof Error ? e.message : 'Could not add the credentials.'}${createdId ? ' The new authentication was removed.' : ''}`,
       );
     } finally {
-      invalidateAuthCache();
-      await queryClient.invalidateQueries({ queryKey: AUTHENTICATED_APPS_QUERY_KEY });
       setSaving(false);
+      // Refresh in the background; a slow list must not keep the button spinning.
+      invalidateAuthCache();
+      void queryClient.invalidateQueries({ queryKey: AUTHENTICATED_APPS_QUERY_KEY });
     }
   };
 

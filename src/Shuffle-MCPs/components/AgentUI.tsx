@@ -7687,7 +7687,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                     <Box
                       component="button"
                       type="button"
-                      onClick={() => setAuthDrawerApp({ name: unauthed[0].name, id: unauthed[0].id || null })}
+                      onClick={() => setAuthDrawerApp({ name: unauthed[0].name, id: unauthed[0].id || null, focusAuth: true })}
                       sx={{
                         all: 'unset', cursor: 'pointer',
                         fontSize: '0.75rem', fontWeight: 600,
@@ -7782,7 +7782,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
             isAppAuthenticated={isAppAuthenticated}
             onAuthenticateApp={(app) => {
               if (renderAppDetailDrawer) {
-                setAuthDrawerApp({ name: app.name, id: app.id });
+                setAuthDrawerApp({ name: app.name, id: app.id, focusAuth: true });
               } else if (typeof window !== 'undefined') {
                 window.open(app.url || `/apps/${app.id}`, '_blank', 'noopener,noreferrer');
               }
@@ -7836,7 +7836,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                       }
                     >
                       <Box
-                        onClick={() => setAuthDrawerApp({ name: app.name, id: (app as any).id || null })}
+                        onClick={() => setAuthDrawerApp({ name: app.name, id: (app as any).id || null, focusAuth: appNeedsAuth })}
                         sx={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -7874,7 +7874,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                     <Box
                       key={a.appName}
                       component="span"
-                      onClick={() => setAuthDrawerApp({ name: a.appName, id: a.appId })}
+                      onClick={() => setAuthDrawerApp({ name: a.appName, id: a.appId, focusAuth: true })}
                       sx={{
                         display: 'inline-flex',
                         alignItems: 'center',

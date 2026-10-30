@@ -7477,6 +7477,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                   const isUnavailable = !authAppsLoading && !isAvailable && !needsAuth;
                   const isRequired = isRequiredPresetApp(selectedPreset, app.name || '');
                   const appDisplayName = formatAppDisplayName(app.name || '');
+                  const chipTone = agentAppChipTone({ isUnavailable });
                   const appIcon =
                     app.icon ||
                     availableApps.find((a) => normalizeAgentAppName(a.name || '') === slug)?.icon ||

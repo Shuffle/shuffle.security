@@ -6707,7 +6707,7 @@ function UsecasesPageInner() {
         target: u.target,
         automationLabel: u.automationLabel,
       };
-      if (isFlowEnabled(u)) enabledUsecases.push(entry);
+      if (isFlowVisuallyEnabled(u)) enabledUsecases.push(entry);
       else disabledUsecases.push(entry);
     }
     ownOverviewContextRef.current = setActiveUsecasesOverviewContext({
@@ -6724,7 +6724,7 @@ function UsecasesPageInner() {
         search: search.trim() || undefined,
       },
     });
-  }, [usecases, isSupport, showAllAsSupport, isAuthenticated, isFlowEnabled, validatedCategories, validatedAppNames, workflows, phaseFilter, categoryFilter, areaFilter, tagFilter, search]);
+  }, [usecases, isSupport, showAllAsSupport, isAuthenticated, isFlowVisuallyEnabled, validatedCategories, validatedAppNames, workflows, phaseFilter, categoryFilter, areaFilter, tagFilter, search]);
   useEffect(() => () => clearActiveUsecasesOverviewContext(ownOverviewContextRef.current), []);
 
   // Memoize workflow-derived app names and workflowsByAppName mapping so that

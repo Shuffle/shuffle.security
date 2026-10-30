@@ -49,6 +49,8 @@ export interface AppRelatedUsecasesProps {
   mode?: 'drawer' | 'page';
   /** Theme for the usecase drawer. Defaults to the surrounding MUI palette mode. */
   theme?: 'light' | 'dark' | 'system';
+  /** Optional control rendered at the right of the section header (e.g. Enable ingest). */
+  headerAction?: React.ReactNode;
 }
 
 export default function AppRelatedUsecases({
@@ -59,6 +61,7 @@ export default function AppRelatedUsecases({
   onNavigateToAuth: _onNavigateToAuth,
   mode = 'drawer',
   theme,
+  headerAction,
 }: AppRelatedUsecasesProps) {
   const muiTheme = useTheme();
   const drawerTheme: 'light' | 'dark' =
@@ -141,7 +144,7 @@ export default function AppRelatedUsecases({
     return findRelatedUsecasesForApp(appName, categories, usecases);
   }, [appName, categories, usecases]);
 
-  if (relatedUsecases.length === 0) {
+  if (relatedUsecases.length === 0 && !headerAction) {
     return null;
   }
 
@@ -169,6 +172,7 @@ export default function AppRelatedUsecases({
           <Typography sx={{ fontWeight: 700, fontSize: '0.92rem', color: 'hsl(var(--foreground))' }}>
             Related Usecases
           </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Button
             size="small"
             variant="text"
@@ -185,6 +189,8 @@ export default function AppRelatedUsecases({
           >
             Browse all /usecases
           </Button>
+          {headerAction}
+          </Box>
         </Box>
         <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--muted-foreground))', mt: 0.25 }}>
           Pre-built automations and pipelines that {displayName} connects to across Shuffle Security. Click any card to open its configuration sidebar.

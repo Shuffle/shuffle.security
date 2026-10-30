@@ -49,6 +49,8 @@ export interface AppTitleHeaderProps extends ShuffleHostProps {
   onAdd?: () => void;
   /** Called when the auth status chip is clicked (host may expand its auth section). */
   onAuthClick?: () => void;
+  /** Hide the Verified / Pending / Ingesting status chips next to the name. */
+  hideStatusChips?: boolean;
 }
 
 export default function AppTitleHeader({
@@ -66,9 +68,9 @@ export default function AppTitleHeader({
   onIngestToggle,
   highlightActivate = false,
   onAdd,
+  hideStatusChips = false,
 }: AppTitleHeaderProps) {
   const isBuiltIn = isNoAuthApp(name);
-  const [hoveredIngest, setHoveredIngest] = useState(false);
   const resolvedImage = image || (isBuiltIn ? (getBuiltInAppImage(name) || undefined) : undefined);
 
   return (
@@ -111,7 +113,7 @@ export default function AppTitleHeader({
             <Typography sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, fontSize: '1rem', textTransform: 'capitalize' }}>
               {name}
             </Typography>
-            {isAuthenticated && hasValidAuth && (
+            {!hideStatusChips && isAuthenticated && hasValidAuth && (
               <Chip
                 icon={<CheckCircleIcon size={14} />}
                 label="Verified"
@@ -119,7 +121,7 @@ export default function AppTitleHeader({
                 sx={{ height: 22, backgroundColor: 'hsla(142, 76%, 36%, 0.15)', color: 'hsl(var(--severity-low))', fontWeight: 600, fontSize: '0.7rem', '& .MuiChip-icon': { color: 'hsl(var(--severity-low))' } }}
               />
             )}
-            {isAuthenticated && !hasValidAuth && hasAnyAuth && (
+            {!hideStatusChips && isAuthenticated && !hasValidAuth && hasAnyAuth && (
               <Chip
                 icon={<ErrorOutlineIcon size={14} />}
                 label="Pending"
@@ -127,7 +129,7 @@ export default function AppTitleHeader({
                 sx={{ height: 22, backgroundColor: 'hsla(38, 92%, 50%, 0.15)', color: 'hsl(var(--severity-medium))', fontWeight: 600, fontSize: '0.7rem', '& .MuiChip-icon': { color: 'hsl(var(--severity-medium))' } }}
               />
             )}
-            {isAuthenticated && isIngestEnabled && (
+            {!hideStatusChips && isAuthenticated && isIngestEnabled && (
               <Chip
                 label="Ingesting"
                 size="small"
@@ -174,58 +176,7 @@ export default function AppTitleHeader({
         {!onAdd && isAuthenticated && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
             {isIngestEnabled !== null && isIngestEnabled !== undefined && onIngestToggle && (
-              <Tooltip
-                title={
-                  isIngestEnabled
-                    ? `Click to disable direct ingestion for ${name}`
-                    : `Enable ingestion of alerts and tickets from ${name} into Shuffle Security`
-                }
-              >
-                <span>
-                  <Button
-                    onClick={onIngestToggle}
-                    disabled={ingestLoading}
-                    onMouseEnter={() => setHoveredIngest(true)}
-                    onMouseLeave={() => setHoveredIngest(false)}
-                    variant={isIngestEnabled ? 'contained' : 'outlined'}
-                    size="small"
-                    sx={{
-                      textTransform: 'none',
-                      fontWeight: 600,
-                      fontSize: '0.72rem',
-                      borderRadius: 2,
-                      px: 1.5,
-                      py: 0.5,
-                      minHeight: 0,
-                      flexShrink: 0,
-                      ...(isIngestEnabled
-                        ? {
-                            bgcolor: hoveredIngest ? 'hsl(var(--destructive))' : 'hsl(var(--primary))',
-                            color: hoveredIngest ? 'hsl(var(--destructive-foreground))' : 'hsl(var(--primary-foreground))',
-                            '&:hover': {
-                              bgcolor: 'hsl(var(--destructive))',
-                              color: 'hsl(var(--destructive-foreground))',
-                            },
-                          }
-                        : {
-                            color: 'hsl(var(--foreground))',
-                            borderColor: 'hsl(var(--border))',
-                            '&:hover': {
-                              borderColor: 'hsl(var(--primary))',
-                              color: 'hsl(var(--primary))',
-                              bgcolor: 'hsl(var(--primary) / 0.08)',
-                            },
-                          }),
-                    }}
-                  >
-                    {ingestLoading
-                      ? '…'
-                      : isIngestEnabled
-                      ? (hoveredIngest ? 'Disable ingest' : 'Ingest enabled')
-                      : 'Enable ingest'}
-                  </Button>
-                </span>
-              </Tooltip>
+              <AppIngestButton name={name} isIngestEnabled={isIngestEnabled} ingestLoading={ingestLoading} onIngestToggle={onIngestToggle} />
             )}
 
             {!isBuiltIn && isActivated !== null && onActivateToggle && (
@@ -277,5 +228,75 @@ export default function AppTitleHeader({
         )}
       </Box>
     </motion.div>
+  );
+}
+
+/** Enable / disable ingest toggle for an app. Shared by the title header and
+ *  the Related Usecases area so both render the identical control. */
+export function AppIngestButton({
+  name,
+  isIngestEnabled,
+  ingestLoading = false,
+  onIngestToggle,
+}: {
+  name: string;
+  isIngestEnabled: boolean;
+  ingestLoading?: boolean;
+  onIngestToggle: () => void;
+}) {
+  const [hoveredIngest, setHoveredIngest] = useState(false);
+  return (
+    <Tooltip
+                title={
+                  isIngestEnabled
+                    ? `Click to disable direct ingestion for ${name}`
+                    : `Enable ingestion of alerts and tickets from ${name} into Shuffle Security`
+                }
+              >
+                <span>
+                  <Button
+                    onClick={onIngestToggle}
+                    disabled={ingestLoading}
+                    onMouseEnter={() => setHoveredIngest(true)}
+                    onMouseLeave={() => setHoveredIngest(false)}
+                    variant={isIngestEnabled ? 'contained' : 'outlined'}
+                    size="small"
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '0.72rem',
+                      borderRadius: 2,
+                      px: 1.5,
+                      py: 0.5,
+                      minHeight: 0,
+                      flexShrink: 0,
+                      ...(isIngestEnabled
+                        ? {
+                            bgcolor: hoveredIngest ? 'hsl(var(--destructive))' : 'hsl(var(--primary))',
+                            color: hoveredIngest ? 'hsl(var(--destructive-foreground))' : 'hsl(var(--primary-foreground))',
+                            '&:hover': {
+                              bgcolor: 'hsl(var(--destructive))',
+                              color: 'hsl(var(--destructive-foreground))',
+                            },
+                          }
+                        : {
+                            color: 'hsl(var(--foreground))',
+                            borderColor: 'hsl(var(--border))',
+                            '&:hover': {
+                              borderColor: 'hsl(var(--primary))',
+                              color: 'hsl(var(--primary))',
+                              bgcolor: 'hsl(var(--primary) / 0.08)',
+                            },
+                          }),
+                    }}
+                  >
+                    {ingestLoading
+                      ? '…'
+                      : isIngestEnabled
+                      ? (hoveredIngest ? 'Disable ingest' : 'Ingest enabled')
+                      : 'Enable ingest'}
+                  </Button>
+                </span>
+              </Tooltip>
   );
 }

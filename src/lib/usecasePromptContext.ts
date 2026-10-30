@@ -29,14 +29,23 @@ export const USECASE_CONTEXT_EVENT = 'shuffle-usecase-context-changed';
 
 const scope = (): any => (typeof globalThis !== 'undefined' ? globalThis : null);
 
-export const setActiveUsecasePromptContext = (ctx: ActiveUsecasePromptContext | null) => {
+/** Sets (or clears) the context. Returns the stored object so an owner can
+ *  later clear only its own entry via clearActiveUsecasePromptContext. */
+export const setActiveUsecasePromptContext = (ctx: ActiveUsecasePromptContext | null): ActiveUsecasePromptContext | null => {
   const s = scope();
-  if (!s) return;
-  if (ctx) s[GLOBAL_KEY] = { ...ctx };
+  if (!s) return null;
+  const stored = ctx ? { ...ctx } : null;
+  if (stored) s[GLOBAL_KEY] = stored;
   else delete s[GLOBAL_KEY];
   try {
     if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(USECASE_CONTEXT_EVENT));
   } catch { /* ignore */ }
+  return stored;
+};
+
+/** Clears the context only when it is still the given owner's entry. */
+export const clearActiveUsecasePromptContext = (owned: ActiveUsecasePromptContext | null) => {
+  if (owned && scope()?.[GLOBAL_KEY] === owned) setActiveUsecasePromptContext(null);
 };
 
 export const getActiveUsecasePromptContext = (): ActiveUsecasePromptContext | null => {

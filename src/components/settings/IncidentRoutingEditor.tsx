@@ -1045,6 +1045,9 @@ const IncidentRoutingEditorInner = ({
       priority: rule.priority + 1,
       matchMode: rule.matchMode,
       conditions: rule.conditions.map((c) => ({ ...c })),
+      conditionTree: rule.conditionTree
+        ? (JSON.parse(JSON.stringify(rule.conditionTree)) as ConditionGroup)
+        : undefined,
       actions: rule.actions.map((a) => ({ ...a })),
       entityCategory,
     });
@@ -1211,13 +1214,13 @@ const IncidentRoutingEditorInner = ({
         <Paper
           key={rule.id}
           sx={{
-            p: isOpen ? 2 : 1.25,
+            p: isOpen ? 3 : 1.5,
             bgcolor: borderless ? 'transparent' : 'hsl(var(--card))',
             border: borderless ? 'none' : '1px solid hsl(var(--border))',
             borderRadius: 2,
             display: 'flex',
             flexDirection: 'column',
-            gap: isOpen ? 1.5 : 0,
+            gap: isOpen ? 2.5 : 0,
             opacity: rule.enabled ? 1 : 0.6,
           }}
         >
@@ -1245,7 +1248,7 @@ const IncidentRoutingEditorInner = ({
                   )}
                 </Box>
                 <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  When {condSummary} → {actionSummary}
+                  When {condSummary} · Do {actionSummary}
                 </Typography>
               </Box>
               <Tooltip title={`Triggered ${ruleStats.totalLast30Days.toLocaleString()} time${ruleStats.totalLast30Days === 1 ? '' : 's'} in the past 30 days (key: routing_rule_${rule.id})`}>
@@ -1329,7 +1332,16 @@ const IncidentRoutingEditorInner = ({
           {isOpen && (
           <>
           {/* Header row: name + enable + priority + actions */}
-          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 1.5,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              pb: 2,
+              borderBottom: '1px solid hsl(var(--border) / 0.6)',
+            }}
+          >
             <TextField
               size="small"
               value={rule.name}
@@ -1381,9 +1393,7 @@ const IncidentRoutingEditorInner = ({
           </Box>
 
           {/* Conditions — recursive AND/OR tree, capped at MAX_GROUP_DEPTH
-              levels of nesting. Each group is a bordered box with an
-              op-toggle (AND/OR). Children are either leaf conditions or
-              nested groups; deeper nesting is disabled at the depth cap. */}
+              levels of nesting. */}
           {(() => {
             const tree = rule.conditionTree || migrateLegacyConditions(rule);
 
@@ -1400,242 +1410,262 @@ const IncidentRoutingEditorInner = ({
             const pushChild = (path: NodePath, child: ConditionNode) =>
               commitTree(appendChild(tree, path, child));
 
-            // Renderer for a single node. Root group has no delete button;
-            // deeper groups do.
-            const renderNode = (
-              node: ConditionNode,
+            const renderOpToggle = (groupNode: ConditionGroup, path: NodePath) => {
+              const opBorder =
+                groupNode.op === 'or' ? 'hsl(var(--primary) / 0.35)' : 'hsl(var(--border))';
+              return (
+                <Box
+                  sx={{
+                    display: 'inline-flex',
+                    bgcolor: 'hsl(var(--card))',
+                    borderRadius: 1,
+                    border: `1px solid ${opBorder}`,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <Box
+                    onClick={() =>
+                      patchNode(path, (nn) => (nn.kind === 'group' ? { ...nn, op: 'and' } : nn))
+                    }
+                    sx={{
+                      px: 1.25,
+                      py: 0.35,
+                      fontSize: '0.65rem',
+                      fontWeight: 600,
+                      letterSpacing: '0.04em',
+                      cursor: 'pointer',
+                      bgcolor: groupNode.op === 'and' ? 'hsl(var(--foreground))' : 'transparent',
+                      color:
+                        groupNode.op === 'and'
+                          ? 'hsl(var(--background))'
+                          : 'hsl(var(--muted-foreground))',
+                    }}
+                  >
+                    Match all (AND)
+                  </Box>
+                  <Box
+                    onClick={() =>
+                      patchNode(path, (nn) => (nn.kind === 'group' ? { ...nn, op: 'or' } : nn))
+                    }
+                    sx={{
+                      px: 1.25,
+                      py: 0.35,
+                      fontSize: '0.65rem',
+                      fontWeight: 600,
+                      letterSpacing: '0.04em',
+                      cursor: 'pointer',
+                      bgcolor: groupNode.op === 'or' ? 'hsl(var(--primary))' : 'transparent',
+                      color:
+                        groupNode.op === 'or'
+                          ? 'hsl(var(--primary-foreground))'
+                          : 'hsl(var(--muted-foreground))',
+                    }}
+                  >
+                    Match any (OR)
+                  </Box>
+                </Box>
+              );
+            };
+
+            const renderSeparator = (parent: ConditionGroup | null, siblingIndex: number) =>
+              parent && siblingIndex > 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, py: 0.5 }}>
+                  <Box sx={{ flex: 1, height: '1px', bgcolor: 'hsl(var(--border) / 0.6)' }} />
+                  <Chip
+                    label={parent.op.toUpperCase()}
+                    size="small"
+                    sx={{
+                      height: 20,
+                      fontSize: '0.6rem',
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      bgcolor:
+                        parent.op === 'or'
+                          ? 'hsl(var(--primary) / 0.15)'
+                          : 'hsl(var(--muted))',
+                      color:
+                        parent.op === 'or'
+                          ? 'hsl(var(--primary))'
+                          : 'hsl(var(--muted-foreground))',
+                      borderRadius: 0.75,
+                    }}
+                  />
+                  <Box sx={{ flex: 1, height: '1px', bgcolor: 'hsl(var(--border) / 0.6)' }} />
+                </Box>
+              ) : null;
+
+            const renderConditionLeaf = (
+              node: ConditionLeaf,
               path: NodePath,
               parent: ConditionGroup | null,
               siblingIndex: number,
-              currentDepth: number, // 1 for root
             ): JSX.Element => {
-              const key = path.join('-') || 'root';
-
-              // Sibling AND/OR separator (based on parent's op).
-              const separator =
-                parent && siblingIndex > 0 ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
-                    <Box sx={{ flex: 1, height: '1px', bgcolor: 'hsl(var(--border))' }} />
-                    <Chip
-                      label={parent.op.toUpperCase()}
+              const key = path.join('-') || 'leaf';
+              return (
+                <Box key={key} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {renderSeparator(parent, siblingIndex)}
+                  <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <TextField
                       size="small"
-                      sx={{
-                        height: 20,
-                        fontSize: '0.6rem',
-                        fontWeight: 700,
-                        letterSpacing: '0.08em',
-                        bgcolor:
-                          parent.op === 'or'
-                            ? 'hsl(var(--primary) / 0.15)'
-                            : 'hsl(var(--muted))',
-                        color:
-                          parent.op === 'or'
-                            ? 'hsl(var(--primary))'
-                            : 'hsl(var(--foreground))',
-                        borderRadius: 0.5,
-                      }}
-                    />
-                    <Box sx={{ flex: 1, height: '1px', bgcolor: 'hsl(var(--border))' }} />
-                  </Box>
-                ) : null;
-
-              if (node.kind === 'condition') {
-                return (
-                  <Box key={key} sx={{ display: 'flex', flexDirection: 'column' }}>
-                    {separator}
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <TextField
-                        size="small"
-                        value={node.field}
-                        onChange={(e) =>
-                          patchNode(path, (n) =>
-                            n.kind === 'condition' ? { ...n, field: e.target.value } : n,
-                          )
-                        }
-                        placeholder="Field path"
-                        select
-                        SelectProps={{ native: false, renderValue: (v) => (v as string) }}
-                        sx={{ minWidth: 220, flex: 1 }}
-                      >
-                        {FIELD_SUGGESTIONS.map((f) => (
-                          <MenuItem key={f} value={f} sx={{ fontSize: '0.8rem' }}>
-                            {FIELD_LABELS[f] || f}
-                          </MenuItem>
-                        ))}
-                        {!FIELD_SUGGESTIONS.includes(node.field) && node.field && (
-                          <MenuItem value={node.field}>{node.field}</MenuItem>
-                        )}
-                      </TextField>
-                      <TextField
-                        size="small"
-                        select
-                        value={node.op}
-                        onChange={(e) =>
-                          patchNode(path, (n) =>
-                            n.kind === 'condition'
-                              ? { ...n, op: e.target.value as RoutingConditionOp }
-                              : n,
-                          )
-                        }
-                        sx={{ width: 140 }}
-                      >
-                        {(Object.keys(OP_LABELS) as RoutingConditionOp[]).map((op) => (
-                          <MenuItem key={op} value={op} sx={{ fontSize: '0.8rem' }}>
-                            {OP_LABELS[op]}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                      {node.op !== 'exists' && (
-                        <TextField
-                          size="small"
-                          value={node.value || ''}
-                          onChange={(e) =>
-                            patchNode(path, (n) =>
-                              n.kind === 'condition' ? { ...n, value: e.target.value } : n,
-                            )
-                          }
-                          placeholder="value"
-                          sx={{ flex: 1, minWidth: 200 }}
-                        />
+                      value={node.field}
+                      onChange={(e) =>
+                        patchNode(path, (n) =>
+                          n.kind === 'condition' ? { ...n, field: e.target.value } : n,
+                        )
+                      }
+                      placeholder="Field path"
+                      select
+                      SelectProps={{ native: false, renderValue: (v) => v as string }}
+                      sx={{ minWidth: 220, flex: 1 }}
+                    >
+                      {FIELD_SUGGESTIONS.map((f) => (
+                        <MenuItem key={f} value={f} sx={{ fontSize: '0.8rem' }}>
+                          {FIELD_LABELS[f] || f}
+                        </MenuItem>
+                      ))}
+                      {!FIELD_SUGGESTIONS.includes(node.field) && node.field && (
+                        <MenuItem value={node.field}>{node.field}</MenuItem>
                       )}
+                    </TextField>
+                    <TextField
+                      size="small"
+                      select
+                      value={node.op}
+                      onChange={(e) =>
+                        patchNode(path, (n) =>
+                          n.kind === 'condition'
+                            ? { ...n, op: e.target.value as RoutingConditionOp }
+                            : n,
+                        )
+                      }
+                      sx={{ width: 145 }}
+                    >
+                      {(Object.keys(OP_LABELS) as RoutingConditionOp[]).map((op) => (
+                        <MenuItem key={op} value={op} sx={{ fontSize: '0.8rem' }}>
+                          {OP_LABELS[op]}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    {node.op !== 'exists' && (
+                      <TextField
+                        size="small"
+                        value={node.value || ''}
+                        onChange={(e) =>
+                          patchNode(path, (n) =>
+                            n.kind === 'condition' ? { ...n, value: e.target.value } : n,
+                          )
+                        }
+                        placeholder="Value"
+                        sx={{ flex: 1.2, minWidth: 200 }}
+                      />
+                    )}
+                    <Tooltip title="Remove condition">
                       <IconButton
                         size="small"
                         onClick={() => dropNode(path)}
-                        sx={{ width: 36, height: 36 }}
+                        sx={{
+                          width: 36,
+                          height: 36,
+                          color: 'hsl(var(--muted-foreground))',
+                          '&:hover': { color: 'hsl(var(--destructive))' },
+                        }}
                       >
                         <DeleteOutlineIcon size={16} />
                       </IconButton>
-                    </Box>
+                    </Tooltip>
                   </Box>
-                );
-              }
+                </Box>
+              );
+            };
 
-              // Group node
+            const walkGroup = (
+              n: ConditionNode,
+              path: NodePath,
+              parent: ConditionGroup | null,
+              idx: number,
+              depth: number,
+            ): JSX.Element => {
+              if (n.kind === 'condition') {
+                return renderConditionLeaf(n, path, parent, idx);
+              }
+              const key = path.join('-') || 'root';
               const isRoot = path.length === 0;
               const opColor =
-                node.op === 'or' ? 'hsl(var(--primary))' : 'hsl(var(--foreground))';
+                n.op === 'or' ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))';
               const opBg =
-                node.op === 'or' ? 'hsl(var(--primary) / 0.04)' : 'hsl(var(--muted) / 0.25)';
+                n.op === 'or' ? 'hsl(var(--primary) / 0.03)' : 'hsl(var(--muted) / 0.15)';
               const opBorder =
-                node.op === 'or' ? 'hsl(var(--primary) / 0.35)' : 'hsl(var(--border))';
-              const canNestDeeper = currentDepth < MAX_GROUP_DEPTH;
+                n.op === 'or' ? 'hsl(var(--primary) / 0.3)' : 'hsl(var(--border) / 0.8)';
+              const canNestDeeper = depth < MAX_GROUP_DEPTH;
 
               return (
-                <Box key={key} sx={{ display: 'flex', flexDirection: 'column' }}>
-                  {separator}
+                <Box key={key} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {renderSeparator(parent, idx)}
                   <Box
                     sx={{
-                      border: `1px solid ${opBorder}`,
-                      borderRadius: 1,
-                      p: 1.25,
-                      pt: 2,
+                      border: isRoot ? '1px solid hsl(var(--border) / 0.6)' : `1px solid ${opBorder}`,
+                      borderRadius: 1.5,
+                      p: isRoot ? 2 : 1.75,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 0.5,
-                      bgcolor: opBg,
-                      position: 'relative',
+                      gap: 1.25,
+                      bgcolor: isRoot ? 'hsl(var(--muted) / 0.1)' : opBg,
                     }}
                   >
-                    {/* Group header: MATCH ALL / MATCH ANY toggle + depth + delete */}
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        top: -12,
-                        left: 8,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', bgcolor: 'hsl(var(--card))', borderRadius: 0.5, border: `1px solid ${opBorder}`, overflow: 'hidden' }}>
-                        <Box
-                          onClick={() =>
-                            patchNode(path, (n) =>
-                              n.kind === 'group' ? { ...n, op: 'and' } : n,
-                            )
-                          }
-                          sx={{
-                            px: 1,
-                            py: 0.25,
-                            fontSize: '0.6rem',
-                            fontWeight: 700,
-                            letterSpacing: '0.08em',
-                            cursor: 'pointer',
-                            bgcolor:
-                              node.op === 'and' ? 'hsl(var(--foreground))' : 'transparent',
-                            color:
-                              node.op === 'and'
-                                ? 'hsl(var(--background))'
-                                : 'hsl(var(--muted-foreground))',
-                          }}
-                        >
-                          MATCH ALL
-                        </Box>
-                        <Box
-                          onClick={() =>
-                            patchNode(path, (n) =>
-                              n.kind === 'group' ? { ...n, op: 'or' } : n,
-                            )
-                          }
-                          sx={{
-                            px: 1,
-                            py: 0.25,
-                            fontSize: '0.6rem',
-                            fontWeight: 700,
-                            letterSpacing: '0.08em',
-                            cursor: 'pointer',
-                            bgcolor:
-                              node.op === 'or' ? 'hsl(var(--primary))' : 'transparent',
-                            color:
-                              node.op === 'or'
-                                ? 'hsl(var(--primary-foreground))'
-                                : 'hsl(var(--muted-foreground))',
-                          }}
-                        >
-                          MATCH ANY
-                        </Box>
-                      </Box>
-                    </Box>
                     {!isRoot && (
-                      <Box sx={{ position: 'absolute', top: -14, right: 4 }}>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 1,
+                          pb: 0.5,
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {renderOpToggle(n, path)}
+                          <Typography
+                            variant="caption"
+                            sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.65rem' }}
+                          >
+                            Nested group (level {depth})
+                          </Typography>
+                        </Box>
                         <Tooltip title="Remove group">
                           <IconButton
                             size="small"
                             onClick={() => dropNode(path)}
                             sx={{
-                              width: 24,
-                              height: 24,
-                              bgcolor: 'hsl(var(--card))',
-                              border: `1px solid ${opBorder}`,
+                              width: 28,
+                              height: 28,
                               color: 'hsl(var(--muted-foreground))',
                               '&:hover': { color: 'hsl(var(--destructive))' },
                             }}
                           >
-                            <DeleteOutlineIcon size={12} />
+                            <DeleteOutlineIcon size={14} />
                           </IconButton>
                         </Tooltip>
                       </Box>
                     )}
 
-                    {node.children.map((child, i) =>
-                      renderNode(child, [...path, i], node, i, currentDepth + (child.kind === 'group' ? 0 : 0)),
+                    {n.children.map((child, i) =>
+                      walkGroup(child, [...path, i], n, i, depth + (child.kind === 'group' ? 1 : 0)),
                     )}
 
-                    {/* Add buttons */}
-                    <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                    <Box sx={{ display: 'flex', gap: 1.5, pt: 0.5 }}>
                       <Button
                         size="small"
                         onClick={() => pushChild(path, emptyLeaf())}
-                        startIcon={<AddIcon size={12} />}
+                        startIcon={<AddIcon size={13} />}
                         sx={{
-                          height: 24,
+                          height: 28,
                           textTransform: 'none',
-                          fontSize: '0.65rem',
+                          fontSize: '0.72rem',
                           color: 'hsl(var(--muted-foreground))',
                           '&:hover': { color: 'hsl(var(--primary))', bgcolor: 'transparent' },
                         }}
                       >
-                        Condition
+                        Add condition
                       </Button>
                       <Tooltip
                         title={
@@ -1651,19 +1681,19 @@ const IncidentRoutingEditorInner = ({
                             onClick={() =>
                               pushChild(
                                 path,
-                                emptyGroup(node.op === 'and' ? 'or' : 'and', [emptyLeaf()]),
+                                emptyGroup(n.op === 'and' ? 'or' : 'and', [emptyLeaf()]),
                               )
                             }
-                            startIcon={<AddIcon size={12} />}
+                            startIcon={<AddIcon size={13} />}
                             sx={{
-                              height: 24,
+                              height: 28,
                               textTransform: 'none',
-                              fontSize: '0.65rem',
+                              fontSize: '0.72rem',
                               color: opColor,
                               '&:hover': { bgcolor: 'hsl(var(--primary) / 0.08)' },
                             }}
                           >
-                            Nested group
+                            Add nested group
                           </Button>
                         </span>
                       </Tooltip>
@@ -1673,295 +1703,135 @@ const IncidentRoutingEditorInner = ({
               );
             };
 
-            // Track true depth: increment when descending INTO a group.
-            const renderRoot = (root: ConditionGroup): JSX.Element => {
-              const walk = (
-                n: ConditionNode,
-                path: NodePath,
-                parent: ConditionGroup | null,
-                idx: number,
-                depth: number,
-              ): JSX.Element => {
-                if (n.kind === 'condition') {
-                  return renderNode(n, path, parent, idx, depth);
-                }
-                const key = path.join('-') || 'root';
-                const isRoot = path.length === 0;
-                const opColor =
-                  n.op === 'or' ? 'hsl(var(--primary))' : 'hsl(var(--foreground))';
-                const opBg =
-                  n.op === 'or' ? 'hsl(var(--primary) / 0.04)' : 'hsl(var(--muted) / 0.25)';
-                const opBorder =
-                  n.op === 'or' ? 'hsl(var(--primary) / 0.35)' : 'hsl(var(--border))';
-                const canNestDeeper = depth < MAX_GROUP_DEPTH;
-                const separator =
-                  parent && idx > 0 ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
-                      <Box sx={{ flex: 1, height: '1px', bgcolor: 'hsl(var(--border))' }} />
-                      <Chip
-                        label={parent.op.toUpperCase()}
-                        size="small"
-                        sx={{
-                          height: 20,
-                          fontSize: '0.6rem',
-                          fontWeight: 700,
-                          letterSpacing: '0.08em',
-                          bgcolor:
-                            parent.op === 'or'
-                              ? 'hsl(var(--primary) / 0.15)'
-                              : 'hsl(var(--muted))',
-                          color:
-                            parent.op === 'or'
-                              ? 'hsl(var(--primary))'
-                              : 'hsl(var(--foreground))',
-                          borderRadius: 0.5,
-                        }}
-                      />
-                      <Box sx={{ flex: 1, height: '1px', bgcolor: 'hsl(var(--border))' }} />
-                    </Box>
-                  ) : null;
-
-                return (
-                  <Box key={key} sx={{ display: 'flex', flexDirection: 'column' }}>
-                    {separator}
-                    <Box
-                      sx={{
-                        border: `1px solid ${opBorder}`,
-                        borderRadius: 1,
-                        p: 1.25,
-                        pt: 2,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 0.5,
-                        bgcolor: opBg,
-                        position: 'relative',
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          top: -12,
-                          left: 8,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 0.5,
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', bgcolor: 'hsl(var(--card))', borderRadius: 0.5, border: `1px solid ${opBorder}`, overflow: 'hidden' }}>
-                          <Box
-                            onClick={() =>
-                              patchNode(path, (nn) =>
-                                nn.kind === 'group' ? { ...nn, op: 'and' } : nn,
-                              )
-                            }
-                            sx={{
-                              px: 1,
-                              py: 0.25,
-                              fontSize: '0.6rem',
-                              fontWeight: 700,
-                              letterSpacing: '0.08em',
-                              cursor: 'pointer',
-                              bgcolor:
-                                n.op === 'and' ? 'hsl(var(--foreground))' : 'transparent',
-                              color:
-                                n.op === 'and'
-                                  ? 'hsl(var(--background))'
-                                  : 'hsl(var(--muted-foreground))',
-                            }}
-                          >
-                            MATCH ALL
-                          </Box>
-                          <Box
-                            onClick={() =>
-                              patchNode(path, (nn) =>
-                                nn.kind === 'group' ? { ...nn, op: 'or' } : nn,
-                              )
-                            }
-                            sx={{
-                              px: 1,
-                              py: 0.25,
-                              fontSize: '0.6rem',
-                              fontWeight: 700,
-                              letterSpacing: '0.08em',
-                              cursor: 'pointer',
-                              bgcolor:
-                                n.op === 'or' ? 'hsl(var(--primary))' : 'transparent',
-                              color:
-                                n.op === 'or'
-                                  ? 'hsl(var(--primary-foreground))'
-                                  : 'hsl(var(--muted-foreground))',
-                            }}
-                          >
-                            MATCH ANY
-                          </Box>
-                        </Box>
-                        <Chip
-                          label={`Level ${depth}${depth === MAX_GROUP_DEPTH ? ' · max' : ''}`}
-                          size="small"
-                          sx={{
-                            height: 18,
-                            fontSize: '0.55rem',
-                            bgcolor: 'hsl(var(--card))',
-                            color: 'hsl(var(--muted-foreground))',
-                            border: `1px solid ${opBorder}`,
-                          }}
-                        />
-                      </Box>
-                      {!isRoot && (
-                        <Box sx={{ position: 'absolute', top: -14, right: 4 }}>
-                          <Tooltip title="Remove group">
-                            <IconButton
-                              size="small"
-                              onClick={() => dropNode(path)}
-                              sx={{
-                                width: 24,
-                                height: 24,
-                                bgcolor: 'hsl(var(--card))',
-                                border: `1px solid ${opBorder}`,
-                                color: 'hsl(var(--muted-foreground))',
-                                '&:hover': { color: 'hsl(var(--destructive))' },
-                              }}
-                            >
-                              <DeleteOutlineIcon size={12} />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      )}
-
-                      {n.children.map((child, i) =>
-                        walk(child, [...path, i], n, i, depth + (child.kind === 'group' ? 1 : 0)),
-                      )}
-
-                      <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
-                        <Button
-                          size="small"
-                          onClick={() => pushChild(path, emptyLeaf())}
-                          startIcon={<AddIcon size={12} />}
-                          sx={{
-                            height: 24,
-                            textTransform: 'none',
-                            fontSize: '0.65rem',
-                            color: 'hsl(var(--muted-foreground))',
-                            '&:hover': { color: 'hsl(var(--primary))', bgcolor: 'transparent' },
-                          }}
-                        >
-                          Condition
-                        </Button>
-                        <Tooltip
-                          title={
-                            canNestDeeper
-                              ? 'Add a nested AND/OR group inside this one'
-                              : `Nesting is capped at ${MAX_GROUP_DEPTH} levels`
-                          }
-                        >
-                          <span>
-                            <Button
-                              size="small"
-                              disabled={!canNestDeeper}
-                              onClick={() =>
-                                pushChild(
-                                  path,
-                                  emptyGroup(n.op === 'and' ? 'or' : 'and', [emptyLeaf()]),
-                                )
-                              }
-                              startIcon={<AddIcon size={12} />}
-                              sx={{
-                                height: 24,
-                                textTransform: 'none',
-                                fontSize: '0.65rem',
-                                color: opColor,
-                                '&:hover': { bgcolor: 'hsl(var(--primary) / 0.08)' },
-                              }}
-                            >
-                              Nested group
-                            </Button>
-                          </span>
-                        </Tooltip>
-                      </Box>
-                    </Box>
-                  </Box>
-                );
-              };
-              return walk(root, [], null, 0, 1);
-            };
-
             return (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pt: 1 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
                   <Typography
                     variant="caption"
                     sx={{
                       color: 'hsl(var(--muted-foreground))',
                       fontWeight: 600,
                       textTransform: 'uppercase',
-                      fontSize: '0.65rem',
-                      letterSpacing: '0.05em',
+                      fontSize: '0.7rem',
+                      letterSpacing: '0.06em',
                     }}
                   >
                     When
                   </Typography>
-                  <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.65rem' }}>
-                    Toggle each group between MATCH ALL (AND) and MATCH ANY (OR). Nest groups up to {MAX_GROUP_DEPTH} levels deep.
-                  </Typography>
+                  {tree.children.length > 1 && renderOpToggle(tree, [])}
                 </Box>
-                {renderRoot(tree)}
+                {walkGroup(tree, [], null, 0, 1)}
               </Box>
             );
           })()}
 
-          {/* Actions */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pt: 1, borderTop: '1px solid hsl(var(--border))' }}>
-            <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem', letterSpacing: '0.05em' }}>
-              Then
-            </Typography>
-            {rule.actions.map((action, aIdx) => {
-              return (
-                <Box key={aIdx} sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1, borderRadius: 1, bgcolor: 'hsl(var(--muted) / 0.3)' }}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <RoutingActionFields
-                        action={action}
-                        variant="editor"
-                        orgOptions={orgOptions}
-                        onChange={(patch) => updateAction(rule.id, aIdx, patch)}
-                        onTypeChange={(t) => changeActionType(rule.id, aIdx, t)}
-                      />
-                    </Box>
-                    <IconButton
-                      size="small"
-                      onClick={() => removeAction(rule.id, aIdx)}
-                      disabled={rule.actions.length <= 1}
-                      sx={{ width: 36, height: 36, color: 'hsl(var(--muted-foreground))', '&:hover': { color: 'hsl(var(--destructive))' } }}
-                    >
-                      <DeleteOutlineIcon size={16} />
-                    </IconButton>
-                  </Stack>
-
-                  <TextField
-                    size="small"
-                    value={action.reason || ''}
-                    onChange={(e) => updateAction(rule.id, aIdx, { reason: e.target.value })}
-                    placeholder="Reason shown to user (optional)"
-                    sx={{ width: '100%' }}
-                  />
-                </Box>
-              );
-            })}
-            <Button
-              size="small"
-              onClick={() => addAction(rule.id)}
-              startIcon={<AddIcon size={14} />}
+          {/* Actions ("Do") */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pt: 0.5 }}>
+            <Typography
+              variant="caption"
               sx={{
-                alignSelf: 'flex-start',
-                height: 28,
-                textTransform: 'none',
-                fontSize: '0.7rem',
                 color: 'hsl(var(--muted-foreground))',
-                '&:hover': { color: 'hsl(var(--primary))', bgcolor: 'transparent' },
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                fontSize: '0.7rem',
+                letterSpacing: '0.06em',
               }}
             >
-              Add action
-            </Button>
+              Do
+            </Typography>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1.5,
+                p: 2,
+                borderRadius: 1.5,
+                border: '1px solid hsl(var(--border) / 0.6)',
+                bgcolor: 'hsl(var(--muted) / 0.1)',
+              }}
+            >
+              {rule.actions.map((action, aIdx) => {
+                const isMultilineAction = action.type === 'add_comment' || action.type === 'run_agent';
+                return (
+                  <Box
+                    key={aIdx}
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 1.25,
+                      ...(aIdx > 0
+                        ? { pt: 1.5, borderTop: '1px solid hsl(var(--border) / 0.5)' }
+                        : {}),
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                      <Box sx={{ flex: 1.5, minWidth: 280 }}>
+                        <RoutingActionFields
+                          action={action}
+                          variant="editor"
+                          orgOptions={orgOptions}
+                          onChange={(patch) => updateAction(rule.id, aIdx, patch)}
+                          onTypeChange={(t) => changeActionType(rule.id, aIdx, t)}
+                        />
+                      </Box>
+                      {!isMultilineAction && (
+                        <TextField
+                          size="small"
+                          label="Reason (optional)"
+                          value={action.reason || ''}
+                          onChange={(e) => updateAction(rule.id, aIdx, { reason: e.target.value })}
+                          placeholder="Shown in suggestion banner"
+                          sx={{ flex: 1, minWidth: 200 }}
+                        />
+                      )}
+                      <Tooltip title="Remove action">
+                        <span>
+                          <IconButton
+                            size="small"
+                            onClick={() => removeAction(rule.id, aIdx)}
+                            disabled={rule.actions.length <= 1}
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              color: 'hsl(var(--muted-foreground))',
+                              '&:hover': { color: 'hsl(var(--destructive))' },
+                            }}
+                          >
+                            <DeleteOutlineIcon size={16} />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Box>
+
+                    {isMultilineAction && (
+                      <TextField
+                        size="small"
+                        label="Reason (optional)"
+                        value={action.reason || ''}
+                        onChange={(e) => updateAction(rule.id, aIdx, { reason: e.target.value })}
+                        placeholder="Reason shown to user (optional)"
+                        sx={{ width: '100%' }}
+                      />
+                    )}
+                  </Box>
+                );
+              })}
+              <Button
+                size="small"
+                onClick={() => addAction(rule.id)}
+                startIcon={<AddIcon size={13} />}
+                sx={{
+                  alignSelf: 'flex-start',
+                  height: 28,
+                  textTransform: 'none',
+                  fontSize: '0.72rem',
+                  color: 'hsl(var(--muted-foreground))',
+                  '&:hover': { color: 'hsl(var(--primary))', bgcolor: 'transparent' },
+                }}
+              >
+                Add action
+              </Button>
+            </Box>
           </Box>
 
           {/* 30-day Trigger History (Stats API) */}
@@ -1970,59 +1840,49 @@ const IncidentRoutingEditorInner = ({
               display: 'flex',
               flexDirection: 'column',
               gap: 1,
-              pt: 1.25,
-              borderTop: '1px solid hsl(var(--border))',
+              pt: 2,
+              borderTop: '1px solid hsl(var(--border) / 0.6)',
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
-              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: 'hsl(var(--muted-foreground))',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    fontSize: '0.65rem',
-                    letterSpacing: '0.05em',
-                  }}
-                >
-                  Rule triggers (past 30 days)
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: 'hsl(var(--muted-foreground))',
-                    fontSize: '0.65rem',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  }}
-                >
-                  routing_rule_{rule.id}
-                </Typography>
-              </Box>
               <Typography
                 variant="caption"
                 sx={{
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  color: ruleStats.totalLast30Days > 0 ? NEON.violet : 'hsl(var(--muted-foreground))',
+                  color: 'hsl(var(--muted-foreground))',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.06em',
                 }}
               >
-                {ruleStats.totalLast30Days.toLocaleString()} trigger{ruleStats.totalLast30Days === 1 ? '' : 's'} last month
+                Trigger activity (past 30 days)
               </Typography>
+              <Tooltip title={`Stats key: routing_rule_${rule.id}`}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    color: ruleStats.totalLast30Days > 0 ? NEON.violet : 'hsl(var(--muted-foreground))',
+                  }}
+                >
+                  {ruleStats.totalLast30Days.toLocaleString()} trigger{ruleStats.totalLast30Days === 1 ? '' : 's'} last 30 days
+                </Typography>
+              </Tooltip>
             </Box>
             <Box
               sx={{
-                height: 180,
+                height: 120,
                 width: '100%',
                 p: 1,
                 borderRadius: 1.5,
-                bgcolor: 'hsl(var(--muted) / 0.2)',
-                border: '1px solid hsl(var(--border))',
+                bgcolor: 'hsl(var(--muted) / 0.12)',
+                border: '1px solid hsl(var(--border) / 0.6)',
               }}
             >
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={ruleStats.dailySeries} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                <AreaChart data={ruleStats.dailySeries} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
                   <defs>
                     <linearGradient id={safeGradId} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={NEON.violet} stopOpacity={0.55} />
@@ -2064,15 +1924,14 @@ const IncidentRoutingEditorInner = ({
             </Box>
           </Box>
 
-          {/* Footer: stats + save */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5 }}>
-            <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.7rem' }}>
-              {ruleStats.totalLast30Days > 0
-                ? `${ruleStats.totalLast30Days.toLocaleString()} trigger${ruleStats.totalLast30Days === 1 ? '' : 's'} in last 30 days`
-                : rule.matchCount
-                  ? `${rule.matchCount} match${rule.matchCount === 1 ? '' : 'es'}`
-                  : 'No matches yet'}
-              {rule.lastMatchedTs ? ` · last ${new Date(rule.lastMatchedTs).toLocaleString()}` : ''}
+          {/* Footer: status + save */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pt: 0.5 }}>
+            <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.72rem' }}>
+              {rule.lastMatchedTs
+                ? `Last matched ${new Date(rule.lastMatchedTs).toLocaleString()}`
+                : localOnlyIds.has(rule.id)
+                  ? 'Unsaved rule draft'
+                  : 'Saved'}
             </Typography>
             <Button
               variant="contained"

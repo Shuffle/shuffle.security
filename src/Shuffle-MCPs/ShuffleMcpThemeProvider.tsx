@@ -122,11 +122,17 @@ export const SHUFFLE_MCP_BASE_CSS = `
   --infra-email: 210 90% 60%;
 }
 
-.shuffle-mcp-scope,
-.shuffle-mcp-scope *,
-.shuffle-mcp-scope *::before,
-.shuffle-mcp-scope *::after {
+:where(
+  .shuffle-mcp-scope,
+  .shuffle-mcp-scope *,
+  .shuffle-mcp-scope *::before,
+  .shuffle-mcp-scope *::after
+) {
   box-sizing: border-box;
+}
+
+.shuffle-mcp-scope .MuiInputBase-input {
+  box-sizing: content-box;
 }
 
 .shuffle-mcp-scope {
@@ -332,8 +338,20 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
     styleOverrides: {
       root: { color: "hsl(var(--foreground))" },
       input: {
+        boxSizing: "content-box" as const,
         color: "hsl(var(--foreground))",
         "&::placeholder": { color: "hsl(var(--muted-foreground))", opacity: 1 },
+      },
+    },
+  },
+  MuiLink: {
+    defaultProps: {
+      variant: "inherit" as const,
+    },
+    styleOverrides: {
+      root: {
+        fontSize: "inherit",
+        lineHeight: "inherit",
       },
     },
   },
@@ -343,6 +361,9 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
         backgroundColor: "hsl(var(--input))",
         color: "hsl(var(--foreground))",
         borderRadius: 8,
+        "&.MuiInputBase-sizeSmall:not(.MuiInputBase-multiline)": {
+          minHeight: 38,
+        },
         "& .MuiOutlinedInput-notchedOutline": { borderColor: "hsl(var(--border))" },
         "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "hsl(var(--border))" },
         "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "hsl(var(--primary))" },
@@ -350,6 +371,9 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
           backgroundColor: "hsl(var(--muted))",
           color: "hsl(var(--muted-foreground))",
         },
+      },
+      input: {
+        boxSizing: "content-box" as const,
       },
     },
   },

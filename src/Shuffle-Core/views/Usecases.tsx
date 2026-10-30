@@ -4483,7 +4483,7 @@ function UsecaseDetailContent({
   return (
     <Box sx={{ maxWidth: 860, width: '100%', mx: 'auto', pb: 4, color: FG }}>
       {!hideBackNav && (
-        <Button onClick={() => navigate('/usecases')} startIcon={<ArrowLeft size={14} />} sx={{ mb: 2, textTransform: 'none', color: MUTED }}>
+        <Button size="small" onClick={() => navigate('/usecases')} startIcon={<ArrowLeft size={14} />} sx={{ mb: 2, textTransform: 'none', fontSize: '0.8rem', color: MUTED }}>
           Automations
         </Button>
       )}
@@ -5793,12 +5793,12 @@ function UsecaseDetailContent({
           )}
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {flow.video && (
-              <Button href={flow.video} target="_blank" rel="noopener noreferrer" startIcon={<PlayCircle size={16} />} sx={{ textTransform: 'none', fontSize: '0.8rem', fontWeight: 600, color: primaryColor, border: `1px solid ${primaryColor}4D`, bgcolor: `${primaryColor}0F` }}>
+              <Button size="small" href={flow.video} target="_blank" rel="noopener noreferrer" startIcon={<PlayCircle size={16} />} sx={{ textTransform: 'none', fontSize: '0.8rem', fontWeight: 600, color: primaryColor, border: `1px solid ${primaryColor}4D`, bgcolor: `${primaryColor}0F` }}>
                 Watch video
               </Button>
             )}
             {flow.blogpost && (
-              <Button href={flow.blogpost} target="_blank" rel="noopener noreferrer" startIcon={<BookOpen size={16} />} sx={{ textTransform: 'none', fontSize: '0.8rem', fontWeight: 600, color: FG, border: CARD_BORDER, bgcolor: 'hsla(0, 0%, 60%, 0.04)' }}>
+              <Button size="small" href={flow.blogpost} target="_blank" rel="noopener noreferrer" startIcon={<BookOpen size={16} />} sx={{ textTransform: 'none', fontSize: '0.8rem', fontWeight: 600, color: FG, border: CARD_BORDER, bgcolor: 'hsla(0, 0%, 60%, 0.04)' }}>
                 Read blogpost
               </Button>
             )}

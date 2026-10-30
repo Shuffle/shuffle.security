@@ -851,7 +851,7 @@ export const SelectionRuleChip = ({ incidentId }: SelectionRuleChipProps) => {
             />
 
             <Typography sx={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', mt: 0.5 }}>
-              Then
+              Do
             </Typography>
             <RoutingActionFields
               action={action}

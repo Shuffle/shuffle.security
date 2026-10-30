@@ -500,7 +500,7 @@ export function UsecaseOutcomeSection({
                 font: 'inherit',
                 textAlign: 'left',
                 display: 'inline-block',
-                fontSize: '0.85rem',
+                fontSize: '0.78rem',
                 fontWeight: 600,
                 color: primaryColor,
                 textDecoration: 'none',

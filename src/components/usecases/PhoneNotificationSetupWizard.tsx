@@ -447,7 +447,10 @@ export const PhoneNotificationSetupWizard: React.FC<PhoneNotificationSetupWizard
                     </InputAdornment>
                   ),
                 }}
-                sx={{ width: { xs: '100%', sm: 220 } }}
+                sx={{
+                  width: { xs: '100%', sm: 220 },
+                  '& .MuiOutlinedInput-root': { height: 38, fontSize: '0.85rem' },
+                }}
               />
               <Button
                 variant="contained"

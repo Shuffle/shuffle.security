@@ -26,7 +26,12 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
   return {
     MuiButton: {
       styleOverrides: {
-        root: { borderRadius: 8, padding: '10px 24px', fontWeight: 600 },
+        root: { borderRadius: 8, fontWeight: 600 },
+        sizeSmall: { padding: '5px 12px', fontSize: '0.8125rem' },
+        sizeMedium: { padding: '8px 18px' },
+        sizeLarge: { padding: '10px 24px' },
+        textSizeSmall: { padding: '4px 8px', fontSize: '0.8125rem' },
+        textSizeMedium: { padding: '6px 10px' },
         // Longhand `backgroundColor` (not the `background` shorthand) so a
         // per-component `sx={{ bgcolor: ... }}` reliably wins — otherwise a
         // destructive button can end up orange with red text.
@@ -67,6 +72,37 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
         textError: {
           color: 'hsl(var(--destructive))',
           '&:hover': { backgroundColor: 'hsl(var(--destructive) / 0.08)' },
+        },
+      },
+    },
+    MuiInputBase: {
+      styleOverrides: {
+        input: {
+          boxSizing: 'content-box' as const,
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          '&.MuiInputBase-sizeSmall:not(.MuiInputBase-multiline)': {
+            minHeight: 38,
+          },
+        },
+        input: {
+          boxSizing: 'content-box' as const,
+        },
+      },
+    },
+    MuiLink: {
+      defaultProps: {
+        variant: 'inherit' as const,
+      },
+      styleOverrides: {
+        root: {
+          fontSize: 'inherit',
+          lineHeight: 'inherit',
         },
       },
     },

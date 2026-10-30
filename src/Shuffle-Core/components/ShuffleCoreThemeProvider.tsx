@@ -56,11 +56,17 @@ export const SHUFFLE_CORE_BASE_CSS = `
   --gradient-accent: linear-gradient(135deg, hsl(24 100% 50%) 0%, hsl(24 100% 60%) 100%);
 }
 
-.shuffle-core-scope,
-.shuffle-core-scope *,
-.shuffle-core-scope *::before,
-.shuffle-core-scope *::after {
+:where(
+  .shuffle-core-scope,
+  .shuffle-core-scope *,
+  .shuffle-core-scope *::before,
+  .shuffle-core-scope *::after
+) {
   box-sizing: border-box;
+}
+
+.shuffle-core-scope .MuiInputBase-input {
+  box-sizing: content-box;
 }
 
 .shuffle-core-scope {
@@ -354,6 +360,7 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
     styleOverrides: {
       root: { color: "hsl(var(--foreground))" },
       input: {
+        boxSizing: "content-box" as const,
         color: "hsl(var(--foreground))",
         "&::placeholder": { color: "hsl(var(--muted-foreground))", opacity: 1 },
       },
@@ -383,6 +390,17 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
       },
     },
   },
+  MuiLink: {
+    defaultProps: {
+      variant: "inherit" as const,
+    },
+    styleOverrides: {
+      root: {
+        fontSize: "inherit",
+        lineHeight: "inherit",
+      },
+    },
+  },
   MuiDivider: {
     styleOverrides: { root: { borderColor: "hsl(var(--border))" } },
   },
@@ -400,6 +418,9 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
         backgroundColor: "hsl(var(--input))",
         color: "hsl(var(--foreground))",
         borderRadius: 8,
+        "&.MuiInputBase-sizeSmall:not(.MuiInputBase-multiline)": {
+          minHeight: 38,
+        },
         "& .MuiOutlinedInput-notchedOutline": { borderColor: "hsl(var(--border))" },
         "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "hsl(var(--border))" },
         "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "hsl(var(--primary))" },
@@ -407,6 +428,9 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
           backgroundColor: "hsl(var(--muted))",
           color: "hsl(var(--muted-foreground))",
         },
+      },
+      input: {
+        boxSizing: "content-box" as const,
       },
     },
   },

@@ -12,7 +12,10 @@
  */
 
 import { Box, Button, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { useAuthenticatedApps } from '@/Shuffle-Core/useAuthenticatedApps';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuthenticatedApps, AUTHENTICATED_APPS_QUERY_KEY } from '@/Shuffle-Core/useAuthenticatedApps';
+import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { getShuffleOpenApiAuthState, SHUFFLE_OPENAPI_APP_ID } from './moveActionAuth';
 import type { RoutingAction, RoutingActionType } from './IncidentRoutingEditor';
 
@@ -228,26 +231,64 @@ export const RoutingActionFields = ({
 
 const MoveActionAuthNotice = () => {
   const { data, isLoading } = useAuthenticatedApps();
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (isLoading) return null;
   const state = getShuffleOpenApiAuthState(data || []);
   if (state === 'valid') return null;
   const text = state === 'missing'
     ? 'Moving to a tenant requires authentication for the Shuffle OpenAPI app, with permission to access the target tenant. No authentication was found.'
     : 'The Shuffle OpenAPI authentication has not been validated. Moving to a tenant needs a working authentication with permission to access the target tenant.';
+
+  const handleUseApiKey = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const settingsRes = await fetch(getApiUrl('/api/v1/getsettings'), {
+        credentials: 'include',
+        headers: { ...getAuthHeader() },
+      });
+      const settings = settingsRes.ok ? await settingsRes.json() : null;
+      const apikey: string | undefined = settings?.apikey || settings?.api_key;
+      if (!apikey) throw new Error('Could not find your API key.');
+      const res = await fetch(getApiUrl('/api/v1/apps/authentication'), {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: 'Auth for Shuffle OpenAPI',
+          app: { name: 'Shuffle OpenAPI', id: SHUFFLE_OPENAPI_APP_ID, app_version: '1.0.0' },
+          fields: [
+            { key: 'apikey', value: apikey },
+            { key: 'url', value: getApiUrl('') },
+          ],
+          active: true,
+        }),
+      });
+      if (!res.ok) throw new Error('Could not save the authentication.');
+      await queryClient.invalidateQueries({ queryKey: AUTHENTICATED_APPS_QUERY_KEY });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save the authentication.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <Box sx={{ flexBasis: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.75 }}>
-      <Typography variant="caption" sx={{ color: 'hsl(var(--destructive))', lineHeight: 1.4 }}>
-        {text}
+    <Box sx={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+      <Typography variant="caption" sx={{ color: 'hsl(var(--destructive))', lineHeight: 1.4, flex: 1, minWidth: 180 }}>
+        {error || text}
       </Typography>
       <Button
         size="small"
-        variant="outlined"
-        href={`/apps/${SHUFFLE_OPENAPI_APP_ID}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        sx={{ textTransform: 'none', fontSize: '0.75rem', height: 28, borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+        variant="contained"
+        color="primary"
+        disabled={saving}
+        onClick={handleUseApiKey}
+        sx={{ textTransform: 'none', fontSize: '0.75rem', height: 28, flexShrink: 0, whiteSpace: 'nowrap' }}
       >
-        {state === 'missing' ? 'Set up authentication' : 'Fix authentication'}
+        {saving ? 'Saving...' : 'Use my API-key'}
       </Button>
     </Box>
   );

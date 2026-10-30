@@ -781,7 +781,11 @@ export function agentAppChipTone(app: { needsAuth?: boolean; isUnavailable?: boo
 
 /** Top-level views of AgentUI. */
 export type AgentUIView = 'start' | 'simple' | 'detailed' | 'chat';
-type RunViewMode = Exclude<AgentUIView, 'start'>;
+/**
+ * The run views that actually render. 'simple' is no longer one of them: hosts
+ * and old saved choices that ask for it are mapped onto Chat.
+ */
+type RunViewMode = 'chat' | 'detailed';
 
 export interface AgentUIProps {
   /** Optional React key to force re-mounting when context changes */
@@ -3003,8 +3007,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
       }
     }
     // Chat has its own composer, so it opens without the Start form unless the
-    // user last chose Start here.
-    if (initialView === 'chat') {
+    // user last chose Start here. 'simple' is the retired name for Chat.
+    if (initialView === 'chat' || initialView === 'simple') {
       return !!contextStorageKey && getPageContextChoice(contextStorageKey)?.viewMode === 'start';
     }
     return true;
@@ -3079,7 +3083,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // "continue in the area below" CTA. Cleared on a timer.
   const [continueHighlighted, setContinueHighlighted] = useState(false);
   const [questionAnswers, setQuestionAnswers] = useState<Record<string, { index: number; value: string }>>({});
-  const [simpleSubmitAttempted, setSimpleSubmitAttempted] = useState(false);
   const [finishAnswerRaw, setFinishAnswerRaw] = useState(false);
   const [continuationText, setContinuationText] = useState('');
   /**
@@ -3123,22 +3126,24 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const [searchParams, setSearchParams] = useSearchParams();
   const initialViewParam = searchParams.get('agentView');
 
+  // Chat is the default run view; Timeline only wins when the user last chose
+  // it. The retired 'simple' view (from older saved choices or host props)
+  // maps onto Chat.
   const readStoredViewMode = (): RunViewMode => {
     if (initialViewParam === 'detailed') return 'detailed';
+    if (initialViewParam === 'chat' || initialViewParam === 'simple') return 'chat';
     if (contextStorageKey) {
       const saved = getPageContextChoice(contextStorageKey);
-      if (saved?.viewMode === 'detailed' || saved?.viewMode === 'simple') {
-        return saved.viewMode;
-      }
-      if (saved?.viewMode === 'chat') return 'chat';
+      if (saved?.viewMode === 'detailed') return 'detailed';
+      if (saved?.viewMode === 'chat' || saved?.viewMode === 'simple') return 'chat';
     }
-    if (initialView === 'chat' || initialView === 'simple' || initialView === 'detailed') return initialView;
-    if (typeof window === 'undefined') return 'simple';
+    if (initialView === 'detailed') return 'detailed';
+    if (initialView === 'chat' || initialView === 'simple') return 'chat';
     try {
-      const stored = window.localStorage.getItem('shuffle-agents-view-mode');
-      if (stored === 'detailed' || stored === 'simple') return stored;
+      const stored = typeof window === 'undefined' ? null : window.localStorage.getItem('shuffle-agents-view-mode');
+      if (stored === 'detailed') return 'detailed';
     } catch { /* localStorage unavailable — ignore */ }
-    return 'simple';
+    return 'chat';
   };
 
   const [viewMode, setViewMode] = useState<RunViewMode>(readStoredViewMode);

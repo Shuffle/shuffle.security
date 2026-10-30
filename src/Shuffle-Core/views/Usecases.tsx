@@ -3855,7 +3855,7 @@ function UsecaseDetailContent({
       manualVerification: flow.manualVerification,
       customAction: flow.customAction,
       healthStatus: detailIsBlocked
-        ? (detailHealth.summary || 'Enabled but requires attention (missing credentials or failing workflow node)')
+        ? (detailHealth.primaryProblem?.message || 'Enabled but requires attention (missing credentials or failing workflow node)')
         : effectiveEnabled
           ? 'Healthy and active'
           : 'Not enabled yet',
@@ -3864,7 +3864,7 @@ function UsecaseDetailContent({
       connectedApps: pick(validatedAppsByCategory, (a) => a?.name),
       linkedWorkflows: linkedWfs.map((w: any) => w?.name).filter(Boolean),
     });
-  }, [flow, flowDisplayLabel, effectiveEnabled, detailIsBlocked, detailHealth.summary, categoryAppNames, validatedAppsByCategory, linkedWfs]);
+  }, [flow, flowDisplayLabel, effectiveEnabled, detailIsBlocked, detailHealth.primaryProblem?.message, categoryAppNames, validatedAppsByCategory, linkedWfs]);
   useEffect(() => () => clearActiveUsecasePromptContext(ownUsecaseContextRef.current), []);
   const detailChip = getUsecaseToggleChip(effectiveEnabled, detailIsBlocked);
   // App-search drawer state — mirrors the alluvial diagram's "+" buttons so

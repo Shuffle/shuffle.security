@@ -1216,6 +1216,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
               <AgentUI
                 {...agentUIProps}
                 key={agentUiKey}
+                initialView={agentUIProps?.initialView ?? 'chat'}
                 sidebarLayout={true}
                 compact={true}
                 mobileView={true}

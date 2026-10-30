@@ -2,7 +2,7 @@
  * Shared diagnosis utilities for an agent execution result.
  *
  * Lives in the Shuffle-MCPs lib so every surface that displays an agent run
- * (AgentUI Simple/Detailed view, AgentExecutionDrawer, the incident-side
+ * (AgentUI Timeline view, AgentExecutionDrawer, the incident-side
  * AgentRunResultViewer, the activity feed status pill, ...) uses the EXACT
  * same logic to decide whether the run "needs review" and what to tell the
  * user about it.

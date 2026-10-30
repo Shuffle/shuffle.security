@@ -5,7 +5,7 @@
  * agent took (collapsed once done), its questions with one-click replies, and
  * its answers. It renders the run AgentUI already polls and uses AgentUI's own
  * actions to start runs, answer questions and continue finished runs, so the
- * Start / Simple / Detailed tabs see exactly the same run.
+ * Start / Timeline / Chat tabs see exactly the same run.
  *
  * Workflow edits are announced with AGENT_WORKFLOW_CHANGED_EVENT and node
  * links with AGENT_FOCUS_NODE_EVENT, so a host that shows the workflow can

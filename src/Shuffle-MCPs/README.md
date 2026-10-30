@@ -104,7 +104,7 @@ The library exports six React components — use one or all of them. They share 
 | [`<AppDetailDrawer />`](#3-appdetaildrawer--single-app-config) | Right-side drawer for a single app: list/edit/test authentications and try the MCP `tools/call` endpoint inline | [/shuffle-mcp-demo §3](https://shuffle.security/shuffle-mcp-demo) |
 | [`<AgentUI />`](#4-agentui--start--debug-agents) | Standalone "What do you want to do?" hero prompt + live decision-by-decision debugger for `/api/v1/agent` runs. Drop-in replacement for the legacy Shuffle Core agent page | [/agents](https://shuffle.security/agents) |
 | [`<AgentRunDrawer />`](#5-agentrundrawer--run-agent-side-panel) | Right-side drawer that hosts `<AgentUI />` in compact mode plus optional caller-provided **Permissions** and **Local LLM** tabs (slot-driven, no host context required) | [/shuffle-mcp-demo §1b](https://shuffle.security/shuffle-mcp-demo) |
-| [`<AgentActivityList />`](#6-agentactivitylist--past-executions) | Searchable, status-filterable list of past `/api/v1/agent` runs. Pair with `<AgentExecutionDrawer />` to inspect any row in the canonical Simple/Detailed view | [/shuffle-mcp-demo §8](https://shuffle.security/shuffle-mcp-demo) |
+| [`<AgentActivityList />`](#6-agentactivitylist--past-executions) | Searchable, status-filterable list of past `/api/v1/agent` runs. Pair with `<AgentExecutionDrawer />` to inspect any row in the canonical Timeline view | [/shuffle-mcp-demo §8](https://shuffle.security/shuffle-mcp-demo) |
 | [`<AgentExecutionDrawer />`](#7-agentexecutiondrawer--inspect-one-run) | Right-side drawer that pre-loads a single `AgentRun` into `<AgentUI />` (no `authorization` token required) for read-only inspection | [/agents](https://shuffle.security/agents) |
 
 ### 1. `<ShuffleMCP />` — inline search
@@ -213,7 +213,7 @@ Reference implementation in production: [`src/Shuffle-MCPs/AppSearchDrawer.tsx`]
 A standalone "What do you want to do?" surface for the Shuffle agent. Its tabs are:
 
 1. **Start** — large hero prompt with attached MCP/app chips. Submits to `/api/v1/agent`.
-2. **Simple / Detailed** — compact header + live decision timeline driven by `/api/v1/streams/results`, with question/continuation forms, per-decision raw-JSON inspection, approvals, retries, and reruns.
+2. **Timeline** — compact header + live decision timeline driven by `/api/v1/streams/results`, with question/continuation forms, per-decision raw-JSON inspection, approvals, retries, and reruns.
 3. **Chat** — the same run as a conversation: the user's messages, the steps the agent took (collapsed once done), its questions with one-click replies, credentials to connect, and its answers. The composer starts a run, answers the agent, or continues a finished run.
 
 It switches modes automatically when an execution starts, or when `?execution_id=...&authorization=...` is present in the URL.
@@ -251,7 +251,7 @@ Useful props:
 | `compact` / `hideHeroIcon` / `hideAppPicker` / `hideAttach` | `boolean` | Layout switches for embedding |
 | `maxWidth` | `number` | Max width of the centered card. Default `900` |
 | `onRun` | `(info) => void` | Fires whenever a run finishes (success or failure) |
-| `initialView` | `'start' \| 'simple' \| 'detailed' \| 'chat'` | View to open on mount. `'chat'` opens the Chat tab, without the Start form, and keeps the tabs visible before the first run |
+| `initialView` | `'start' \| 'detailed' \| 'chat'` | View to open on mount. The tab the user last chose beats it, and when neither is known the Timeline opens. `'chat'` opens the Chat tab, without the Start form, and keeps the tabs visible before the first run |
 | `workflowId` | `string` | Workflow the agent works on (edit-workflow skill). In Chat it also enables "Revert" and the workflow events below |
 | `className` / `sx` / `contentSx` | `string` / `SxProps` | Style overrides for the root container and inner content column |
 
@@ -344,7 +344,7 @@ Useful props:
 
 ### 7. `<AgentExecutionDrawer />` — inspect one run
 
-Right-side drawer that pre-loads a single `AgentRun` into `<AgentUI />` so you can inspect the Simple/Detailed view of any past execution without an `authorization` token.
+Right-side drawer that pre-loads a single `AgentRun` into `<AgentUI />` so you can inspect the Timeline view of any past execution without an `authorization` token.
 
 ```tsx
 <AgentExecutionDrawer

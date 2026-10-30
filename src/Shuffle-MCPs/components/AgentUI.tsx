@@ -5422,9 +5422,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // restart() removed — Start tab now toggles via goToTab() while preserving the execution.
 
 
-  // The top-level "tabs": Start (the prompt form), Simple summary, Detailed
-  // timeline and Chat. They're all available once an execution exists, so the
-  // user can flip back and forth without losing the run.
+  // The top-level "tabs": Start (the prompt form), the Timeline and Chat.
+  // They're all available once an execution exists, so the user can flip back
+  // and forth without losing the run.
   type TabKey = AgentUIView;
   const activeTab: TabKey = showStarter ? 'start' : viewMode;
   const hasExecution = !!execution?.execution_id;
@@ -5469,7 +5469,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       setShowStarter(true);
       // Pin: user manually chose Start. Stay here even when polls land or
       // initialExecution is re-attached, until they explicitly start a new run
-      // or click Simple/Detailed themselves.
+      // or click Timeline/Chat themselves.
       userPickedStartRef.current = true;
       if (contextStorageKey) {
         setPageContextChoice(contextStorageKey, {
@@ -5510,7 +5510,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     }
   };
 
-  // Schedule discovery: one shared mechanism for Start / Simple / Detailed.
+  // Schedule discovery: one shared mechanism for Start / Timeline / Chat.
   // The only hard block is an unfinished run; everything else is advisory.
   const { scheduleDisabledReasons, scheduleWarnings } = useMemo(() => {
     const decisions: any[] = (agentData?.decisions as any[]) || [];
@@ -5568,7 +5568,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     const reasons: string[] = [];
     const warnings: string[] = [];
     if (isNotFinished) {
-      // The ONLY hard block, and it is identical on Start / Simple / Detailed.
+      // The ONLY hard block, and it is identical on Start / Timeline / Chat.
       reasons.push('Wait for the agent to finish before scheduling.');
     }
     // Quality gates are advisory only — they surface in the tooltip but never
@@ -5760,12 +5760,11 @@ const AgentUI: React.FC<AgentUIProps> = ({
         onChange={(v) => goToTab(v as TabKey)}
         options={[
           { value: 'start', label: 'Start', disabled: disableStartTab, title: disableStartTab ? 'Open a new agent run from the /agents page to start a new prompt' : undefined },
-          { value: 'simple', label: 'Simple', disabled: !hasExecution },
           {
             value: 'detailed',
             label: runIsActive ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                Detailed
+                Timeline
                 <Loader2Icon
                   size={12}
                   className="animate-spin"
@@ -5773,10 +5772,10 @@ const AgentUI: React.FC<AgentUIProps> = ({
                 />
               </span>
             ) : (
-              'Detailed'
+              'Timeline'
             ),
             disabled: !hasExecution,
-            title: runIsActive ? 'Current agent run is in progress — view live detailed timeline' : undefined,
+            title: runIsActive ? 'Current agent run is in progress — view the live timeline' : undefined,
           },
           { value: 'chat', label: 'Chat', title: 'The run as a conversation: ask questions, answer the agent and continue' },
           { type: 'divider', key: 'div' },
@@ -5806,7 +5805,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
               }
             },
           },
-          // The live run indicator is rendered in the Detailed tab label above.
+          // The live run indicator is rendered in the Timeline tab label above.
         ]}
       />
     </Box>
@@ -8112,7 +8111,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
 
 
 
-            {/* Detailed timeline view */}
+            {/* Timeline view */}
             {viewMode === 'detailed' && (() => {
               const detailedStatus = resolveRunStatus(execution?.status, agentData?.status) || 'EXECUTING';
               const detailedIsRunning = optimisticRunning

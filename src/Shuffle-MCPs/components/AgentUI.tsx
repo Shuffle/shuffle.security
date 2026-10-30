@@ -525,12 +525,12 @@ const FinishAnswerMarkdown: React.FC<{ text: string }> = ({ text }) => {
 };
 
 /**
- * Shared "Run finished" summary used by both the Simple and Detailed views.
+ * Shared "Run finished" summary used by the Timeline view.
  * Renders the status header (with optional steps/duration meta and a
  * Raw/Rendered toggle) and the agent's final answer body underneath.
  *
- * `children` is rendered between the header row and the answer body — used by
- * the Simple view to insert auth-required banners or pending question forms.
+ * `children` is rendered between the header row and the answer body — used to
+ * insert auth-required banners or pending question forms.
  */
 interface RunFinishedSummaryProps {
   status: string;
@@ -889,7 +889,7 @@ export interface AgentUIProps {
   authorization?: string;
   /**
    * Pre-loaded execution payload. When provided, AgentUI skips the starter
-   * and renders Simple/Detailed views immediately — no `/streams/results`
+   * and renders the Chat/Timeline views immediately — no `/streams/results`
    * fetch, no `authorization` token required. Useful for embedding inside
    * a list/drawer that already has the execution data in hand. If the run
    * is still EXECUTING and an `authorization` is also present, polling
@@ -919,7 +919,7 @@ export interface AgentUIProps {
   onRunStatusChange?: (info: { executionId: string; status: string; previousStatus?: string; running: boolean; waiting: boolean }) => void;
   /** Called whenever the chip set under the prompt changes (add/remove apps). */
   onAppsChange?: (apps: AgentUIApp[]) => void;
-  /** Called whenever the active top-level view changes (start / simple / detailed / chat). */
+  /** Called whenever the active top-level view changes (start / chat / detailed). */
   onViewChange?: (view: AgentUIView) => void;
   /**
    * View to open on mount. 'chat' shows the run as a conversation and lets the
@@ -4105,8 +4105,11 @@ const AgentUI: React.FC<AgentUIProps> = ({
         userPickedStartRef.current = true;
       } else {
         if (!userPickedStartRef.current) setShowStarter(false);
-        if (savedViewMode === 'simple' || savedViewMode === 'detailed' || savedViewMode === 'chat') {
-          setViewMode(savedViewMode);
+        // 'simple' is retired: it opens Chat.
+        if (savedViewMode === 'detailed') {
+          setViewMode('detailed');
+        } else if (savedViewMode === 'simple' || savedViewMode === 'chat') {
+          setViewMode('chat');
         }
       }
       activeExecutionIdRef.current = eid;
@@ -4254,9 +4257,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
 
     // Hard reset NOW — kill the previous run's poll loop, blank the
     // execution/timeline state, drop the previous execution_id +
-    // agentView from the URL, and reset the view to simple. Otherwise
+    // agentView from the URL, and reset the view to Chat. Otherwise
     // the previous run's poll keeps writing into state during the
-    // in-flight request and the user sees the old "Detailed" tab flash
+    // in-flight request and the user sees the old "Timeline" tab flash
     // back in.
     executionPollGenerationRef.current += 1;
     activeExecutionIdRef.current = null;
@@ -4269,22 +4272,19 @@ const AgentUI: React.FC<AgentUIProps> = ({
     setOpenIndexes(new Set());
     setQuestionAnswers({});
     setContinuationText('');
-    setSimpleSubmitAttempted(false);
     
     setError(null);
     setLocalRunStart(null);
-    // When starting a new run, respect the user's stored Simple/Detailed
-    // preference rather than forcing Simple every time. A run started from
-    // Chat stays in Chat.
+    // A new run opens in Chat, unless the user's last choice was Timeline.
     try {
       const stored = typeof window !== 'undefined' ? window.localStorage.getItem('shuffle-agents-view-mode') : null;
-      setViewMode((current) => (current === 'chat' ? 'chat' : stored === 'detailed' ? 'detailed' : 'simple'));
+      setViewMode(stored === 'detailed' ? 'detailed' : 'chat');
     } catch {
-      setViewMode((current) => (current === 'chat' ? 'chat' : 'simple'));
+      setViewMode('chat');
     }
     setShowStarter(false);
     // The user is starting a new run — drop any sticky "manual Start" pin so
-    // future polls/effects can populate Simple/Detailed normally.
+    // future polls/effects can populate Chat/Timeline normally.
     userPickedStartRef.current = false;
     if (readUrlParams) {
       setSearchParams((prev) => {
@@ -4407,7 +4407,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
           executionId: eid,
           authorization: auth,
           executionStatus: 'EXECUTING',
-          viewMode: viewMode === 'chat' || viewMode === 'detailed' ? viewMode : 'simple',
+          viewMode,
         });
       }
       setExecution({ execution_id: eid, authorization: auth, status: 'EXECUTING' });
@@ -4429,7 +4429,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
           executionId: eid,
           authorization: auth || undefined,
           executionStatus: 'FINISHED',
-          viewMode: viewMode === 'chat' || viewMode === 'detailed' ? viewMode : 'simple',
+          viewMode,
         });
       }
       // Direct response (no async execution): synthesize a single-step view
@@ -4666,7 +4666,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       if (!disableStartTab) {
         setShowStarter(true);
       } else {
-        setViewMode('simple');
+        setViewMode('chat');
         setError('Could not resolve the original prompt for this run. Type it below and start a new run.');
       }
       setRerunAgentPending(false);

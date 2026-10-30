@@ -11,7 +11,9 @@
  *  - `variant="compact"` -> stacked full-width controls for the small popover
  */
 
-import { MenuItem, Stack, TextField } from '@mui/material';
+import { MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { useAuthenticatedApps } from '@/Shuffle-Core/useAuthenticatedApps';
+import { getShuffleOpenApiAuthState } from './moveActionAuth';
 import type { RoutingAction, RoutingActionType } from './IncidentRoutingEditor';
 
 export const ROUTING_ACTION_TYPE_LABELS: Record<RoutingActionType, string> = {
@@ -168,6 +170,8 @@ export const RoutingActionFields = ({
         </TextField>
       )}
 
+      {action.type === 'suggest_move' && <MoveActionAuthNotice />}
+
       {action.type === 'set_field' && (
         <TextField
           size="small"
@@ -219,6 +223,24 @@ export const RoutingActionFields = ({
         )
       )}
     </Stack>
+  );
+};
+
+const MoveActionAuthNotice = () => {
+  const { data, isLoading } = useAuthenticatedApps();
+  if (isLoading) return null;
+  const state = getShuffleOpenApiAuthState(data || []);
+  if (state === 'valid') return null;
+  const text = state === 'missing'
+    ? 'Moving to a tenant requires authentication for the Shuffle OpenAPI app, with permission to access the target tenant. No authentication was found.'
+    : 'The Shuffle OpenAPI authentication has not been validated. Moving to a tenant needs a working authentication with permission to access the target tenant.';
+  return (
+    <Typography
+      variant="caption"
+      sx={{ color: 'hsl(var(--destructive))', flexBasis: '100%', lineHeight: 1.4 }}
+    >
+      {text}
+    </Typography>
   );
 };
 

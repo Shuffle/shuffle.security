@@ -589,6 +589,16 @@
   clip-path: inset(0 0 0 var(--app-sidebar-right, 0px));
 }
 
+/* The full-screen Drawer root itself also swallowed clicks over the sidebar.
+   Let the root pass clicks through; only the (clipped) backdrop and the
+   drawer paper catch them. */
+.MuiDrawer-root.MuiModal-root {
+  pointer-events: none;
+}
+.MuiDrawer-root.MuiModal-root > * {
+  pointer-events: auto;
+}
+
 /* MUI overlay hierarchy baseline fallbacks.
    Dynamic layer assignments managed at runtime by overlayLayer will override
    these via element inline styles so new surfaces always open over older surfaces. */

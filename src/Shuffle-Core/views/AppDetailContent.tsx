@@ -107,6 +107,9 @@ export interface AppDetailContentProps extends ShuffleHostProps {
   activeOrgId?: string | null;
   /** Automatically fire Activate action once app is loaded */
   autoActivate?: boolean;
+  /** Expand and scroll to the Authentication area once it is rendered. Set when
+   *  the view is opened from an "authenticate this app" affordance. */
+  focusAuthentication?: boolean;
   /** Show incident ingestion/forwarding stats */
   showIncidentStats?: boolean;
   /** Show quick info summary cards (Auth Type, Configurations, Status) */
@@ -241,6 +244,7 @@ export default function AppDetailContent({
   isAuthenticated = true,
   activeOrgId,
   autoActivate = false,
+  focusAuthentication = false,
   showIncidentStats = mode === 'drawer',
   showQuickInfo = mode === 'page',
   showApiCallViewer = mode === 'page',
@@ -261,6 +265,15 @@ export default function AppDetailContent({
   const [activateLoading, setActivateLoading] = useState(false);
   const [resolvedAlgoliaId, setResolvedAlgoliaId] = useState<string | null>(appId || null);
   const [authExpanded, setAuthExpanded] = useState(true);
+  const [authSectionEl, setAuthSectionEl] = useState<HTMLElement | null>(null);
+
+  // Opened from an "authenticate this app" affordance: expand the Authentication
+  // area and bring it into view as soon as it exists in the drawer.
+  useEffect(() => {
+    if (!focusAuthentication || !open || !authSectionEl) return;
+    setAuthExpanded(true);
+    authSectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [focusAuthentication, open, authSectionEl]);
   const lastValidAuthRef = useRef<boolean | null>(null);
   const lastNoAuthRequiredRef = useRef<boolean | null>(null);
   const [incidentStats, setIncidentStats] = useState<{ ingested: number; forwarded: number } | null>(null);
@@ -1115,7 +1128,7 @@ export default function AppDetailContent({
             {/* Authentication Section */}
             {!skipAuthentication && (
               isAuthenticated ? (
-                <Box id="app-auth-section">
+                <Box id="app-auth-section" ref={setAuthSectionEl}>
                   <AppAuthSection
                     displayName={displayName}
                     algoliaApp={algoliaApp}
@@ -1140,7 +1153,7 @@ export default function AppDetailContent({
                   />
                 </Box>
               ) : allowGuestLocked ? (
-                <Box sx={{ mb: 4 }} id="app-auth-section">
+                <Box sx={{ mb: 4 }} id="app-auth-section" ref={setAuthSectionEl}>
                   <GuestLockedSection
                     title="Authentication Required"
                     description={`Sign up to connect your ${displayName} credentials and start automating workflows.`}

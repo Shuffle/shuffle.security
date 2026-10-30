@@ -1,6 +1,6 @@
 /**
  * AgentExecutionDrawer — standalone right-side drawer showing the canonical
- * `AgentUI` Simple/Detailed view for an existing agent run. Pre-loads the
+ * `AgentUI` Timeline view for an existing agent run. Pre-loads the
  * execution data via the `initialExecution` prop on `AgentUI`, so no extra
  * `/streams/results` fetch (and no `authorization` token) is required.
  *

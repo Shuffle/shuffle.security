@@ -21,6 +21,7 @@ import {
   Menu,
   MenuItem,
   CircularProgress,
+  Skeleton,
   Paper,
   Button,
 } from "@mui/material";
@@ -1884,7 +1885,16 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                 transition: "background-color 0.15s ease",
               }}
             >
-              <Avatar
+{!userInfo?.username ? (
+                // Session details are still loading: keep the area's shape.
+                <>
+                  <Skeleton variant="circular" width={36} height={36} sx={{ flexShrink: 0, bgcolor: "hsl(var(--muted))" }} />
+                  {!visuallyCollapsed && (
+                    <Skeleton variant="text" sx={{ flexGrow: 1, fontSize: "0.875rem", bgcolor: "hsl(var(--muted))" }} />
+                  )}
+                </>
+              ) : (<>
+                            <Avatar
                 src={currentUserAvatar || undefined}
                 alt={userInfo?.username || "User"}
                 sx={{
@@ -1920,6 +1930,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                   />
                 </>
               )}
+              </>)}
             </Box>
           </Box>
           <Menu

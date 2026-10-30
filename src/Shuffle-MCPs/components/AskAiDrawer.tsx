@@ -172,6 +172,7 @@ export const AskAiDrawer: React.FC<AskAiDrawerProps> = ({
       subtitle={effectiveSubtitle}
       agentUIProps={{
         ...agentUIProps,
+        initialView: agentUIProps?.initialView ?? 'chat',
         key: `ask_ai_${resolvedContext.storageKey}_${resetKey}`,
         defaultApps: resolvedContext.apps,
         initialPresetId: resolvedContext.presetId,

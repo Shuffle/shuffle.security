@@ -50,7 +50,9 @@ export const humanizeUsecaseId = (id: string): string =>
 /** Display name for the usecase at the given flow id. */
 export const getUsecaseDisplayName = (flowId?: string): string => {
   const ctx = getActiveUsecasePromptContext();
-  if (ctx && (!flowId || ctx.id === flowId) && ctx.label) return ctx.label;
+  // The URL slug (e.g. siem_alerts) can differ from the flow id, and the
+  // context is cleared when the detail view unmounts, so trust it as-is.
+  if (ctx?.label) return ctx.label;
   return flowId ? humanizeUsecaseId(flowId) : 'Usecases';
 };
 
@@ -77,7 +79,7 @@ export const composeUsecasePromptInput = (rawInput: string, flowId?: string): st
   if (!trimmed || trimmed.includes(USECASE_PROMPT_START)) return trimmed;
   const ctx = getActiveUsecasePromptContext();
   const lines: string[] = [USECASE_PROMPT_START];
-  if (ctx && (!flowId || ctx.id === flowId)) {
+  if (ctx) {
     lines.push(`Usecase: ${ctx.label} (id: ${ctx.id})`);
     if (ctx.source || ctx.target) lines.push(`Data flow: ${ctx.source || 'unknown'} -> ${ctx.target || 'unknown'}`);
     if (ctx.phase) lines.push(`Phase: ${ctx.phase}`);

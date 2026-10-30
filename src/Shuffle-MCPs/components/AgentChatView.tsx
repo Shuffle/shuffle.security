@@ -431,7 +431,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
 
   // The workflow as it was before this chat comes from its saved revisions, not from
   // memory, so revert still works after closing the panel or reloading the page.
-  const chatStartedAt = Number(execution?.started_at) || 0;
+  const chatStartedAt = Number((execution as { started_at?: unknown } | undefined)?.started_at) || 0;
   const revert = async () => {
     if (!workflowId || !chatStartedAt || reverting) return;
     if (!window.confirm('Revert the workflow to how it was before this chat changed it? Edits made since then, also by others, are replaced.')) return;

@@ -11,7 +11,7 @@
  *  - `variant="compact"` -> stacked full-width controls for the small popover
  */
 
-import { Box, Button, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthenticatedApps, AUTHENTICATED_APPS_QUERY_KEY } from '@/Shuffle-Core/useAuthenticatedApps';
@@ -241,9 +241,10 @@ const MoveActionAuthNotice = () => {
     ? 'Moving to a tenant requires authentication for the Shuffle OpenAPI app, with permission to access the target tenant. No authentication was found.'
     : 'The Shuffle OpenAPI authentication has not been validated. Moving to a tenant needs a working authentication with permission to access the target tenant.';
 
-  const handleUseApiKey = async () => {
+  const handleAddCredentials = async () => {
     setSaving(true);
     setError(null);
+    let createdId: string | null = null;
     try {
       const settingsRes = await fetch(getApiUrl('/api/v1/getsettings'), {
         credentials: 'include',
@@ -252,6 +253,8 @@ const MoveActionAuthNotice = () => {
       const settings = settingsRes.ok ? await settingsRes.json() : null;
       const apikey: string | undefined = settings?.apikey || settings?.api_key;
       if (!apikey) throw new Error('Could not find your API key.');
+
+      // 1. Create the app authentication
       const res = await fetch(getApiUrl('/api/v1/apps/authentication'), {
         method: 'PUT',
         credentials: 'include',
@@ -266,11 +269,36 @@ const MoveActionAuthNotice = () => {
           active: true,
         }),
       });
-      if (!res.ok) throw new Error('Could not save the authentication.');
-      await queryClient.invalidateQueries({ queryKey: AUTHENTICATED_APPS_QUERY_KEY });
+      const created = await res.json().catch(() => null);
+      if (!res.ok || created?.success === false) throw new Error('Could not create the authentication.');
+      createdId = created?.id || created?.authentication_id || null;
+      if (!createdId) throw new Error('The authentication was created without an ID.');
+
+      // 2. Assign it everywhere the app is used
+      const assignRes = await fetch(getApiUrl(`/api/v1/apps/authentication/${encodeURIComponent(createdId)}/config`), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: createdId, action: 'assign_everywhere', selected_suborgs: [] }),
+      });
+      const assigned = await assignRes.json().catch(() => null);
+      if (!assignRes.ok || assigned?.success === false) {
+        throw new Error('Could not assign the authentication everywhere the app is used.');
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save the authentication.');
+      // 3. Roll back the authentication we just created
+      if (createdId) {
+        await fetch(getApiUrl(`/api/v1/apps/authentication/${encodeURIComponent(createdId)}`), {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { ...getAuthHeader() },
+        }).catch(() => undefined);
+      }
+      setError(
+        `${e instanceof Error ? e.message : 'Could not add the credentials.'}${createdId ? ' The new authentication was removed.' : ''}`,
+      );
     } finally {
+      await queryClient.invalidateQueries({ queryKey: AUTHENTICATED_APPS_QUERY_KEY });
       setSaving(false);
     }
   };
@@ -285,10 +313,11 @@ const MoveActionAuthNotice = () => {
         variant="contained"
         color="primary"
         disabled={saving}
-        onClick={handleUseApiKey}
+        onClick={handleAddCredentials}
+        startIcon={saving ? <CircularProgress size={14} color="inherit" /> : undefined}
         sx={{ textTransform: 'none', fontSize: '0.75rem', height: 28, flexShrink: 0, whiteSpace: 'nowrap' }}
       >
-        {saving ? 'Saving...' : 'Use my API-key'}
+        {saving ? 'Adding credentials...' : 'Add credentials'}
       </Button>
     </Box>
   );

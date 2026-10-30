@@ -163,7 +163,10 @@ const UsecasesPage = (props: UsecasesPageProps = {}) => {
   return (
     <>
       <Usecases
-        theme={themeContext.theme}
+        // The library needs the *resolved* light/dark value: handing it the raw
+        // mode ("system") leaves its scope on light tokens while the page itself
+        // is dark, so the usecase cards render white on a dark background.
+        theme={themeContext.resolvedTheme}
         globalUrl={API_CONFIG.baseUrl}
         userdata={userInfo}
         isLoggedIn={isAuthenticated}

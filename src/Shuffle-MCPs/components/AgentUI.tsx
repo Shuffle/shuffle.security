@@ -525,12 +525,12 @@ const FinishAnswerMarkdown: React.FC<{ text: string }> = ({ text }) => {
 };
 
 /**
- * Shared "Run finished" summary used by both the Simple and Detailed views.
+ * Shared "Run finished" summary used by the Timeline view.
  * Renders the status header (with optional steps/duration meta and a
  * Raw/Rendered toggle) and the agent's final answer body underneath.
  *
- * `children` is rendered between the header row and the answer body — used by
- * the Simple view to insert auth-required banners or pending question forms.
+ * `children` is rendered between the header row and the answer body — used to
+ * insert auth-required banners or pending question forms.
  */
 interface RunFinishedSummaryProps {
   status: string;
@@ -719,6 +719,7 @@ import {
   type ConnectedToolApp,
 } from '@/Shuffle-MCPs/connectedSourcesService';
 import { getPageContextChoice, setPageContextChoice } from '@/Shuffle-MCPs/agentContextRegistry';
+import { resolveAgentRunView, type AgentRunViewMode } from '@/Shuffle-MCPs/agentViewMode';
 
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -765,9 +766,12 @@ export function dedupeAgentApps(list: AgentUIApp[] | null | undefined): AgentUIA
   return out;
 }
 
-/** Top-level views of AgentUI. */
+/**
+ * Top-level views of AgentUI. 'simple' is no longer rendered: it maps to Chat
+ * so hosts and saved links that still ask for it keep working.
+ */
 export type AgentUIView = 'start' | 'simple' | 'detailed' | 'chat';
-type RunViewMode = Exclude<AgentUIView, 'start'>;
+type RunViewMode = AgentRunViewMode;
 
 export interface AgentUIProps {
   /** Optional React key to force re-mounting when context changes */
@@ -871,7 +875,7 @@ export interface AgentUIProps {
   authorization?: string;
   /**
    * Pre-loaded execution payload. When provided, AgentUI skips the starter
-   * and renders Simple/Detailed views immediately — no `/streams/results`
+   * and renders the Timeline view immediately — no `/streams/results`
    * fetch, no `authorization` token required. Useful for embedding inside
    * a list/drawer that already has the execution data in hand. If the run
    * is still EXECUTING and an `authorization` is also present, polling
@@ -901,12 +905,12 @@ export interface AgentUIProps {
   onRunStatusChange?: (info: { executionId: string; status: string; previousStatus?: string; running: boolean; waiting: boolean }) => void;
   /** Called whenever the chip set under the prompt changes (add/remove apps). */
   onAppsChange?: (apps: AgentUIApp[]) => void;
-  /** Called whenever the active top-level view changes (start / simple / detailed / chat). */
+  /** Called whenever the active top-level view changes (start / detailed / chat). */
   onViewChange?: (view: AgentUIView) => void;
   /**
    * View to open on mount. 'chat' shows the run as a conversation and lets the
-   * user start, answer and continue runs from there. When omitted, the stored
-   * Simple/Detailed preference is used (unchanged behaviour).
+   * user start, answer and continue runs from there. The tab the user last
+   * chose beats this; when neither is known, the Timeline opens.
    */
   initialView?: AgentUIView;
   /**
@@ -3061,7 +3065,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // "continue in the area below" CTA. Cleared on a timer.
   const [continueHighlighted, setContinueHighlighted] = useState(false);
   const [questionAnswers, setQuestionAnswers] = useState<Record<string, { index: number; value: string }>>({});
-  const [simpleSubmitAttempted, setSimpleSubmitAttempted] = useState(false);
   const [finishAnswerRaw, setFinishAnswerRaw] = useState(false);
   const [continuationText, setContinuationText] = useState('');
   /**
@@ -3189,7 +3192,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const runGenerationRef = useRef(0);
   // Sticky flag set when the user manually clicks the "Start" tab while a run
   // is loaded. Prevents downstream effects (URL sync, initialExecution attach,
-  // etc.) from flipping back to Simple/Detailed when a poll response lands.
+  // etc.) from flipping back to Timeline/Chat when a poll response lands.
   // Cleared the moment the user actually submits a new run.
   const userPickedStartRef = useRef(false);
   // Mirror of state used inside async callbacks (e.g. submitInput) so we can
@@ -4085,8 +4088,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
   }, [readUrlParams, executionId, authorization, getExecution, contextStorageKey]);
 
   // Attach to a pre-loaded execution (e.g. embedded inside a list/drawer
-  // that already has the run data). Skips the starter and seeds Simple/
-  // Detailed views directly — no `/streams/results` fetch, no
+  // that already has the run data). Skips the starter and seeds the
+  // Timeline view directly — no `/streams/results` fetch, no
   // `authorization` token required.
   useEffect(() => {
     if (!initialExecution || !initialExecution.execution_id) return;
@@ -4223,7 +4226,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
 
     // Hard reset NOW — kill the previous run's poll loop, blank the
     // execution/timeline state, drop the previous execution_id +
-    // agentView from the URL, and reset the view to simple. Otherwise
+    // agentView from the URL, and keep the view the user chose. Otherwise
     // the previous run's poll keeps writing into state during the
     // in-flight request and the user sees the old "Timeline" tab flash
     // back in.
@@ -4245,7 +4248,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     // in Chat, one started from Timeline opens in Timeline.
     setShowStarter(false);
     // The user is starting a new run — drop any sticky "manual Start" pin so
-    // future polls/effects can populate Simple/Detailed normally.
+    // future polls/effects can populate Timeline/Chat normally.
     userPickedStartRef.current = false;
     if (readUrlParams) {
       setSearchParams((prev) => {
@@ -8059,7 +8062,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
               onJumpToEvidence={(decisionIndex) => {
                 // Locate the timeline row for the offending decision and
                 // expand + scroll to it on the detailed view, regardless of
-                // whether the user is currently on Simple or Detailed.
+                // whether the user is currently on Timeline or Chat.
                 const dec = (agentData?.decisions || [])[decisionIndex];
                 let rowIndex = -1;
                 if (dec) {

@@ -3223,7 +3223,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const runGenerationRef = useRef(0);
   // Sticky flag set when the user manually clicks the "Start" tab while a run
   // is loaded. Prevents downstream effects (URL sync, initialExecution attach,
-  // etc.) from flipping back to Simple/Detailed when a poll response lands.
+  // etc.) from flipping back to Chat/Timeline when a poll response lands.
   // Cleared the moment the user actually submits a new run.
   const userPickedStartRef = useRef(false);
   // Mirror of state used inside async callbacks (e.g. submitInput) so we can
@@ -4120,8 +4120,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
   }, [readUrlParams, executionId, authorization, getExecution, contextStorageKey]);
 
   // Attach to a pre-loaded execution (e.g. embedded inside a list/drawer
-  // that already has the run data). Skips the starter and seeds Simple/
-  // Detailed views directly — no `/streams/results` fetch, no
+  // that already has the run data). Skips the starter and seeds the
+  // Chat/Timeline views directly — no `/streams/results` fetch, no
   // `authorization` token required.
   useEffect(() => {
     if (!initialExecution || !initialExecution.execution_id) return;

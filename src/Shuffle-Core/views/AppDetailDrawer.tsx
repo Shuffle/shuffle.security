@@ -44,6 +44,9 @@ export interface AppDetailDrawerProps extends ShuffleHostProps {
    *  and not yet activated. Used when the drawer is opened from a flow that
    *  expects the app to be wired up immediately (e.g. Usecases tool picker). */
   autoActivate?: boolean;
+  /** Expand and scroll to the Authentication area once it renders. Set when the
+   *  drawer is opened from an "authenticate this app" affordance. */
+  focusAuthentication?: boolean;
 }
 
 export default function AppDetailDrawer({
@@ -61,6 +64,7 @@ export default function AppDetailDrawer({
   isAuthenticated = true,
   activeOrgId,
   autoActivate = false,
+  focusAuthentication = false,
   globalUrl,
   userdata,
   isLoaded,
@@ -131,6 +135,7 @@ export default function AppDetailDrawer({
         isAuthenticated={isAuthenticated}
         activeOrgId={activeOrgId}
         autoActivate={autoActivate}
+        focusAuthentication={focusAuthentication}
         showIncidentStats={true}
         showQuickInfo={false}
         showApiCallViewer={false}

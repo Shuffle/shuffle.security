@@ -765,6 +765,20 @@ export function dedupeAgentApps(list: AgentUIApp[] | null | undefined): AgentUIA
   return out;
 }
 
+export type AgentAppChipTone = 'normal' | 'unavailable';
+
+/**
+ * Visual tone of a chosen-app chip in the tool picker row.
+ *
+ * An app that still needs credentials is rendered exactly like an
+ * authenticated one: the missing-credentials warning lives in the advisory
+ * banner under the row, so the chip carries no extra colour or badge for it.
+ * Only an app that is not configured in this workspace stands out.
+ */
+export function agentAppChipTone(app: { needsAuth?: boolean; isUnavailable?: boolean }): AgentAppChipTone {
+  return app.isUnavailable ? 'unavailable' : 'normal';
+}
+
 /** Top-level views of AgentUI. */
 export type AgentUIView = 'start' | 'simple' | 'detailed' | 'chat';
 type RunViewMode = Exclude<AgentUIView, 'start'>;
@@ -1017,6 +1031,10 @@ export interface AppDetailDrawerRenderProps {
   theme?: string;
   colorMode?: 'light' | 'dark' | 'auto';
   onRefresh?: () => void;
+  /** When true, the drawer should expand and scroll to its Authentication area
+   *  as soon as that area is rendered. Set when the drawer is opened from an
+   *  "authenticate this app" affordance rather than a plain "open the app". */
+  focusAuthentication?: boolean;
 }
 
 /** Set of confirmed live built-in Shuffle services that are always available in the platform */
@@ -2943,7 +2961,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const [appSearchQuery, setAppSearchQuery] = useState('');
   /** Category chip the app search was opened for, so the pick can replace it. */
   const [categoryTarget, setCategoryTarget] = useState<string | null>(null);
-  const [authDrawerApp, setAuthDrawerApp] = useState<{ name: string; id?: string | null; icon?: string | null } | null>(null);
+  const [authDrawerApp, setAuthDrawerApp] = useState<{ name: string; id?: string | null; icon?: string | null; focusAuth?: boolean } | null>(null);
   const [agentRequestLoading, setAgentRequestLoading] = useState(false);
   // Optimistic UI: track which decision the user just clicked Rerun on so we
   // can immediately hide later decisions and show a spinner on that row while
@@ -7477,6 +7495,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                   const isUnavailable = !authAppsLoading && !isAvailable && !needsAuth;
                   const isRequired = isRequiredPresetApp(selectedPreset, app.name || '');
                   const appDisplayName = formatAppDisplayName(app.name || '');
+                  const chipTone = agentAppChipTone({ needsAuth, isUnavailable });
                   const appIcon =
                     app.icon ||
                     availableApps.find((a) => normalizeAgentAppName(a.name || '') === slug)?.icon ||
@@ -7496,7 +7515,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                     arrow
                   >
                   <Box
-                    onClick={!agentRequestLoading ? () => setAuthDrawerApp({ name: app.name, id: app.id || null, icon: appIcon || null }) : undefined}
+                    onClick={!agentRequestLoading ? () => setAuthDrawerApp({ name: app.name, id: app.id || null, icon: appIcon || null, focusAuth: needsAuth }) : undefined}
                     sx={{
                       display: 'inline-flex', alignItems: 'center', gap: 0.5,
                       pl: 0.5,
@@ -7506,26 +7525,20 @@ const AgentUI: React.FC<AgentUIProps> = ({
                       boxSizing: 'border-box',
                       lineHeight: 1,
                       borderRadius: 999,
-                      bgcolor: isUnavailable
+                      bgcolor: chipTone === 'unavailable'
                         ? 'hsl(var(--severity-medium) / 0.08)'
-                        : needsAuth
-                          ? 'hsl(var(--severity-medium) / 0.12)'
-                          : 'hsl(var(--muted) / 0.6)',
-                      border: isUnavailable
+                        : 'hsl(var(--muted) / 0.6)',
+                      border: chipTone === 'unavailable'
                         ? '1px dashed hsl(var(--severity-medium) / 0.7)'
-                        : needsAuth
-                          ? '1px solid hsl(var(--severity-medium) / 0.55)'
-                          : '1px solid transparent',
+                        : '1px solid transparent',
                       fontSize: '0.8rem',
                       color: 'hsl(var(--foreground))',
                       cursor: !agentRequestLoading ? 'pointer' : 'default',
                       transition: 'background-color 0.12s ease',
                       '&:hover': !agentRequestLoading ? {
-                        bgcolor: isUnavailable
+                        bgcolor: chipTone === 'unavailable'
                           ? 'hsl(var(--severity-medium) / 0.16)'
-                          : needsAuth
-                            ? 'hsl(var(--severity-medium) / 0.18)'
-                            : 'hsl(var(--muted) / 0.9)',
+                          : 'hsl(var(--muted) / 0.9)',
                       } : {},
                     }}
                   >
@@ -7553,27 +7566,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                         {formatAppDisplayName(app.name || '')}
                       </Typography>
                     )}
-                    {needsAuth ? (
-                      <Box
-                        component="span"
-                        sx={{
-                          fontSize: '0.65rem',
-                          fontWeight: 600,
-                          color: 'hsl(var(--destructive))',
-                          bgcolor: 'hsl(var(--destructive) / 0.12)',
-                          border: '1px solid hsl(var(--destructive) / 0.3)',
-                          borderRadius: 1,
-                          px: 0.6,
-                          py: 0.1,
-                          letterSpacing: '0.02em',
-                          textTransform: 'uppercase',
-                          ml: 0.5,
-                          mr: 0.25,
-                        }}
-                      >
-                        Missing auth
-                      </Box>
-                    ) : isUnavailable ? (
+                    {isUnavailable ? (
                       <Box
                         component="span"
                         sx={{
@@ -7687,7 +7680,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                     <Box
                       component="button"
                       type="button"
-                      onClick={() => setAuthDrawerApp({ name: unauthed[0].name, id: unauthed[0].id || null })}
+                      onClick={() => setAuthDrawerApp({ name: unauthed[0].name, id: unauthed[0].id || null, focusAuth: true })}
                       sx={{
                         all: 'unset', cursor: 'pointer',
                         fontSize: '0.75rem', fontWeight: 600,
@@ -7782,7 +7775,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
             isAppAuthenticated={isAppAuthenticated}
             onAuthenticateApp={(app) => {
               if (renderAppDetailDrawer) {
-                setAuthDrawerApp({ name: app.name, id: app.id });
+                setAuthDrawerApp({ name: app.name, id: app.id, focusAuth: true });
               } else if (typeof window !== 'undefined') {
                 window.open(app.url || `/apps/${app.id}`, '_blank', 'noopener,noreferrer');
               }
@@ -7836,7 +7829,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                       }
                     >
                       <Box
-                        onClick={() => setAuthDrawerApp({ name: app.name, id: (app as any).id || null })}
+                        onClick={() => setAuthDrawerApp({ name: app.name, id: (app as any).id || null, focusAuth: appNeedsAuth })}
                         sx={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -7874,7 +7867,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                     <Box
                       key={a.appName}
                       component="span"
-                      onClick={() => setAuthDrawerApp({ name: a.appName, id: a.appId })}
+                      onClick={() => setAuthDrawerApp({ name: a.appName, id: a.appId, focusAuth: true })}
                       sx={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -8354,7 +8347,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                         agentRequestLoading={agentRequestLoading}
                         getFormUrl={getFormUrl}
                         runFinished={detailedRunFinished}
-                        onAuthenticateApp={(name, id) => setAuthDrawerApp({ name, id })}
+                        onAuthenticateApp={(name, id) => setAuthDrawerApp({ name, id, focusAuth: true })}
                         onRefreshAuthenticatedApps={() => { loadAuthenticatedApps(); }}
                         isAppAuthenticated={isAppAuthenticated}
                         authAppsLoading={authAppsLoading}
@@ -8392,7 +8385,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                       agentRequestLoading={agentRequestLoading}
                       getFormUrl={getFormUrl}
                       runFinished={false}
-                      onAuthenticateApp={(name, id) => setAuthDrawerApp({ name, id })}
+                      onAuthenticateApp={(name, id) => setAuthDrawerApp({ name, id, focusAuth: true })}
                       onRefreshAuthenticatedApps={() => { loadAuthenticatedApps(); }}
                       isAppAuthenticated={isAppAuthenticated}
                       authAppsLoading={authAppsLoading}
@@ -8604,7 +8597,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
             onRefresh: () => { loadAuthenticatedApps(); },
             appName: authDrawerApp?.name || null,
             appId: authDrawerApp?.id || null,
-            appImage: authDrawerApp?.icon || null,
+            appImage: authDrawerApp?.icon || null, focusAuthentication: !!authDrawerApp?.focusAuth,
             activeOrgId: orgId || null,
             globalUrl: apiBaseUrl,
             theme,

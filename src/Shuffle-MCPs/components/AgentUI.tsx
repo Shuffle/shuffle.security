@@ -2989,8 +2989,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
       }
     }
     // Chat has its own composer, so it opens without the Start form unless the
-    // user last chose Start here.
+    // user last chose Start here, or a caller handed over a question to edit.
     if (initialView === 'chat') {
+      if (defaultInput && !autoSubmit) return true;
       return !!contextStorageKey && getPageContextChoice(contextStorageKey)?.viewMode === 'start';
     }
     return true;

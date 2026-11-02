@@ -456,11 +456,13 @@ const AdminPage = () => {
             <Box sx={{ width: '100%' }}>
               {/* Image section */}
               <Paper
+                elevation={0}
                 sx={{
-                  p: 3,
                   mb: 3,
-                  bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
-                  border: '1px solid hsl(var(--border))',
+                  bgcolor: 'transparent',
+                  backgroundImage: 'none',
+                  border: 'none',
+                  boxShadow: 'none',
                 }}
               >
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 3 }}>

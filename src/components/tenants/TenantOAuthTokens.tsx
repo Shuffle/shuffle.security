@@ -209,14 +209,13 @@ export const TenantOAuthTokens: React.FC<TenantOAuthTokensProps> = ({
   return (
     <>
       <Paper
+        elevation={0}
         sx={{
           mt: 4,
-          p: 3,
           bgcolor: 'transparent',
           backgroundImage: 'none',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid hsl(var(--border))',
-          borderRadius: 2,
+          border: 'none',
+          boxShadow: 'none',
         }}
       >
         <Box

@@ -78,10 +78,10 @@ export const DiagnosticsLogsCard: React.FC = () => {
     <Paper
       elevation={0}
       sx={{
-        p: { xs: 2, sm: 2.5 },
-        borderRadius: 3,
-        bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
-        border: '1px solid hsl(var(--border))',
+        bgcolor: 'transparent',
+        backgroundImage: 'none',
+        border: 'none',
+        boxShadow: 'none',
         boxSizing: 'border-box',
         mb: 3,
       }}

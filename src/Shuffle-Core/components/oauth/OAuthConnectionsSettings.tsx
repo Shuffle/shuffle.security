@@ -243,13 +243,12 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
 
   return (
     <Paper
+      elevation={0}
       sx={{
-        p: 3,
         bgcolor: 'transparent',
         backgroundImage: 'none',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid hsl(var(--border))',
-        borderRadius: 3,
+        border: 'none',
+        boxShadow: 'none',
       }}
     >
       <Box

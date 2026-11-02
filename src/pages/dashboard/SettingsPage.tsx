@@ -189,11 +189,12 @@ const SettingsPage = () => {
           {/* Left Column: Account Profile & Actions */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <Paper
+              elevation={0}
               sx={{
-                p: 3,
-                bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: 3,
+                bgcolor: 'transparent',
+                backgroundImage: 'none',
+                border: 'none',
+                boxShadow: 'none',
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: 3 }}>
@@ -225,8 +226,6 @@ const SettingsPage = () => {
                 </Box>
               </Box>
 
-              <Divider sx={{ borderColor: 'hsl(var(--border))', mb: 3 }} />
-
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 <Button
                   variant="outlined"
@@ -253,13 +252,14 @@ const SettingsPage = () => {
           </Box>
 
           {/* Right Column: Appearance, Notifications, Password & Diagnostics */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <Paper
+              elevation={0}
               sx={{
-                p: 3,
-                bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: 3,
+                bgcolor: 'transparent',
+                backgroundImage: 'none',
+                border: 'none',
+                boxShadow: 'none',
               }}
             >
               <Typography
@@ -313,11 +313,12 @@ const SettingsPage = () => {
             <PagerNotificationSettings />
 
             <Paper
+              elevation={0}
               sx={{
-                p: 3,
-                bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: 3,
+                bgcolor: 'transparent',
+                backgroundImage: 'none',
+                border: 'none',
+                boxShadow: 'none',
               }}
             >
               <Typography

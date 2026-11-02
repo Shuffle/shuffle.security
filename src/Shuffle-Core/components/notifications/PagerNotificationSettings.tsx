@@ -805,11 +805,12 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
 
   return (
     <Paper
+      elevation={0}
       sx={{
-        p: { xs: 2.5, sm: 3.5 },
-        bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
-        border: '1px solid hsl(var(--border))',
-        borderRadius: 3,
+        bgcolor: 'transparent',
+        backgroundImage: 'none',
+        border: 'none',
+        boxShadow: 'none',
         display: 'flex',
         flexDirection: 'column',
         gap: 3,

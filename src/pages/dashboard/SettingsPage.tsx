@@ -145,7 +145,7 @@ const SettingsPage = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 1100, width: '100%', mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, sm: 4 }, pb: '200px', maxWidth: 1200, width: '100%', mx: 'auto' }}>
       <Typography
         variant="h4"
         sx={{
@@ -161,14 +161,14 @@ const SettingsPage = () => {
         variant="body2"
         sx={{
           color: 'hsl(var(--muted-foreground))',
-          mb: { xs: 2.5, sm: 4 },
+          mb: { xs: 4, sm: 5 },
         }}
       >
         Manage your user profile, on-call pager calling preferences, and security credentials.
       </Typography>
 
       {error && (
-        <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
+        <Alert severity="warning" sx={{ mb: 4, borderRadius: 2 }}>
           {error}
         </Alert>
       )}
@@ -182,159 +182,157 @@ const SettingsPage = () => {
           sx={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 3,
+            gap: { xs: 5, sm: 7 },
             alignItems: 'stretch',
           }}
         >
-          {/* Left Column: Account Profile & Actions */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <Paper
-              elevation={0}
-              sx={{
-                bgcolor: 'transparent',
-                backgroundImage: 'none',
-                border: 'none',
-                boxShadow: 'none',
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: 3 }}>
-                <Avatar
-                  sx={{
-                    width: 52,
-                    height: 52,
-                    bgcolor: 'hsl(var(--primary))',
-                    color: 'hsl(var(--primary-foreground))',
-                    fontSize: '1.25rem',
-                    fontWeight: 700,
-                  }}
-                >
-                  {getUserInitial()}
-                </Avatar>
-                <Box>
-                  <Typography
-                    variant="subtitle1"
-                    sx={{ color: 'hsl(var(--foreground))', fontWeight: 700 }}
-                  >
-                    {settings?.username || userInfo?.username || 'User'}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.8rem' }}
-                  >
-                    {settings?.active_org?.name || userInfo?.active_org?.name || 'No organization'}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <Button
-                  variant="outlined"
-                  onClick={handleLogout}
-                  startIcon={<LogOut size={16} />}
-                  sx={{
-                    height: 40,
-                    fontSize: '0.825rem',
-                    textTransform: 'none',
-                    borderColor: 'rgba(239, 68, 68, 0.4)',
-                    color: '#EF4444',
-                    bgcolor: 'rgba(239, 68, 68, 0.05)',
-                    '&:hover': {
-                      borderColor: '#EF4444',
-                      bgcolor: 'rgba(239, 68, 68, 0.15)',
-                    },
-                  }}
-                >
-                  Sign Out
-                </Button>
-              </Box>
-            </Paper>
-
-          </Box>
-
-          {/* Right Column: Appearance, Notifications, Password & Diagnostics */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <Paper
-              elevation={0}
-              sx={{
-                bgcolor: 'transparent',
-                backgroundImage: 'none',
-                border: 'none',
-                boxShadow: 'none',
-              }}
-            >
-              <Typography
-                variant="subtitle1"
-                sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, mb: 0.5 }}
+          {/* Account Profile & Actions */}
+          <Paper
+            elevation={0}
+            sx={{
+              bgcolor: 'transparent',
+              backgroundImage: 'none',
+              border: 'none',
+              boxShadow: 'none',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: 3 }}>
+              <Avatar
+                sx={{
+                  width: 52,
+                  height: 52,
+                  bgcolor: 'hsl(var(--primary))',
+                  color: 'hsl(var(--primary-foreground))',
+                  fontSize: '1.25rem',
+                  fontWeight: 700,
+                }}
               >
-                Appearance
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.8rem', mb: 2 }}
-              >
-                Choose your preferred interface theme.
-              </Typography>
+                {getUserInitial()}
+              </Avatar>
+              <Box>
+                <Typography
+                  variant="subtitle1"
+                  sx={{ color: 'hsl(var(--foreground))', fontWeight: 700 }}
+                >
+                  {settings?.username || userInfo?.username || 'User'}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.8rem' }}
+                >
+                  {settings?.active_org?.name || userInfo?.active_org?.name || 'No organization'}
+                </Typography>
+              </Box>
+            </Box>
 
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5 }}>
-                {([
-                  { value: 'dark' as const, label: 'Dark', icon: <Moon size={16} /> },
-                  { value: 'light' as const, label: 'Light', icon: <Sun size={16} /> },
-                  { value: 'system' as const, label: 'System', icon: <Monitor size={16} /> },
-                ]).map(({ value, label, icon }) => {
-                  const isSelected = currentTheme === value;
-                  return (
-                    <Button
-                      key={value}
-                      onClick={() => setTheme(value)}
-                      variant={isSelected ? 'contained' : 'outlined'}
-                      startIcon={icon}
-                      sx={{
-                        py: 1,
-                        textTransform: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: isSelected ? 600 : 400,
-                        borderRadius: 2,
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Button
+                variant="outlined"
+                onClick={handleLogout}
+                startIcon={<LogOut size={16} />}
+                sx={{
+                  height: 40,
+                  fontSize: '0.825rem',
+                  textTransform: 'none',
+                  borderColor: 'rgba(239, 68, 68, 0.4)',
+                  color: '#EF4444',
+                  bgcolor: 'rgba(239, 68, 68, 0.05)',
+                  '&:hover': {
+                    borderColor: '#EF4444',
+                    bgcolor: 'rgba(239, 68, 68, 0.15)',
+                  },
+                }}
+              >
+                Sign Out
+              </Button>
+            </Box>
+          </Paper>
+
+          {/* Appearance */}
+          <Paper
+            elevation={0}
+            sx={{
+              bgcolor: 'transparent',
+              backgroundImage: 'none',
+              border: 'none',
+              boxShadow: 'none',
+            }}
+          >
+            <Typography
+              variant="subtitle1"
+              sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, mb: 0.5 }}
+            >
+              Appearance
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.8rem', mb: 2.5 }}
+            >
+              Choose your preferred interface theme.
+            </Typography>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5 }}>
+              {([
+                { value: 'dark' as const, label: 'Dark', icon: <Moon size={16} /> },
+                { value: 'light' as const, label: 'Light', icon: <Sun size={16} /> },
+                { value: 'system' as const, label: 'System', icon: <Monitor size={16} /> },
+              ]).map(({ value, label, icon }) => {
+                const isSelected = currentTheme === value;
+                return (
+                  <Button
+                    key={value}
+                    onClick={() => setTheme(value)}
+                    variant={isSelected ? 'contained' : 'outlined'}
+                    startIcon={icon}
+                    sx={{
+                      py: 1,
+                      textTransform: 'none',
+                      fontSize: '0.85rem',
+                      fontWeight: isSelected ? 600 : 400,
+                      borderRadius: 2,
+                      borderColor: isSelected ? 'hsl(var(--primary))' : 'hsl(var(--border))',
+                      bgcolor: isSelected ? 'hsl(var(--primary))' : 'transparent',
+                      color: isSelected ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
+                      '&:hover': {
+                        bgcolor: isSelected ? 'hsl(var(--primary) / 0.9)' : 'hsl(var(--muted))',
                         borderColor: isSelected ? 'hsl(var(--primary))' : 'hsl(var(--border))',
-                        bgcolor: isSelected ? 'hsl(var(--primary))' : 'transparent',
-                        color: isSelected ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
-                        '&:hover': {
-                          bgcolor: isSelected ? 'hsl(var(--primary) / 0.9)' : 'hsl(var(--muted))',
-                          borderColor: isSelected ? 'hsl(var(--primary))' : 'hsl(var(--border))',
-                        },
-                      }}
-                    >
-                      {label}
-                    </Button>
-                  );
-                })}
-              </Box>
-            </Paper>
+                      },
+                    }}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
+            </Box>
+          </Paper>
 
-            <PagerNotificationSettings />
+          {/* Paging & Notifications */}
+          <PagerNotificationSettings />
 
-            <Paper
-              elevation={0}
-              sx={{
-                bgcolor: 'transparent',
-                backgroundImage: 'none',
-                border: 'none',
-                boxShadow: 'none',
-              }}
+          {/* Change Password */}
+          <Paper
+            elevation={0}
+            sx={{
+              bgcolor: 'transparent',
+              backgroundImage: 'none',
+              border: 'none',
+              boxShadow: 'none',
+            }}
+          >
+            <Typography
+              variant="subtitle1"
+              sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, mb: 0.5 }}
             >
-              <Typography
-                variant="subtitle1"
-                sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, mb: 0.5 }}
-              >
-                Change Password
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.8rem', mb: 2 }}
-              >
-                Update the password for your Shuffle account.
-              </Typography>
+              Change Password
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.8rem', mb: 2.5 }}
+            >
+              Update the password for your Shuffle account.
+            </Typography>
 
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2.5 }}>
                 <TextField
                   label="Current password"
                   type={showCurrentPw ? 'text' : 'password'}
@@ -465,7 +463,6 @@ const SettingsPage = () => {
             <OAuthConnectionsSettings />
 
             {isSupport && <DiagnosticsLogsCard />}
-          </Box>
         </Box>
       )}
     </Box>

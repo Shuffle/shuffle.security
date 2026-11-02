@@ -231,11 +231,11 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
       )}
 
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 3.5, sm: 4.5 } }}>
         {/* Default runtime location (environment workflows execute in) */}
         <Paper
           sx={{
-            p: 2.5,
+            p: { xs: 2.5, sm: 3 },
             bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
             border: '1px solid hsl(var(--border))',
             borderRadius: 2,
@@ -261,7 +261,7 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
 
         <Paper
           sx={{
-            p: 2.5,
+            p: { xs: 2.5, sm: 3 },
             bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
             border: '1px solid hsl(var(--border))',
             borderRadius: 2,
@@ -286,7 +286,7 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
         {/* Automation Pipeline */}
         <Paper
           sx={{
-            p: 2.5,
+            p: { xs: 2.5, sm: 3 },
             bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
             border: '1px solid hsl(var(--border))',
             borderRadius: 2,
@@ -323,7 +323,7 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
         {/* Auto Merge Thread */}
         <Paper
           sx={{
-            p: 2.5,
+            p: { xs: 2.5, sm: 3 },
             bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
             border: '1px solid hsl(var(--border))',
             borderRadius: 2,
@@ -360,13 +360,13 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
         {/* Automation auto-propagation to child tenants */}
         <Paper
           sx={{
-            p: 2.5,
+            p: { xs: 2.5, sm: 3 },
             bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
             border: '1px solid hsl(var(--border))',
             borderRadius: 2,
             display: 'flex',
             flexDirection: 'column',
-            gap: 2,
+            gap: 2.5,
           }}
         >
           <Box>
@@ -384,13 +384,13 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
 
         <Paper
           sx={{
-            p: 2.5,
+            p: { xs: 2.5, sm: 3 },
             bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
             border: '1px solid hsl(var(--border))',
             borderRadius: 2,
             display: 'flex',
             flexDirection: 'column',
-            gap: 2,
+            gap: 2.5,
           }}
         >
           <Box>
@@ -408,13 +408,13 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
         {/* SLA targets per severity */}
         <Paper
           sx={{
-            p: 2.5,
+            p: { xs: 2.5, sm: 3 },
             bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
             border: '1px solid hsl(var(--border))',
             borderRadius: 2,
             display: 'flex',
             flexDirection: 'column',
-            gap: 2,
+            gap: 2.5,
           }}
         >
           <Box>
@@ -431,7 +431,7 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
           <SlaEditor />
         </Paper>
 
-        <Paper sx={{ p: 2.5, bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)', border: '1px solid hsl(var(--border))', borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Paper sx={{ p: { xs: 2.5, sm: 3 }, bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)', border: '1px solid hsl(var(--border))', borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
               Task SLA Targets
@@ -443,7 +443,7 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
           <TaskSlaEditor />
         </Paper>
 
-        <Paper sx={{ p: 2.5, bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)', border: '1px solid hsl(var(--border))', borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Paper sx={{ p: { xs: 2.5, sm: 3 }, bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)', border: '1px solid hsl(var(--border))', borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
               SLO Targets
@@ -457,13 +457,13 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
 
         <Paper
           sx={{
-            p: 2.5,
+            p: { xs: 2.5, sm: 3 },
             bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
             border: '1px solid hsl(var(--border))',
             borderRadius: 2,
             display: 'flex',
             flexDirection: 'column',
-            gap: 2,
+            gap: 2.5,
           }}
         >
           <Box>
@@ -487,13 +487,13 @@ const OrgPreferencesPage = ({ embedded = false }: { embedded?: boolean }) => {
         */}
         <Paper
           sx={{
-            p: 2.5,
+            p: { xs: 2.5, sm: 3 },
             bgcolor: 'transparent', backgroundImage: 'none', backdropFilter: 'blur(12px)',
             border: '1px solid hsl(var(--border))',
             borderRadius: 2,
             display: 'flex',
             flexDirection: 'column',
-            gap: 2,
+            gap: 2.5,
           }}
         >
           <Box>

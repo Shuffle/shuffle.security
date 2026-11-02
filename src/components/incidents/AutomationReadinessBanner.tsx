@@ -30,11 +30,13 @@ export interface AutomationReadinessBannerProps {
    */
   onEmptyChange?: (empty: boolean) => void;
   atTop?: boolean;
+  forceShow?: boolean;
 }
 
 export const AutomationReadinessBanner = ({
   onEmptyChange,
   atTop,
+  forceShow = false,
 }: AutomationReadinessBannerProps = {}) => {
   const isAdmin = useIsAdmin();
   const webhook = useWebhookStatus();
@@ -83,7 +85,8 @@ export const AutomationReadinessBanner = ({
 
   useEffect(() => {
     if (isAdmin) checkDefaults();
-  }, [isAdmin, checkDefaults]);
+    else if (forceShow) setDefaultsReady(false);
+  }, [isAdmin, forceShow, checkDefaults]);
 
   const allActive = useMemo(
     () => (webhook.enabled || webhook.hasSources) && enrichment.active && assign.active && defaultsReady === true,
@@ -187,7 +190,7 @@ export const AutomationReadinessBanner = ({
     void handleEnableAll();
   }, [isAdmin, isLoading, enablingAll, ingestOn, allActive, handleEnableAll]);
 
-  if (!isAdmin) return null;
+  if (!isAdmin && !forceShow) return null;
 
   const items: ReadinessItem[] = [
     {

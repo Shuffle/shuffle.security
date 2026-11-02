@@ -110,13 +110,15 @@ const UsersPage = ({ embedded }: { embedded?: boolean }) => {
               <CircularProgress sx={{ color: 'hsl(var(--primary))' }} />
             </Box>
           ) : (
-            <>
-              <Box sx={{ mb: 4 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 5, sm: 7 } }}>
+              <Box>
                 <PagerNotificationSettings />
               </Box>
-              <ScheduleHealthBanner hideManageCta />
-              <OnCallScheduleManager users={users} loading={loading} onRefreshUsers={fetchUsers} />
-            </>
+              <Box>
+                <ScheduleHealthBanner hideManageCta />
+                <OnCallScheduleManager users={users} loading={loading} onRefreshUsers={fetchUsers} />
+              </Box>
+            </Box>
           )}
         </>
       )}

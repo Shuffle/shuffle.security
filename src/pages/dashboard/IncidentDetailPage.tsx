@@ -20259,13 +20259,11 @@ const IncidentDetailPage = () => {
                           __html: sanitizedDescriptionHtml,
                         }}
                       />
-                    ) : descriptionView === "readable" ||
-                      (descriptionView === "rendered" &&
-                        !hasHtmlDescription) ? (
+                    ) : descriptionView === "raw" ? (
                       <Box
                         data-incident-field="description"
                         sx={{
-                          p: 2,
+                          p: 1.5,
                           bgcolor: "hsl(var(--input))",
                           borderRadius: 1,
                           border: "1px solid hsl(var(--border))",
@@ -20279,33 +20277,13 @@ const IncidentDetailPage = () => {
                           sx={{
                             color: "text.primary",
                             whiteSpace: "pre-wrap",
-                            fontSize: "0.85rem",
-                            lineHeight: 1.75,
-                            letterSpacing: "0.01em",
+                            wordBreak: "break-word",
+                            fontFamily: "monospace",
+                            fontSize: "0.8rem",
+                            lineHeight: 1.5,
                           }}
                         >
-                          {(() => {
-                            if (hasHtmlDescription) {
-                              const tmp = document.createElement("div");
-                              tmp.innerHTML = sanitizedDescriptionHtml;
-                              tmp
-                                .querySelectorAll("br")
-                                .forEach((el) => el.replaceWith("\n"));
-                              tmp
-                                .querySelectorAll(
-                                  "p, div, tr, li, h1, h2, h3, h4, h5, h6",
-                                )
-                                .forEach((el) => {
-                                  el.prepend(document.createTextNode("\n"));
-                                  el.append(document.createTextNode("\n"));
-                                });
-                              const text = (tmp.textContent || "")
-                                .replace(/\n{3,}/g, "\n\n")
-                                .trim();
-                              return text || "No description.";
-                            }
-                            return editedMessage || "No description.";
-                          })()}
+                          { editedMessage || "No description."}
                         </Typography>
                       </Box>
                     ) : (
@@ -20317,7 +20295,7 @@ const IncidentDetailPage = () => {
                           borderRadius: 1,
                           border: "1px solid hsl(var(--border))",
                           minHeight: 120,
-                          maxHeight: 350,
+                          maxHeight: 450,
                           overflow: "auto",
                         }}
                       >
@@ -20325,9 +20303,10 @@ const IncidentDetailPage = () => {
                           <MarkdownDescriptionEditor
                             key={`${incident?.id}-detailed-view`}
                             value={editedMessage}
-                            onCommit={() => {}}
-                            readOnly
+                            onCommit={setEditedMessage}
+                            readOnly={isPublicView}
                             incidentId={incident?.id}
+                            compact
                           />
                         ) : (
                           <Typography

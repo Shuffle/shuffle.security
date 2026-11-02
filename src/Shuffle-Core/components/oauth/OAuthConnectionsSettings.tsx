@@ -258,7 +258,7 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
           justifyContent: 'space-between',
           gap: 2,
           flexWrap: 'wrap',
-          mb: 2,
+          mb: 2.5,
         }}
       >
         <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -334,7 +334,7 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
           </Typography>
         </Box>
       ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {connections.map((conn, idx) => {
             const connKey = conn.id || conn.token_masked || `conn-${idx}`;
             const profile = resolveConnectionProfile(conn);

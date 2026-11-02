@@ -484,7 +484,7 @@ export const RuntimeLocationsTab = () => {
 
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: { xs: 4, sm: 5 } }}>
       {/* Top warning if an offline runtime location affects workflows */}
       {(offlineEnvironments.length > 0 || (affectedCount > 0 && targetEnvName)) && (
         <Box

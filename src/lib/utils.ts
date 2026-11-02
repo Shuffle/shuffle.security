@@ -14,9 +14,13 @@ export function cn(...inputs: ClassValue[]) {
  */
 
 // Pre-compiled regexes to avoid creating them on every call
-const HTML_BLOCK_END_RE = /<\/(div|p|h[1-6]|li|tr|td|th)>/gi;
-const HTML_BR_RE = /<br\s*\/?>/gi;
-const HTML_LIST_RE = /<\/?(ul|ol|table|tbody|thead)>/gi;
+const HTML_PARA_END_RE = /\s*<\/(p|h[1-6])>\s*/gi;
+const HTML_BLOCK_END_RE = /\s*<\/(div|li|tr)>\s*/gi;
+const HTML_CELL_END_RE = /\s*<\/(td|th)>\s*(?=<(td|th)\b)/gi;
+const HTML_CELL_FINAL_END_RE = /\s*<\/(td|th)>\s*/gi;
+const HTML_BR_RE = /\s*<br\s*\/?>\s*/gi;
+const HTML_LIST_RE = /\s*<\/?(ul|ol|table|tbody|thead)>\s*/gi;
+const HTML_OPEN_BLOCK_WS_RE = /(<(?:div|p|h[1-6]|li|tr|td|th|ul|ol|table|tbody|thead)\b[^>]*>)\s+/gi;
 const HTML_TAG_RE = /<[^>]*>/g;
 const HTML_NUMERIC_ENTITY_RE = /&#(\d+);/g;
 const HTML_HEX_ENTITY_RE = /&#x([a-fA-F0-9]+);/g;
@@ -59,7 +63,15 @@ export function htmlToPlainText(html: string): string {
   
   let text = html;
   
-  // Convert block-level elements to newlines before stripping tags
+  // Strip formatting whitespace immediately after opening block tags so indented HTML doesn't create extra blank lines
+  text = text.replace(HTML_OPEN_BLOCK_WS_RE, '$1');
+
+  // Keep adjacent table cells on the same line, separated by a space
+  text = text.replace(HTML_CELL_END_RE, ' ');
+  text = text.replace(HTML_CELL_FINAL_END_RE, '\n');
+
+  // Convert block-level elements to newlines before stripping tags (consuming surrounding source indentation newlines)
+  text = text.replace(HTML_PARA_END_RE, '\n\n');
   text = text.replace(HTML_BLOCK_END_RE, '\n');
   text = text.replace(HTML_BR_RE, '\n');
   text = text.replace(HTML_LIST_RE, '\n');

@@ -787,7 +787,7 @@ export const OnCallScheduleManager = ({
           {/* AI Agent card */}
           <motion.div variants={cardVariants}>
             <Paper sx={{
-              p: 3, mb: 3,
+              p: 3, mb: 3.5,
               bgcolor: 'hsl(var(--card))',
               border: '1px solid hsl(var(--border))', borderRadius: 2,
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',

@@ -813,7 +813,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
         boxShadow: 'none',
         display: 'flex',
         flexDirection: 'column',
-        gap: 3,
+        gap: 2.5,
       }}
     >
       <Box
@@ -1162,7 +1162,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
 
       )}
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {/* Critical Pager */}
         <NotificationSection
           title="Critical Pager"

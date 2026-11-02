@@ -378,8 +378,8 @@ const TenantManagement: React.FC<TenantManagementProps> = (props) => {
   };
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 4, sm: 5 } }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
             Tenants
@@ -403,7 +403,7 @@ const TenantManagement: React.FC<TenantManagementProps> = (props) => {
         </Button>
       </Box>
 
-      <Paper sx={{ bgcolor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', mb: 3 }}>
+      <Paper sx={{ bgcolor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
         <Box sx={{ p: 2.5, borderBottom: '1px solid hsl(var(--border))' }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
             Current Tenant
@@ -436,7 +436,7 @@ const TenantManagement: React.FC<TenantManagementProps> = (props) => {
       </Paper>
 
       {parentOrg && parentOrg.id !== currentOrgId && (
-        <Paper sx={{ bgcolor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', mb: 3 }}>
+        <Paper sx={{ bgcolor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
           <Box sx={{ p: 2.5, borderBottom: '1px solid hsl(var(--border))' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
               Parent Tenant
@@ -461,7 +461,7 @@ const TenantManagement: React.FC<TenantManagementProps> = (props) => {
         </Paper>
       )}
 
-      <Paper sx={{ bgcolor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', mb: 3 }}>
+      <Paper sx={{ bgcolor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
         <Box
           onClick={() => setShowSubOrgs(!showSubOrgs)}
           sx={{

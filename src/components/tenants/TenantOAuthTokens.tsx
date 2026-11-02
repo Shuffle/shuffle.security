@@ -211,7 +211,6 @@ export const TenantOAuthTokens: React.FC<TenantOAuthTokensProps> = ({
       <Paper
         elevation={0}
         sx={{
-          mt: 4,
           bgcolor: 'transparent',
           backgroundImage: 'none',
           border: 'none',

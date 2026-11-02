@@ -343,8 +343,8 @@ const AdminPage = () => {
           </Typography>
         </Box>
       )}
-    <Box sx={{ p: { xs: 0, sm: 0 }, pb: '200px', maxWidth: 1200, width: '100%', mx: 'auto' }}>
-      <Box sx={{ display: { xs: 'none', sm: 'block' }, pt: { xs: 2, sm: 4 }, px: { xs: 2, sm: 4 } }}>
+    <Box sx={{ p: { xs: 2, sm: 4 }, pb: '200px', maxWidth: 1200, width: '100%', mx: 'auto' }}>
+      <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
         <Typography
           variant="h5"
           sx={{
@@ -360,7 +360,7 @@ const AdminPage = () => {
           variant="body2"
           sx={{
             color: 'hsl(var(--muted-foreground))',
-            mb: { xs: 2, sm: 3 },
+            mb: { xs: 2.5, sm: 3.5 },
             fontSize: { xs: '0.825rem', sm: '0.875rem' },
           }}
         >
@@ -411,7 +411,7 @@ const AdminPage = () => {
               display: 'flex',
               alignItems: 'center',
               gap: { xs: 1.5, sm: 2.5 },
-              mb: { xs: 2.5, sm: 4 },
+              mb: { xs: 4, sm: 5.5 },
               maxWidth: '100%',
               overflowX: 'auto',
               pb: 0.5,
@@ -439,13 +439,20 @@ const AdminPage = () => {
       })()}
 
       {activeTab === 0 && (
-        <>
-          <Box sx={{ width: '100%', mb: 4 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: { xs: 5, sm: 7 },
+            width: '100%',
+          }}
+        >
+          <Box sx={{ width: '100%' }}>
             <PagerNotificationSettings />
           </Box>
 
           {error && (
-            <Alert severity="warning" sx={{ mb: 3 }}>{error}</Alert>
+            <Alert severity="warning">{error}</Alert>
           )}
 
           {loading ? (
@@ -453,12 +460,23 @@ const AdminPage = () => {
               <CircularProgress sx={{ color: 'hsl(var(--primary))' }} />
             </Box>
           ) : (
-            <Box sx={{ width: '100%' }}>
+            <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Box>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: 700, color: 'hsl(var(--foreground))', fontSize: '1.1rem', mb: 0.5 }}
+                >
+                  Organization Profile
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
+                  Update your tenant display name, logo, default region, and description.
+                </Typography>
+              </Box>
+
               {/* Image section */}
               <Paper
                 elevation={0}
                 sx={{
-                  mb: 3,
                   bgcolor: 'transparent',
                   backgroundImage: 'none',
                   border: 'none',
@@ -523,7 +541,7 @@ const AdminPage = () => {
               </Paper>
 
               {/* Name, Status, Region row */}
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
                 <TextField
                   label="Name"
                   value={orgName}
@@ -580,7 +598,6 @@ const AdminPage = () => {
                 fullWidth
                 placeholder="Tenant description"
                 sx={{
-                  mb: 3,
                   '& .MuiOutlinedInput-root': {
                     color: 'hsl(var(--foreground))',
                     '& fieldset': { borderColor: 'hsl(var(--border))' },
@@ -592,21 +609,23 @@ const AdminPage = () => {
 
               {/* Save button */}
               {isAdmin && (
-                <Button
-                  variant="contained"
-                  onClick={handleSave}
-                  disabled={saving}
-                  startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
-                  sx={{
-                    bgcolor: 'hsl(var(--primary))',
-                    color: 'hsl(var(--primary-foreground))',
-                    height: 40,
-                    width: { xs: '100%', sm: 'auto' },
-                    '&:hover': { bgcolor: 'hsl(var(--primary) / 0.9)' },
-                  }}
-                >
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </Button>
+                <Box>
+                  <Button
+                    variant="contained"
+                    onClick={handleSave}
+                    disabled={saving}
+                    startIcon={saving ? <CircularProgress size={16} /> : <SaveIcon />}
+                    sx={{
+                      bgcolor: 'hsl(var(--primary))',
+                      color: 'hsl(var(--primary-foreground))',
+                      height: 40,
+                      width: { xs: '100%', sm: 'auto' },
+                      '&:hover': { bgcolor: 'hsl(var(--primary) / 0.9)' },
+                    }}
+                  >
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </Box>
               )}
             </Box>
           )}
@@ -620,7 +639,7 @@ const AdminPage = () => {
               onTokenRevoked={fetchOrg}
             />
           )}
-        </>
+        </Box>
       )}
 
       {activeTab === 3 && isAdmin && <RuntimeLocationsTab />}

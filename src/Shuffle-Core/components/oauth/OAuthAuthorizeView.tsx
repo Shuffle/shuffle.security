@@ -372,7 +372,7 @@ const parseDynamicScope = (rawScope: string): OAuthScopeDetail => {
   };
 };
 
-interface ClientProfile {
+export interface ClientProfile {
   name: string;
   vendor: string;
   iconBg: string;
@@ -531,7 +531,7 @@ const getAppFromRedirectUri = (
   return null;
 };
 
-const getClientProfile = (
+export const getClientProfile = (
   clientId?: string,
   clientName?: string,
   redirectUri?: string,

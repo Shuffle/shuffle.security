@@ -312,8 +312,6 @@ const SettingsPage = () => {
 
             <PagerNotificationSettings />
 
-            <OAuthConnectionsSettings />
-
             <Paper
               sx={{
                 p: 3,
@@ -462,6 +460,8 @@ const SettingsPage = () => {
                 {pwLoading ? 'Updating...' : 'Update Password'}
               </Button>
             </Paper>
+
+            <OAuthConnectionsSettings />
 
             {isSupport && <DiagnosticsLogsCard />}
           </Box>

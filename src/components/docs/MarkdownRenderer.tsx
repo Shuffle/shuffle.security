@@ -597,7 +597,7 @@ export const MarkdownRenderer = ({
           fontWeight: 500,
           fontFamily: "'JetBrains Mono', monospace",
           '&::before, &::after': {
-            content: 'none !important',
+            content: 'none',
           },
         },
         // Fenced code blocks render through DocCodeBlock (see the `pre`

@@ -112,7 +112,7 @@ const baseSx: SxProps<Theme> = {
     borderRadius: '3px',
     backgroundColor: 'hsl(var(--muted))',
     color: 'hsl(var(--foreground))',
-    '&::before, &::after': { content: 'none !important' },
+    '&::before, &::after': { content: 'none' },
   },
   '& > pre': {
     m: 0,

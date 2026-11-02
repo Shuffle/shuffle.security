@@ -575,7 +575,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       if (type === 'agent_request') return settings.agentRequestEnabled;
       return settings.generalNotificationsEnabled;
     }
-    return remotePreferences[PREFERENCE_KEY[type]];
+    return remotePreferences[PREFERENCE_KEY[type]] === true;
   };
 
   /** Makes sure we have an FCM token for the local device before saving it. */

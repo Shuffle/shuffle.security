@@ -49,6 +49,7 @@ export interface VulnerabilitiesDashboardProps extends ShuffleCoreHostProps {
   onRangeSelect?: (fromMs: number, toMs: number) => void;
   refreshKey?: number;
   orgId?: string;
+  compact?: boolean;
 }
 
 type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
@@ -104,6 +105,7 @@ export const VulnerabilitiesDashboard = ({
   refreshKey = 0,
   orgId,
   globalUrl,
+  compact = false,
 }: VulnerabilitiesDashboardProps) => {
   useSyncHostBaseUrl(globalUrl);
 
@@ -245,8 +247,8 @@ export const VulnerabilitiesDashboard = ({
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: compact ? 2 : 3 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: compact ? 1.5 : 2 }}>
         <KpiTile icon={Bug} glow={NEON.magenta} value={totals.total} label="Total findings" isLoading={loading} />
         <KpiTile icon={Flame} glow={NEON.red} value={totals.counts.critical} label="Critical" isLoading={loading} delay={0.05} />
         <KpiTile icon={ShieldAlert} glow={NEON.orange} value={totals.counts.high} label="High" isLoading={loading} delay={0.1} />
@@ -265,9 +267,9 @@ export const VulnerabilitiesDashboard = ({
           />
         }
       >
-        <Box sx={{ height: 260 }}>
+        <Box sx={{ height: compact ? 180 : 260 }}>
           {loading ? (
-            <ChartShimmer height={260} variant="area" label="Loading findings activity" />
+            <ChartShimmer height={compact ? 180 : 260} variant="area" label="Loading findings activity" />
           ) : hasTrendData ? (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} {...drag.chartProps}>
@@ -312,49 +314,53 @@ export const VulnerabilitiesDashboard = ({
         </Box>
       </Panel>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
-        <Panel title="Severity breakdown">
-          {loading ? (
-            <ChartShimmer height={220} variant="bars" />
-          ) : !severityData.length ? (
-            <EmptyState text="No vulnerability data available." />
-          ) : (
-            <Box sx={{ height: 220 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={severityData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} />
-                  <RechartsTooltip content={<TooltipContent />} cursor={{ fill: 'hsl(var(--muted) / 0.25)' }} />
-                  <Bar dataKey="value" name="Findings" radius={[4, 4, 0, 0]}>
-                    {severityData.map((entry) => <Cell key={entry.name} fill={entry.fill} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Box>
-          )}
-        </Panel>
+      {!compact && (
+        <>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
+            <Panel title="Severity breakdown">
+              {loading ? (
+                <ChartShimmer height={220} variant="bars" />
+              ) : !severityData.length ? (
+                <EmptyState text="No vulnerability data available." />
+              ) : (
+                <Box sx={{ height: 220 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={severityData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} />
+                      <RechartsTooltip content={<TooltipContent />} cursor={{ fill: 'hsl(var(--muted) / 0.25)' }} />
+                      <Bar dataKey="value" name="Findings" radius={[4, 4, 0, 0]}>
+                        {severityData.map((entry) => <Cell key={entry.name} fill={entry.fill} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              )}
+            </Panel>
 
-        <Panel title="Most affected hosts">
-          {loading ? (
-            <ChartShimmer height={220} variant="bars" />
-          ) : !topHosts.length ? (
-            <EmptyState text="No host-scoped vulnerabilities yet." />
-          ) : (
-            <BarList items={topHosts} color={NEON.red} />
-          )}
-        </Panel>
-      </Box>
+            <Panel title="Most affected hosts">
+              {loading ? (
+                <ChartShimmer height={220} variant="bars" />
+              ) : !topHosts.length ? (
+                <EmptyState text="No host-scoped vulnerabilities yet." />
+              ) : (
+                <BarList items={topHosts} color={NEON.red} />
+              )}
+            </Panel>
+          </Box>
 
-      <Panel title="Findings by source">
-        {loading ? (
-          <ChartShimmer height={180} variant="bars" />
-        ) : !topSources.length ? (
-          <EmptyState text="No vulnerability sources connected yet." />
-        ) : (
-          <BarList items={topSources} color={NEON.cyan} />
-        )}
-      </Panel>
+          <Panel title="Findings by source">
+            {loading ? (
+              <ChartShimmer height={180} variant="bars" />
+            ) : !topSources.length ? (
+              <EmptyState text="No vulnerability sources connected yet." />
+            ) : (
+              <BarList items={topSources} color={NEON.cyan} />
+            )}
+          </Panel>
+        </>
+      )}
     </Box>
   );
 };

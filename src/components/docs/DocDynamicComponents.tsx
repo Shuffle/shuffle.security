@@ -36,6 +36,7 @@ import { openAgentDrawer } from "@/lib/agentDrawer";
 import { fetchAuthenticatedApps } from "@/Shuffle-Core/authenticatedApps";
 import { resolveActiveLLMProvider } from "@/Shuffle-Core/llmProviderDetect";
 import { DocCurlViewer } from "./DocCurlViewer";
+import { DocCodeBlock } from "./DocCodeBlock";
 import { DocIncidentDashboard } from "./DocIncidentDashboard";
 import { IngestionSourcesRow } from "@/components/ingestion/IngestionSourcesRow";
 import { useNavigate } from "@/lib/router-compat";
@@ -182,7 +183,7 @@ export const DocAgentUI: React.FC<DocAgentUIProps> = ({
   const effectiveTitle = title !== undefined ? title : "Try the AI Agent";
 
   return (
-    <Box className="not-prose" sx={{ my: 3 }}>
+    <Box className="not-prose" sx={{ my: 4 }}>
       <AgentUI
         compact={isCompact}
         hideHeroIcon={true}
@@ -232,14 +233,14 @@ export const DocTryMcp: React.FC<DocTryMcpProps> = ({
 
   if (lookup.loading) {
     return (
-      <Box sx={{ my: 3 }}>
+      <Box sx={{ my: 4 }}>
         <Skeleton variant="rectangular" height={160} sx={{ borderRadius: 3 }} />
       </Box>
     );
   }
 
   return (
-    <Box sx={{ my: 3 }}>
+    <Box sx={{ my: 4 }}>
       {title && (
         <Typography
           sx={{
@@ -281,22 +282,23 @@ interface DocAgentActivityProps {
 }
 
 export const DocAgentActivity: React.FC<DocAgentActivityProps> = ({
-  limit = 5,
-  top = 5,
+  limit = 3,
+  top = 3,
 }) => {
   const { isAuthenticated } = useAuth();
   const [selectedRun, setSelectedRun] = useState<AgentRun | null>(null);
-  const effectiveLimit = typeof limit === "string" ? parseInt(limit, 10) || 5 : limit;
-  const effectiveTop = typeof top === "string" ? parseInt(top, 10) || 5 : top;
+  const effectiveLimit = typeof limit === "string" ? parseInt(limit, 10) || 3 : limit;
+  const effectiveTop = typeof top === "string" ? parseInt(top, 10) || 3 : top;
 
   return (
-    <Box sx={{ my: 2.5 }}>
+    <Box sx={{ my: 3.5 }}>
       <AgentActivityList
         limit={effectiveLimit}
         top={effectiveTop}
         onRunClick={setSelectedRun}
-        initialRuns={!isAuthenticated ? DEMO_AGENT_RUNS : undefined}
+        initialRuns={!isAuthenticated ? DEMO_AGENT_RUNS.slice(0, effectiveLimit) : undefined}
         disableFetch={!isAuthenticated}
+        rowSx={{ py: 1.25, px: 2 }}
       />
 
       <AgentExecutionDrawer
@@ -326,7 +328,7 @@ export const DocAgentSidebarButton: React.FC<DocAgentSidebarButtonProps> = ({
   return (
     <Box
       sx={{
-        my: 2.5,
+        my: 3.5,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -519,7 +521,7 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
   return (
     <Box
       sx={{
-        my: 2.5,
+        my: 3.5,
         display: "flex",
         flexDirection: "column",
         gap: 1.5,
@@ -898,15 +900,50 @@ interface DocIngestProps {
 export const DocIngest: React.FC<DocIngestProps> = ({
   workflow = "Ingest Tickets",
   category = "cases",
+  title,
+  subtitle,
 }) => {
   return (
-    <Box sx={{ my: 2.5 }}>
-      <IngestionSourcesRow
-        workflowLabel={workflow}
-        category={category}
-        webhookLabel={`${workflow}_webhook`}
-        webhookWorkflowName="Ingestion Webhook"
-      />
+    <Box
+      sx={{
+        my: 3.5,
+        pt: 1.5,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: 2,
+      }}
+    >
+      <Box>
+        <Typography
+          sx={{
+            fontWeight: 600,
+            fontSize: "0.95rem",
+            color: "hsl(var(--foreground))",
+            mb: 0.25,
+          }}
+        >
+          {title || workflow}
+        </Typography>
+        <Typography
+          sx={{
+            fontSize: "0.82rem",
+            color: "hsl(var(--muted-foreground))",
+          }}
+        >
+          {subtitle ||
+            "Toggle push webhooks, connect authenticated source apps, or trigger a manual sync."}
+        </Typography>
+      </Box>
+      <Box sx={{ pt: 1 }}>
+        <IngestionSourcesRow
+          workflowLabel={workflow}
+          category={category}
+          webhookLabel={`${workflow}_webhook`}
+          webhookWorkflowName="Ingestion Webhook"
+        />
+      </Box>
     </Box>
   );
 };
@@ -1061,7 +1098,7 @@ export const DocUsecases: React.FC<DocUsecasesProps> = ({
 
   return (
     <>
-      <Box sx={{ my: 2.5 }}>
+      <Box sx={{ my: 4 }}>
         <Box
           sx={{
             display: "flex",
@@ -1186,11 +1223,11 @@ export const DocAutomationReadiness: React.FC<DocAutomationReadinessProps> = ({
   const isVuln = target.includes("vuln");
 
   return (
-    <Box sx={{ my: 2.5 }}>
+    <Box sx={{ my: 3.5 }}>
       {isVuln ? (
         <VulnerabilityReadinessBanner />
       ) : (
-        <AutomationReadinessBanner forceShow />
+        <AutomationReadinessBanner forceShow atTop />
       )}
     </Box>
   );
@@ -1233,11 +1270,12 @@ export const DocVulnStatus: React.FC<DocVulnStatusProps> = ({
   if (!ready) return null;
 
   return (
-    <Box sx={{ my: 2.5 }}>
+    <Box sx={{ my: 3.5 }}>
       <VulnerabilitiesDashboard
         orgId={isAuthenticated ? userInfo?.active_org?.id : SAMPLE_ORG_ID}
         days={dayCount}
         gran="daily"
+        compact
         customRange={customRange}
         onRangeSelect={(fromMs, toMs) => setCustomRange({ fromMs, toMs })}
       />
@@ -1272,7 +1310,7 @@ export const DocCveLookup: React.FC<DocCveLookupProps> = ({
   ];
 
   return (
-    <Box sx={{ my: 2.5 }}>
+    <Box sx={{ my: 3.5 }}>
       <Box
         component="form"
         onSubmit={(e: React.FormEvent) => {
@@ -1367,8 +1405,9 @@ export const DocHostStatus: React.FC<DocHostStatusProps> = () => {
   const [addHostOpen, setAddHostOpen] = useState(false);
 
   return (
-    <Box sx={{ my: 2.5 }}>
+    <Box sx={{ my: 3.5 }}>
       <HostMonitoringDetailSlot
+        compact
         onDeployClick={() => {
           if (!isAuthenticated) {
             navigate(`/login?view=${encodeURIComponent("/monitors?add_host=true")}`);
@@ -1412,7 +1451,7 @@ export const DocSystemHealth: React.FC<DocSystemHealthProps> = () => {
   return (
     <Box
       sx={{
-        my: 2.5,
+        my: 3.5,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -1675,10 +1714,11 @@ export const DocRegionSelect: React.FC<DocRegionSelectProps> = ({
   };
 
   return (
-    <Box sx={{ my: 2.5, width: "100%" }}>
-      <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 2, mb: 3 }}>
+    <Box sx={{ my: 3, width: "100%" }}>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1.5, mb: 2 }}>
         <TextField
           label="Name"
+          size="small"
           value={orgName}
           disabled={!isLoggedIn}
           onChange={(e) => setOrgName(e.target.value)}
@@ -1693,7 +1733,7 @@ export const DocRegionSelect: React.FC<DocRegionSelectProps> = ({
           }}
         />
 
-        <FormControl disabled={saveStatus === "saving"} sx={{ minWidth: { xs: "100%", sm: 160 } }}>
+        <FormControl size="small" disabled={saveStatus === "saving"} sx={{ minWidth: { xs: "100%", sm: 160 } }}>
           <InputLabel sx={{ color: "hsl(var(--muted-foreground))" }}>Region</InputLabel>
           <Select
             value={selectedRegion}
@@ -1732,15 +1772,16 @@ export const DocRegionSelect: React.FC<DocRegionSelectProps> = ({
 
       <TextField
         label="Description"
+        size="small"
         value={orgDescription}
         disabled={!isLoggedIn}
         onChange={(e) => setOrgDescription(e.target.value)}
         multiline
-        rows={4}
+        rows={2}
         fullWidth
         placeholder="Tenant description"
         sx={{
-          mb: 3,
+          mb: 2,
           "& .MuiOutlinedInput-root": {
             color: "hsl(var(--foreground))",
             "& fieldset": { borderColor: "hsl(var(--border))" },
@@ -1753,12 +1794,13 @@ export const DocRegionSelect: React.FC<DocRegionSelectProps> = ({
       {isLoggedIn && (
         <Button
           variant="contained"
+          size="small"
           onClick={handleSave}
           disabled={saveStatus === "saving"}
           sx={{
             bgcolor: "hsl(var(--primary))",
             color: "hsl(var(--primary-foreground))",
-            height: 40,
+            height: 36,
             textTransform: "none",
             width: { xs: "100%", sm: "auto" },
             "&:hover": { bgcolor: "hsl(var(--primary) / 0.9)" },
@@ -1825,7 +1867,7 @@ export const DocIncidentAutomation: React.FC<DocIncidentAutomationProps> = ({
   const hasEnabled = enabledCount > 0;
 
   return (
-    <Box sx={{ my: 2.5 }}>
+    <Box sx={{ my: 3.5 }}>
       <Box
         sx={{
           display: "flex",
@@ -1943,7 +1985,7 @@ export const DocDatastoreLink: React.FC<DocDatastoreLinkProps> = ({
   };
 
   return (
-    <Box sx={{ my: 2.5 }}>
+    <Box sx={{ my: 3.5 }}>
       <Box
         sx={{
           display: "flex",
@@ -2029,22 +2071,29 @@ interface DocDatastoreProps {
   name?: string;
   compact?: boolean | string;
   readOnly?: boolean | string;
+  limit?: number | string;
+  pageSize?: number | string;
 }
 
 export const DocDatastore: React.FC<DocDatastoreProps> = ({
   category = "shuffle-security_incidents",
-  compact = false,
+  compact = true,
   readOnly = false,
+  limit,
+  pageSize = 3,
 }) => {
   const isCompact = compact === true || compact === "true";
   const isReadOnly = readOnly === true || readOnly === "true";
+  const rawLimit = limit ?? pageSize;
+  const effectivePageSize = typeof rawLimit === "string" ? parseInt(rawLimit, 10) || 3 : rawLimit;
 
   return (
-    <Box sx={{ my: 2.5 }}>
+    <Box sx={{ my: 3.5 }}>
       <DatastoreCategories
         embedded
         categoryLocked
         initialCategory={category}
+        initialPageSize={effectivePageSize}
         compact={isCompact}
         readOnly={isReadOnly}
       />
@@ -2105,6 +2154,19 @@ export const DocDynamicComponent: React.FC<DocDynamicComponentProps> = ({
       case "api-call":
       case "api-viewer":
         return <DocCurlViewer rawCurl={props?.rawCurl || props?.curl || props?.code || ''} />;
+
+      case "code":
+      case "code-editor":
+      case "code-block":
+      case "python":
+      case "bash":
+        return (
+          <DocCodeBlock
+            text={props?.code || props?.text || ''}
+            language={props?.language || props?.lang || (name.toLowerCase() === 'python' || name.toLowerCase() === 'bash' ? name.toLowerCase() : undefined)}
+            title={props?.title}
+          />
+        );
 
       case "try-mcp":
       case "mcp":

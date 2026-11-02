@@ -25,6 +25,8 @@ import 'react18-json-view/src/dark.css';
 import { defaultCollapsed } from '@/lib/jsonView';
 import { VideoEmbed, resolveVideoUrl } from './VideoEmbed';
 import { resolveProductLink } from '@/lib/shuffleUrls';
+import CodeBlockEditor from './CodeBlockEditor';
+import ApiCallViewer from './ApiCallViewer';
 
 /** Parse a string into an object/array, or return null when it is not JSON. */
 const tryParseJson = (raw: string): object | null => {
@@ -109,8 +111,10 @@ const baseSx: SxProps<Theme> = {
     padding: '0 4px',
     borderRadius: '3px',
     backgroundColor: 'hsl(var(--muted))',
+    color: 'hsl(var(--foreground))',
+    '&::before, &::after': { content: 'none !important' },
   },
-  '& pre': {
+  '& > pre': {
     m: 0,
     mb: 1,
     p: 1.5,
@@ -132,8 +136,13 @@ const baseSx: SxProps<Theme> = {
     border: '1px solid hsl(var(--border))',
     p: 0.75,
     textAlign: 'left',
+    wordBreak: 'normal',
+    overflowWrap: 'normal',
+    '& code': {
+      whiteSpace: 'nowrap',
+    },
   },
-  '& th': { backgroundColor: 'hsl(var(--muted))', fontWeight: 600 },
+  '& th': { backgroundColor: 'hsl(var(--muted))', fontWeight: 600, whiteSpace: 'nowrap' },
   '& hr': { border: 0, borderTop: '1px solid hsl(var(--border))', my: 1.5 },
   '& img': { maxWidth: '100%', borderRadius: '2px' },
 };
@@ -174,13 +183,21 @@ const defaultComponents: MarkdownComponentOverrides = {
     );
   },
   pre: ({ children, ...props }: any) => {
-    // Render fenced code blocks containing JSON with the standard JSON tree viewer.
     const child: any = Array.isArray(children) ? children[0] : children;
+    const className: string = child?.props?.className ?? '';
     const raw = child?.props?.children;
     const text = Array.isArray(raw) ? raw.join('') : typeof raw === 'string' ? raw : '';
-    const parsed = tryParseJson(text);
-    if (parsed) return <MarkdownJsonBlock src={parsed} />;
-    return <pre {...props}>{children}</pre>;
+    const langMatch = /language-([\w-]+)/.exec(className);
+    const language = langMatch ? langMatch[1] : undefined;
+    const trimmed = text.trim();
+    if (!trimmed) return <pre {...props}>{children}</pre>;
+    if (
+      language?.toLowerCase() === 'curl' ||
+      ((!language || ['bash', 'sh', 'shell', 'zsh'].includes(language.toLowerCase())) && /^curl\s+/i.test(trimmed))
+    ) {
+      return <ApiCallViewer rawCurl={text} />;
+    }
+    return <CodeBlockEditor code={text} language={language} />;
   },
 };
 

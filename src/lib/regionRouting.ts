@@ -6,15 +6,31 @@
 export const REGION_COOKIE = 'shuffle-region';
 export const DEFAULT_BACKEND = 'https://shuffler.io';
 
-const REGION_RE = /^[a-z]{2,3}\d?$/;
+const REGION_RE = /^(?:[a-z]{2,3}\d?|frankfurt|california|australia|eu-2)$/;
 
-/** Region label (ca, uk, eu2...) from a host like ca.shuffler.io or ca.shuffle.security. */
+const CANONICAL_REGION_SUBDOMAIN: Record<string, string> = {
+  uk: 'uk',
+  gb: 'uk',
+  eu: 'uk',
+  frankfurt: 'frankfurt',
+  'eu-2': 'frankfurt',
+  eu2: 'frankfurt',
+  california: 'california',
+  us: 'california',
+  ca: 'ca',
+  au: 'au',
+  aus: 'au',
+  australia: 'au',
+};
+
+/** Region label (uk, frankfurt, california, ca, au) from a host like frankfurt.shuffler.io or frankfurt.shuffle.security. */
 export const regionFromHost = (host?: string | null): string | null => {
   if (!host) return null;
   const h = host.toLowerCase().split(':')[0];
-  const m = h.match(/^([a-z0-9]+)\.(shuffler\.io|shuffle\.security)$/);
-  if (!m || m[1] === 'www') return null;
-  return REGION_RE.test(m[1]) ? m[1] : null;
+  const m = h.match(/^([a-z0-9-]+)\.(shuffler\.io|shuffle\.security)$/);
+  if (!m || m[1] === 'www' || m[1] === 'security') return null;
+  if (!REGION_RE.test(m[1])) return null;
+  return CANONICAL_REGION_SUBDOMAIN[m[1]] || m[1];
 };
 
 export const regionFromUrl = (url?: string | null): string | null => {
@@ -26,8 +42,13 @@ export const regionFromUrl = (url?: string | null): string | null => {
   }
 };
 
-export const backendForRegion = (region?: string | null): string =>
-  region && REGION_RE.test(region) ? `https://${region}.shuffler.io` : DEFAULT_BACKEND;
+export const backendForRegion = (region?: string | null): string => {
+  if (!region) return DEFAULT_BACKEND;
+  const r = region.toLowerCase();
+  if (!REGION_RE.test(r)) return DEFAULT_BACKEND;
+  const sub = CANONICAL_REGION_SUBDOMAIN[r] || r;
+  return `https://${sub}.shuffler.io`;
+};
 
 /** Decode an OpenID `state` value (base64 of "org=..&challenge=..&redirect=.."). */
 export const decodeOpenIdState = (state?: string | null): Record<string, string> => {

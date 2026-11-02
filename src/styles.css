@@ -324,6 +324,11 @@
     overflow-x: auto;
   }
 
+  .prose :where(code):not(:where([class~="not-prose"], [class~="not-prose"] *))::before,
+  .prose :where(code):not(:where([class~="not-prose"], [class~="not-prose"] *))::after {
+    content: none !important;
+  }
+
   /* Prevent iOS Safari / WKWebView auto-zoom on input focus which shifts the layout off-screen */
   @media screen and (max-width: 768px) {
     input, select, textarea {

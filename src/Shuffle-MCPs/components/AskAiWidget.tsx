@@ -9,6 +9,11 @@
  */
 
 import { USECASE_CONTEXT_EVENT } from '@/lib/usecasePromptContext';
+import {
+  DOC_SELECTION_EVENT,
+  getActiveDocSelectedText,
+  truncateDocSelectionPreview,
+} from '@/lib/docsPromptContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AskAiButton, AskAiButtonProps } from '@/Shuffle-MCPs/components/AskAiButton';
 import { AskAiSidePanel, AskAiSidePanelProps } from '@/Shuffle-MCPs/components/AskAiSidePanel';
@@ -34,6 +39,9 @@ export interface AgentDrawerOpenDetail {
   incidentContext?: Record<string, any>;
   executionId?: string | null;
   resetExecution?: boolean;
+  headerTitle?: string;
+  title?: string;
+  selectedText?: string | null;
 }
 
 export interface AskAiWidgetProps extends Omit<AskAiSidePanelProps, 'open' | 'onClose'> {
@@ -128,11 +136,20 @@ const AskAiWidgetInner: React.FC<AskAiWidgetProps> = ({
   // Re-resolve when a page registers new hidden context (e.g. the usecase
   // detail view), so labels like "Ask about <usecase>" update.
   const [contextTick, setContextTick] = useState(0);
+  const [docSelection, setDocSelection] = useState<string | null>(() => getActiveDocSelectedText());
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const bump = () => setContextTick((t) => t + 1);
+    const onDocSelection = (e: Event) => {
+      const detail = (e as CustomEvent<{ selectedText?: string | null }>).detail;
+      setDocSelection(detail?.selectedText ?? getActiveDocSelectedText());
+    };
     window.addEventListener(USECASE_CONTEXT_EVENT, bump);
-    return () => window.removeEventListener(USECASE_CONTEXT_EVENT, bump);
+    window.addEventListener(DOC_SELECTION_EVENT, onDocSelection);
+    return () => {
+      window.removeEventListener(USECASE_CONTEXT_EVENT, bump);
+      window.removeEventListener(DOC_SELECTION_EVENT, onDocSelection);
+    };
   }, []);
 
   const resolvedContext = useMemo(() => {
@@ -199,9 +216,11 @@ const AskAiWidgetInner: React.FC<AskAiWidgetProps> = ({
     }
   }, [propInitialTab]);
 
-  // Dynamic button label (e.g. "Ask about Workflows")
+  // Dynamic button label (e.g. "Ask about Workflows" or "Ask about <selected text>")
+  const selectionPreview = docSelection ? truncateDocSelectionPreview(docSelection, 32) : '';
   const effectiveButtonLabel =
     buttonProps?.label ||
+    (selectionPreview ? `Ask about "${selectionPreview}"` : '') ||
     (activeContext.buttonLabelFn ? activeContext.buttonLabelFn() : activeContext.buttonLabel) ||
     'Ask Shuffle';
 
@@ -240,7 +259,25 @@ const AskAiWidgetInner: React.FC<AskAiWidgetProps> = ({
       {/* Floating ChatGPT docs-style button in bottom-right corner */}
       {!hideButton && (
         <AskAiButton
-          onClick={() => setDrawerOpen(!isDrawerOpen)}
+          onClick={() => {
+            if (!isDrawerOpen && docSelection && selectionPreview) {
+              window.dispatchEvent(
+                new CustomEvent<AgentDrawerOpenDetail>(AGENT_DRAWER_OPEN_EVENT, {
+                  detail: {
+                    tab: 'run',
+                    source: 'docs-selection',
+                    headerTitle: `Ask about "${selectionPreview}"`,
+                    title: `How can we help with "${selectionPreview}"?`,
+                    selectedText: docSelection,
+                    defaultInput: `Explain "${selectionPreview}": `,
+                    resetExecution: true,
+                  },
+                }),
+              );
+              return;
+            }
+            setDrawerOpen(!isDrawerOpen);
+          }}
           isOpen={isDrawerOpen}
           isSupport={isSupport}
           requireSupport={effectiveRequireSupport}

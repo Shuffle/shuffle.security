@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
 import {
   parseMarkdownSegments,
@@ -13,6 +14,7 @@ import {
   AvatarGroup,
   Box,
   Button,
+  ButtonBase,
   CircularProgress,
   Link as MuiLink,
   Skeleton,
@@ -20,6 +22,12 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
+import { isAgentDrawerOpen, openAgentDrawer } from '@/lib/agentDrawer';
+import {
+  setActiveDocSelectedText,
+  truncateDocSelectionPreview,
+} from '@/lib/docsPromptContext';
 import {
   Clock as ClockIcon,
   Github as GithubIcon,
@@ -121,6 +129,154 @@ export const MarkdownRenderer = ({
   const location = useLocation();
   const navigate = useNavigate();
   const { hash } = location;
+
+  // Floating "Ask about X" popover state when user marks/highlights text in documentation
+  const [selectionPopup, setSelectionPopup] = useState<{
+    text: string;
+    preview: string;
+    top: number;
+    left: number;
+    placement: 'above' | 'below';
+  } | null>(null);
+
+  const updateSelectionPopup = useCallback(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    const root = containerRef.current;
+    if (!root) {
+      setSelectionPopup(null);
+      return;
+    }
+
+    let rawText = '';
+    let rect: DOMRect | null = null;
+
+    // 1. Support selecting text inside editable code block textareas within the doc container
+    const activeEl = document.activeElement;
+    if (
+      activeEl &&
+      root.contains(activeEl) &&
+      (activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLInputElement)
+    ) {
+      const start = activeEl.selectionStart ?? 0;
+      const end = activeEl.selectionEnd ?? 0;
+      if (end > start) {
+        rawText = activeEl.value.slice(start, end).trim();
+        rect = activeEl.getBoundingClientRect();
+      }
+    }
+
+    // 2. Standard DOM selection inside the documentation container
+    if (!rawText) {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+        setSelectionPopup((prev) => {
+          if (prev && !isAgentDrawerOpen()) {
+            setActiveDocSelectedText(null);
+          }
+          return null;
+        });
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      const anchorInRoot = sel.anchorNode ? root.contains(sel.anchorNode) : false;
+      const focusInRoot = sel.focusNode ? root.contains(sel.focusNode) : false;
+      const commonInRoot = root.contains(range.commonAncestorContainer);
+      if (!anchorInRoot && !focusInRoot && !commonInRoot) {
+        setSelectionPopup((prev) => {
+          if (prev && !isAgentDrawerOpen()) {
+            setActiveDocSelectedText(null);
+          }
+          return null;
+        });
+        return;
+      }
+      rawText = sel.toString().trim();
+      const rangeRect = range.getBoundingClientRect();
+      if (rangeRect && (rangeRect.width > 0 || rangeRect.height > 0)) {
+        rect = rangeRect;
+      } else {
+        const clientRects = range.getClientRects();
+        if (clientRects.length > 0) {
+          rect = clientRects[0];
+        }
+      }
+    }
+
+    if (!rawText || rawText.length < 2 || !rect) {
+      setSelectionPopup((prev) => {
+        if (prev && !isAgentDrawerOpen()) {
+          setActiveDocSelectedText(null);
+        }
+        return null;
+      });
+      return;
+    }
+
+    const preview = truncateDocSelectionPreview(rawText, 36);
+    if (!preview) {
+      setSelectionPopup(null);
+      return;
+    }
+
+    const viewportW = window.innerWidth || 1200;
+    const clampedLeft = Math.min(
+      Math.max(rect.left + rect.width / 2, 160),
+      Math.max(160, viewportW - 160),
+    );
+    const placeBelow = rect.top < 88;
+    const top = placeBelow ? rect.bottom + 10 : rect.top - 10;
+
+    setActiveDocSelectedText(rawText);
+    setSelectionPopup({
+      text: rawText,
+      preview,
+      top,
+      left: clampedLeft,
+      placement: placeBelow ? 'below' : 'above',
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    let rafId: number | null = null;
+    const scheduleUpdate = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updateSelectionPopup();
+      });
+    };
+
+    document.addEventListener('selectionchange', scheduleUpdate);
+    document.addEventListener('mouseup', scheduleUpdate);
+    document.addEventListener('keyup', scheduleUpdate);
+    window.addEventListener('scroll', scheduleUpdate, true);
+    window.addEventListener('resize', scheduleUpdate);
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      document.removeEventListener('selectionchange', scheduleUpdate);
+      document.removeEventListener('mouseup', scheduleUpdate);
+      document.removeEventListener('keyup', scheduleUpdate);
+      window.removeEventListener('scroll', scheduleUpdate, true);
+      window.removeEventListener('resize', scheduleUpdate);
+    };
+  }, [updateSelectionPopup]);
+
+  const handleAskAboutSelection = useCallback(() => {
+    if (!selectionPopup) return;
+    const { text, preview } = selectionPopup;
+    setActiveDocSelectedText(text);
+    openAgentDrawer('run', {
+      source: 'docs-selection',
+      headerTitle: `Ask about "${preview}"`,
+      title: `How can we help with "${preview}"?`,
+      selectedText: text,
+      defaultInput: `Explain "${preview}": `,
+      resetExecution: true,
+    });
+    setSelectionPopup(null);
+  }, [selectionPopup]);
 
   const scrollToDocAnchor = useCallback((rawHash: string) => {
     const root = containerRef.current;
@@ -381,13 +537,13 @@ export const MarkdownRenderer = ({
 
       sx={{
         '& h1': {
-          color: 'text.primary',
+          color: 'hsl(var(--foreground))',
           fontSize: '2.25rem',
           fontWeight: 700,
           mb: 3,
         },
         '& h2': {
-          color: 'text.primary',
+          color: 'hsl(var(--foreground))',
           fontSize: { xs: '1.4rem', sm: '1.65rem' },
           fontWeight: 600,
           mt: { xs: '3.5rem !important', md: '5rem !important' },
@@ -399,25 +555,25 @@ export const MarkdownRenderer = ({
           mt: '2rem !important',
         },
         '& h3': {
-          color: 'text.primary',
+          color: 'hsl(var(--foreground))',
           fontSize: '1.25rem',
           fontWeight: 600,
           mt: 4,
           mb: 2,
         },
         '& h4, & h5, & h6': {
-          color: 'text.primary',
+          color: 'hsl(var(--foreground))',
           fontWeight: 600,
           mt: 3,
           mb: 1.5,
         },
         '& p': {
-          color: 'text.secondary',
+          color: 'hsl(var(--foreground) / 0.88)',
           lineHeight: 1.8,
           mb: 2,
         },
         '& strong, & b': {
-          color: 'text.primary',
+          color: 'hsl(var(--foreground))',
           fontWeight: 600,
         },
         '& em, & i': {
@@ -431,27 +587,32 @@ export const MarkdownRenderer = ({
           },
         },
         '& code': {
-          backgroundColor: 'rgba(255, 102, 0, 0.1)',
-          color: 'primary.main',
-          px: 1,
-          py: 0.5,
+          backgroundColor: 'hsl(var(--muted))',
+          color: 'hsl(var(--foreground))',
+          border: '1px solid hsl(var(--border))',
+          px: 0.75,
+          py: 0.25,
           borderRadius: 1,
-          fontSize: '0.875rem',
-          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: '0.85rem',
+          fontWeight: 500,
+          fontFamily: "'JetBrains Mono', monospace",
+          '&::before, &::after': {
+            content: 'none !important',
+          },
         },
         // Fenced code blocks render through DocCodeBlock (see the `pre`
         // component override below); no generic pre styling here.
         '& ul, & ol': {
-          color: 'text.secondary',
+          color: 'hsl(var(--foreground) / 0.88)',
           pl: 3,
           mb: 3,
         },
         '& li': {
           mb: 1,
-          color: 'text.secondary',
+          color: 'hsl(var(--foreground) / 0.88)',
         },
         '& li::marker': {
-          color: 'text.secondary',
+          color: 'hsl(var(--muted-foreground))',
         },
         '& table': {
           width: '100%',
@@ -459,19 +620,27 @@ export const MarkdownRenderer = ({
           mb: 4,
         },
         '& th': {
-          backgroundColor: (t) => t.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+          backgroundColor: 'hsl(var(--muted) / 0.6)',
           borderBottom: '2px solid',
-          borderColor: 'divider',
+          borderColor: 'hsl(var(--border))',
           p: 2,
           textAlign: 'left',
           fontWeight: 600,
-          color: 'text.primary',
+          color: 'hsl(var(--foreground))',
+          whiteSpace: 'nowrap',
+          wordBreak: 'normal',
+          overflowWrap: 'normal',
         },
         '& td': {
           borderBottom: '1px solid',
-          borderColor: 'divider',
+          borderColor: 'hsl(var(--border))',
           p: 2,
-          color: 'text.secondary',
+          color: 'hsl(var(--foreground) / 0.88)',
+          wordBreak: 'normal',
+          overflowWrap: 'normal',
+          '& code': {
+            whiteSpace: 'nowrap',
+          },
         },
         '& blockquote': {
           borderLeft: '4px solid',
@@ -479,7 +648,7 @@ export const MarkdownRenderer = ({
           pl: 3,
           ml: 0,
           fontStyle: 'italic',
-          color: 'text.secondary',
+          color: 'hsl(var(--foreground) / 0.82)',
         },
         '& hr': {
           border: 'none',
@@ -835,6 +1004,87 @@ export const MarkdownRenderer = ({
           return null;
         });
       })()}
+
+      {selectionPopup &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <Box
+            sx={{
+              position: 'fixed',
+              top: selectionPopup.top,
+              left: selectionPopup.left,
+              transform:
+                selectionPopup.placement === 'above'
+                  ? 'translate(-50%, -100%)'
+                  : 'translate(-50%, 0)',
+              zIndex: 1450,
+              pointerEvents: 'auto',
+            }}
+          >
+            <ButtonBase
+              onMouseDown={(e) => {
+                // Keep text selection alive when clicking the popover button
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={handleAskAboutSelection}
+              aria-label={`Ask about ${selectionPopup.preview}`}
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 1,
+                px: 1.5,
+                py: 0.75,
+                maxWidth: { xs: 280, sm: 360 },
+                borderRadius: '9999px',
+                bgcolor: 'hsl(var(--card))',
+                color: 'hsl(var(--card-foreground))',
+                border: '1px solid hsl(var(--primary) / 0.45)',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.12)',
+                backdropFilter: 'blur(8px)',
+                transition: 'all 140ms cubic-bezier(0.4, 0, 0.2, 1)',
+                userSelect: 'none',
+                '&:hover': {
+                  bgcolor: 'hsl(var(--accent))',
+                  borderColor: 'hsl(var(--primary))',
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 10px 28px rgba(0, 0, 0, 0.28), 0 3px 8px rgba(0, 0, 0, 0.16)',
+                },
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 22,
+                  height: 22,
+                  borderRadius: '9999px',
+                  bgcolor: 'hsla(var(--primary) / 0.15)',
+                  color: 'hsl(var(--primary))',
+                  flexShrink: 0,
+                }}
+              >
+                <AgentIcon size={14} />
+              </Box>
+              <Typography
+                sx={{
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  lineHeight: 1.2,
+                  color: 'inherit',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: { xs: 220, sm: 300 },
+                }}
+              >
+                {`Ask about "${selectionPopup.preview}"`}
+              </Typography>
+            </ButtonBase>
+          </Box>,
+          document.body,
+        )}
     </Box>
   );
 };

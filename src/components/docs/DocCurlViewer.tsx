@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { Box } from '@mui/material';
 import ApiCallViewer, {
   type ApiCallViewerProps,
   type ParsedCurl,
@@ -17,7 +18,11 @@ export interface DocCurlViewerProps extends Partial<ApiCallViewerProps> {
 export type { ParsedCurl };
 
 export const DocCurlViewer: React.FC<DocCurlViewerProps> = (props) => {
-  return <ApiCallViewer {...props} />;
+  return (
+    <Box className="not-prose" sx={{ my: 2.5 }}>
+      <ApiCallViewer {...props} />
+    </Box>
+  );
 };
 
 export default DocCurlViewer;

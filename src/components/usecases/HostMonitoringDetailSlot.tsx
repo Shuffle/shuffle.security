@@ -26,6 +26,7 @@ import { toast } from '@/lib/toast';
 interface HostMonitoringDetailSlotProps {
   onDeployClick?: () => void;
   onManageClick?: () => void;
+  compact?: boolean;
 }
 
 type Platform = 'linux' | 'macos' | 'windows';
@@ -33,6 +34,7 @@ type Platform = 'linux' | 'macos' | 'windows';
 export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> = ({
   onDeployClick,
   onManageClick,
+  compact = false,
 }) => {
   const hostCount = useHostMonitorCount();
   const [platform, setPlatform] = useState<Platform>('linux');
@@ -284,75 +286,79 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
       </Box>
 
       {/* Monitored Capabilities Grid */}
-      <Box>
-        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'text.secondary', letterSpacing: '0.05em', textTransform: 'uppercase', mb: 1 }}>
-          Continuous Posture & Telemetry Capabilities
-        </Typography>
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-            gap: 1.25,
-          }}
-        >
-          {capabilities.map((cap) => {
-            const Icon = cap.icon;
-            return (
-              <Box
-                key={cap.title}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 1.25,
-                  p: 1.5,
-                  bgcolor: 'transparent',
-                }}
-              >
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 28,
-                    height: 28,
-                    borderRadius: 1,
-                    bgcolor: 'transparent',
-                    color: 'text.secondary',
-                    flexShrink: 0,
-                    mt: 0.25,
-                  }}
-                >
-                  <Icon size={16} />
-                </Box>
-                <Box>
-                  <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: 'text.primary' }}>
-                    {cap.title}
-                  </Typography>
-                  <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', lineHeight: 1.3, mt: 0.25 }}>
-                    {cap.desc}
-                  </Typography>
-                </Box>
-              </Box>
-            );
-          })}
-        </Box>
-      </Box>
+      {!compact && (
+        <>
+          <Box>
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'text.secondary', letterSpacing: '0.05em', textTransform: 'uppercase', mb: 1 }}>
+              Continuous Posture & Telemetry Capabilities
+            </Typography>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                gap: 1.25,
+              }}
+            >
+              {capabilities.map((cap) => {
+                const Icon = cap.icon;
+                return (
+                  <Box
+                    key={cap.title}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 1.25,
+                      p: 1.5,
+                      bgcolor: 'transparent',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 28,
+                        height: 28,
+                        borderRadius: 1,
+                        bgcolor: 'transparent',
+                        color: 'text.secondary',
+                        flexShrink: 0,
+                        mt: 0.25,
+                      }}
+                    >
+                      <Icon size={16} />
+                    </Box>
+                    <Box>
+                      <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: 'text.primary' }}>
+                        {cap.title}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', lineHeight: 1.3, mt: 0.25 }}>
+                        {cap.desc}
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
+          </Box>
 
-      {/* Shuffle Workflows Integration Note */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1.25,
-          p: 1.5,
-          bgcolor: 'transparent',
-        }}
-      >
-        <Activity size={18} className="text-muted-foreground shrink-0" />
-        <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-          Host monitors stream real-time events into Shuffle. You can bind automated response workflows to trigger endpoint containment, run memory diagnostics, or audit compliance drift automatically.
-        </Typography>
-      </Box>
+          {/* Shuffle Workflows Integration Note */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.25,
+              p: 1.5,
+              bgcolor: 'transparent',
+            }}
+          >
+            <Activity size={18} className="text-muted-foreground shrink-0" />
+            <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+              Host monitors stream real-time events into Shuffle. You can bind automated response workflows to trigger endpoint containment, run memory diagnostics, or audit compliance drift automatically.
+            </Typography>
+          </Box>
+        </>
+      )}
     </Box>
   );
 };

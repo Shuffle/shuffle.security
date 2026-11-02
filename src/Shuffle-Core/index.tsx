@@ -480,8 +480,10 @@ import {
 } from "./components/oauth/OAuthAuthorizeView";
 import {
   OAuthConnectionsSettings as OAuthConnectionsSettingsRaw,
+  McpSetupModal as McpSetupModalRaw,
   type OAuthConnectionsSettingsProps,
   type OAuthConnectionItem,
+  type McpSetupModalProps,
 } from "./components/oauth/OAuthConnectionsSettings";
 export const OAuthAuthorizeView = withTheme<OAuthAuthorizeViewProps>(
   OAuthAuthorizeViewRaw,
@@ -491,6 +493,10 @@ export const OAuthConnectionsSettings = withTheme<OAuthConnectionsSettingsProps>
   OAuthConnectionsSettingsRaw,
   "OAuthConnectionsSettings",
 );
+export const McpSetupModal = withTheme<McpSetupModalProps>(
+  McpSetupModalRaw,
+  "McpSetupModal",
+);
 export type {
   OAuthAuthorizeViewProps,
   OAuthScopeDetail,
@@ -498,6 +504,7 @@ export type {
   UserInfoLike,
   OAuthConnectionsSettingsProps,
   OAuthConnectionItem,
+  McpSetupModalProps,
 };
 
 // Cross-domain authentication handoff between Shuffle Security and Shuffle Core
@@ -636,6 +643,16 @@ export type { SingulActionsPreviewProps };
 import ApiCallViewerRaw, { type ApiCallViewerProps } from "./components/ApiCallViewer";
 export const ApiCallViewer = withTheme<ApiCallViewerProps>(ApiCallViewerRaw as any, "ApiCallViewer");
 export type { ApiCallViewerProps };
+
+import CodeBlockEditorRaw, {
+  type CodeBlockEditorProps,
+  type CodeBlockLanguage,
+  detectCodeLanguage,
+  highlightCodeSnippet,
+} from "./components/CodeBlockEditor";
+export const CodeBlockEditor = withTheme<CodeBlockEditorProps>(CodeBlockEditorRaw as any, "CodeBlockEditor");
+export { detectCodeLanguage, highlightCodeSnippet };
+export type { CodeBlockEditorProps, CodeBlockLanguage };
 
 import AiAgentPromptsEditorRaw, { type AiAgentPromptsEditorProps } from "./components/AiAgentPromptsEditor";
 export const AiAgentPromptsEditor = withTheme<AiAgentPromptsEditorProps>(AiAgentPromptsEditorRaw as any, "AiAgentPromptsEditor");

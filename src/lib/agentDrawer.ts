@@ -26,6 +26,9 @@ export interface AgentDrawerOpenDetail {
   incidentContext?: Record<string, any>;
   executionId?: string | null;
   resetExecution?: boolean;
+  headerTitle?: string;
+  title?: string;
+  selectedText?: string | null;
 }
 
 export interface AgentDrawerStateDetail {
@@ -54,6 +57,9 @@ export const openAgentDrawer = (
     incidentContext?: Record<string, any>;
     executionId?: string | null;
     resetExecution?: boolean;
+    headerTitle?: string;
+    title?: string;
+    selectedText?: string | null;
   },
 ) => {
   window.dispatchEvent(
@@ -68,6 +74,9 @@ export const openAgentDrawer = (
         incidentContext: options?.incidentContext,
         executionId: options?.executionId,
         resetExecution: options?.resetExecution,
+        headerTitle: options?.headerTitle,
+        title: options?.title,
+        selectedText: options?.selectedText,
       },
     }),
   );

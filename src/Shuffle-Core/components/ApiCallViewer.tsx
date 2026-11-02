@@ -6,7 +6,7 @@
  * live testing via Shuffle HTTP app, and collapsible JSON parsing via JsonView.
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Box, Typography, Button, Chip, CircularProgress, Collapse, useTheme } from '@mui/material';
 import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
@@ -237,18 +237,30 @@ const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 /** Single-pass tokenizer-based syntax highlighter for cURL, Python, and raw HTTP. */
-function highlightSnippet(code: string, lang: SnippetLang): string {
-  const COL = {
-    string: 'hsl(140 60% 65%)',
-    keyword: 'hsl(280 70% 75%)',
-    func: 'hsl(45 90% 65%)',
-    number: 'hsl(20 90% 65%)',
-    flag: 'hsl(200 80% 70%)',
-    builtin: 'hsl(0 70% 70%)',
-    comment: 'hsl(var(--muted-foreground))',
-    headerKey: 'hsl(200 80% 70%)',
-    method: 'hsl(140 60% 65%)',
-  };
+function highlightSnippet(code: string, lang: SnippetLang, isDark = true): string {
+  const COL = isDark
+    ? {
+        string: '#7ee787',
+        keyword: '#d2a8ff',
+        func: '#f2cc60',
+        number: '#79c0ff',
+        flag: '#79c0ff',
+        builtin: '#ff7b72',
+        comment: '#8b949e',
+        headerKey: '#79c0ff',
+        method: '#7ee787',
+      }
+    : {
+        string: '#116329',
+        keyword: '#8250df',
+        func: '#953800',
+        number: '#0550ae',
+        flag: '#0550ae',
+        builtin: '#cf222e',
+        comment: '#57606a',
+        headerKey: '#0550ae',
+        method: '#116329',
+      };
 
   const PY_KEYWORDS = new Set([
     'import', 'from', 'as', 'def', 'return', 'if', 'else', 'elif', 'for',
@@ -466,6 +478,25 @@ function buildHttp(
   return lines.join('\n');
 }
 
+function usePageDarkMode(fallbackDark: boolean): boolean {
+  const [isDark, setIsDark] = useState(() =>
+    typeof document !== 'undefined'
+      ? document.documentElement.classList.contains('dark')
+      : fallbackDark,
+  );
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    setIsDark(root.classList.contains('dark'));
+    const observer = new MutationObserver(() => {
+      setIsDark(root.classList.contains('dark'));
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+  return isDark;
+}
+
 export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
   config,
   rawCurl,
@@ -474,7 +505,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
   title = 'API Call',
 }) => {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+  const isDark = usePageDarkMode(theme.palette.mode === 'dark');
 
   let userKeyInfo: ReturnType<typeof useUserApiKey> | null = null;
   try {
@@ -491,6 +522,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
   };
 
   const [mode, setMode] = useState<SnippetLang>(defaultMode);
+  const [editedSnippets, setEditedSnippets] = useState<Partial<Record<'curl' | 'python' | 'http', string>>>({});
   const [copied, setCopied] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [responseOutput, setResponseOutput] = useState<string | null>(null);
@@ -583,23 +615,60 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
     };
   }, [requestInfo, maskAuth]);
 
-  const currentSnippet = mode === 'json' ? '' : generatedCode[mode];
+  const unmaskedGeneratedCode = useMemo(() => {
+    return {
+      curl: buildCurl(requestInfo.method, requestInfo.url, requestInfo.headers, requestInfo.body, false),
+      python: buildPython(requestInfo.method, requestInfo.url, requestInfo.headers, requestInfo.body, false),
+      http: buildHttp(requestInfo.method, requestInfo.url, requestInfo.headers, requestInfo.body, false),
+    };
+  }, [requestInfo]);
+
+  const currentSnippet = mode === 'json' ? '' : (editedSnippets[mode] ?? generatedCode[mode]);
+  const isCurrentEdited = mode !== 'json' && editedSnippets[mode] !== undefined && editedSnippets[mode] !== generatedCode[mode];
+
+  const snippetLines = useMemo(() => {
+    const lines = currentSnippet.split('\n');
+    return lines.length > 0 ? lines : [''];
+  }, [currentSnippet]);
 
   const copyableSnippet = useMemo(() => {
     if (mode === 'json') {
       return JSON.stringify(requestInfo.parsedJson, null, 2);
     }
-    const unmasked = {
-      curl: buildCurl(requestInfo.method, requestInfo.url, requestInfo.headers, requestInfo.body, false),
-      python: buildPython(requestInfo.method, requestInfo.url, requestInfo.headers, requestInfo.body, false),
-      http: buildHttp(requestInfo.method, requestInfo.url, requestInfo.headers, requestInfo.body, false),
-    };
-    return unmasked[mode];
-  }, [mode, requestInfo]);
+    const edited = editedSnippets[mode];
+    if (edited !== undefined) {
+      const effectiveToken = apiKey || API_CONFIG.apiKey || null;
+      if (effectiveToken && maskedApiKey && maskedApiKey !== '<API_KEY>') {
+        return edited.split(maskedApiKey).join(effectiveToken);
+      }
+      return edited;
+    }
+    return unmaskedGeneratedCode[mode];
+  }, [mode, requestInfo, editedSnippets, unmaskedGeneratedCode, apiKey, maskedApiKey]);
 
   const runnableCommand = useMemo(() => {
-    return buildCurl(requestInfo.method, requestInfo.url, requestInfo.headers, requestInfo.body, false);
-  }, [requestInfo]);
+    const editedCurl = editedSnippets.curl;
+    if (editedCurl !== undefined) {
+      const effectiveToken = apiKey || API_CONFIG.apiKey || null;
+      if (effectiveToken && maskedApiKey && maskedApiKey !== '<API_KEY>') {
+        return editedCurl.split(maskedApiKey).join(effectiveToken);
+      }
+      return editedCurl;
+    }
+    return unmaskedGeneratedCode.curl;
+  }, [editedSnippets.curl, unmaskedGeneratedCode.curl, apiKey, maskedApiKey]);
+
+  const runnablePython = useMemo(() => {
+    const editedPy = editedSnippets.python;
+    if (editedPy !== undefined) {
+      const effectiveToken = apiKey || API_CONFIG.apiKey || null;
+      if (effectiveToken && maskedApiKey && maskedApiKey !== '<API_KEY>') {
+        return editedPy.split(maskedApiKey).join(effectiveToken);
+      }
+      return editedPy;
+    }
+    return unmaskedGeneratedCode.python;
+  }, [editedSnippets.python, unmaskedGeneratedCode.python, apiKey, maskedApiKey]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -614,6 +683,15 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
     }
   }, [copyableSnippet]);
 
+  const handleReset = useCallback(() => {
+    if (mode === 'json') return;
+    setEditedSnippets((prev) => {
+      const next = { ...prev };
+      delete next[mode];
+      return next;
+    });
+  }, [mode]);
+
   const handleRun = useCallback(async () => {
     setIsRunning(true);
     setIsResponseOpen(true);
@@ -623,22 +701,43 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
     const start = Date.now();
 
     try {
-      const runnerPayload = {
-        name: 'curl',
-        app_id: 'ebfe7d5c80000676588f86731db0a555',
-        environment: 'Cloud',
-        parameters: [
-          {
-            name: 'statement',
-            value: runnableCommand,
-            schema: { type: 'string' },
-          },
-        ],
-        app_name: 'http',
-        app_version: '1.4.0',
-      };
+      let endpoint = '/api/v1/apps/http/run?delete=true';
+      let runnerPayload: Record<string, any>;
 
-      const res = await fetch(getApiUrl('/api/v1/apps/http/run?delete=true'), {
+      if (mode === 'python') {
+        endpoint = '/api/v1/apps/3e2bdf9d5069fe3f4746c29d68785a6a/run?delete=true';
+        runnerPayload = {
+          name: 'execute_python',
+          app_id: '3e2bdf9d5069fe3f4746c29d68785a6a',
+          app_name: 'Shuffle Tools',
+          app_version: '1.2.0',
+          environment: 'Cloud',
+          parameters: [
+            {
+              name: 'code',
+              value: runnablePython,
+              schema: { type: 'string' },
+            },
+          ],
+        };
+      } else {
+        runnerPayload = {
+          name: 'curl',
+          app_id: 'ebfe7d5c80000676588f86731db0a555',
+          environment: 'Cloud',
+          parameters: [
+            {
+              name: 'statement',
+              value: runnableCommand,
+              schema: { type: 'string' },
+            },
+          ],
+          app_name: 'http',
+          app_version: '1.4.0',
+        };
+      }
+
+      const res = await fetch(getApiUrl(endpoint), {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -691,7 +790,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
     } finally {
       setIsRunning(false);
     }
-  }, [runnableCommand]);
+  }, [mode, runnableCommand, runnablePython]);
 
   const methodColor = useMemo(() => {
     switch (requestInfo.method) {
@@ -711,10 +810,13 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
 
   return (
     <Box
+      className="not-prose"
       sx={{
         borderRadius: 1.5,
-        border: '1px solid hsl(var(--border))',
-        bgcolor: 'hsl(var(--background))',
+        border: '1px solid',
+        borderColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(15, 23, 42, 0.14)',
+        bgcolor: isDark ? '#0d1117' : '#ffffff',
+        color: isDark ? '#e6edf3' : '#1f2328',
         overflow: 'hidden',
         my: 2,
       }}
@@ -727,15 +829,16 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
           gap: 1,
           px: 2,
           py: 0.85,
-          borderBottom: '1px solid hsl(var(--border))',
-          bgcolor: 'hsl(var(--card))',
+          borderBottom: '1px solid',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(15, 23, 42, 0.1)',
+          bgcolor: isDark ? '#161b22' : '#f6f8fa',
         }}
       >
         <Typography
           sx={{
             fontSize: '0.7rem',
             fontWeight: 600,
-            color: 'hsl(var(--muted-foreground))',
+            color: isDark ? '#8b949e' : '#57606a',
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
           }}
@@ -767,8 +870,9 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
             alignItems: 'center',
             p: 0.25,
             borderRadius: 1,
-            bgcolor: 'hsl(var(--muted) / 0.5)',
-            border: '1px solid hsl(var(--border))',
+            bgcolor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.06)',
+            border: '1px solid',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(15, 23, 42, 0.12)',
           }}
         >
           {((['curl', 'python', 'http', ...(hasJsonBody ? ['json'] : [])] as SnippetLang[])).map((m) => {
@@ -790,11 +894,17 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
                   cursor: 'pointer',
                   userSelect: 'none',
                   transition: 'all 0.15s ease',
-                  bgcolor: active ? 'hsl(var(--background))' : 'transparent',
-                  color: active ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
+                  bgcolor: active ? (isDark ? '#0d1117' : '#ffffff') : 'transparent',
+                  color: active
+                    ? isDark
+                      ? '#f0f6fc'
+                      : '#1f2328'
+                    : isDark
+                      ? '#8b949e'
+                      : '#57606a',
                   boxShadow: active ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
                   '&:hover': {
-                    color: 'hsl(var(--foreground))',
+                    color: isDark ? '#f0f6fc' : '#1f2328',
                   },
                 }}
               >
@@ -803,6 +913,30 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
             );
           })}
         </Box>
+
+        {isCurrentEdited && (
+          <Button
+            size="small"
+            variant="text"
+            onClick={handleReset}
+            sx={{
+              height: 22,
+              minWidth: 42,
+              px: 0.75,
+              fontSize: '0.62rem',
+              fontWeight: 500,
+              textTransform: 'none',
+              borderRadius: 1,
+              color: isDark ? '#8b949e' : '#57606a',
+              '&:hover': {
+                color: isDark ? '#f0f6fc' : '#1f2328',
+                bgcolor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.06)',
+              },
+            }}
+          >
+            Reset
+          </Button>
+        )}
 
         {/* Copy button */}
         <Button
@@ -817,12 +951,12 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
             fontWeight: 600,
             textTransform: 'none',
             borderRadius: 1,
-            borderColor: 'hsl(var(--border))',
-            color: 'hsl(var(--foreground))',
-            bgcolor: 'hsl(var(--background))',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(15, 23, 42, 0.16)',
+            color: isDark ? '#e6edf3' : '#1f2328',
+            bgcolor: isDark ? '#0d1117' : '#ffffff',
             '&:hover': {
               borderColor: 'hsl(var(--primary) / 0.5)',
-              bgcolor: 'hsl(var(--muted) / 0.3)',
+              bgcolor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.04)',
             },
           }}
         >
@@ -873,10 +1007,11 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
             p: 1.5,
             maxHeight: 280,
             overflow: 'auto',
-            bgcolor: 'hsl(var(--background))',
+            bgcolor: isDark ? '#0d1117' : '#ffffff',
+            color: isDark ? '#e6edf3' : '#1f2328',
             fontFamily: "'JetBrains Mono', monospace",
             '& .json-view': {
-              fontSize: '0.72rem !important',
+              fontSize: '0.75rem !important',
               fontFamily: 'inherit !important',
               bgcolor: 'transparent !important',
             },
@@ -894,27 +1029,137 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
         </Box>
       ) : (
         <Box
-          component="pre"
           sx={{
-            m: 0,
-            p: 1.5,
-            fontSize: '0.72rem',
-            fontFamily: "'JetBrains Mono', monospace",
-            color: 'hsl(var(--foreground))',
-            lineHeight: 1.6,
-            overflow: 'auto',
+            display: 'flex',
+            alignItems: 'stretch',
             maxHeight: 280,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-all',
-            bgcolor: 'hsl(var(--background))',
-            '&::-webkit-scrollbar': { width: 4, height: 4 },
+            overflow: 'auto',
+            bgcolor: isDark ? '#0d1117' : '#ffffff',
+            color: isDark ? '#e6edf3' : '#1f2328',
+            fontFamily: "'JetBrains Mono', monospace",
+            '&::-webkit-scrollbar': { width: 6, height: 6 },
             '&::-webkit-scrollbar-thumb': {
-              background: 'hsl(var(--border))',
-              borderRadius: 2,
+              background: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(15, 23, 42, 0.2)',
+              borderRadius: 3,
             },
           }}
-          dangerouslySetInnerHTML={{ __html: highlightSnippet(currentSnippet, mode) }}
-        />
+        >
+          <Box
+            aria-hidden="true"
+            sx={{
+              py: 1.5,
+              px: 1.25,
+              minWidth: 38,
+              textAlign: 'right',
+              userSelect: 'none',
+              borderRight: '1px solid',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)',
+              bgcolor: isDark ? '#13171e' : '#f8f9fb',
+              color: isDark ? '#7d8590' : '#57606a',
+              fontSize: '0.72rem',
+              lineHeight: '1.65rem',
+              fontFamily: "'JetBrains Mono', monospace",
+              flexShrink: 0,
+            }}
+          >
+            {snippetLines.map((_, idx) => (
+              <Box key={idx} sx={{ height: '1.65rem' }}>
+                {idx + 1}
+              </Box>
+            ))}
+          </Box>
+          <Box
+            sx={{
+              position: 'relative',
+              flex: 1,
+              minWidth: 0,
+              bgcolor: isDark ? '#0d1117' : '#ffffff',
+            }}
+          >
+            <Box
+              component="div"
+              aria-hidden="true"
+              sx={{
+                m: 0,
+                py: 1.5,
+                px: 1.75,
+                fontSize: '0.76rem',
+                fontFamily: "'JetBrains Mono', monospace",
+                color: isDark ? '#e6edf3' : '#1f2328',
+                bgcolor: 'transparent',
+                border: 'none',
+                lineHeight: '1.65rem',
+                whiteSpace: 'pre',
+                pointerEvents: 'none',
+                minHeight: `${Math.max(snippetLines.length, 1) * 1.65 + 1.5}rem`,
+              }}
+              dangerouslySetInnerHTML={{
+                __html: `${highlightSnippet(currentSnippet, mode, isDark)}\n`,
+              }}
+            />
+            <Box
+              component="textarea"
+              value={currentSnippet}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                const val = e.target.value;
+                setEditedSnippets((prev) => ({
+                  ...prev,
+                  [mode]: val,
+                }));
+              }}
+              onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                if (e.key === 'Tab') {
+                  e.preventDefault();
+                  const target = e.currentTarget;
+                  const start = target.selectionStart;
+                  const end = target.selectionEnd;
+                  const next = `${currentSnippet.substring(0, start)}  ${currentSnippet.substring(end)}`;
+                  setEditedSnippets((prev) => ({
+                    ...prev,
+                    [mode]: next,
+                  }));
+                  requestAnimationFrame(() => {
+                    target.selectionStart = target.selectionEnd = start + 2;
+                  });
+                } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  if (!isRunning) {
+                    handleRun();
+                  }
+                }
+              }}
+              spellCheck={false}
+              autoCapitalize="off"
+              autoComplete="off"
+              autoCorrect="off"
+              aria-label={`${title} ${mode} code editor`}
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                m: 0,
+                py: 1.5,
+                px: 1.75,
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                 background: 'transparent',
+                color: 'transparent',
+                caretColor: 'hsl(var(--primary))',
+                fontSize: '0.76rem',
+                fontFamily: "'JetBrains Mono', monospace",
+                lineHeight: '1.65rem',
+                whiteSpace: 'pre',
+                overflow: 'hidden',
+                '&::selection': {
+                  backgroundColor: 'hsl(var(--primary) / 0.25)',
+                  color: 'transparent',
+                },
+              }}
+            />
+          </Box>
+        </Box>
       )}
 
       {/* Collapsible Test Response Drawer */}
@@ -1084,13 +1329,14 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
               maxHeight: 240,
               overflow: 'auto',
               fontFamily: "'JetBrains Mono', monospace",
-              bgcolor: 'hsl(var(--background) / 0.5)',
+              bgcolor: isDark ? '#0d1117' : '#ffffff',
+              color: isDark ? '#e6edf3' : '#1f2328',
             }}
           >
             {isRunning ? (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                 <CircularProgress size={12} color="inherit" />
-                <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))' }}>
+                <Typography sx={{ fontSize: '0.72rem', color: isDark ? '#8b949e' : '#57606a' }}>
                   Executing in Shuffle...
                 </Typography>
               </Box>
@@ -1116,12 +1362,12 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
               </Box>
             ) : responseOutput ? (
               <Box
-                component="pre"
+                component="div"
                 sx={{
                   m: 0,
                   fontSize: '0.72rem',
                   lineHeight: 1.6,
-                  color: 'hsl(var(--foreground))',
+                  color: isDark ? '#e6edf3' : '#1f2328',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-all',
                 }}
@@ -1129,7 +1375,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
                 {responseOutput}
               </Box>
             ) : (
-              <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))' }}>
+              <Typography sx={{ fontSize: '0.72rem', color: isDark ? '#8b949e' : '#57606a' }}>
                 No response received.
               </Typography>
             )}

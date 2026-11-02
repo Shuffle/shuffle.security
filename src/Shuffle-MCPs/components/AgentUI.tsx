@@ -2485,6 +2485,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const themeScope = useShuffleMcpTheme();
   const scopeClassName = themeScope?.scopeClassName || 'shuffle-mcp-scope';
   const [actionInput, setActionInput] = useState<string>(() => {
+    if (defaultInput && defaultInput.trim().length > 0) {
+      return defaultInput;
+    }
     if (contextStorageKey) {
       const saved = getPageContextChoice(contextStorageKey);
       if (saved?.draftPrompt !== undefined && saved.draftPrompt !== '') {

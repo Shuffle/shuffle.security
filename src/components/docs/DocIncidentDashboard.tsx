@@ -169,8 +169,9 @@ export const DocIncidentDashboard: React.FC<DocIncidentDashboardProps> = ({
   if (!ready) return null;
 
   return (
-    <Box sx={{ my: 4, '& > .MuiBox-root': { mb: 0 } }}>
+    <Box sx={{ my: 3.5, '& > .MuiBox-root': { mb: 0 } }}>
       <DashboardOverview
+        compact
         incidents={useSample ? sampleIncidents : parsedIncidents}
         slaTargets={slaControls.incidentSlaEnabled ? slaConfig : undefined}
         sloTargetPercent={slaControls.sloEnabled ? slaControls.incidentSloPercent : undefined}
@@ -180,7 +181,7 @@ export const DocIncidentDashboard: React.FC<DocIncidentDashboardProps> = ({
         vulnSeverityCounts={useSample ? sampleVulnCounts : vulnSeverityCounts}
         vulnLoading={useSample ? false : vulnLoading}
         monitorHostCount={useSample ? SAMPLE_HOST_COUNT : (hostMonitorCount ?? 0)}
-        runningSensorCount={useSample ? 4 : undefined}
+        runningSensorCount={useSample ? 4 : null}
         monitorsLoading={useSample ? false : hostMonitorCount === null}
         days={days}
         gran="daily"

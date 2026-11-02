@@ -18,7 +18,14 @@ import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { toast } from '@/Shuffle-Core/lib/toast';
 import { ShuffleCompanyLogo } from '@/components/common/ShuffleLogo';
 import { AppFallbackIcon } from '../AppFallbackIcon';
-import { getClientProfile, type ClientProfile } from './OAuthAuthorizeView';
+import {
+  getClientProfile,
+  type ClientProfile,
+  type OAuthAppPermission,
+} from './OAuthAuthorizeView';
+import { McpSetupModal, type McpSetupModalProps } from './McpSetupModal';
+
+export { McpSetupModal, type McpSetupModalProps };
 import {
   getVerificationStatusMeta,
   type OAuthRawSource,
@@ -35,6 +42,8 @@ export interface OAuthConnectionItem {
   token_type?: string;
   scope?: string;
   allowed_apps?: string[];
+  allowed_tools?: string[];
+  app_permissions?: OAuthAppPermission[];
   org_id?: string;
   user_id?: string;
   created_at?: number | string;
@@ -75,16 +84,20 @@ const formatScopeLabel = (scope: string): string => {
   if (SCOPE_LABELS[clean]) {
     return `${SCOPE_LABELS[clean]} (${clean})`;
   }
+  if (clean.toLowerCase().startsWith('app:')) {
+    const appTarget = clean.slice(4);
+    return `App access: ${appTarget} (${clean})`;
+  }
   return clean;
 };
 
 const parseScopes = (scopeStr?: string): string[] => {
-  if (!scopeStr) return ['workflow:edit'];
+  if (!scopeStr) return ['mcp:execute'];
   const parts = scopeStr
     .split(/[\s,]+/)
     .map((s) => s.trim())
     .filter(Boolean);
-  return parts.length > 0 ? parts : ['workflow:edit'];
+  return parts.length > 0 ? parts : ['mcp:execute'];
 };
 
 const formatDate = (val?: number | string): string => {
@@ -141,6 +154,7 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<OAuthConnectionItem | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [setupModalOpen, setSetupModalOpen] = useState<boolean>(false);
 
   const toggleExpanded = useCallback((connKey: string) => {
     setExpandedIds((prev) => {
@@ -276,27 +290,58 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
           </Typography>
         </Box>
 
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={() => fetchConnections(connections.length > 0)}
-          disabled={loading || refreshing}
-          sx={{
-            height: 32,
-            px: 1.75,
-            textTransform: 'none',
-            fontSize: '0.8rem',
-            borderRadius: 1.5,
-            borderColor: 'hsl(var(--border))',
-            color: 'hsl(var(--foreground))',
-            '&:hover': {
-              borderColor: 'hsl(var(--primary))',
-              bgcolor: 'hsl(var(--muted) / 0.4)',
-            },
-          }}
-        >
-          {loading || refreshing ? 'Refreshing...' : 'Refresh'}
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => setSetupModalOpen(true)}
+            startIcon={
+              <AppFallbackIcon
+                name="ChatGPT"
+                size={16}
+                alt="ChatGPT"
+                style={{ borderRadius: '50%', objectFit: 'cover' }}
+              />
+            }
+            sx={{
+              height: 32,
+              px: 1.75,
+              textTransform: 'none',
+              fontSize: '0.8rem',
+              borderRadius: 1.5,
+              borderColor: 'hsl(var(--border))',
+              color: 'hsl(var(--foreground))',
+              '&:hover': {
+                borderColor: 'hsl(var(--primary))',
+                bgcolor: 'hsl(var(--muted) / 0.4)',
+              },
+            }}
+          >
+            ChatGPT
+          </Button>
+
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => fetchConnections(connections.length > 0)}
+            disabled={loading || refreshing}
+            sx={{
+              height: 32,
+              px: 1.75,
+              textTransform: 'none',
+              fontSize: '0.8rem',
+              borderRadius: 1.5,
+              borderColor: 'hsl(var(--border))',
+              color: 'hsl(var(--foreground))',
+              '&:hover': {
+                borderColor: 'hsl(var(--primary))',
+                bgcolor: 'hsl(var(--muted) / 0.4)',
+              },
+            }}
+          >
+            {loading || refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </Box>
       </Box>
 
       {error && (
@@ -348,6 +393,13 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
             const allowedApps = Array.isArray(conn.allowed_apps)
               ? conn.allowed_apps.filter((a) => a && a !== '*')
               : [];
+            const appPermissions = Array.isArray(conn.app_permissions)
+              ? conn.app_permissions
+              : [];
+            const totalToolsCount = appPermissions.reduce(
+              (acc, app) => acc + (Array.isArray(app.tools) ? app.tools.length : 0),
+              0,
+            );
             const rawSource = conn.raw_source;
             const effectiveRedirectUri =
               conn.redirect_uri ||
@@ -516,6 +568,28 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                             {formatScopeLabel(sc)}
                           </Box>
                         ))}
+                        {appPermissions.map((ap) => {
+                          const toolLen = Array.isArray(ap.tools) ? ap.tools.length : 0;
+                          return (
+                            <Box
+                              key={`app-pill-${ap.id || ap.name}`}
+                              component="span"
+                              sx={{
+                                px: 0.85,
+                                py: 0.2,
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                borderRadius: 1,
+                                bgcolor: 'rgba(255, 102, 0, 0.1)',
+                                color: 'hsl(var(--primary))',
+                                border: '1px solid rgba(255, 102, 0, 0.28)',
+                              }}
+                            >
+                              {ap.name}
+                              {toolLen > 0 ? ` (${toolLen} ${toolLen === 1 ? 'tool' : 'tools'})` : ''}
+                            </Box>
+                          );
+                        })}
                       </Box>
                     </Box>
                   </Box>
@@ -796,7 +870,238 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                       </Box>
                     )}
 
-                    {allowedApps.length > 0 && (
+                    {appPermissions.length > 0 && (
+                      <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' }, mt: 0.5 }}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: 'hsl(var(--muted-foreground))',
+                            display: 'block',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                            mb: 1,
+                          }}
+                        >
+                          Authorized Apps & MCP Tools ({appPermissions.length}{' '}
+                          {appPermissions.length === 1 ? 'app' : 'apps'}
+                          {totalToolsCount > 0 ? `, ${totalToolsCount} tools` : ''})
+                        </Typography>
+
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                          {appPermissions.map((ap) => {
+                            const tools = Array.isArray(ap.tools) ? ap.tools : [];
+                            const readCount = tools.filter((t) => t.read_only).length;
+                            const writeCount = tools.filter((t) => !t.read_only && !t.destructive).length;
+                            const destructiveCount = tools.filter((t) => t.destructive).length;
+
+                            return (
+                              <Box
+                                key={ap.id || ap.name}
+                                sx={{
+                                  borderRadius: 1.5,
+                                  border: '1px solid hsl(var(--border))',
+                                  bgcolor: 'hsl(var(--background))',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                <Box
+                                  sx={{
+                                    px: 1.5,
+                                    py: 1,
+                                    bgcolor: 'hsl(var(--muted) / 0.25)',
+                                    borderBottom: tools.length > 0 ? '1px solid hsl(var(--border))' : 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    flexWrap: 'wrap',
+                                    gap: 1,
+                                  }}
+                                >
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                    <Typography
+                                      variant="body2"
+                                      sx={{ fontWeight: 700, color: 'hsl(var(--foreground))', fontSize: '0.82rem' }}
+                                    >
+                                      {ap.name}
+                                    </Typography>
+                                    <Box
+                                      component="span"
+                                      sx={{
+                                        px: 0.7,
+                                        py: 0.1,
+                                        fontSize: '0.68rem',
+                                        fontWeight: 600,
+                                        borderRadius: 0.75,
+                                        bgcolor: 'hsl(var(--muted))',
+                                        color: 'hsl(var(--muted-foreground))',
+                                        border: '1px solid hsl(var(--border))',
+                                      }}
+                                    >
+                                      {tools.length} {tools.length === 1 ? 'tool' : 'tools'}
+                                    </Box>
+                                  </Box>
+
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                                    {readCount > 0 && (
+                                      <Box
+                                        component="span"
+                                        sx={{
+                                          px: 0.65,
+                                          py: 0.1,
+                                          fontSize: '0.65rem',
+                                          fontWeight: 600,
+                                          borderRadius: 0.75,
+                                          bgcolor: 'rgba(34, 197, 94, 0.1)',
+                                          color: '#22C55E',
+                                          border: '1px solid rgba(34, 197, 94, 0.25)',
+                                        }}
+                                      >
+                                        {readCount} Read
+                                      </Box>
+                                    )}
+                                    {writeCount > 0 && (
+                                      <Box
+                                        component="span"
+                                        sx={{
+                                          px: 0.65,
+                                          py: 0.1,
+                                          fontSize: '0.65rem',
+                                          fontWeight: 600,
+                                          borderRadius: 0.75,
+                                          bgcolor: 'rgba(59, 130, 246, 0.1)',
+                                          color: '#3B82F6',
+                                          border: '1px solid rgba(59, 130, 246, 0.25)',
+                                        }}
+                                      >
+                                        {writeCount} Write
+                                      </Box>
+                                    )}
+                                    {destructiveCount > 0 && (
+                                      <Box
+                                        component="span"
+                                        sx={{
+                                          px: 0.65,
+                                          py: 0.1,
+                                          fontSize: '0.65rem',
+                                          fontWeight: 600,
+                                          borderRadius: 0.75,
+                                          bgcolor: 'rgba(245, 158, 11, 0.12)',
+                                          color: '#F59E0B',
+                                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                                        }}
+                                      >
+                                        {destructiveCount} Destructive
+                                      </Box>
+                                    )}
+                                  </Box>
+                                </Box>
+
+                                {tools.length > 0 && (
+                                  <Box sx={{ maxHeight: 220, overflowY: 'auto' }}>
+                                    {tools.map((tool, tIdx) => {
+                                      const modeLabel = tool.destructive
+                                        ? 'Destructive'
+                                        : tool.read_only
+                                          ? 'Read'
+                                          : 'Write';
+                                      const modeColor = tool.destructive
+                                        ? '#F59E0B'
+                                        : tool.read_only
+                                          ? '#22C55E'
+                                          : '#3B82F6';
+                                      const modeBg = tool.destructive
+                                        ? 'rgba(245, 158, 11, 0.12)'
+                                        : tool.read_only
+                                          ? 'rgba(34, 197, 94, 0.1)'
+                                          : 'rgba(59, 130, 246, 0.1)';
+
+                                      return (
+                                        <Box
+                                          key={tool.name}
+                                          sx={{
+                                            px: 1.5,
+                                            py: 0.85,
+                                            borderBottom:
+                                              tIdx < tools.length - 1
+                                                ? '1px solid hsl(var(--border) / 0.6)'
+                                                : 'none',
+                                          }}
+                                        >
+                                          <Box
+                                            sx={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'space-between',
+                                              gap: 1,
+                                            }}
+                                          >
+                                            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+                                              <Typography
+                                                variant="caption"
+                                                sx={{
+                                                  fontWeight: 600,
+                                                  color: 'hsl(var(--foreground))',
+                                                  fontSize: '0.76rem',
+                                                }}
+                                              >
+                                                {tool.title || tool.name}
+                                              </Typography>
+                                              <Typography
+                                                variant="caption"
+                                                sx={{
+                                                  fontFamily: 'monospace',
+                                                  fontSize: '0.68rem',
+                                                  color: 'hsl(var(--muted-foreground))',
+                                                }}
+                                              >
+                                                {tool.name}
+                                              </Typography>
+                                            </Box>
+                                            <Box
+                                              component="span"
+                                              sx={{
+                                                px: 0.6,
+                                                py: 0.08,
+                                                fontSize: '0.64rem',
+                                                fontWeight: 600,
+                                                borderRadius: 0.75,
+                                                bgcolor: modeBg,
+                                                color: modeColor,
+                                                flexShrink: 0,
+                                              }}
+                                            >
+                                              {modeLabel}
+                                            </Box>
+                                          </Box>
+                                          {tool.description && (
+                                            <Typography
+                                              variant="caption"
+                                              sx={{
+                                                color: 'hsl(var(--muted-foreground))',
+                                                display: 'block',
+                                                fontSize: '0.71rem',
+                                                lineHeight: 1.35,
+                                                mt: 0.2,
+                                              }}
+                                            >
+                                              {tool.description}
+                                            </Typography>
+                                          )}
+                                        </Box>
+                                      );
+                                    })}
+                                  </Box>
+                                )}
+                              </Box>
+                            );
+                          })}
+                        </Box>
+                      </Box>
+                    )}
+
+                    {allowedApps.length > 0 && appPermissions.length === 0 && (
                       <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
                         <Typography
                           variant="caption"
@@ -902,6 +1207,11 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
           </Button>
         </DialogActions>
       </Dialog>
+
+      <McpSetupModal
+        open={setupModalOpen}
+        onClose={() => setSetupModalOpen(false)}
+      />
     </Paper>
   );
 };

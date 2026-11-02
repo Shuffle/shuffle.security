@@ -955,7 +955,9 @@ const AgentActivityList = ({
   disableFetch = false,
 }: AgentActivityListProps) => {
   const [appDrawer, setAppDrawer] = useState<{ id?: string; name: string } | null>(null);
-  const [runs, setRuns] = useState<AgentRun[]>(initialRuns || []);
+  const [runs, setRuns] = useState<AgentRun[]>(() =>
+    initialRuns ? initialRuns.slice(0, limit) : [],
+  );
   const [cursor, setCursor] = useState('');
   const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -1094,7 +1096,7 @@ const AgentActivityList = ({
     async (append = false, cursorParam = '') => {
       if (disableFetch) {
         if (initialRuns && !append) {
-          setRuns(initialRuns);
+          setRuns(initialRuns.slice(0, limit));
         }
         return;
       }
@@ -1112,23 +1114,24 @@ const AgentActivityList = ({
           workflowId: workflowFilter || 'AGENT',
         });
         if (result.success && result.runs && result.runs.length > 0) {
-          setRuns((prev) => (append ? [...prev, ...result.runs] : result.runs));
+          const pageRuns = result.runs.slice(0, limit);
+          setRuns((prev) => (append ? [...prev, ...pageRuns] : pageRuns));
           setCursor(result.cursor);
           setHasMore(!!result.cursor && result.runs.length > 0);
         } else if (result.success) {
-          setRuns((prev) => (append ? prev : initialRuns && initialRuns.length > 0 ? initialRuns : []));
+          setRuns((prev) => (append ? prev : initialRuns && initialRuns.length > 0 ? initialRuns.slice(0, limit) : []));
           setCursor(result.cursor);
           setHasMore(false);
         } else {
           if (initialRuns && initialRuns.length > 0 && !append) {
-            setRuns(initialRuns);
+            setRuns(initialRuns.slice(0, limit));
           } else {
             setError('Failed to fetch agent activity');
           }
         }
       } catch (err) {
         if (initialRuns && initialRuns.length > 0 && !append) {
-          setRuns(initialRuns);
+          setRuns(initialRuns.slice(0, limit));
         } else {
           setError(err instanceof Error ? err.message : 'Failed to fetch agent activity');
         }

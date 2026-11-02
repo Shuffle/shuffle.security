@@ -22,7 +22,23 @@ export interface ActiveDocInfo {
   groupId?: string;
   groupLabel?: string;
   groupDocs?: GroupDocSnippet[];
+  /** Specific excerpt marked/highlighted by the user in the documentation */
+  selectedText?: string;
 }
+
+export const DOC_SELECTION_EVENT = 'shuffle:doc-selection-change';
+const GLOBAL_DOC_SELECTION_KEY = '__shuffleActiveDocSelection';
+
+/**
+ * Normalizes and truncates marked text to a clean single-line preview for
+ * "Ask about X" buttons and headers.
+ */
+export const truncateDocSelectionPreview = (text: string, maxChars = 36): string => {
+  const clean = (text || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  if (clean.length <= maxChars) return clean;
+  return `${clean.slice(0, maxChars).trimEnd()}…`;
+};
 
 // Global window / globalThis key so any component can access the active doc even across bundles
 const GLOBAL_DOC_KEY = '__shuffleActiveDocInfo';
@@ -41,10 +57,57 @@ export const setActiveDocPromptContext = (info: ActiveDocInfo | null) => {
   const scope = getGlobalScope();
   if (!scope) return;
   if (info) {
-    scope[GLOBAL_DOC_KEY] = { ...info };
+    const prevSelection = scope[GLOBAL_DOC_SELECTION_KEY];
+    scope[GLOBAL_DOC_KEY] = {
+      ...info,
+      selectedText: info.selectedText !== undefined ? info.selectedText : prevSelection,
+    };
   } else {
     delete scope[GLOBAL_DOC_KEY];
+    delete scope[GLOBAL_DOC_SELECTION_KEY];
   }
+};
+
+/**
+ * Sets or clears the currently marked/selected text in the active documentation page
+ * and notifies listeners (such as AskAiWidget and AskAiSidePanel).
+ */
+export const setActiveDocSelectedText = (selectedText: string | null) => {
+  const scope = getGlobalScope();
+  if (!scope) return;
+  const cleaned = (selectedText || '').trim();
+  if (cleaned) {
+    scope[GLOBAL_DOC_SELECTION_KEY] = cleaned;
+    if (scope[GLOBAL_DOC_KEY] && typeof scope[GLOBAL_DOC_KEY] === 'object') {
+      scope[GLOBAL_DOC_KEY].selectedText = cleaned;
+    }
+  } else {
+    delete scope[GLOBAL_DOC_SELECTION_KEY];
+    if (scope[GLOBAL_DOC_KEY] && typeof scope[GLOBAL_DOC_KEY] === 'object') {
+      delete scope[GLOBAL_DOC_KEY].selectedText;
+    }
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(
+        new CustomEvent(DOC_SELECTION_EVENT, {
+          detail: { selectedText: cleaned || null },
+        }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+};
+
+/**
+ * Retrieves the currently marked/selected text in the active documentation page.
+ */
+export const getActiveDocSelectedText = (): string | null => {
+  const scope = getGlobalScope();
+  if (!scope) return null;
+  const sel = scope[GLOBAL_DOC_SELECTION_KEY] || scope[GLOBAL_DOC_KEY]?.selectedText;
+  return typeof sel === 'string' && sel.trim().length > 0 ? sel.trim() : null;
 };
 
 /**
@@ -295,10 +358,15 @@ export const composeDocPromptInput = (
     docSection = `# Documentation Category: ${categoryName}\n\n${docBlocks}`;
   }
 
+  const markedExcerpt = (activeDoc?.selectedText || getActiveDocSelectedText() || '').trim();
+  const excerptBlock = markedExcerpt
+    ? `\n\n## User-Marked Excerpt (Focus of Question)\nThe user highlighted the following text in "${title}":\n"""\n${markedExcerpt.slice(0, 4000)}\n"""`
+    : '';
+
   if (docSection) {
     return `Answer the users question about Shuffle ${categoryName} based on the following complete documentation for the ${categoryName} category:
 ${DOC_PROMPT_DELIMITER_START}
-${docSection}
+${docSection}${excerptBlock}
 ${DOC_PROMPT_DELIMITER_END}
 
 User Question:
@@ -306,7 +374,7 @@ ${trimmedQuestion}`;
   }
 
   // Fallback when markdown is empty or still loading
-  return `Answer the users question about Shuffle ${categoryName}:
+  return `Answer the users question about Shuffle ${categoryName}:${excerptBlock}
 
 ${trimmedQuestion}`;
 };

@@ -55,6 +55,12 @@ import {
   type AgentResolvedContext,
 } from '@/Shuffle-MCPs/agentContextRegistry';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
+import {
+  DOC_SELECTION_EVENT,
+  getActiveDocSelectedText,
+  setActiveDocSelectedText,
+  truncateDocSelectionPreview,
+} from '@/lib/docsPromptContext';
 
 export const AGENT_DRAWER_OPEN_EVENT = 'agent-drawer-open';
 export interface AgentDrawerOpenDetail {
@@ -67,6 +73,9 @@ export interface AgentDrawerOpenDetail {
   incidentContext?: Record<string, any>;
   executionId?: string | null;
   resetExecution?: boolean;
+  headerTitle?: string;
+  title?: string;
+  selectedText?: string | null;
 }
 
 export const ASK_AI_PANEL_WIDTH_STORAGE_KEY = 'shuffle:ask_ai_panel_width';
@@ -300,12 +309,44 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
     };
   }, [open, currentPathname]);
 
+  const [customHeaderTitle, setCustomHeaderTitle] = useState<string | null>(null);
+  const [customTitle, setCustomTitle] = useState<string | null>(null);
+  const [selectedText, setSelectedText] = useState<string | null>(() => getActiveDocSelectedText());
+
+  useEffect(() => {
+    setCustomHeaderTitle(null);
+    setCustomTitle(null);
+    setSelectedText(getActiveDocSelectedText());
+  }, [currentPathname]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onDocSelection = (e: Event) => {
+      const detail = (e as CustomEvent<{ selectedText?: string | null }>).detail;
+      const next = detail?.selectedText ?? getActiveDocSelectedText();
+      setSelectedText(next);
+      if (!next) {
+        setCustomHeaderTitle(null);
+        setCustomTitle(null);
+      }
+    };
+    window.addEventListener(DOC_SELECTION_EVENT, onDocSelection);
+    return () => window.removeEventListener(DOC_SELECTION_EVENT, onDocSelection);
+  }, []);
+
+  const selectionPreview = useMemo(
+    () => (selectedText ? truncateDocSelectionPreview(selectedText, 34) : ''),
+    [selectedText],
+  );
+
   const displayTitle = React.useMemo(() => {
+    if (customTitle) return customTitle;
+    if (selectionPreview) return `How can we help with "${selectionPreview}"?`;
     if (context.titleFn) {
       return context.titleFn(entityTitle);
     }
     return context.title || 'How can we help on this page?';
-  }, [context, entityTitle]);
+  }, [customTitle, selectionPreview, context, entityTitle]);
 
   useEffect(() => {
     onContextResolved?.(context);
@@ -400,6 +441,18 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       }
       if (detail?.defaultInput !== undefined) {
         setControlledDefaultInput(detail.defaultInput);
+        if (context.storageKey) {
+          setPageContextChoice(context.storageKey, { draftPrompt: detail.defaultInput });
+        }
+      }
+      if (detail?.headerTitle !== undefined) {
+        setCustomHeaderTitle(detail.headerTitle || null);
+      }
+      if (detail?.title !== undefined) {
+        setCustomTitle(detail.title || null);
+      }
+      if (detail?.selectedText !== undefined) {
+        setSelectedText(detail.selectedText || null);
       }
       if (detail?.autoSubmit !== undefined) {
         setControlledAutoSubmit(detail.autoSubmit);
@@ -957,7 +1010,9 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                 ? 'Agent Permissions'
                 : safeActiveTab === 'localLLM'
                   ? 'Local LLM Settings'
-                  : (context.headerTitleFn ? context.headerTitleFn(entityTitle) : context.headerTitle) ||
+                  : customHeaderTitle ||
+                    (selectionPreview ? `Ask about "${selectionPreview}"` : '') ||
+                    (context.headerTitleFn ? context.headerTitleFn(entityTitle) : context.headerTitle) ||
                     (context.buttonLabelFn ? context.buttonLabelFn(entityTitle) : context.buttonLabel) ||
                     'Ask Shuffle'}
             </Typography>
@@ -1218,6 +1273,90 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                   }}
                 >
                   Log in to interact with AI agents and test prompts.
+                </Typography>
+              </Box>
+            )}
+
+            {/* Marked Documentation Excerpt Banner */}
+            {selectedText && (
+              <Box
+                sx={{
+                  mx: 2,
+                  mt: 1.5,
+                  mb: 0.5,
+                  p: 1.25,
+                  borderRadius: 1.5,
+                  bgcolor: 'hsl(var(--muted) / 0.45)',
+                  border: '1px solid hsl(var(--border))',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0.5,
+                  flexShrink: 0,
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1,
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      color: 'hsl(var(--primary))',
+                    }}
+                  >
+                    Marked text
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => {
+                      setActiveDocSelectedText(null);
+                      setSelectedText(null);
+                      setCustomHeaderTitle(null);
+                      setCustomTitle(null);
+                    }}
+                    sx={{
+                      minWidth: 0,
+                      height: 18,
+                      px: 0.75,
+                      py: 0,
+                      fontSize: '0.66rem',
+                      fontWeight: 600,
+                      textTransform: 'none',
+                      color: 'hsl(var(--muted-foreground))',
+                      '&:hover': {
+                        color: 'hsl(var(--foreground))',
+                        bgcolor: 'hsl(var(--muted))',
+                      },
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </Box>
+                <Typography
+                  sx={{
+                    fontSize: '0.75rem',
+                    lineHeight: 1.45,
+                    color: 'hsl(var(--foreground))',
+                    fontFamily: selectedText.includes('\n') ? "'JetBrains Mono', monospace" : 'inherit',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    wordBreak: 'break-word',
+                    pl: 1,
+                    borderLeft: '2px solid hsl(var(--primary) / 0.6)',
+                  }}
+                >
+                  {selectedText.length > 220 ? `${selectedText.slice(0, 220).trimEnd()}…` : selectedText}
                 </Typography>
               </Box>
             )}

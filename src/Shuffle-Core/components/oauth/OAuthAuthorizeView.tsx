@@ -184,6 +184,20 @@ const PREDEFINED_SCOPES: Record<string, OAuthScopeDetail> = {
     description: 'Trigger authenticated actions across connected services (e.g., Jira, Slack, GitHub, Splunk, CrowdStrike).',
     badge: 'Apps Execute',
   },
+  'apps:run': {
+    id: 'apps:run',
+    category: 'app',
+    title: 'Run Third-Party App Actions',
+    description: 'Trigger authenticated actions across connected services (e.g., Jira, Slack, GitHub, Splunk, CrowdStrike).',
+    badge: 'Apps Run',
+  },
+  'app:run': {
+    id: 'app:run',
+    category: 'app',
+    title: 'Run Third-Party App Actions',
+    description: 'Trigger authenticated actions across connected services (e.g., Jira, Slack, GitHub, Splunk, CrowdStrike).',
+    badge: 'Apps Run',
+  },
   'app:execute': {
     id: 'app:execute',
     category: 'app',
@@ -318,7 +332,7 @@ const PREDEFINED_SCOPES: Record<string, OAuthScopeDetail> = {
   },
 };
 
-const DEFAULT_SCOPES = ['apps:read', 'workflows:read', 'incidents:read'];
+const DEFAULT_SCOPES = ['mcp:execute', 'apps:read'];
 
 // Dynamic scope parser for custom per-server/per-app tokens
 const parseDynamicScope = (rawScope: string): OAuthScopeDetail => {
@@ -398,6 +412,24 @@ export interface ClientProfile {
   rawSource?: OAuthRawSource;
 }
 
+export interface OAuthToolPermission {
+  name: string;
+  title?: string;
+  description?: string;
+  app_id?: string;
+  app_name?: string;
+  read_only?: boolean;
+  destructive?: boolean;
+}
+
+export interface OAuthAppPermission {
+  id: string;
+  name: string;
+  image?: string;
+  description?: string;
+  tools?: OAuthToolPermission[];
+}
+
 interface BackendConsentScope {
   scope: string;
   name?: string;
@@ -412,6 +444,7 @@ interface BackendConsentInfo {
   logo_uri?: string;
   issuer?: string;
   scopes?: BackendConsentScope[];
+  app_permissions?: OAuthAppPermission[];
   available_orgs?: OrganizationLike[];
   selected_org_id?: string;
   vendor_id?: string;
@@ -779,7 +812,7 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
     return uniqueTokens.map((token) => {
       const parsed = parseDynamicScope(token);
       const fromBackend = backendScopes.find((bs) => bs.scope === token);
-      if (fromBackend && parsed.category === 'system') {
+      if (fromBackend && (parsed.category === 'system' || parsed.category === 'app')) {
         return {
           ...parsed,
           title: fromBackend.name || parsed.title,
@@ -789,6 +822,86 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
       return parsed;
     });
   }, [scopeParam, backendConsentInfo?.scopes]);
+
+  const appPermissions = useMemo<OAuthAppPermission[]>(
+    () => backendConsentInfo?.app_permissions || [],
+    [backendConsentInfo?.app_permissions],
+  );
+
+  const allAvailableToolNames = useMemo<string[]>(() => {
+    const names: string[] = [];
+    for (const app of appPermissions) {
+      for (const tool of app.tools || []) {
+        if (tool.name && !names.includes(tool.name)) {
+          names.push(tool.name);
+        }
+      }
+    }
+    return names;
+  }, [appPermissions]);
+
+  const [selectedToolNames, setSelectedToolNames] = useState<Set<string>>(() => new Set());
+  const [expandedAppIds, setExpandedAppIds] = useState<Set<string>>(() => new Set());
+  const [appFilterQuery, setAppFilterQuery] = useState<string>('');
+
+  useEffect(() => {
+    setSelectedToolNames(new Set(allAvailableToolNames));
+    setExpandedAppIds(new Set());
+  }, [allAvailableToolNames, appPermissions]);
+
+  const filteredAppPermissions = useMemo<OAuthAppPermission[]>(() => {
+    const q = appFilterQuery.trim().toLowerCase();
+    if (!q) return appPermissions;
+    return appPermissions.filter((app) => {
+      if ((app.name || '').toLowerCase().includes(q) || (app.id || '').toLowerCase().includes(q)) {
+        return true;
+      }
+      return (app.tools || []).some(
+        (t) =>
+          (t.name || '').toLowerCase().includes(q) ||
+          (t.title || '').toLowerCase().includes(q) ||
+          (t.description || '').toLowerCase().includes(q),
+      );
+    });
+  }, [appPermissions, appFilterQuery]);
+
+  const handleToggleTool = useCallback((toolName: string) => {
+    setSelectedToolNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(toolName)) {
+        next.delete(toolName);
+      } else {
+        next.add(toolName);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleAppTools = useCallback((tools: OAuthToolPermission[]) => {
+    setSelectedToolNames((prev) => {
+      const next = new Set(prev);
+      const toolNames = tools.map((t) => t.name).filter(Boolean);
+      const allSelected = toolNames.every((n) => next.has(n));
+      if (allSelected) {
+        toolNames.forEach((n) => next.delete(n));
+      } else {
+        toolNames.forEach((n) => next.add(n));
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleExpandApp = useCallback((appId: string) => {
+    setExpandedAppIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(appId)) {
+        next.delete(appId);
+      } else {
+        next.add(appId);
+      }
+      return next;
+    });
+  }, []);
 
   // Tenant resolution (merge local orgs with available_orgs from backend consent metadata)
   const activeOrg = propActiveOrg || resolvedUserInfo?.active_org;
@@ -885,7 +998,12 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
   const [copiedSimulatedUrl, setCopiedSimulatedUrl] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Group scopes
+  // Group scopes (hide duplicate 'app:' scope rows when appPermissions already renders Chosen Apps & MCP Tools)
+  const visibleScopes = useMemo(() => {
+    if (appPermissions.length === 0) return scopes;
+    return scopes.filter((scope) => scope.category !== 'app');
+  }, [scopes, appPermissions.length]);
+
   const groupedScopes = useMemo(() => {
     const groups: Record<string, { label: string; icon: React.ReactNode; items: OAuthScopeDetail[] }> = {
       general: { label: 'Account & Identity', icon: <UserCheck size={16} />, items: [] },
@@ -896,13 +1014,13 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
       system: { label: 'General Permissions', icon: <Lock size={16} />, items: [] },
     };
 
-    scopes.forEach((scope) => {
+    visibleScopes.forEach((scope) => {
       const cat = groups[scope.category] ? scope.category : 'system';
       groups[cat].items.push(scope);
     });
 
     return Object.values(groups).filter((g) => g.items.length > 0);
-  }, [scopes]);
+  }, [visibleScopes]);
 
   // Extract redirect host
   const redirectHost = useMemo(() => {
@@ -967,7 +1085,43 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
 
     try {
       const generatedCode = `shf_auth_${safeRandomUUID().replace(/-/g, '')}`;
-      const approvedScopeString = Array.from(selectedScopeIds).join(' ');
+      const approvedApps = appPermissions
+        .filter((app) => {
+          const appTools = app.tools || [];
+          if (appTools.length > 0) {
+            return appTools.some((t) => selectedToolNames.has(t.name));
+          }
+          const appScopeToken = scopes.find(
+            (s) =>
+              s.id.toLowerCase() === `app:${(app.id || '').toLowerCase()}` ||
+              s.id.toLowerCase() === `app:${(app.name || '').toLowerCase()}` ||
+              s.id.toLowerCase() === `app:${(app.name || '').toLowerCase().replace(/\s+/g, '_')}`,
+          );
+          return appScopeToken ? selectedScopeIds.has(appScopeToken.id) : true;
+        })
+        .map((app) => app.id || app.name)
+        .filter(Boolean);
+      const approvedAppsLower = new Set(approvedApps.map((a) => a.toLowerCase()));
+      const approvedScopeString = Array.from(selectedScopeIds)
+        .filter((scopeId) => {
+          if (appPermissions.length > 0 && scopeId.toLowerCase().startsWith('app:')) {
+            const rawApp = scopeId.slice(4).split(':')[0].toLowerCase();
+            return (
+              approvedAppsLower.has(rawApp) ||
+              appPermissions.some(
+                (ap) =>
+                  (ap.id?.toLowerCase() === rawApp ||
+                    ap.name?.toLowerCase() === rawApp ||
+                    ap.name?.toLowerCase().replace(/\s+/g, '_') === rawApp) &&
+                  approvedApps.includes(ap.id || ap.name),
+              )
+            );
+          }
+          return true;
+        })
+        .join(' ');
+      const approvedTools =
+        allAvailableToolNames.length > 0 ? Array.from(selectedToolNames) : undefined;
 
       // Backend authorization sync (try issuer endpoint first if specified, with fallback to regional backend)
       let response: Response | null = null;
@@ -980,6 +1134,8 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
         issuer: effectiveIssuer || undefined,
         redirect_uri: redirectUri,
         scope: approvedScopeString,
+        allowed_apps: approvedApps.length > 0 ? approvedApps : undefined,
+        allowed_tools: approvedTools,
         state,
         code_challenge: codeChallenge,
         code_challenge_method: codeChallengeMethod,
@@ -2056,7 +2212,351 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
             </Box>
           </Box>
 
+          {/* Chosen Apps & MCP Tools */}
+          {appPermissions.length > 0 && (
+            <Box sx={{ mb: 2.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    fontWeight: 700,
+                    color: 'hsl(var(--muted-foreground))',
+                  }}
+                >
+                  Chosen Apps & Tools ({appPermissions.length} {appPermissions.length === 1 ? 'app' : 'apps'}
+                  {allAvailableToolNames.length > 0 ? ` · ${selectedToolNames.size}/${allAvailableToolNames.length} tools` : ''})
+                </Typography>
+                {allAvailableToolNames.length > 0 && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => {
+                      if (selectedToolNames.size === allAvailableToolNames.length) {
+                        setSelectedToolNames(new Set());
+                      } else {
+                        setSelectedToolNames(new Set(allAvailableToolNames));
+                      }
+                    }}
+                    sx={{
+                      fontSize: '0.75rem',
+                      textTransform: 'none',
+                      p: 0,
+                      minWidth: 'auto',
+                      color: 'hsl(var(--primary))',
+                      fontWeight: 600,
+                      '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' },
+                    }}
+                  >
+                    {selectedToolNames.size === allAvailableToolNames.length ? 'Deselect All' : 'Select All'}
+                  </Button>
+                )}
+              </Box>
+
+              {appPermissions.length > 4 && (
+                <TextField
+                  size="small"
+                  fullWidth
+                  value={appFilterQuery}
+                  onChange={(e) => setAppFilterQuery(e.target.value)}
+                  placeholder={`Filter ${appPermissions.length} apps or tools...`}
+                  sx={{
+                    mb: 1,
+                    '& .MuiOutlinedInput-root': {
+                      height: 32,
+                      fontSize: '0.78rem',
+                      borderRadius: 1.5,
+                      bgcolor: 'hsl(var(--background))',
+                      '& fieldset': { borderColor: 'hsl(var(--border))' },
+                    },
+                  }}
+                />
+              )}
+
+              <Box
+                sx={{
+                  borderRadius: 2,
+                  border: '1px solid hsl(var(--border))',
+                  bgcolor: 'hsl(var(--background))',
+                  maxHeight: 280,
+                  overflowY: 'auto',
+                }}
+              >
+                {filteredAppPermissions.map((app, appIdx) => {
+                  const tools = app.tools || [];
+                  const appKey = app.id || app.name;
+                  const isExpanded = expandedAppIds.has(appKey);
+                  const selectedInApp = tools.filter((t) => selectedToolNames.has(t.name)).length;
+                  const readCount = tools.filter((t) => t.read_only).length;
+                  const writeCount = tools.filter((t) => !t.read_only && !t.destructive).length;
+                  const destructiveCount = tools.filter((t) => t.destructive).length;
+
+                  return (
+                    <Box
+                      key={appKey}
+                      sx={{
+                        borderBottom:
+                          appIdx < filteredAppPermissions.length - 1 ? '1px solid hsl(var(--border))' : 'none',
+                      }}
+                    >
+                      <Box
+                        onClick={() => tools.length > 0 && handleToggleExpandApp(appKey)}
+                        sx={{
+                          px: 1.5,
+                          py: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 1,
+                          cursor: tools.length > 0 ? 'pointer' : 'default',
+                          '&:hover': tools.length > 0 ? { bgcolor: 'hsl(var(--muted) / 0.25)' } : undefined,
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flexGrow: 1 }}>
+                          {tools.length > 0 && (
+                            <Checkbox
+                              size="small"
+                              checked={tools.length > 0 && selectedInApp === tools.length}
+                              indeterminate={selectedInApp > 0 && selectedInApp < tools.length}
+                              onChange={() => handleToggleAppTools(tools)}
+                              onClick={(e) => e.stopPropagation()}
+                              sx={{
+                                p: 0,
+                                color: 'hsl(var(--muted-foreground))',
+                                '&.Mui-checked, &.MuiCheckbox-indeterminate': {
+                                  color: 'hsl(var(--primary))',
+                                },
+                              }}
+                            />
+                          )}
+                          <Typography
+                            variant="body2"
+                            noWrap
+                            sx={{ fontWeight: 600, fontSize: '0.82rem', color: 'hsl(var(--foreground))' }}
+                          >
+                            {app.name}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              px: 0.65,
+                              py: 0.1,
+                              borderRadius: 0.75,
+                              fontSize: '0.66rem',
+                              fontWeight: 600,
+                              bgcolor: 'hsl(var(--muted))',
+                              color: 'hsl(var(--muted-foreground))',
+                              border: '1px solid hsl(var(--border))',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {tools.length > 0 ? `${selectedInApp}/${tools.length}` : 'App'}
+                          </Typography>
+                          {readCount > 0 && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                px: 0.55,
+                                py: 0.05,
+                                borderRadius: 0.75,
+                                fontSize: '0.63rem',
+                                fontWeight: 600,
+                                bgcolor: 'rgba(34, 197, 94, 0.1)',
+                                color: '#22C55E',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {readCount}R
+                            </Typography>
+                          )}
+                          {writeCount > 0 && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                px: 0.55,
+                                py: 0.05,
+                                borderRadius: 0.75,
+                                fontSize: '0.63rem',
+                                fontWeight: 600,
+                                bgcolor: 'rgba(59, 130, 246, 0.1)',
+                                color: '#3B82F6',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {writeCount}W
+                            </Typography>
+                          )}
+                          {destructiveCount > 0 && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                px: 0.55,
+                                py: 0.05,
+                                borderRadius: 0.75,
+                                fontSize: '0.63rem',
+                                fontWeight: 600,
+                                bgcolor: 'rgba(245, 158, 11, 0.12)',
+                                color: '#F59E0B',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {destructiveCount}D
+                            </Typography>
+                          )}
+                        </Box>
+
+                        {tools.length > 0 && (
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleExpandApp(appKey);
+                            }}
+                            sx={{
+                              fontSize: '0.7rem',
+                              textTransform: 'none',
+                              minWidth: 'auto',
+                              px: 0.75,
+                              py: 0.15,
+                              color: 'hsl(var(--muted-foreground))',
+                              fontWeight: 600,
+                              flexShrink: 0,
+                              '&:hover': { color: 'hsl(var(--primary))', bgcolor: 'transparent' },
+                            }}
+                          >
+                            {isExpanded ? 'Hide' : 'Tools'}
+                          </Button>
+                        )}
+                      </Box>
+
+                      {tools.length > 0 && (
+                        <Collapse in={isExpanded}>
+                          <Box
+                            sx={{
+                              borderTop: '1px solid hsl(var(--border) / 0.6)',
+                              maxHeight: 200,
+                              overflowY: 'auto',
+                              bgcolor: 'hsl(var(--muted) / 0.12)',
+                            }}
+                          >
+                            {tools.map((tool, tIdx) => {
+                              const toolChecked = selectedToolNames.has(tool.name);
+                              const modeLabel = tool.destructive
+                                ? 'Destructive'
+                                : tool.read_only
+                                  ? 'Read'
+                                  : 'Write';
+                              const modeColor = tool.destructive
+                                ? '#F59E0B'
+                                : tool.read_only
+                                  ? '#22C55E'
+                                  : '#3B82F6';
+                              const modeBg = tool.destructive
+                                ? 'rgba(245, 158, 11, 0.12)'
+                                : tool.read_only
+                                  ? 'rgba(34, 197, 94, 0.1)'
+                                  : 'rgba(59, 130, 246, 0.1)';
+
+                              return (
+                                <Box
+                                  key={tool.name}
+                                  onClick={() => handleToggleTool(tool.name)}
+                                  sx={{
+                                    px: 2,
+                                    py: 0.75,
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: 1,
+                                    cursor: 'pointer',
+                                    borderBottom:
+                                      tIdx < tools.length - 1 ? '1px solid hsl(var(--border) / 0.5)' : 'none',
+                                    opacity: toolChecked ? 1 : 0.55,
+                                    '&:hover': { bgcolor: 'hsl(var(--muted) / 0.3)' },
+                                  }}
+                                >
+                                  <Checkbox
+                                    size="small"
+                                    checked={toolChecked}
+                                    onChange={() => handleToggleTool(tool.name)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    sx={{
+                                      p: 0,
+                                      mt: 0.15,
+                                      color: 'hsl(var(--muted-foreground))',
+                                      '&.Mui-checked': { color: 'hsl(var(--primary))' },
+                                    }}
+                                  />
+                                  <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 1,
+                                      }}
+                                    >
+                                      <Typography
+                                        variant="caption"
+                                        noWrap
+                                        sx={{
+                                          fontWeight: 600,
+                                          color: 'hsl(var(--foreground))',
+                                          fontSize: '0.75rem',
+                                        }}
+                                      >
+                                        {tool.title || tool.name}
+                                      </Typography>
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          px: 0.55,
+                                          py: 0.05,
+                                          borderRadius: 0.75,
+                                          fontSize: '0.62rem',
+                                          fontWeight: 600,
+                                          bgcolor: modeBg,
+                                          color: modeColor,
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        {modeLabel}
+                                      </Typography>
+                                    </Box>
+                                    {tool.description && (
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          color: 'hsl(var(--muted-foreground))',
+                                          display: '-webkit-box',
+                                          WebkitLineClamp: 2,
+                                          WebkitBoxOrient: 'vertical',
+                                          overflow: 'hidden',
+                                          fontSize: '0.68rem',
+                                          lineHeight: 1.3,
+                                          mt: 0.15,
+                                        }}
+                                      >
+                                        {tool.description}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </Box>
+                              );
+                            })}
+                          </Box>
+                        </Collapse>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+          )}
+
           {/* Requested Permissions (Interactive Scope Selection) */}
+          {groupedScopes.length > 0 && (
           <Box sx={{ mb: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
               <Typography
@@ -2068,7 +2568,7 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
                   color: 'hsl(var(--muted-foreground))',
                 }}
               >
-                Requested Permissions ({selectedScopeIds.size} of {scopes.length} selected)
+                Requested Permissions ({visibleScopes.filter((s) => selectedScopeIds.has(s.id)).length} of {visibleScopes.length} selected)
               </Typography>
               <Button
                 size="small"

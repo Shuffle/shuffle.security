@@ -15,7 +15,7 @@ import { Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography }
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthenticatedApps, AUTHENTICATED_APPS_QUERY_KEY } from '@/Shuffle-Core/useAuthenticatedApps';
-import { getApiUrl, getAuthHeader, isCloud } from '@/Shuffle-Core/api';
+import { getApiUrl, getAuthHeader, isCloud, isOnShufflerIoHost } from '@/Shuffle-Core/api';
 import { invalidateAuthCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { getShuffleOpenApiAuthState, SHUFFLE_OPENAPI_APP_ID } from './moveActionAuth';
 import type { RoutingAction, RoutingActionType } from './IncidentRoutingEditor';
@@ -102,13 +102,56 @@ export interface RoutingOrgOption {
   region?: string;
 }
 
+const SHUFFLE_CANONICAL_REGIONS: Record<string, string> = {
+  uk: 'uk',
+  gb: 'uk',
+  eu: 'uk',
+  default: 'uk',
+  'europe-west2': 'uk',
+  frankfurt: 'frankfurt',
+  'eu-2': 'frankfurt',
+  eu2: 'frankfurt',
+  'europe-west3': 'frankfurt',
+  california: 'california',
+  us: 'california',
+  'us-west2': 'california',
+  ca: 'ca',
+  'northamerica-northeast1': 'ca',
+  au: 'au',
+  aus: 'au',
+  australia: 'au',
+  'australia-southeast1': 'au',
+  'shuffle-australia-southeast1': 'au',
+};
+
+const detectCloudDomainFamily = (candidate?: string | null): 'shuffler.io' | 'shuffle.security' | null => {
+  if (!candidate) return null;
+  try {
+    const raw = candidate.trim().toLowerCase();
+    if (!raw) return null;
+    const host = (raw.includes('://') ? new URL(raw).hostname : raw.split('/')[0]).split(':')[0];
+    if (host === 'shuffle.security' || host.endsWith('.shuffle.security') || host === 'security.shuffler.io') {
+      return 'shuffle.security';
+    }
+    if (host === 'shuffler.io' || host.endswith?.('.shuffler.io') || host.endsWith('.shuffler.io')) {
+      return 'shuffler.io';
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
 /**
  * Normalizes a tenant's region URL / region code for Shuffle Cloud.
+ * Resolves to *.shuffler.io when the current domain is shuffler.io (or subdomains),
+ * and to *.shuffle.security when the current domain is shuffle.security (or subdomains).
  * On-prem does not depend on region and returns only the tenant's id and name.
  */
 export const resolveTenantRegionPatch = (
   orgId: string,
   orgOptions: RoutingOrgOption[] = [],
+  currentDomainOverride?: string | null,
 ): Partial<RoutingAction> => {
   const picked = orgOptions.find((o) => o.id === orgId);
   const basePatch: Partial<RoutingAction> = {
@@ -116,7 +159,7 @@ export const resolveTenantRegionPatch = (
     targetOrgName: picked?.name || undefined,
   };
 
-  if (!isCloud()) {
+  if (!isCloud() && !currentDomainOverride) {
     return {
       ...basePatch,
       region: undefined,
@@ -127,35 +170,62 @@ export const resolveTenantRegionPatch = (
   }
 
   const rawUrl = (picked?.region_url || getApiUrl('') || '').trim().replace(/\/+$/, '');
-  let apiRegionUrl = rawUrl;
-  let regionCode = (picked?.region || '').trim().toLowerCase();
+  const rawReg = (picked?.region || '').trim().toLowerCase();
+  let regionCode = SHUFFLE_CANONICAL_REGIONS[rawReg] || rawReg;
+  let explicitUkSub = false;
+  let urlDomainFamily: 'shuffler.io' | 'shuffle.security' | null = null;
 
   try {
     if (rawUrl) {
       const parsed = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
       const host = parsed.hostname.toLowerCase();
       if (host.endsWith('.shuffle.security')) {
+        urlDomainFamily = 'shuffle.security';
         const sub = host.slice(0, -'.shuffle.security'.length);
-        if (!regionCode && sub && sub !== 'www') regionCode = sub;
-        apiRegionUrl = sub && sub !== 'www' ? `https://${sub}.shuffler.io` : 'https://shuffler.io';
-      } else if (host === 'shuffle.security') {
-        if (!regionCode) regionCode = 'us';
-        apiRegionUrl = 'https://shuffler.io';
+        const normSub = !sub || sub === 'www' ? 'uk' : (SHUFFLE_CANONICAL_REGIONS[sub] || sub);
+        if (!regionCode) regionCode = normSub;
+      } else if (host === 'shuffle.security' || host === 'security.shuffler.io') {
+        urlDomainFamily = 'shuffle.security';
+        if (!regionCode) regionCode = 'uk';
       } else if (host.endsWith('.shuffler.io')) {
+        urlDomainFamily = 'shuffler.io';
         const sub = host.slice(0, -'.shuffler.io'.length);
-        if (!regionCode && sub && sub !== 'www') regionCode = sub;
-        apiRegionUrl = `${parsed.protocol}//${host}`;
+        if (sub === 'uk') explicitUkSub = true;
+        const normSub = !sub || sub === 'www' ? 'uk' : (SHUFFLE_CANONICAL_REGIONS[sub] || sub);
+        if (!regionCode) regionCode = normSub;
       } else if (host === 'shuffler.io') {
-        if (!regionCode) regionCode = 'us';
-        apiRegionUrl = 'https://shuffler.io';
+        urlDomainFamily = 'shuffler.io';
+        if (!regionCode) regionCode = 'uk';
       }
     }
   } catch {
     // Keep rawUrl if URL parsing fails
   }
 
-  if (!regionCode && apiRegionUrl) {
-    regionCode = 'us';
+  if (!regionCode && rawUrl) {
+    regionCode = 'uk';
+  }
+  regionCode = SHUFFLE_CANONICAL_REGIONS[regionCode] || regionCode;
+
+  const activeDomainFamily: 'shuffler.io' | 'shuffle.security' =
+    detectCloudDomainFamily(currentDomainOverride) ||
+    (typeof window !== 'undefined' && window.location?.hostname
+      ? detectCloudDomainFamily(window.location.hostname)
+      : null) ||
+    (isOnShufflerIoHost() ? 'shuffler.io' : null) ||
+    urlDomainFamily ||
+    'shuffle.security';
+
+  let apiRegionUrl = rawUrl;
+  if (regionCode) {
+    if (activeDomainFamily === 'shuffler.io') {
+      apiRegionUrl =
+        regionCode === 'uk'
+          ? (explicitUkSub ? 'https://uk.shuffler.io' : 'https://shuffler.io')
+          : `https://${regionCode}.shuffler.io`;
+    } else {
+      apiRegionUrl = `https://${regionCode}.shuffle.security`;
+    }
   }
 
   return {

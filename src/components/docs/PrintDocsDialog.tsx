@@ -356,11 +356,17 @@ const PRINT_CSS = `
     border: 1px solid #cbd5e1;
     padding: 8px 12px;
     text-align: left;
+    word-break: normal;
+    overflow-wrap: normal;
   }
   th {
     background: #f1f5f9;
     font-weight: 600;
     color: #0f172a;
+    white-space: nowrap;
+  }
+  td code, th code {
+    white-space: nowrap;
   }
   tr:nth-child(even) td {
     background: #f8fafc;

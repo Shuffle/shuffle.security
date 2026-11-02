@@ -77,6 +77,8 @@ export interface OverviewProps extends ShuffleCoreHostProps {
   sloTargetPercent?: number;
   /** Targets used for SLO attainment when SLA timers are off. Defaults to slaTargets. */
   sloSlaTargets?: SlaTargets;
+  /** Compact mode for embedded documentation views. */
+  compact?: boolean;
 }
 
 // Resolved first so it sits at the bottom of the stack; the top edge is
@@ -105,6 +107,7 @@ export const DashboardOverview = ({
   slaTargets,
   sloTargetPercent,
   sloSlaTargets,
+  compact = false,
   // Standard Shuffle-Core host props — accepted for API consistency across
   // components mounted in multiple places. Not currently consumed because this
   // surface is purely presentational over host-supplied data.
@@ -375,7 +378,7 @@ export const DashboardOverview = ({
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' },
           gap: 1.5,
-          mb: 1.5,
+          mb: compact ? 0 : 1.5,
         }}
       >
         <Panel
@@ -390,9 +393,9 @@ export const DashboardOverview = ({
             />
           }
         >
-          <Box sx={{ height: 260 }}>
+          <Box sx={{ height: compact ? 180 : 260 }}>
             {incidentsLoading ? (
-              <ChartShimmer height={260} variant="area" label="Loading incident activity" />
+              <ChartShimmer height={compact ? 180 : 260} variant="area" label="Loading incident activity" />
             ) : trendHasData ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} {...trendDrag.chartProps}>
@@ -439,12 +442,12 @@ export const DashboardOverview = ({
         </Panel>
 
         <Panel title="Detection Coverage" accent={NEON.cyan} delay={0.25}>
-          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 240 }}>
+          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: compact ? 150 : 240 }}>
             {monitorsLoading ? (
-              <ChartShimmer height={220} variant="radial" label="Loading coverage" />
+              <ChartShimmer height={compact ? 150 : 220} variant="radial" label="Loading coverage" />
             ) : monitorTotal > 0 ? (
               <>
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer width="100%" height={compact ? 150 : 220}>
                   <RadialBarChart
                     innerRadius="62%"
                     outerRadius="100%"
@@ -533,51 +536,53 @@ export const DashboardOverview = ({
       </Box>
 
       {/* Vulnerability severity */}
-      <Panel
-        title="Vulnerabilities by Severity"
-        accent={NEON.violet}
-        delay={0.3}
-        action={
-          <Typography
-            onClick={() => navigate('/vulnerabilities')}
-            sx={{ fontSize: '0.7rem', color: NEON.cyan, cursor: 'pointer', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}
-          >
-            View all →
-          </Typography>
-        }
-      >
-        <Box sx={{ height: 200 }}>
-          {vulnLoading ? (
-            <ChartShimmer height={200} variant="bars" label="Loading vulnerabilities" />
-          ) : vulnTotal > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={vulnData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <defs>
-                  {vulnData.map((d) => (
-                    <linearGradient key={d.gradId} id={d.gradId} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={d.color} stopOpacity={1} />
-                      <stop offset="100%" stopColor={d.color} stopOpacity={0.25} />
-                    </linearGradient>
-                  ))}
-                </defs>
-                <CartesianGrid strokeDasharray="2 4" stroke="hsl(var(--border))" strokeOpacity={0.35} vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
-                <RechartsTooltip content={<TooltipContent />} cursor={{ fill: 'hsl(var(--muted) / 0.15)' }} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={64}>
-                  {vulnData.map((d) => (
-                    <Cell key={d.name} fill={`url(#${d.gradId})`} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <Box sx={{ pt: '15px' }}>
-              <EmptyState text="No vulnerabilities ingested yet" ctaLabel="Set up vulnerability ingestion" onCta={() => navigateSetup('vulnerability_ingestion_1', '/vulnerabilities', 'area=automatic_ingestion&category=asset_management')} />
-            </Box>
-          )}
-        </Box>
-      </Panel>
+      {!compact && (
+        <Panel
+          title="Vulnerabilities by Severity"
+          accent={NEON.violet}
+          delay={0.3}
+          action={
+            <Typography
+              onClick={() => navigate('/vulnerabilities')}
+              sx={{ fontSize: '0.7rem', color: NEON.cyan, cursor: 'pointer', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}
+            >
+              View all →
+            </Typography>
+          }
+        >
+          <Box sx={{ height: 200 }}>
+            {vulnLoading ? (
+              <ChartShimmer height={200} variant="bars" label="Loading vulnerabilities" />
+            ) : vulnTotal > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={vulnData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    {vulnData.map((d) => (
+                      <linearGradient key={d.gradId} id={d.gradId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={d.color} stopOpacity={1} />
+                        <stop offset="100%" stopColor={d.color} stopOpacity={0.25} />
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  <CartesianGrid strokeDasharray="2 4" stroke="hsl(var(--border))" strokeOpacity={0.35} vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
+                  <RechartsTooltip content={<TooltipContent />} cursor={{ fill: 'hsl(var(--muted) / 0.15)' }} />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={64}>
+                    {vulnData.map((d) => (
+                      <Cell key={d.name} fill={`url(#${d.gradId})`} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box sx={{ pt: '15px' }}>
+                <EmptyState text="No vulnerabilities ingested yet" ctaLabel="Set up vulnerability ingestion" onCta={() => navigateSetup('vulnerability_ingestion_1', '/vulnerabilities', 'area=automatic_ingestion&category=asset_management')} />
+              </Box>
+            )}
+          </Box>
+        </Panel>
+      )}
     </Box>
   );
 };

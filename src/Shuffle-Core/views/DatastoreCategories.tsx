@@ -74,6 +74,7 @@ export interface DatastoreItemRecord {
 export interface DatastoreCategoriesProps {
   embedded?: boolean;
   initialCategory?: string;
+  initialPageSize?: number;
   categoryLocked?: boolean;
   hideHeaderControls?: boolean;
   hideCategorySelector?: boolean;
@@ -181,6 +182,7 @@ export interface DatastoreValueCellProps {
   isDark?: boolean;
   selectedCategory?: string;
   maxHeight?: number;
+  compact?: boolean;
   onInspect?: () => void;
 }
 
@@ -188,6 +190,8 @@ export const DatastoreValueCell: React.FC<DatastoreValueCellProps> = ({
   item,
   isDark = true,
   selectedCategory,
+  maxHeight = 115,
+  compact = false,
   onInspect,
 }) => {
   if (selectedCategory === 'protected') {
@@ -226,7 +230,7 @@ export const DatastoreValueCell: React.FC<DatastoreValueCellProps> = ({
   return (
     <Box
       sx={{
-        maxHeight: 115,
+        maxHeight,
         overflowY: 'auto',
         overflowX: 'hidden',
         fontSize: '0.78rem',
@@ -245,7 +249,7 @@ export const DatastoreValueCell: React.FC<DatastoreValueCellProps> = ({
             dark={isDark}
             theme="default"
             collapseStringsAfterLength={50}
-            collapsed={1}
+            collapsed={compact ? true : 1}
             enableClipboard={false}
             style={{ fontSize: '0.75rem', lineHeight: 1.35 }}
           />
@@ -300,6 +304,7 @@ const DEFAULT_CATEGORIES: string[] = [
 const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
   embedded = false,
   initialCategory,
+  initialPageSize,
   categoryLocked = false,
   hideHeaderControls = false,
   hideCategorySelector = false,
@@ -337,7 +342,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
   const [items, setItems] = useState<DatastoreItemRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [totalAmount, setTotalAmount] = useState<number>(0);
-  const [pageSize, setPageSize] = useState<number>(50);
+  const [pageSize, setPageSize] = useState<number>(() => initialPageSize ?? (compact || categoryLocked ? 3 : 50));
   const [page, setPage] = useState<number>(0);
   const cursorsRef = useRef<{ [page: number]: string }>({ 0: '' });
   const [cursors, setCursors] = useState<{ [page: number]: string }>({ 0: '' });
@@ -502,7 +507,8 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
       // Unauthenticated or sample-mode fallback
       if (!orgId) {
         const sampleList = sampleItems || getDefaultSampleItems(cat);
-        setItems(sampleList);
+        const startIdx = pageIndex * amount;
+        setItems(sampleList.slice(startIdx, startIdx + amount));
         setTotalAmount(sampleList.length);
         setLoading(false);
         return;
@@ -586,8 +592,9 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
           setCategories((prev) => Array.from(new Set([...STATIC_CATEGORIES, ...DEFAULT_CATEGORIES, ...prev, ...data.categories])));
         }
 
-        setItems(loadedItems);
-        setTotalAmount(totalCount);
+        const totalMatched = Math.max(totalCount, loadedItems.length);
+        setItems(loadedItems.slice(0, amount));
+        setTotalAmount(totalMatched);
 
         if (nextCursor) {
           cursorsRef.current[pageIndex + 1] = nextCursor;
@@ -596,7 +603,8 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
       } catch (err) {
         console.error('[Datastore] fetchCache error:', err);
         const sampleList = sampleItems || getDefaultSampleItems(cat);
-        setItems(sampleList);
+        const startIdx = pageIndex * amount;
+        setItems(sampleList.slice(startIdx, startIdx + amount));
         setTotalAmount(sampleList.length);
       } finally {
         setLoading(false);
@@ -1559,6 +1567,8 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
                         item={item}
                         isDark={isDark}
                         selectedCategory={selectedCategory}
+                        maxHeight={compact ? 64 : 115}
+                        compact={compact}
                         onInspect={() => handleOpenInspect(item)}
                       />
                     </TableCell>
@@ -1768,6 +1778,8 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
                   color: 'hsl(var(--foreground))',
                 }}
               >
+                <MenuItem value={3}>3 / page</MenuItem>
+                <MenuItem value={10}>10 / page</MenuItem>
                 <MenuItem value={25}>25 / page</MenuItem>
                 <MenuItem value={50}>50 / page</MenuItem>
                 <MenuItem value={100}>100 / page</MenuItem>

@@ -1027,7 +1027,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
   const totalColumns = (readOnly ? 2 : 4) + (isDefaultCategory ? 1 : 0);
 
   return (
-    <Box sx={{ width: '100%', p: embedded ? 0 : { xs: 1.5, md: 2.5 }, pb: '200px' }}>
+    <Box sx={{ width: '100%', p: embedded ? 0 : { xs: 1.5, md: 2.5 }, pb: categoryLocked ? 0 : '200px' }}>
       {/* Header controls bar */}
       {!hideHeaderControls && (
         <Box
@@ -1656,33 +1656,42 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
 
       {/* Floating pagination bar (matching CacheView.jsx) */}
       <Box
-        sx={{
-          position: 'fixed',
-          bottom: 16,
-          left: { xs: 0, md: '240px' },
-          right: 0,
-          zIndex: 800,
-          display: 'flex',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-          px: 2,
-        }}
+        sx={
+          categoryLocked
+            ? {
+                display: 'flex',
+                justifyContent: 'center',
+                mt: 1.5,
+              }
+            : {
+                position: 'fixed',
+                bottom: 16,
+                left: { xs: 0, md: '240px' },
+                right: 0,
+                zIndex: 800,
+                display: 'flex',
+                justifyContent: 'center',
+                pointerEvents: 'none',
+                px: 2,
+              }
+        }
       >
         <Paper
-          elevation={4}
+          elevation={categoryLocked ? 0 : 4}
           sx={{
             pointerEvents: 'auto',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexWrap: 'wrap',
             gap: 2,
             py: 0.75,
             px: 2,
             borderRadius: 2,
             bgcolor: 'hsl(var(--card))',
             border: '1px solid hsl(var(--border))',
-            boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
-            maxWidth: 780,
+            boxShadow: categoryLocked ? 'none' : '0 8px 30px rgba(0,0,0,0.25)',
+            maxWidth: categoryLocked ? '100%' : 780,
             width: '100%',
           }}
         >

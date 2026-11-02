@@ -12,6 +12,7 @@ import {
   SAMPLE_HOST_COUNT,
   buildSampleIncidents,
   buildSampleVulns,
+  installDashboardSampleFetch,
 } from '@/lib/dashboardSampleData';
 
 interface DocIncidentDashboardProps {
@@ -24,7 +25,20 @@ export const DocIncidentDashboard: React.FC<DocIncidentDashboardProps> = ({
   days = 30,
 }) => {
   const { isAuthenticated } = useAuth();
+  const [ready, setReady] = useState(isAuthenticated);
   const [customRange, setCustomRange] = useState<{ fromMs: number; toMs: number } | null>(null);
+
+  React.useLayoutEffect(() => {
+    if (isAuthenticated) {
+      setReady(true);
+      return;
+    }
+    const restore = installDashboardSampleFetch();
+    setReady(true);
+    return () => {
+      restore();
+    };
+  }, [isAuthenticated]);
   const {
     items,
     isLoading: incidentsLoading,
@@ -152,8 +166,10 @@ export const DocIncidentDashboard: React.FC<DocIncidentDashboardProps> = ({
 
   const useSample = !isAuthenticated;
 
+  if (!ready) return null;
+
   return (
-    <Box sx={{ my: 2.5 }}>
+    <Box sx={{ my: 4, '& > .MuiBox-root': { mb: 0 } }}>
       <DashboardOverview
         incidents={useSample ? sampleIncidents : parsedIncidents}
         slaTargets={slaControls.incidentSlaEnabled ? slaConfig : undefined}

@@ -21,6 +21,7 @@ import { useIsSupport } from '@/hooks/useIsSupport';
 import { trackPredefinedEvent, GA_EVENTS } from '@/lib/analytics';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { PagerNotificationSettings } from '@/components/settings/PagerNotificationSettings';
+import { OAuthConnectionsSettings } from '@/components/settings/OAuthConnectionsSettings';
 import { DiagnosticsLogsCard } from '@/components/settings/DiagnosticsLogsCard';
 
 // Settings types
@@ -310,6 +311,8 @@ const SettingsPage = () => {
             </Paper>
 
             <PagerNotificationSettings />
+
+            <OAuthConnectionsSettings />
 
             <Paper
               sx={{

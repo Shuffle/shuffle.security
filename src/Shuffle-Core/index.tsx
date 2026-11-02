@@ -478,15 +478,26 @@ import {
   type OrganizationLike,
   type UserInfoLike,
 } from "./components/oauth/OAuthAuthorizeView";
+import {
+  OAuthConnectionsSettings as OAuthConnectionsSettingsRaw,
+  type OAuthConnectionsSettingsProps,
+  type OAuthConnectionItem,
+} from "./components/oauth/OAuthConnectionsSettings";
 export const OAuthAuthorizeView = withTheme<OAuthAuthorizeViewProps>(
   OAuthAuthorizeViewRaw,
   "OAuthAuthorizeView",
+);
+export const OAuthConnectionsSettings = withTheme<OAuthConnectionsSettingsProps>(
+  OAuthConnectionsSettingsRaw,
+  "OAuthConnectionsSettings",
 );
 export type {
   OAuthAuthorizeViewProps,
   OAuthScopeDetail,
   OrganizationLike,
   UserInfoLike,
+  OAuthConnectionsSettingsProps,
+  OAuthConnectionItem,
 };
 
 // Cross-domain authentication handoff between Shuffle Security and Shuffle Core

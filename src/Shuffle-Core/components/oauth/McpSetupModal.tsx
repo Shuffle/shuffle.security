@@ -140,27 +140,27 @@ export const McpSetupModal: React.FC<McpSetupModalProps> = ({
           borderBottom: '1px solid hsl(var(--border))',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
           <AppFallbackIcon
             name={resolvedPlatformName}
             size={26}
             alt={resolvedPlatformName}
-            style={{ borderRadius: '50%', objectFit: 'cover' }}
+            style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
           />
           <Typography
             variant="subtitle1"
-            sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, fontSize: '1rem' }}
+            sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, fontSize: '1rem', overflowWrap: 'break-word' }}
           >
             {resolvedTitle}
           </Typography>
         </Box>
       </DialogTitle>
 
-      <DialogContent sx={{ pt: 2.5, pb: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <DialogContent sx={{ pt: 2.5, pb: 2, px: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.75, mt: 0.5 }}>
           {/* Step 1 */}
           <Box>
-            <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem' }}>
+            <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem', overflowWrap: 'anywhere' }}>
               <strong>1.</strong> Go to{' '}
               <Box
                 component="a"
@@ -171,6 +171,8 @@ export const McpSetupModal: React.FC<McpSetupModalProps> = ({
                   color: 'hsl(var(--primary))',
                   fontWeight: 600,
                   textDecoration: 'none',
+                  overflowWrap: 'anywhere',
+                  wordBreak: 'break-all',
                   '&:hover': { textDecoration: 'underline' },
                 }}
               >

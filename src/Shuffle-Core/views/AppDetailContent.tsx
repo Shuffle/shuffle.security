@@ -893,13 +893,13 @@ export default function AppDetailContent({
     : { url: '', canEdit: false };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: mode === 'drawer' ? '100%' : 'auto' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box', height: mode === 'drawer' ? '100%' : 'auto' }}>
       {/* Drawer Header Bar (only rendered in drawer mode) */}
       {mode === 'drawer' && (
         <Box
           sx={{
-            px: 3,
-            py: 2,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
             display: 'flex',
             alignItems: 'center',
             gap: 1.5,
@@ -975,7 +975,7 @@ export default function AppDetailContent({
       )}
 
       {/* Main Content Area */}
-      <Box sx={{ flex: 1, ...(mode === 'drawer' ? { overflowY: 'auto', p: 3 } : { p: 0 }) }}>
+      <Box sx={{ flex: 1, width: '100%', minWidth: 0, boxSizing: 'border-box', ...(mode === 'drawer' ? { overflowY: 'auto', overflowX: 'hidden', p: { xs: 2, sm: 3 } } : { p: 0 }) }}>
         {isLoadingAll ? (
           <Box>
             <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'center' }}>

@@ -826,8 +826,10 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
         sx={{
           display: 'flex',
           alignItems: 'center',
+          flexWrap: 'wrap',
           gap: 1,
-          px: 2,
+          rowGap: 0.75,
+          px: { xs: 1.25, sm: 2 },
           py: 0.85,
           borderBottom: '1px solid',
           borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(15, 23, 42, 0.1)',
@@ -1132,6 +1134,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
               autoCapitalize="off"
               autoComplete="off"
               autoCorrect="off"
+              data-code-editor-overlay="true"
               aria-label={`${title} ${mode} code editor`}
               sx={{
                 position: 'absolute',
@@ -1144,10 +1147,10 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
                 border: 'none',
                 outline: 'none',
                 resize: 'none',
-                 background: 'transparent',
+                background: 'transparent',
                 color: 'transparent',
                 caretColor: 'hsl(var(--primary))',
-                fontSize: '0.76rem',
+                fontSize: '0.76rem !important',
                 fontFamily: "'JetBrains Mono', monospace",
                 lineHeight: '1.65rem',
                 whiteSpace: 'pre',
@@ -1176,6 +1179,8 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 1,
               px: 1.5,
               py: 0.75,
               borderBottom: '1px solid hsl(var(--border) / 0.5)',

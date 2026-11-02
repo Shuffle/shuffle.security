@@ -346,9 +346,9 @@ const AppMcpChat = ({ appName, appIcon, appId, categories, globalUrl }: AppMcpCh
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
           >
-            <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            <Box sx={{ p: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', gap: { xs: 2, sm: 2.5 } }}>
               {/* Label */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 <Box
                   sx={{
                     width: 28,
@@ -516,7 +516,7 @@ const AppMcpChat = ({ appName, appIcon, appId, categories, globalUrl }: AppMcpCh
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
           >
-            <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ p: { xs: 2, sm: 3 }, display: 'flex', alignItems: 'center', gap: 2 }}>
               <CircularProgress size={20} thickness={5} sx={{ color: 'hsl(var(--primary))' }} />
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
@@ -548,9 +548,9 @@ const AppMcpChat = ({ appName, appIcon, appId, categories, globalUrl }: AppMcpCh
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ p: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
               {/* Status bar */}
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   {isError ? (
                     <ErrorOutlineIcon size={18} color={'hsl(0 70% 55%)'} />

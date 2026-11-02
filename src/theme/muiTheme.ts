@@ -35,12 +35,23 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
         // Longhand `backgroundColor` (not the `background` shorthand) so a
         // per-component `sx={{ bgcolor: ... }}` reliably wins — otherwise a
         // destructive button can end up orange with red text.
+        contained: {
+          color: '#FFFFFF',
+          textDecoration: 'none',
+          '&:hover': {
+            color: '#FFFFFF',
+            textDecoration: 'none',
+          },
+        },
         containedPrimary: {
           backgroundColor: primaryColor,
           color: '#FFFFFF',
+          textDecoration: 'none',
           boxShadow: `0 4px 14px ${primaryColor}40`,
           '&:hover': {
             backgroundColor: primaryColor,
+            color: '#FFFFFF',
+            textDecoration: 'none',
             opacity: 0.9,
             boxShadow: `0 6px 20px ${primaryColor}60`,
           },
@@ -130,6 +141,14 @@ const getComponents = (_mode: 'light' | 'dark', primaryColor: string = '#FF6600'
           borderRight: '1px solid hsl(var(--sidebar-border))',
           maxWidth: '100vw',
           boxSizing: 'border-box' as const,
+          overflowX: 'hidden' as const,
+          '@media (max-width: 599.95px)': {
+            width: '100% !important',
+            minWidth: '100% !important',
+            maxWidth: '100% !important',
+            borderLeft: 'none',
+            borderRight: 'none',
+          },
         },
       },
     },

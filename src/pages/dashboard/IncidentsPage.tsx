@@ -2832,7 +2832,7 @@ const IncidentsPage = () => {
       >
         <RuntimeQueueProblemBar />
         {/* Header */}
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ mb: { xs: 0, md: 3 }, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
            <Typography variant="h5" sx={{ fontWeight: 600 }}>
             {entityPlural}
           </Typography>
@@ -2899,53 +2899,53 @@ const IncidentsPage = () => {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              py: 12,
-              px: 4,
+              py: { xs: 5, sm: 8 },
+              px: { xs: 2, sm: 4 },
               textAlign: 'center',
-              maxWidth: 520,
+              maxWidth: 480,
               mx: 'auto',
             }}
           >
             <Box
               sx={{
-                width: 80,
-                height: 80,
-                borderRadius: '20px',
+                width: { xs: 48, sm: 56 },
+                height: { xs: 48, sm: 56 },
+                borderRadius: '14px',
                 backgroundColor: 'rgba(239, 68, 68, 0.08)',
                 border: '1px solid rgba(239, 68, 68, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                mb: 4,
+                mb: 2,
               }}
             >
-              <RefreshIcon size={36} style={{ color: '#ef4444', opacity: 0.8 }} />
+              <RefreshIcon size={22} style={{ color: '#ef4444' }} />
             </Box>
-            <Typography variant="h5" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))', mb: 1.5 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1.05rem', sm: '1.2rem' }, color: 'hsl(var(--foreground))', mb: 1 }}>
               Failed to load incidents
             </Typography>
-            <Typography variant="body1" sx={{ color: 'hsl(var(--muted-foreground))', mb: isSupport ? 3 : 5, lineHeight: 1.7, maxWidth: 420 }}>
+            <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: { xs: '0.82rem', sm: '0.9rem' }, mb: isSupport ? 2.5 : 3, lineHeight: 1.55, maxWidth: 400 }}>
               There was a problem connecting to the server. Check your network connection and try again.
             </Typography>
             {isSupport && error && (
-              <Alert severity="info" sx={{ width: '100%', mb: 4, borderRadius: 2, textAlign: 'left', alignItems: 'flex-start' }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: 'hsl(var(--foreground))', mb: 1.5 }}>
+              <Alert severity="info" sx={{ width: '100%', mb: 2.5, borderRadius: 2, textAlign: 'left', alignItems: 'flex-start' }}>
+                <Typography variant="body2" sx={{ fontWeight: 700, color: 'hsl(var(--foreground))', mb: 1.25 }}>
                   Support debug output
                 </Typography>
                 <Box sx={{ display: 'grid', gap: 1, width: '100%' }}>
                   {supportIncidentDebugRows.map(([label, value]) => (
-                    <Box key={label} sx={{ display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr)', gap: 1.5, alignItems: 'start' }}>
+                    <Box key={label} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '120px minmax(0, 1fr)' }, gap: { xs: 0.25, sm: 1.5 }, alignItems: 'start' }}>
                       <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         {label}
                       </Typography>
-                      <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', wordBreak: 'break-word' }}>
+                      <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', wordBreak: 'break-word', fontSize: '0.8rem' }}>
                         {value}
                       </Typography>
                     </Box>
                   ))}
                 </Box>
                 {lastDiagnostics?.bodyPreview && (
-                  <Box sx={{ mt: 2, width: '100%' }}>
+                  <Box sx={{ mt: 1.5, width: '100%' }}>
                     <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Response preview
                     </Typography>
@@ -2954,13 +2954,13 @@ const IncidentsPage = () => {
                       sx={{
                         mt: 0.75,
                         mb: 0,
-                        p: 1.5,
+                        p: 1.25,
                         borderRadius: 1.5,
                         bgcolor: 'hsl(var(--muted))',
                         border: '1px solid hsl(var(--border))',
                         color: 'hsl(var(--foreground))',
-                        fontSize: '0.75rem',
-                        lineHeight: 1.55,
+                        fontSize: '0.72rem',
+                        lineHeight: 1.5,
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-word',
                         overflowX: 'auto',
@@ -2973,14 +2973,27 @@ const IncidentsPage = () => {
               </Alert>
             )}
             <Button
-              variant="contained"
-              size="large"
-              startIcon={<RefreshIcon />}
-              onClick={() => fetchItems()}
+              variant="outlined"
+              size="small"
+              startIcon={<RefreshIcon size={15} />}
+              onClick={() => { fetchItems(); fetchSubOrgIncidents(); }}
               sx={{
-                px: 4, py: 1.5, borderRadius: 2, textTransform: 'none', fontWeight: 600, fontSize: '0.95rem',
-                backgroundColor: 'hsl(var(--primary))',
-                '&:hover': { backgroundColor: 'hsl(var(--primary) / 0.9)' },
+                height: 36,
+                px: 2.25,
+                py: 0,
+                borderRadius: 1.5,
+                textTransform: 'none',
+                fontWeight: 600,
+                fontSize: '0.8125rem',
+                borderColor: 'hsl(var(--border))',
+                color: 'hsl(var(--foreground))',
+                bgcolor: 'hsl(var(--card))',
+                boxShadow: 'none',
+                '&:hover': {
+                  borderColor: 'hsl(var(--primary) / 0.6)',
+                  bgcolor: 'hsl(var(--muted) / 0.5)',
+                  boxShadow: 'none',
+                },
               }}
             >
               Retry
@@ -3184,7 +3197,7 @@ const IncidentsPage = () => {
     >
       <HighlightSpotlight />
       <RuntimeQueueProblemBar />
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+      <Box sx={{ mb: { xs: 0, md: 3 }, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Typography variant="h5" sx={{ fontWeight: 600, fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
             {entityPlural}
@@ -3219,9 +3232,6 @@ const IncidentsPage = () => {
               </Box>
             );
           })()}
-          {error && (
-            <Typography variant="caption" color="error">{error}</Typography>
-          )}
         </Box>
         <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           {/* Ingestion + Forward pipeline container */}
@@ -3379,6 +3389,74 @@ const IncidentsPage = () => {
           </Dialog>
         </Box>
       </Box>
+
+      {/* Partial failure banner when some or cached incidents are available */}
+      {(error || subOrgFailed.size > 0) && (
+        <Box
+          sx={{
+            mb: 2,
+            px: 1.5,
+            py: 1,
+            borderRadius: 1.5,
+            border: '1px solid rgba(239, 68, 68, 0.28)',
+            bgcolor: 'rgba(239, 68, 68, 0.06)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 1,
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{
+              color: 'hsl(var(--foreground))',
+              fontSize: '0.78rem',
+              lineHeight: 1.4,
+              flex: '1 1 200px',
+              minWidth: 0,
+              wordBreak: 'break-word',
+            }}
+          >
+            {error && subOrgFailed.size > 0
+              ? `Primary tenant and ${subOrgFailed.size} sub-tenant${subOrgFailed.size === 1 ? '' : 's'} failed to load (${error}). Showing available incidents.`
+              : error
+                ? `Primary tenant failed to load (${error}). Showing available incidents.`
+                : `${subOrgFailed.size} sub-tenant${subOrgFailed.size === 1 ? '' : 's'} failed to load. Showing available incidents.`}
+          </Typography>
+          <Button
+            variant="outlined"
+            size="small"
+            disabled={isLoading || subOrgLoading.size > 0}
+            startIcon={<RefreshIcon size={13} />}
+            onClick={() => {
+              fetchItems();
+              fetchSubOrgIncidents();
+            }}
+            sx={{
+              height: 28,
+              minHeight: 28,
+              px: 1.25,
+              py: 0,
+              borderRadius: 1,
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: '0.75rem',
+              flexShrink: 0,
+              borderColor: 'rgba(239, 68, 68, 0.35)',
+              color: '#ef4444',
+              boxShadow: 'none',
+              '&:hover': {
+                borderColor: 'rgba(239, 68, 68, 0.6)',
+                bgcolor: 'rgba(239, 68, 68, 0.1)',
+                boxShadow: 'none',
+              },
+            }}
+          >
+            Retry
+          </Button>
+        </Box>
+      )}
 
       {/* Floating Filter Bar - sticky */}
       <Card elevation={0} sx={{ mb: 3, position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'hsl(var(--card))', backgroundImage: 'none', border: '1px solid hsl(var(--border))', boxShadow: 'none', backdropFilter: 'none' }}>

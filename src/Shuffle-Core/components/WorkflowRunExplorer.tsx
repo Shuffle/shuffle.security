@@ -1169,13 +1169,15 @@ export const WorkflowRunExplorerDrawer: React.FC<WorkflowRunExplorerDrawerProps>
       onClose={onClose}
       PaperProps={{
         sx: {
-          width: drawerWidth,
-          minWidth: drawerMinWidth,
-          maxWidth: drawerMaxWidth,
-          flex: `0 0 ${drawerWidth}`,
+          boxSizing: 'border-box',
+          width: { xs: '100%', sm: drawerWidth },
+          minWidth: { xs: '100%', sm: drawerMinWidth },
+          maxWidth: { xs: '100%', sm: drawerMaxWidth },
+          flex: { xs: '0 0 100%', sm: `0 0 ${drawerWidth}` },
+          overflowX: 'hidden',
           background: 'linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)',
           color: 'hsl(var(--foreground))',
-          borderLeft: '1px solid hsl(var(--border))',
+          borderLeft: { xs: 'none', sm: '1px solid hsl(var(--border))' },
         },
       }}
       sx={{
@@ -1184,10 +1186,11 @@ export const WorkflowRunExplorerDrawer: React.FC<WorkflowRunExplorerDrawerProps>
         zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
-          width: `${drawerWidth} !important`,
-          minWidth: `${drawerMinWidth} !important`,
-          maxWidth: `${drawerMaxWidth} !important`,
-          flex: `0 0 ${drawerWidth} !important`,
+          width: { xs: '100% !important', sm: `${drawerWidth} !important` },
+          minWidth: { xs: '100% !important', sm: `${drawerMinWidth} !important` },
+          maxWidth: { xs: '100% !important', sm: `${drawerMaxWidth} !important` },
+          flex: { xs: '0 0 100% !important', sm: `0 0 ${drawerWidth} !important` },
+          overflowX: 'hidden',
         },
       }}
     >

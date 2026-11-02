@@ -333,20 +333,18 @@ export default function AppSearchDrawer({
     className: scopeClassName,
     style: scopeStyle,
     sx: {
-      // Strict, environment-independent sizing so the drawer
-      // looks identical on every host (Shuffle Security, /agents,
-      // test page, embedded library, etc.). No breakpoint variance.
-      width: drawerWidth,
-      minWidth: drawerMinWidth,
-      maxWidth: drawerMaxWidth,
-      flex: `0 0 ${drawerWidth}`,
-      height: '100vh',
+      boxSizing: 'border-box',
+      width: { xs: '100%', sm: drawerWidth },
+      minWidth: { xs: '100%', sm: drawerMinWidth },
+      maxWidth: { xs: '100%', sm: drawerMaxWidth },
+      flex: { xs: '0 0 100%', sm: `0 0 ${drawerWidth}` },
+      height: '100dvh',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
       background: 'linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)',
-      borderLeft: anchor === 'right' ? '1px solid hsl(var(--border))' : 'none',
-      borderRight: anchor === 'left' ? '1px solid hsl(var(--border))' : 'none',
+      borderLeft: { xs: 'none', sm: anchor === 'right' ? '1px solid hsl(var(--border))' : 'none' },
+      borderRight: { xs: 'none', sm: anchor === 'left' ? '1px solid hsl(var(--border))' : 'none' },
     },
   };
 
@@ -362,10 +360,11 @@ export default function AppSearchDrawer({
           zIndex: drawerZIndex,
           '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
-            width: `${drawerWidth} !important`,
-            minWidth: `${drawerMinWidth} !important`,
-            maxWidth: `${drawerMaxWidth} !important`,
-            flex: `0 0 ${drawerWidth} !important`,
+            width: { xs: '100% !important', sm: `${drawerWidth} !important` },
+            minWidth: { xs: '100% !important', sm: `${drawerMinWidth} !important` },
+            maxWidth: { xs: '100% !important', sm: `${drawerMaxWidth} !important` },
+            flex: { xs: '0 0 100% !important', sm: `0 0 ${drawerWidth} !important` },
+            overflowX: 'hidden',
           },
         }}
 
@@ -373,8 +372,8 @@ export default function AppSearchDrawer({
         {/* Header */}
         <Box
           sx={{
-            px: 3,
-            py: 2,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
             display: 'flex',
             alignItems: 'center',
             gap: 1.5,
@@ -382,7 +381,7 @@ export default function AppSearchDrawer({
             flexShrink: 0,
           }}
         >
-          <Box sx={{ flex: 1 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, fontSize: '1rem', lineHeight: 1.2 }}>
               {title}
             </Typography>
@@ -400,7 +399,7 @@ export default function AppSearchDrawer({
         </Box>
 
         {/* Search body */}
-        <Box sx={{ flex: 1, width: '100%', minWidth: 0, boxSizing: 'border-box', overflow: 'hidden', p: 3, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ flex: 1, width: '100%', minWidth: 0, boxSizing: 'border-box', overflow: 'hidden', p: { xs: 2, sm: 3 }, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           
 
           {/* Connection path apps — shown first */}
@@ -472,7 +471,10 @@ export default function AppSearchDrawer({
               '& .singul-results-grid': {
                 width: '100% !important',
                 minWidth: '0 !important',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr)) !important',
+                gridTemplateColumns: {
+                  xs: 'minmax(0, 1fr) !important',
+                  sm: 'repeat(2, minmax(0, 1fr)) !important',
+                },
                 gridAutoRows: '78px !important',
                 gap: '12px !important',
               },

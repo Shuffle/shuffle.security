@@ -139,7 +139,6 @@ export const SHUFFLE_MCP_BASE_CSS = `
   color: hsl(var(--foreground));
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
-  isolation: isolate;
 }
 
 :root:not(.dark) .shuffle-mcp-scope:not(.dark),
@@ -316,7 +315,26 @@ export const useShuffleMcpTheme = (): ShuffleMcpThemeContextValue | null =>
   React.useContext(ShuffleMcpThemeContext);
 
 const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleTokenStyle) => ({
-  MuiButton: { defaultProps: { size: "small" as const } },
+  MuiButton: {
+    defaultProps: { size: "small" as const },
+    styleOverrides: {
+      contained: {
+        color: "#FFFFFF",
+        textDecoration: "none",
+        "&:hover": { color: "#FFFFFF", textDecoration: "none" },
+      },
+      containedPrimary: {
+        backgroundColor: "hsl(var(--primary))",
+        color: "#FFFFFF",
+        textDecoration: "none",
+        "&:hover": {
+          backgroundColor: "hsl(var(--primary) / 0.9)",
+          color: "#FFFFFF",
+          textDecoration: "none",
+        },
+      },
+    },
+  },
   MuiAutocomplete: {
     defaultProps: {
       slotProps: {
@@ -394,6 +412,16 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
         backgroundColor: "hsl(var(--sidebar-background, var(--card)))",
         color: "hsl(var(--sidebar-foreground, var(--foreground)))",
         borderRight: "1px solid hsl(var(--sidebar-border, var(--border)))",
+        maxWidth: "100vw",
+        boxSizing: "border-box" as const,
+        overflowX: "hidden" as const,
+        "@media (max-width: 599.95px)": {
+          width: "100% !important",
+          minWidth: "100% !important",
+          maxWidth: "100% !important",
+          borderLeft: "none",
+          borderRight: "none",
+        },
       },
     },
   },
@@ -406,6 +434,11 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
         color: "hsl(var(--card-foreground))",
         border: "1px solid hsl(var(--border))",
         boxShadow: "0 12px 32px rgba(0, 0, 0, 0.2)",
+        margin: 16,
+        boxSizing: "border-box" as const,
+        "@media (max-width: 600px)": {
+          maxWidth: "calc(100vw - 32px)",
+        },
       },
     },
   },

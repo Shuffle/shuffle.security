@@ -1480,8 +1480,8 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
                   />
                 </TableCell>
               )}
-              <TableCell sx={{ fontWeight: 600, width: 220, py: 1, fontSize: '0.8rem' }}>Key</TableCell>
-              <TableCell sx={{ fontWeight: 600, py: 1, fontSize: '0.8rem' }}>Value Preview</TableCell>
+              <TableCell sx={{ fontWeight: 600, width: { xs: 140, sm: 220 }, py: 1, fontSize: '0.8rem' }}>Key</TableCell>
+              <TableCell sx={{ fontWeight: 600, minWidth: 160, py: 1, fontSize: '0.8rem' }}>Value Preview</TableCell>
               {isDefaultCategory && (
                 <TableCell sx={{ fontWeight: 600, width: 140, py: 1, fontSize: '0.8rem' }}>Category</TableCell>
               )}
@@ -1536,7 +1536,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
                         />
                       </TableCell>
                     )}
-                    <TableCell sx={{ py: 0.5, maxWidth: 220 }}>
+                    <TableCell sx={{ py: 0.5, maxWidth: { xs: 150, sm: 220 } }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                         <Typography
                           variant="body2"
@@ -1716,7 +1716,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
               color: 'hsl(var(--muted-foreground))',
               fontSize: '0.8rem',
               whiteSpace: 'nowrap',
-              minWidth: 140,
+              minWidth: { xs: 'auto', sm: 140 },
             }}
           >
             {items.length > 0 ? page * pageSize + 1 : 0} - {Math.min((page + 1) * pageSize, totalAmount)} of {totalAmount} keys
@@ -1827,9 +1827,9 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
         }}
       >
         <DialogTitle sx={{ pb: 1, borderBottom: '1px solid hsl(var(--border))' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
-              <Typography variant="h6" sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '1rem' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flexWrap: 'wrap' }}>
+              <Typography variant="h6" sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '1rem', overflowWrap: 'anywhere' }}>
                 {inspectItem?.key}
               </Typography>
               <Chip
@@ -1839,7 +1839,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
                 sx={{ fontFamily: 'monospace', fontSize: '0.72rem', height: 22 }}
               />
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
               <Button
                 size="small"
                 variant="outlined"

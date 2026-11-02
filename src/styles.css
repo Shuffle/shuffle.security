@@ -331,7 +331,7 @@
 
   /* Prevent iOS Safari / WKWebView auto-zoom on input focus which shifts the layout off-screen */
   @media screen and (max-width: 768px) {
-    input, select, textarea {
+    input, select, textarea:not([data-code-editor-overlay="true"]) {
       font-size: 16px !important;
     }
   }
@@ -584,14 +584,18 @@
 .Toastify__progress-bar--warning { background: hsl(var(--severity-medium, 38 92% 50%)) !important; }
 .Toastify__progress-bar--info    { background: hsl(var(--primary)) !important; }
 
-/* Keep the global left sidebar interactive while any MUI Drawer/Dialog is open.
-   The sidebar sets `--app-sidebar-right` (its right edge in px). We clip every
-   MUI Backdrop so it only covers the area to the right of the sidebar — the
-   sidebar column stays clickable and receives pointer events. */
+/* Keep the global left sidebar interactive while a MUI Drawer is open on desktop.
+   The sidebar sets `--app-sidebar-right` (its right edge in px). We clip Drawer
+   backdrops on `>= 600px` viewports so they only cover the area to the right of
+   the sidebar — the sidebar column stays clickable and receives pointer events.
+   Centered modal Dialogs (`.MuiDialog-root`) and mobile viewports (`< 600px`,
+   where the left sidebar is hidden) always cover 100% of the screen. */
 :root { --app-sidebar-right: 0px; }
 
-.MuiBackdrop-root:not(.MuiBackdrop-invisible) {
-  clip-path: inset(0 0 0 var(--app-sidebar-right, 0px));
+@media (min-width: 600px) {
+  .MuiDrawer-root .MuiBackdrop-root:not(.MuiBackdrop-invisible) {
+    clip-path: inset(0 0 0 var(--app-sidebar-right, 0px));
+  }
 }
 
 /* The full-screen Drawer root itself also swallowed clicks over the sidebar.

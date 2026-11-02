@@ -203,9 +203,10 @@ const DocsPage = ({
           display: { xs: 'block', md: 'none' },
           '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
-            width: 300,
-            minWidth: 260,
-            maxWidth: '85vw',
+            width: { xs: '100%', sm: 320 },
+            minWidth: { xs: '100%', sm: 280 },
+            maxWidth: '100vw',
+            overflowX: 'hidden',
             backgroundColor: 'background.default',
             display: 'flex',
             flexDirection: 'column',
@@ -265,54 +266,38 @@ const DocsPage = ({
             p: 2,
             borderTop: '1px solid',
             borderColor: 'divider',
-            display: 'flex',
-            flexDirection: 'column',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
             gap: 1.25,
             backgroundColor: 'background.paper',
           }}
         >
-          <Typography
-            component={Link}
-            to="/"
-            onClick={() => setMobileOpen(false)}
-            sx={{
-              fontSize: '0.875rem',
-              color: 'text.secondary',
-              textDecoration: 'none',
-              fontWeight: 500,
-              '&:hover': { color: 'primary.main' },
-            }}
-          >
-            Home
-          </Typography>
-          <Typography
-            component={Link}
-            to="/#features"
-            onClick={() => setMobileOpen(false)}
-            sx={{
-              fontSize: '0.875rem',
-              color: 'text.secondary',
-              textDecoration: 'none',
-              fontWeight: 500,
-              '&:hover': { color: 'primary.main' },
-            }}
-          >
-            Features
-          </Typography>
-          <Typography
-            component={Link}
-            to="/usecases"
-            onClick={() => setMobileOpen(false)}
-            sx={{
-              fontSize: '0.875rem',
-              color: 'text.secondary',
-              textDecoration: 'none',
-              fontWeight: 500,
-              '&:hover': { color: 'primary.main' },
-            }}
-          >
-            Usecases
-          </Typography>
+          {[
+            { label: 'Home', to: '/' },
+            { label: 'Incidents', to: '/incidents' },
+            { label: 'Dashboard', to: '/dashboard' },
+            { label: 'AI Agent', to: '/agent' },
+            { label: 'Usecases', to: '/usecases' },
+            { label: 'Apps', to: '/apps' },
+            { label: 'Features', to: '/#features' },
+            { label: 'Pricing', to: '/pricing' },
+          ].map((item) => (
+            <Typography
+              key={item.to}
+              component={Link}
+              to={item.to}
+              onClick={() => setMobileOpen(false)}
+              sx={{
+                fontSize: '0.85rem',
+                color: 'text.secondary',
+                textDecoration: 'none',
+                fontWeight: 500,
+                '&:hover': { color: 'primary.main' },
+              }}
+            >
+              {item.label}
+            </Typography>
+          ))}
         </Box>
       </Drawer>
 

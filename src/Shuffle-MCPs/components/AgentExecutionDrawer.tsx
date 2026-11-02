@@ -123,9 +123,10 @@ const AgentExecutionDrawer = ({
         zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
-          width: { xs: '100vw', sm: drawerWidth },
-          minWidth: { xs: '100vw', sm: drawerMinWidth },
-          maxWidth: { xs: '100vw', sm: drawerMaxWidth },
+          width: { xs: '100%', sm: drawerWidth },
+          minWidth: { xs: '100%', sm: drawerMinWidth },
+          maxWidth: { xs: '100%', sm: drawerMaxWidth },
+          overflowX: 'hidden',
         },
       }}
       slotProps={{
@@ -133,14 +134,15 @@ const AgentExecutionDrawer = ({
           className: [themeScope?.scopeClassName, className].filter(Boolean).join(' ') || undefined,
           sx: [
             {
-              width: { xs: '100vw', sm: drawerWidth },
-              minWidth: { xs: '100vw', sm: drawerMinWidth },
-              maxWidth: { xs: '100vw', sm: drawerMaxWidth },
+              width: { xs: '100%', sm: drawerWidth },
+              minWidth: { xs: '100%', sm: drawerMinWidth },
+              maxWidth: { xs: '100%', sm: drawerMaxWidth },
               boxSizing: 'border-box',
+              overflowX: 'hidden',
               bgcolor: 'hsl(var(--background))',
               color: 'hsl(var(--foreground))',
               backgroundImage: 'none',
-              borderLeft: '1px solid hsl(var(--border))',
+              borderLeft: { xs: 'none', sm: '1px solid hsl(var(--border))' },
             },
             ...(Array.isArray(paperSx) ? paperSx : paperSx ? [paperSx] : []),
           ],
@@ -154,13 +156,16 @@ const AgentExecutionDrawer = ({
             display: 'flex',
             alignItems: 'center',
             gap: 1.5,
-            px: 2.5,
-            py: 1.75,
+            px: { xs: 2, sm: 2.5 },
+            py: { xs: 1.5, sm: 1.75 },
             borderBottom: '1px solid hsl(var(--border))',
             position: 'sticky',
             top: 0,
             zIndex: 2,
             bgcolor: 'hsl(var(--background))',
+            width: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
           },
           ...(Array.isArray(headerSx) ? headerSx : headerSx ? [headerSx] : []),
         ]}
@@ -260,10 +265,10 @@ const AgentExecutionDrawer = ({
       </Box>
 
       {/* Body — embedded AgentUI seeded with the pre-loaded run */}
-      <Box sx={[{ flex: 1, overflowY: 'auto', pt: 3 }, ...(Array.isArray(bodySx) ? bodySx : bodySx ? [bodySx] : [])]}>
+      <Box sx={[{ flex: 1, overflowY: 'auto', overflowX: 'hidden', pt: { xs: 2, sm: 3 }, px: { xs: 2, sm: 2.5 }, width: '100%', minWidth: 0, boxSizing: 'border-box' }, ...(Array.isArray(bodySx) ? bodySx : bodySx ? [bodySx] : [])]}>
         {topBanner}
         {run && !bodyReady ? (
-          <Box sx={{ px: 3, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             {[0, 1, 2, 3].map((i) => (
               <Box
                 key={i}
@@ -296,7 +301,7 @@ const AgentExecutionDrawer = ({
             hideAttach
             disableStartTab
             compact
-            maxWidth={width - 32}
+            maxWidth="100%"
             apiKey={apiKey}
             apiBaseUrl={apiBaseUrl}
             orgId={orgId}

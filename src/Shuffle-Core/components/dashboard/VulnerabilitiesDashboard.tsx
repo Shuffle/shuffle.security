@@ -230,14 +230,14 @@ export const VulnerabilitiesDashboard = ({
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, pt: 0.5 }}>
         {items.map((i) => (
-          <Box key={i.name} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--foreground))', width: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <Box key={i.name} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+            <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--foreground))', width: { xs: 100, sm: 150 }, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {i.name}
             </Typography>
-            <Box sx={{ flex: 1, height: 8, borderRadius: 4, bgcolor: 'hsl(var(--muted) / 0.35)', overflow: 'hidden' }}>
+            <Box sx={{ flex: 1, minWidth: 40, height: 8, borderRadius: 4, bgcolor: 'hsl(var(--muted) / 0.35)', overflow: 'hidden' }}>
               <Box sx={{ width: `${Math.max(6, (i.value / max) * 100)}%`, height: '100%', bgcolor: color }} />
             </Box>
-            <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))', width: 32, textAlign: 'right', fontFamily: 'monospace' }}>
+            <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))', width: 32, flexShrink: 0, textAlign: 'right', fontFamily: 'monospace' }}>
               {i.value}
             </Typography>
           </Box>

@@ -92,17 +92,18 @@ export default function AppDetailDrawer({
     className: scopeClassName,
     style: scopeStyle,
     sx: {
-      width: drawerWidth,
-      minWidth: drawerMinWidth,
-      maxWidth: drawerMaxWidth,
-      flex: `0 0 ${drawerWidth}`,
-      height: '100vh',
+      boxSizing: 'border-box',
+      width: { xs: '100%', sm: drawerWidth },
+      minWidth: { xs: '100%', sm: drawerMinWidth },
+      maxWidth: { xs: '100%', sm: drawerMaxWidth },
+      flex: { xs: '0 0 100%', sm: `0 0 ${drawerWidth}` },
+      height: '100dvh',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
       background: 'linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)',
-      borderLeft: anchor === 'right' ? '1px solid hsl(var(--border))' : 'none',
-      borderRight: anchor === 'left' ? '1px solid hsl(var(--border))' : 'none',
+      borderLeft: { xs: 'none', sm: anchor === 'right' ? '1px solid hsl(var(--border))' : 'none' },
+      borderRight: { xs: 'none', sm: anchor === 'left' ? '1px solid hsl(var(--border))' : 'none' },
     },
   };
 
@@ -116,10 +117,11 @@ export default function AppDetailDrawer({
         zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
-          width: `${drawerWidth} !important`,
-          minWidth: `${drawerMinWidth} !important`,
-          maxWidth: `${drawerMaxWidth} !important`,
-          flex: `0 0 ${drawerWidth} !important`,
+          width: { xs: '100% !important', sm: `${drawerWidth} !important` },
+          minWidth: { xs: '100% !important', sm: `${drawerMinWidth} !important` },
+          maxWidth: { xs: '100% !important', sm: `${drawerMaxWidth} !important` },
+          flex: { xs: '0 0 100% !important', sm: `0 0 ${drawerWidth} !important` },
+          overflowX: 'hidden',
         },
       }}
     >

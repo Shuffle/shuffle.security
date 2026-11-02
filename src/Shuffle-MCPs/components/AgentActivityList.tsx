@@ -723,7 +723,7 @@ const AgentRunRow = ({ run, onClick, sx, appIcons, onAppClick, apiKey, apiBaseUr
           {getRunSubtitle(run)}
         </Typography>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap', rowGap: 0.25 }}>
           <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))', opacity: 0.7 }}>
             {run.started_at ? getTimeAgo(run.started_at) : '—'}
           </Typography>
@@ -1484,8 +1484,8 @@ const AgentActivityList = ({
 
             sx={{
               height: 36,
-              minWidth: 200,
-              maxWidth: 260,
+              minWidth: { xs: '100%', sm: 200 },
+              maxWidth: { xs: '100%', sm: 260 },
               fontSize: '0.85rem',
               bgcolor: 'hsl(var(--card))',
               color: 'hsl(var(--foreground))',
@@ -1573,7 +1573,7 @@ const AgentActivityList = ({
               }}
               sx={{
                 flex: 1,
-                maxWidth: 280,
+                maxWidth: { xs: '100%', sm: 280 },
                 minWidth: 160,
                 '& .MuiOutlinedInput-root': {
                   bgcolor: 'hsl(var(--card))',

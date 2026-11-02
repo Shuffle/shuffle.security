@@ -228,9 +228,10 @@ const AgentRunDrawer = ({
         zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
-          width: { xs: '100vw', sm: drawerWidth },
-          minWidth: { xs: '100vw', sm: drawerMinWidth },
-          maxWidth: { xs: '100vw', sm: drawerMaxWidth },
+          width: { xs: '100%', sm: drawerWidth },
+          minWidth: { xs: '100%', sm: drawerMinWidth },
+          maxWidth: { xs: '100%', sm: drawerMaxWidth },
+          overflowX: 'hidden',
         },
       }}
       slotProps={{
@@ -239,12 +240,13 @@ const AgentRunDrawer = ({
           className: [themeScope?.scopeClassName, className].filter(Boolean).join(' ') || undefined,
           sx: [
             {
-              width: { xs: '100vw', sm: drawerWidth },
-              minWidth: { xs: '100vw', sm: drawerMinWidth },
-              maxWidth: { xs: '100vw', sm: drawerMaxWidth },
+              width: { xs: '100%', sm: drawerWidth },
+              minWidth: { xs: '100%', sm: drawerMinWidth },
+              maxWidth: { xs: '100%', sm: drawerMaxWidth },
               boxSizing: 'border-box',
+              overflowX: 'hidden',
               background: 'linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%)',
-              borderLeft: '1px solid hsl(var(--border))',
+              borderLeft: { xs: 'none', sm: '1px solid hsl(var(--border))' },
               boxShadow: '-8px 0 32px hsla(0, 0%, 0%, 0.4)',
               display: 'flex',
               flexDirection: 'column',
@@ -258,13 +260,16 @@ const AgentRunDrawer = ({
       <Box
         sx={[
           {
-            px: 3,
-            py: 2.5,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.75, sm: 2.5 },
             display: 'flex',
             alignItems: 'center',
-            gap: 2,
+            gap: { xs: 1.5, sm: 2 },
             borderBottom: '1px solid hsl(var(--border))',
             flexShrink: 0,
+            width: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
           },
           ...(Array.isArray(headerSx) ? headerSx : headerSx ? [headerSx] : []),
         ]}
@@ -368,15 +373,15 @@ const AgentRunDrawer = ({
       )}
 
       {/* Body */}
-      <Box sx={[{ flex: 1, overflowY: 'auto' }, ...(Array.isArray(bodySx) ? bodySx : bodySx ? [bodySx] : [])]}>
+      <Box sx={[{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, boxSizing: 'border-box' }, ...(Array.isArray(bodySx) ? bodySx : bodySx ? [bodySx] : [])]}>
         {safeActiveTab === 'run' && (
-          <Box sx={{ px: 2, py: 2 }}>
+          <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 2, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
             <AgentUI
               compact
               hideHeroIcon
               title=""
               subtitle={null}
-              maxWidth={width - 32}
+              maxWidth="100%"
               {...agentUIProps}
               isLoggedIn={agentUIProps?.isLoggedIn ?? isLoggedIn}
               isSupport={agentUIProps?.isSupport ?? (userdata?.support === true || userdata?.support === 'true')}
@@ -387,10 +392,10 @@ const AgentRunDrawer = ({
           </Box>
         )}
         {safeActiveTab === 'permissions' && permissionsSlot && (
-          <Box sx={{ px: 3, py: 2.5 }}>{permissionsSlot}</Box>
+          <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 }, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>{permissionsSlot}</Box>
         )}
         {safeActiveTab === 'localLLM' && effectiveLocalLLMSlot && (
-          <Box sx={{ px: 3, py: 2.5 }}>{effectiveLocalLLMSlot}</Box>
+          <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 }, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>{effectiveLocalLLMSlot}</Box>
         )}
       </Box>
     </Drawer>

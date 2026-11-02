@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Button, Container, TextField, Typography } from '@mui/material';
+import { Box, Button, Container, Drawer, IconButton, TextField, Typography } from '@mui/material';
+import { X as XIcon } from 'lucide-react';
 import { Link } from '@/lib/router-compat';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 import { DocsSidebar, toVisibleDocs } from '@/components/docs/DocsSidebar';
@@ -23,6 +24,7 @@ export default function DocsIndexPage() {
   const [results, setResults] = useState<DocItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const term = query.trim();
@@ -65,8 +67,105 @@ export default function DocsIndexPage() {
   }, [docs]);
   return (
     <Box className="docs-page-scope" sx={{ minHeight: '100vh', color: 'text.primary' }}>
-      <LandingNavbar />
+      <LandingNavbar onMobileMenuClick={() => setMobileOpen(true)} />
       <Box sx={{ height: 64 }} />
+      <Drawer
+        variant="temporary"
+        anchor="right"
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        ModalProps={{ keepMounted: true }}
+        sx={{
+          display: { xs: 'block', md: 'none' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: { xs: '100%', sm: 320 },
+            minWidth: { xs: '100%', sm: 280 },
+            maxWidth: '100vw',
+            overflowX: 'hidden',
+            backgroundColor: 'background.default',
+            display: 'flex',
+            flexDirection: 'column',
+          },
+        }}
+      >
+        <Box
+          sx={{
+            p: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+            <Typography
+              variant="subtitle1"
+              sx={{
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #FF6600 0%, #FF8533 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              Shuffle
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary' }}>
+              Docs
+            </Typography>
+          </Box>
+          <IconButton
+            onClick={() => setMobileOpen(false)}
+            size="small"
+            aria-label="Close menu"
+            sx={{ color: 'text.secondary' }}
+          >
+            <XIcon size={18} />
+          </IconButton>
+        </Box>
+        <Box sx={{ flex: 1, overflowY: 'auto' }}>
+          <DocsSidebar onNavigate={() => setMobileOpen(false)} activeSlug="overview" />
+        </Box>
+        <Box
+          sx={{
+            p: 2,
+            borderTop: '1px solid',
+            borderColor: 'divider',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 1.25,
+            backgroundColor: 'background.paper',
+          }}
+        >
+          {[
+            { label: 'Home', to: '/' },
+            { label: 'Incidents', to: '/incidents' },
+            { label: 'Dashboard', to: '/dashboard' },
+            { label: 'AI Agent', to: '/agent' },
+            { label: 'Usecases', to: '/usecases' },
+            { label: 'Apps', to: '/apps' },
+            { label: 'Features', to: '/#features' },
+            { label: 'Pricing', to: '/pricing' },
+          ].map((item) => (
+            <Typography
+              key={item.to}
+              component={Link}
+              to={item.to}
+              onClick={() => setMobileOpen(false)}
+              sx={{
+                fontSize: '0.85rem',
+                color: 'text.secondary',
+                textDecoration: 'none',
+                fontWeight: 500,
+                '&:hover': { color: 'primary.main' },
+              }}
+            >
+              {item.label}
+            </Typography>
+          ))}
+        </Box>
+      </Drawer>
       <Box component="aside" aria-label="Documentation navigation" sx={{ display: { xs: 'none', md: 'block' }, position: 'fixed', top: 64, left: 0, height: 'calc(100vh - 64px)', width: { md: 260, xl: 280 }, bgcolor: 'background.default' }}>
         <DocsSidebar activeSlug="overview" />
       </Box>

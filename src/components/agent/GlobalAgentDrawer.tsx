@@ -47,7 +47,10 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
   useEffect(() => {
     try {
       if (isAgentRoute(window.location.pathname)) return;
-      if (localStorage.getItem('shuffle_agent_drawer_open') === 'true') {
+      const isMobileViewport =
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(max-width: 599.95px)').matches;
+      if (!isMobileViewport && localStorage.getItem('shuffle_agent_drawer_open') === 'true') {
         setOpen(true);
       }
       const savedTab = localStorage.getItem('shuffle_agent_drawer_tab');
@@ -107,15 +110,19 @@ const GlobalAgentDrawer = ({ sideshift }: GlobalAgentDrawerProps = {}) => {
     return () => window.removeEventListener(AGENT_DRAWER_OPEN_EVENT, handler);
   }, [isAgentDisabled]);
 
-  // Auto-close if user navigates to /agents or /agent
+  // Auto-close if user navigates to /agents or /agent, or on mobile route changes
   useEffect(() => {
-    if (isAgentDisabled && open) {
+    const isMobileViewport =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(max-width: 599.95px)').matches;
+    if ((isAgentDisabled || isMobileViewport) && open) {
       setOpen(false);
       try {
         localStorage.setItem('shuffle_agent_drawer_open', 'false');
       } catch { /* ignore */ }
     }
-  }, [isAgentDisabled, open]);
+  }, [isAgentDisabled, location.pathname]);
 
   // Broadcast Ask AI drawer open state so other UI elements (like DemoResumePill) reactively hide/show
   useEffect(() => {

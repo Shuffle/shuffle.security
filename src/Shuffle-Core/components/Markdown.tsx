@@ -104,7 +104,14 @@ const baseSx: SxProps<Theme> = {
   '& strong, & b': { color: 'inherit', fontWeight: 600 },
   '& ul, & ol': { m: 0, mb: 1, pl: 2.5 },
   '& li': { mb: 0.25 },
-  '& a': { color: 'hsl(var(--primary))', textDecoration: 'underline' },
+  '& a:not(.MuiButton-root):not(.MuiChip-root):not(.MuiIconButton-root):not(.MuiButtonBase-root)': {
+    color: 'hsl(var(--primary))',
+    textDecoration: 'underline',
+  },
+  '& .MuiButton-contained, & a.MuiButton-contained': {
+    color: '#FFFFFF',
+    textDecoration: 'none !important',
+  },
   '& code': {
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
     fontSize: '0.92em',
@@ -112,6 +119,8 @@ const baseSx: SxProps<Theme> = {
     borderRadius: '3px',
     backgroundColor: 'hsl(var(--muted))',
     color: 'hsl(var(--foreground))',
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
     '&::before, &::after': { content: 'none' },
   },
   '& > pre': {
@@ -122,7 +131,7 @@ const baseSx: SxProps<Theme> = {
     overflow: 'auto',
     backgroundColor: 'hsl(var(--muted))',
     border: '1px solid hsl(var(--border))',
-    '& code': { p: 0, backgroundColor: 'transparent' },
+    '& code': { p: 0, backgroundColor: 'transparent', overflowWrap: 'normal', wordBreak: 'normal' },
   },
   '& blockquote': {
     m: 0,
@@ -132,7 +141,7 @@ const baseSx: SxProps<Theme> = {
     color: 'hsl(var(--muted-foreground))',
     '& p::before, & p::after': { content: 'none !important' },
   },
-  '& table': { width: '100%', borderCollapse: 'collapse', mb: 1 },
+  '& table': { width: '100%', borderCollapse: 'collapse', mb: 0 },
   '& th, & td': {
     border: '1px solid hsl(var(--border))',
     p: 0.75,
@@ -141,6 +150,8 @@ const baseSx: SxProps<Theme> = {
     overflowWrap: 'normal',
     '& code': {
       whiteSpace: 'nowrap',
+      overflowWrap: 'normal',
+      wordBreak: 'normal',
     },
   },
   '& th': { backgroundColor: 'hsl(var(--muted))', fontWeight: 600, whiteSpace: 'nowrap' },
@@ -324,6 +335,20 @@ const defaultComponents: MarkdownComponentOverrides = {
     }
     return <HighlightedFileEditor code={text} language={language} />;
   },
+  table: ({ children, ...props }: any) => (
+    <Box
+      className="shuffle-md-table-wrap"
+      sx={{
+        width: '100%',
+        maxWidth: '100%',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        mb: 2,
+      }}
+    >
+      <table {...props}>{children}</table>
+    </Box>
+  ),
 };
 
 export const ShuffleMarkdown: React.FC<ShuffleMarkdownProps> = ({

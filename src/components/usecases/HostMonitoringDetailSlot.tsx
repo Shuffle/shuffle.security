@@ -105,7 +105,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
           bgcolor: 'transparent',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
           <Box
             sx={{
               display: 'flex',
@@ -113,6 +113,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
               justifyContent: 'center',
               width: 40,
               height: 40,
+              flexShrink: 0,
               borderRadius: '50%',
               bgcolor: 'transparent',
               color: isConnected ? 'hsl(var(--severity-low))' : 'text.secondary',
@@ -120,9 +121,12 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
           >
             {isConnected ? <ShieldCheck size={22} /> : <Server size={22} />}
           </Box>
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography sx={{ fontSize: '0.95rem', fontWeight: 600, color: 'text.primary' }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <Typography
+                component="span"
+                sx={{ fontSize: '0.95rem', fontWeight: 600, lineHeight: 1.2, m: 0, color: 'text.primary' }}
+              >
                 {hostCount === null
                   ? 'Checking host monitors...'
                   : isConnected
@@ -139,10 +143,11 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
                   bgcolor: isConnected ? 'hsl(var(--severity-low) / 0.15)' : 'hsl(var(--severity-medium) / 0.15)',
                   color: isConnected ? 'hsl(var(--severity-low))' : 'hsl(var(--severity-medium))',
                   borderRadius: 1,
+                  '& .MuiChip-label': { px: 0.875, lineHeight: 1 },
                 }}
               />
             </Box>
-            <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', mt: 0.25 }}>
+            <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', mt: 0.25, mb: 0 }}>
               {isConnected
                 ? 'Endpoints are actively streaming security posture and telemetry into Shuffle.'
                 : 'Deploy the lightweight Shuffle sensor to endpoints to stream compliance, vulnerabilities, and telemetry.'}
@@ -150,7 +155,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
           </Box>
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           {onDeployClick && (
             <Button
               variant="contained"

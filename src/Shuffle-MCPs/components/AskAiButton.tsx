@@ -118,6 +118,7 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
     <Box
       className={themeScope?.scopeClassName}
       sx={{
+        display: { xs: 'none', md: 'block' },
         position: 'fixed',
         bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
         right: 'calc(24px + env(safe-area-inset-right, 0px))',

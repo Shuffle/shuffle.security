@@ -56,8 +56,8 @@ export const IncidentsEmptyState = ({ ingestionApps = [], onIngestionToggled, on
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          py: 12,
-          px: 4,
+          py: { xs: 5, sm: 8 },
+          px: { xs: 2, sm: 4 },
           textAlign: 'center',
           maxWidth: 520,
           mx: 'auto',
@@ -66,18 +66,18 @@ export const IncidentsEmptyState = ({ ingestionApps = [], onIngestionToggled, on
         {/* Icon */}
         <Box
           sx={{
-            width: 80,
-            height: 80,
-            borderRadius: '20px',
+            width: { xs: 52, sm: 64 },
+            height: { xs: 52, sm: 64 },
+            borderRadius: '16px',
             backgroundColor: 'hsl(var(--primary) / 0.08)',
             border: '1px solid hsl(var(--primary) / 0.15)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            mb: 4,
+            mb: { xs: 2.5, sm: 3 },
           }}
         >
-          <InboxIcon size={36} style={{ color: 'hsl(var(--primary))', opacity: 0.8 }} />
+          <InboxIcon size={26} style={{ color: 'hsl(var(--primary))' }} />
         </Box>
 
         {/* Title */}
@@ -85,8 +85,9 @@ export const IncidentsEmptyState = ({ ingestionApps = [], onIngestionToggled, on
           variant="h5"
           sx={{
             fontWeight: 600,
+            fontSize: { xs: '1.15rem', sm: '1.35rem' },
             color: 'hsl(var(--foreground))',
-            mb: 1.5,
+            mb: 1,
           }}
         >
           {t('No incidents yet')}
@@ -94,11 +95,12 @@ export const IncidentsEmptyState = ({ ingestionApps = [], onIngestionToggled, on
 
         {/* Description */}
         <Typography
-          variant="body1"
+          variant="body2"
           sx={{
             color: 'hsl(var(--muted-foreground))',
-            mb: 3,
-            lineHeight: 1.7,
+            fontSize: { xs: '0.84rem', sm: '0.92rem' },
+            mb: 2.5,
+            lineHeight: 1.6,
             maxWidth: 420,
           }}
         >
@@ -112,13 +114,15 @@ export const IncidentsEmptyState = ({ ingestionApps = [], onIngestionToggled, on
           <Box sx={{
             display: 'flex',
             alignItems: 'center',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
             gap: 0.5,
             bgcolor: 'hsl(var(--muted) / 0.4)',
             border: '1px solid hsl(var(--border))',
             borderRadius: 1.5,
             px: 1,
             py: 0.75,
-            mb: 4,
+            mb: 3,
           }}>
             {webhook && (
               <WebhookIngestionButton webhook={webhook} onToggled={onIngestionToggled} />
@@ -191,28 +195,29 @@ export const IncidentsEmptyState = ({ ingestionApps = [], onIngestionToggled, on
         )}
 
         {/* Demo mode CTA — same component as the dashboard, compact variant */}
-        <Box sx={{ width: '100%', maxWidth: 520, mb: 3 }}>
+        <Box sx={{ width: '100%', maxWidth: 520, mb: 2.5 }}>
           <DemoModeCard compact />
         </Box>
 
         {/* CTA buttons */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', gap: 1 }}>
             {canSync ? (
               <>
                 <Button
                   variant="outlined"
-                  size="large"
+                  size="small"
                   disabled={isSyncing || isUpdatingApps}
-                  startIcon={(isSyncing || isUpdatingApps) ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
+                  startIcon={(isSyncing || isUpdatingApps) ? <CircularProgress size={15} color="inherit" /> : <PlayArrowIcon size={16} />}
                   onClick={onSyncNow}
                   sx={{
-                    px: 3,
-                    py: 1.5,
-                    borderRadius: 2,
+                    height: 36,
+                    px: 2,
+                    py: 0,
+                    borderRadius: 1.5,
                     textTransform: 'none',
                     fontWeight: 600,
-                    fontSize: '0.95rem',
+                    fontSize: '0.8125rem',
                     borderColor: 'hsl(var(--primary) / 0.5)',
                     color: 'hsl(var(--primary))',
                     '&:hover': {
@@ -227,14 +232,15 @@ export const IncidentsEmptyState = ({ ingestionApps = [], onIngestionToggled, on
                   component={Link}
                   to="/onboarding/sources"
                   variant="text"
-                  size="large"
+                  size="small"
                   sx={{
-                    px: 2.5,
-                    py: 1.5,
-                    borderRadius: 2,
+                    height: 36,
+                    px: 1.75,
+                    py: 0,
+                    borderRadius: 1.5,
                     textTransform: 'none',
                     fontWeight: 500,
-                    fontSize: '0.95rem',
+                    fontSize: '0.8125rem',
                     color: 'hsl(var(--muted-foreground))',
                     '&:hover': {
                       color: 'hsl(var(--foreground))',
@@ -250,15 +256,16 @@ export const IncidentsEmptyState = ({ ingestionApps = [], onIngestionToggled, on
                 component={Link}
                 to="/onboarding/sources"
                 variant="outlined"
-                size="large"
-                startIcon={<RocketLaunchIcon />}
+                size="small"
+                startIcon={<RocketLaunchIcon size={16} />}
                 sx={{
-                  px: 3,
-                  py: 1.5,
-                  borderRadius: 2,
+                  height: 36,
+                  px: 2,
+                  py: 0,
+                  borderRadius: 1.5,
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '0.95rem',
+                  fontSize: '0.8125rem',
                   borderColor: 'hsl(var(--primary) / 0.5)',
                   color: 'hsl(var(--primary))',
                   '&:hover': {

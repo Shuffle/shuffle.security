@@ -415,7 +415,7 @@ export const DocAgentSidebarButton: React.FC<DocAgentSidebarButtonProps> = ({
         gap: 2,
       }}
     >
-      <Stack direction="row" spacing={1.5} alignItems="center">
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1, minWidth: 0 }}>
         <Box
           sx={{
             width: 36,
@@ -426,11 +426,12 @@ export const DocAgentSidebarButton: React.FC<DocAgentSidebarButtonProps> = ({
             justifyContent: "center",
             backgroundColor: "hsl(var(--primary) / 0.1)",
             color: "hsl(var(--primary))",
+            flexShrink: 0,
           }}
         >
           <AgentIcon size={20} />
         </Box>
-        <Box>
+        <Box sx={{ minWidth: 0 }}>
           <Typography
             sx={{
               fontWeight: 600,
@@ -442,7 +443,7 @@ export const DocAgentSidebarButton: React.FC<DocAgentSidebarButtonProps> = ({
           </Typography>
           <Typography
             variant="caption"
-            sx={{ color: "hsl(var(--muted-foreground))" }}
+            sx={{ color: "hsl(var(--muted-foreground))", display: "block" }}
           >
             Open the live AI side-panel to run tasks alongside the
             documentation.
@@ -458,6 +459,7 @@ export const DocAgentSidebarButton: React.FC<DocAgentSidebarButtonProps> = ({
           textTransform: "none",
           fontWeight: 500,
           borderRadius: 1.5,
+          width: { xs: "100%", sm: "auto" },
         }}
       >
         {label}
@@ -666,9 +668,12 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <Typography
+                component="span"
                 sx={{
                   fontWeight: 600,
                   fontSize: "0.85rem",
+                  lineHeight: 1.2,
+                  m: 0,
                   color: "hsl(var(--foreground))",
                 }}
               >
@@ -683,6 +688,7 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
                     fontSize: "0.68rem",
                     fontWeight: 600,
                     textTransform: "uppercase",
+                    "& .MuiChip-label": { px: 0.75, lineHeight: 1 },
                   }}
                 />
               )}
@@ -1398,6 +1404,7 @@ export const DocCveLookup: React.FC<DocCveLookupProps> = ({
         }}
         sx={{
           display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
           gap: 1,
           mb: 1.5,
         }}
@@ -1407,8 +1414,10 @@ export const DocCveLookup: React.FC<DocCveLookupProps> = ({
             display: "flex",
             alignItems: "center",
             flex: 1,
+            minWidth: 0,
             px: 1.5,
             py: 0.5,
+            minHeight: 36,
             borderRadius: 1.5,
             border: "1px solid hsl(var(--border))",
             bgcolor: "hsl(var(--background))",
@@ -1420,6 +1429,7 @@ export const DocCveLookup: React.FC<DocCveLookupProps> = ({
             placeholder={placeholder}
             sx={{
               flex: 1,
+              minWidth: 0,
               fontSize: "0.88rem",
               fontFamily: "monospace",
               color: "hsl(var(--foreground))",
@@ -1435,6 +1445,8 @@ export const DocCveLookup: React.FC<DocCveLookupProps> = ({
             fontWeight: 600,
             borderRadius: 1.5,
             px: 2,
+            height: 36,
+            width: { xs: "100%", sm: "auto" },
           }}
         >
           Check Advisory
@@ -1878,11 +1890,11 @@ export const DocRegionSelect: React.FC<DocRegionSelectProps> = ({
           disabled={saveStatus === "saving"}
           sx={{
             bgcolor: "hsl(var(--primary))",
-            color: "hsl(var(--primary-foreground))",
+            color: "#FFFFFF",
             height: 36,
             textTransform: "none",
             width: { xs: "100%", sm: "auto" },
-            "&:hover": { bgcolor: "hsl(var(--primary) / 0.9)" },
+            "&:hover": { bgcolor: "hsl(var(--primary) / 0.9)", color: "#FFFFFF" },
           }}
         >
           {saveStatus === "saving" ? "Saving..." : "Save Changes"}
@@ -1956,7 +1968,7 @@ export const DocIncidentAutomation: React.FC<DocIncidentAutomationProps> = ({
           gap: 2,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, flex: 1, minWidth: 0 }}>
           <Tooltip title="Automation for Incidents">
             <IconButton
               data-tour="incidents-automation-button"
@@ -1964,6 +1976,7 @@ export const DocIncidentAutomation: React.FC<DocIncidentAutomationProps> = ({
               sx={{
                 width: 44,
                 height: 44,
+                flexShrink: 0,
                 color: hasEnabled ? "#4ade80" : "hsl(var(--muted-foreground))",
                 border: "1px solid",
                 borderColor: hasEnabled ? "rgba(74, 222, 128, 0.5)" : "hsl(var(--border))",
@@ -1979,9 +1992,18 @@ export const DocIncidentAutomation: React.FC<DocIncidentAutomationProps> = ({
             </IconButton>
           </Tooltip>
 
-          <Box>
+          <Box sx={{ minWidth: 0 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.25, flexWrap: "wrap" }}>
-              <Typography sx={{ fontWeight: 600, fontSize: "0.95rem", color: "hsl(var(--foreground))" }}>
+              <Typography
+                component="span"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "0.95rem",
+                  lineHeight: 1.2,
+                  m: 0,
+                  color: "hsl(var(--foreground))",
+                }}
+              >
                 Automation for Incidents
               </Typography>
               <Chip
@@ -1993,10 +2015,11 @@ export const DocIncidentAutomation: React.FC<DocIncidentAutomationProps> = ({
                   fontWeight: 600,
                   bgcolor: hasEnabled ? "rgba(74, 222, 128, 0.15)" : "hsl(var(--muted))",
                   color: hasEnabled ? "#22c55e" : "hsl(var(--muted-foreground))",
+                  "& .MuiChip-label": { px: 0.875, lineHeight: 1 },
                 }}
               />
             </Box>
-            <Typography sx={{ fontSize: "0.8rem", color: "hsl(var(--muted-foreground))" }}>
+            <Typography sx={{ fontSize: "0.8rem", color: "hsl(var(--muted-foreground))", m: 0 }}>
               Click the button to configure triggers, response workflows, and AI prompts.
             </Typography>
           </Box>
@@ -2011,9 +2034,10 @@ export const DocIncidentAutomation: React.FC<DocIncidentAutomationProps> = ({
             fontWeight: 600,
             fontSize: "0.8rem",
             borderRadius: 1.5,
+            width: { xs: "100%", sm: "auto" },
             bgcolor: "hsl(var(--primary))",
-            color: "hsl(var(--primary-foreground))",
-            "&:hover": { bgcolor: "hsl(var(--primary) / 0.9)" },
+            color: "#FFFFFF",
+            "&:hover": { bgcolor: "hsl(var(--primary) / 0.9)", color: "#FFFFFF" },
           }}
         >
           Configure Automations
@@ -2074,30 +2098,46 @@ export const DocDatastoreLink: React.FC<DocDatastoreLinkProps> = ({
           gap: 2,
         }}
       >
-        <Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-            <Typography sx={{ fontWeight: 600, fontSize: "0.95rem", color: "hsl(var(--foreground))" }}>
-              Shuffle Core Datastore
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5, flexWrap: "wrap" }}>
+            <Typography
+              component="span"
+              sx={{
+                fontWeight: 600,
+                fontSize: "0.95rem",
+                lineHeight: 1.2,
+                m: 0,
+                color: "hsl(var(--foreground))",
+              }}
+            >
+              Shuffle Datastore
             </Typography>
             <Chip
               label={category}
               size="small"
               variant="outlined"
               sx={{
-                height: 20,
+                height: 22,
+                maxWidth: "100%",
                 fontSize: "0.72rem",
                 fontFamily: "monospace",
                 borderColor: "hsl(var(--border))",
                 color: "hsl(var(--foreground))",
+                "& .MuiChip-label": {
+                  px: 1,
+                  lineHeight: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                },
               }}
             />
           </Box>
-          <Typography sx={{ fontSize: "0.8rem", color: "hsl(var(--muted-foreground))" }}>
-            Query, inspect, and manage raw OCSF 2005 records, keys, and datastore cache in the Shuffle Core admin console.
+          <Typography sx={{ fontSize: "0.8rem", color: "hsl(var(--muted-foreground))", m: 0 }}>
+            Query, inspect, and manage raw OCSF 2005 records, keys, and datastore cache in the Shuffle Datastore.
           </Typography>
         </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", width: { xs: "100%", sm: "auto" } }}>
           <Button
             variant="contained"
             size="small"
@@ -2110,11 +2150,17 @@ export const DocDatastoreLink: React.FC<DocDatastoreLinkProps> = ({
               fontWeight: 600,
               fontSize: "0.8rem",
               bgcolor: "hsl(var(--primary))",
-              color: "hsl(var(--primary-foreground))",
+              color: "#FFFFFF !important",
+              textDecoration: "none !important",
               height: 32,
               px: 2,
+              flex: { xs: 1, sm: "0 0 auto" },
               borderRadius: 1.5,
-              "&:hover": { bgcolor: "hsl(var(--primary) / 0.9)" },
+              "&:hover": {
+                bgcolor: "hsl(var(--primary) / 0.9)",
+                color: "#FFFFFF !important",
+                textDecoration: "none !important",
+              },
             }}
           >
             Open in Datastore
@@ -2128,6 +2174,7 @@ export const DocDatastoreLink: React.FC<DocDatastoreLinkProps> = ({
               fontWeight: 500,
               fontSize: "0.8rem",
               height: 32,
+              flex: { xs: 1, sm: "0 0 auto" },
               borderRadius: 1.5,
               borderColor: "hsl(var(--border))",
               color: copied ? "#22c55e" : "hsl(var(--foreground))",
@@ -2374,7 +2421,7 @@ export const DocDynamicComponent: React.FC<DocDynamicComponentProps> = ({
   const rendered = renderInner();
   if (!rendered) return null;
   return (
-    <Box className="not-prose">
+    <Box className="not-prose" sx={{ width: "100%", maxWidth: "100%", minWidth: 0 }}>
       <ComponentErrorBoundary name={`DocComponent-${name}`} fallback={null}>
         {rendered}
       </ComponentErrorBoundary>

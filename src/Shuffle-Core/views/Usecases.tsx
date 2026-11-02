@@ -7105,10 +7105,11 @@ function UsecasesPageInner() {
         PaperProps={{
           className: cfgScopeClassName,
           sx: {
-            width: { xs: '100%', sm: 720, md: 900 },
-            minWidth: { xs: '100vw', sm: 480, md: 640 },
-            maxWidth: { xs: '100vw', sm: '90vw', md: 1000 },
+            width: { xs: '100%', sm: 'min(720px, 100vw)', md: 'min(900px, 100vw)' },
+            minWidth: { xs: '100%', sm: 'min(480px, 100vw)', md: 'min(640px, 100vw)' },
+            maxWidth: { xs: '100%', sm: '100vw', md: 'min(1000px, 100vw)' },
             boxSizing: 'border-box',
+            overflowX: 'hidden',
             // Tokens resolve via the scope class on this paper. Fallback HSL
             // values guarantee the drawer is never transparent even if the
             // host CSS does not define --background / --foreground.
@@ -7121,9 +7122,10 @@ function UsecasesPageInner() {
           zIndex: 10030,
           '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
-            width: { xs: '100%', sm: 720, md: 900 },
-            minWidth: { xs: '100vw', sm: 480, md: 640 },
-            maxWidth: { xs: '100vw', sm: '90vw', md: 1000 },
+            width: { xs: '100%', sm: 'min(720px, 100vw)', md: 'min(900px, 100vw)' },
+            minWidth: { xs: '100%', sm: 'min(480px, 100vw)', md: 'min(640px, 100vw)' },
+            maxWidth: { xs: '100%', sm: '100vw', md: 'min(1000px, 100vw)' },
+            overflowX: 'hidden',
           },
         }}
       >
@@ -8117,10 +8119,11 @@ function UsecaseDrawerInner({
       PaperProps={{
         className: cfgScopeClassName,
         sx: {
-          width: width || { xs: '100%', sm: 720, md: 900 },
-          minWidth: minWidth || { xs: '100vw', sm: 480, md: 640 },
-          maxWidth: maxWidth || { xs: '100vw', sm: '90vw', md: 1000 },
+          width: width || { xs: '100%', sm: 'min(720px, 100vw)', md: 'min(900px, 100vw)' },
+          minWidth: minWidth || { xs: '100%', sm: 'min(480px, 100vw)', md: 'min(640px, 100vw)' },
+          maxWidth: maxWidth || { xs: '100%', sm: '100vw', md: 'min(1000px, 100vw)' },
           boxSizing: 'border-box',
+          overflowX: 'hidden',
           bgcolor: 'hsl(var(--background, 0 0% 10%))',
           color: 'hsl(var(--foreground, 0 0% 100%))',
           backgroundImage: 'none',
@@ -8130,9 +8133,10 @@ function UsecaseDrawerInner({
         zIndex: 10030,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
-          width: width || { xs: '100%', sm: 720, md: 900 },
-          minWidth: minWidth || { xs: '100vw', sm: 480, md: 640 },
-          maxWidth: maxWidth || { xs: '100vw', sm: '90vw', md: 1000 },
+          width: width || { xs: '100%', sm: 'min(720px, 100vw)', md: 'min(900px, 100vw)' },
+          minWidth: minWidth || { xs: '100%', sm: 'min(480px, 100vw)', md: 'min(640px, 100vw)' },
+          maxWidth: maxWidth || { xs: '100%', sm: '100vw', md: 'min(1000px, 100vw)' },
+          overflowX: 'hidden',
         },
       }}
     >

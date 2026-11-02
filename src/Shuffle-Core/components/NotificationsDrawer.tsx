@@ -529,44 +529,50 @@ const NotificationsDrawer = ({
         zIndex: drawerZIndex,
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
-          width: { xs: '100vw', sm: drawerWidth },
-          minWidth: { xs: '100vw', sm: drawerMinWidth },
-          maxWidth: { xs: '100vw', sm: drawerMaxWidth },
-          flex: { xs: '0 0 100vw', sm: `0 0 ${drawerWidth}` },
+          width: { xs: '100%', sm: drawerWidth },
+          minWidth: { xs: '100%', sm: drawerMinWidth },
+          maxWidth: { xs: '100%', sm: drawerMaxWidth },
+          flex: { xs: '0 0 100%', sm: `0 0 ${drawerWidth}` },
+          overflowX: 'hidden',
         },
       }}
       PaperProps={{
         sx: {
           boxSizing: 'border-box',
-          width: { xs: '100vw', sm: drawerWidth },
-          minWidth: { xs: '100vw', sm: drawerMinWidth },
-          maxWidth: { xs: '100vw', sm: drawerMaxWidth },
+          width: { xs: '100%', sm: drawerWidth },
+          minWidth: { xs: '100%', sm: drawerMinWidth },
+          maxWidth: { xs: '100%', sm: drawerMaxWidth },
           flexShrink: 0,
+          overflowX: 'hidden',
           backgroundColor: 'hsl(var(--background))',
           backgroundImage: 'none',
           color: 'hsl(var(--foreground))',
-          borderLeft: '1px solid hsl(var(--border))',
+          borderLeft: { xs: 'none', sm: '1px solid hsl(var(--border))' },
         },
       }}
     >
       <Box
         sx={{
           height: '100%',
+          width: '100%',
+          minWidth: 0,
+          boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
         }}
       >
         {/* Header */}
-        <Box sx={{ px: 3, pt: 3, pb: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ flex: 1, fontSize: '1.125rem', fontWeight: 600 }}>
+        <Box sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 3 }, pb: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+            <Typography sx={{ flex: '1 1 auto', minWidth: 110, fontSize: '1.125rem', fontWeight: 600 }}>
               Notifications
             </Typography>
             {workflowConfigLoading ? (
               <Box
                 sx={{
-                  minWidth: 200,
+                  minWidth: { xs: 0, sm: 200 },
+                  maxWidth: '100%',
                   height: 32,
                   display: 'flex',
                   alignItems: 'center',
@@ -607,7 +613,9 @@ const NotificationsDrawer = ({
                     },
                   }}
                   sx={{
-                    minWidth: 200,
+                    minWidth: { xs: 140, sm: 200 },
+                    maxWidth: { xs: 190, sm: 260 },
+                    flex: { xs: '1 1 140px', sm: '0 0 auto' },
                     '& .MuiOutlinedInput-root': {
                       height: 32,
                       borderRadius: '999px',
@@ -740,7 +748,7 @@ const NotificationsDrawer = ({
         </Box>
 
         {/* Body */}
-        <Box sx={{ flex: 1, overflowY: 'auto', px: 3, pb: 6 }}>
+        <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', px: { xs: 2, sm: 3 }, pb: 6 }}>
           {loading && visible.length === 0 && (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
               <CircularProgress size={24} sx={{ color: 'hsl(var(--muted-foreground))' }} />

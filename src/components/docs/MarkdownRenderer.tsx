@@ -536,41 +536,57 @@ export const MarkdownRenderer = ({
       className="prose dark:prose-invert max-w-none"
 
       sx={{
+        minWidth: 0,
+        maxWidth: '100%',
         '& h1': {
           color: 'hsl(var(--foreground))',
-          fontSize: '2.25rem',
+          fontSize: { xs: '1.75rem', sm: '2.25rem' },
           fontWeight: 700,
           mb: 3,
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
         },
         '& h2': {
           color: 'hsl(var(--foreground))',
-          fontSize: { xs: '1.4rem', sm: '1.65rem' },
+          fontSize: { xs: '1.35rem', sm: '1.65rem' },
           fontWeight: 600,
-          mt: { xs: '3.5rem !important', md: '5rem !important' },
+          mt: { xs: '2.75rem !important', md: '5rem !important' },
           mb: 2.5,
           letterSpacing: '-0.015em',
           lineHeight: 1.3,
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
         },
         '& h1 + h2': {
           mt: '2rem !important',
         },
         '& h3': {
           color: 'hsl(var(--foreground))',
-          fontSize: '1.25rem',
+          fontSize: { xs: '1.125rem', sm: '1.25rem' },
           fontWeight: 600,
-          mt: 4,
+          mt: { xs: 3, md: 4 },
           mb: 2,
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
         },
         '& h4, & h5, & h6': {
           color: 'hsl(var(--foreground))',
           fontWeight: 600,
           mt: 3,
           mb: 1.5,
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
         },
         '& p': {
           color: 'hsl(var(--foreground) / 0.88)',
           lineHeight: 1.8,
           mb: 2,
+          overflowWrap: 'break-word',
+        },
+        '& .not-prose p, & .not-prose .MuiTypography-root': {
+          mb: 0,
+          mt: 0,
+          lineHeight: 1.5,
         },
         '& strong, & b': {
           color: 'hsl(var(--foreground))',
@@ -579,12 +595,25 @@ export const MarkdownRenderer = ({
         '& em, & i': {
           color: 'inherit',
         },
-        '& a': {
+        '& a:not(.MuiButton-root):not(.MuiChip-root):not(.MuiIconButton-root):not(.MuiButtonBase-root)': {
           color: 'primary.main',
           textDecoration: 'none',
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word',
           '&:hover': {
             textDecoration: 'underline',
           },
+        },
+        '& .MuiButton-contained, & a.MuiButton-contained': {
+          color: '#FFFFFF',
+          textDecoration: 'none !important',
+          '&:hover': {
+            color: '#FFFFFF',
+            textDecoration: 'none !important',
+          },
+        },
+        '& .MuiButton-root, & a.MuiButton-root': {
+          textDecoration: 'none !important',
         },
         '& code': {
           backgroundColor: 'hsl(var(--muted))',
@@ -596,6 +625,8 @@ export const MarkdownRenderer = ({
           fontSize: '0.85rem',
           fontWeight: 500,
           fontFamily: "'JetBrains Mono', monospace",
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word',
           '&::before, &::after': {
             content: 'none',
           },
@@ -604,26 +635,35 @@ export const MarkdownRenderer = ({
         // component override below); no generic pre styling here.
         '& ul, & ol': {
           color: 'hsl(var(--foreground) / 0.88)',
-          pl: 3,
+          pl: { xs: 2.25, sm: 3 },
           mb: 3,
         },
         '& li': {
           mb: 1,
           color: 'hsl(var(--foreground) / 0.88)',
+          overflowWrap: 'break-word',
         },
         '& li::marker': {
           color: 'hsl(var(--muted-foreground))',
         },
+        '& .shuffle-md-table-wrap': {
+          width: '100%',
+          maxWidth: '100%',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          mb: 4,
+        },
         '& table': {
           width: '100%',
           borderCollapse: 'collapse',
-          mb: 4,
+          mb: 0,
         },
         '& th': {
           backgroundColor: 'hsl(var(--muted) / 0.6)',
           borderBottom: '2px solid',
           borderColor: 'hsl(var(--border))',
-          p: 2,
+          p: { xs: 1.25, sm: 1.5, md: 2 },
+          fontSize: { xs: '0.8125rem', sm: '0.875rem' },
           textAlign: 'left',
           fontWeight: 600,
           color: 'hsl(var(--foreground))',
@@ -634,18 +674,21 @@ export const MarkdownRenderer = ({
         '& td': {
           borderBottom: '1px solid',
           borderColor: 'hsl(var(--border))',
-          p: 2,
+          p: { xs: 1.25, sm: 1.5, md: 2 },
+          fontSize: { xs: '0.8125rem', sm: '0.875rem' },
           color: 'hsl(var(--foreground) / 0.88)',
           wordBreak: 'normal',
           overflowWrap: 'normal',
           '& code': {
             whiteSpace: 'nowrap',
+            overflowWrap: 'normal',
+            wordBreak: 'normal',
           },
         },
         '& blockquote': {
           borderLeft: '4px solid',
           borderColor: 'primary.main',
-          pl: 3,
+          pl: { xs: 2, sm: 3 },
           ml: 0,
           fontStyle: 'italic',
           color: 'hsl(var(--foreground) / 0.82)',
@@ -657,7 +700,7 @@ export const MarkdownRenderer = ({
           border: 'none',
           borderTop: '1px solid',
           borderColor: 'divider',
-          my: 6,
+          my: { xs: 4, md: 6 },
         },
       }}
     >
@@ -666,10 +709,12 @@ export const MarkdownRenderer = ({
         <Typography
           component="h1"
           sx={{
-            fontSize: { xs: '30px', md: '36px' },
+            fontSize: { xs: '26px', sm: '30px', md: '36px' },
             fontWeight: 600,
             color: 'text.primary',
             mb: 3,
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
           }}
         >
           {title}
@@ -963,10 +1008,10 @@ export const MarkdownRenderer = ({
                   '& p': { mb: 2 },
                   '& img': { maxWidth: '100%', borderRadius: '2px' },
                   '& > h2:first-of-type': {
-                    mt: idx === 0 ? 0 : { xs: '3.5rem !important', md: '5rem !important' },
+                    mt: idx === 0 ? 0 : { xs: '2.75rem !important', md: '5rem !important' },
                   },
                   '& h2': {
-                    mt: { xs: '3.5rem !important', md: '5rem !important' },
+                    mt: { xs: '2.75rem !important', md: '5rem !important' },
                     mb: 2.5,
                   },
                 }}

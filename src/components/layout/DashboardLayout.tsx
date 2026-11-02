@@ -62,13 +62,25 @@ export const DashboardLayout = ({ children, defaultCollapsed }: DashboardLayoutP
   }, [sidebarCollapsed, isOnboarding]);
 
   // Expose the sidebar's right edge as a CSS variable so global styles can
-  // clip MUI backdrops and keep the sidebar clickable while drawers are open.
+  // clip MUI Drawer backdrops on desktop (`>= 600px`) and keep the sidebar
+  // clickable while drawers are open. On mobile (`< 600px`), the left sidebar
+  // is hidden (`display: { xs: 'none', sm: 'flex' }`), so reset to `0px`.
   useEffect(() => {
-    const width = sidebarCollapsed ? collapsedWidth : drawerWidth;
-    // sidebar sits at left:10 with a small breathing gap; match DashboardLayout marginLeft (+20)
-    const right = 10 + width + 10;
-    document.documentElement.style.setProperty('--app-sidebar-right', `${right}px`);
+    const mql = window.matchMedia('(min-width: 600px)');
+    const updateSidebarRight = () => {
+      if (!mql.matches) {
+        document.documentElement.style.setProperty('--app-sidebar-right', '0px');
+        return;
+      }
+      const width = sidebarCollapsed ? collapsedWidth : drawerWidth;
+      // sidebar sits at left:10 with a small breathing gap; match DashboardLayout marginLeft (+20)
+      const right = 10 + width + 10;
+      document.documentElement.style.setProperty('--app-sidebar-right', `${right}px`);
+    };
+    updateSidebarRight();
+    mql.addEventListener('change', updateSidebarRight);
     return () => {
+      mql.removeEventListener('change', updateSidebarRight);
       document.documentElement.style.setProperty('--app-sidebar-right', '0px');
     };
   }, [sidebarCollapsed]);

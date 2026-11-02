@@ -1000,8 +1000,10 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
             sx={{
               display: 'flex',
               alignItems: 'center',
+              flexWrap: 'wrap',
               gap: 1,
-              px: 2,
+              rowGap: 0.75,
+              px: { xs: 1.25, sm: 2 },
               py: 0.85,
               borderBottom: '1px solid hsl(var(--border))',
               bgcolor: 'hsl(var(--muted) / 0.45)',
@@ -1015,6 +1017,10 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
                 textTransform: 'uppercase',
                 letterSpacing: '0.06em',
                 fontFamily: "'JetBrains Mono', monospace",
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
               {langLabel}
@@ -1226,6 +1232,8 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 1,
                   px: 1.5,
                   py: 0.75,
                   borderBottom: '1px solid hsl(var(--border) / 0.5)',

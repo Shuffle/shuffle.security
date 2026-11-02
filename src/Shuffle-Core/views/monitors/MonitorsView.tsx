@@ -1320,9 +1320,9 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
 
       {/* Host Monitors section */}
       {loadError && !groupsLoading && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-md border border-destructive/30 bg-destructive/5 text-destructive mb-4">
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-md border border-destructive/30 bg-destructive/5 text-destructive mb-4">
           <AlertTriangle size={16} className="shrink-0" />
-          <span className="text-sm flex-1">{loadError}</span>
+          <span className="text-sm flex-1 min-w-[180px]">{loadError}</span>
           <Button size="sm" variant="outline" className="gap-1.5 shrink-0 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => loadGroups()}>
             <RefreshCw size={13} />
             Retry
@@ -1370,14 +1370,14 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
               </div>
             ))}
           </div>
-          <div className="border-t border-border px-5 py-16 flex flex-col items-center text-center gap-4">
-            <Activity size={36} className="text-muted-foreground/25" />
+          <div className="border-t border-border px-5 py-10 sm:py-16 flex flex-col items-center text-center gap-3">
+            <Activity size={32} className="text-muted-foreground/25" />
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">No hosts monitored yet</p>
               <p className="text-xs text-muted-foreground">Deploy a lightweight monitor on an endpoint to start checking compliance and posture.</p>
             </div>
-            <Button size="lg" className="gap-2 mt-2" onClick={handleOpenAddHost}>
-              <Plus size={16} />
+            <Button size="sm" variant="outline" className="gap-1.5 mt-1" onClick={handleOpenAddHost}>
+              <Plus size={14} />
               Add Host
             </Button>
           </div>

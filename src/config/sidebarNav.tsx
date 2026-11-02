@@ -54,6 +54,7 @@ export interface SidebarChildSpec {
   /** Lucide / MUI icon node — pass an already-instantiated element. */
   icon: React.ReactNode;
   supportOnly?: boolean;
+  disabled?: boolean;
   /** Optional badge label (e.g. 'Beta') displayed alongside the item */
   badge?: string;
   /** Default visibility when no preference is persisted. Defaults to true. */

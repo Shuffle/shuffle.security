@@ -831,7 +831,7 @@ export interface AgentUIProps {
   /** Pixel size of the hero icon container. Default 84. */
   heroIconSize?: number;
   /** Maximum width of the centered card. */
-  maxWidth?: number;
+  maxWidth?: number | string;
   /** Compact mode: hides the hero icon, shrinks padding. */
   compact?: boolean;
   /** Force the mobile/compact layout for narrow containers (e.g. side panels, split panes). Replaces the floating in-field skill badge with the compact `+` / skill icon menu button, removes the wide first-line indent, and sizes tool chips down to icons. */

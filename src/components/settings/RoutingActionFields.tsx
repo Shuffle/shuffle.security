@@ -133,7 +133,7 @@ const detectCloudDomainFamily = (candidate?: string | null): 'shuffler.io' | 'sh
     if (host === 'shuffle.security' || host.endsWith('.shuffle.security') || host === 'security.shuffler.io') {
       return 'shuffle.security';
     }
-    if (host === 'shuffler.io' || host.endswith?.('.shuffler.io') || host.endsWith('.shuffler.io')) {
+    if (host === 'shuffler.io' || host.endsWith('.shuffler.io')) {
       return 'shuffler.io';
     }
   } catch {

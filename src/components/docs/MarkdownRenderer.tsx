@@ -900,7 +900,7 @@ export const MarkdownRenderer = ({
           fontStyle: 'italic',
           color: 'hsl(var(--foreground) / 0.82)',
           '& p::before, & p::after': {
-            content: 'none !important',
+            content: 'none',
           },
         },
         '& hr': {

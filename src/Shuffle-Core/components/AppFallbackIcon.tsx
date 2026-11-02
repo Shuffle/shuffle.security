@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState, CSSProperties } from 'react';
 import { isNoAuthApp, getBuiltInAppImage } from '@/Shuffle-Core/noAuthApps';
+import { getOAuthVendorLogo } from './oauth/oauthVendors';
 
 const norm = (s: string) => s.toLowerCase().replace(/[\s_\-]+/g, '_');
 
@@ -71,6 +72,7 @@ const lookupImageByName = (name: string): Promise<string> => {
     const builtInImg = getBuiltInAppImage(key) || getBuiltInAppImage(name);
     if (builtInImg) return Promise.resolve(builtInImg);
   }
+  const vendorLogo = getOAuthVendorLogo(name);
   const hit = lookupCache.get(key);
   if (hit) return hit;
 
@@ -91,11 +93,11 @@ const lookupImageByName = (name: string): Promise<string> => {
       });
       const hits = ((res as any)?.results?.[0]?.hits || []) as any[];
       const match = hits.find((h) => h.name && norm(h.name) === key) || hits[0];
-      const url = (match?.image_url as string) || '';
+      const url = (match?.image_url as string) || vendorLogo || '';
       if (url) writePersisted(key, url);
       return url;
     } catch {
-      return '';
+      return vendorLogo || '';
     }
   })();
 
@@ -118,7 +120,7 @@ const resolveInitialSrc = (imageUrl?: string, name?: string): string => {
     const builtInImg = getBuiltInAppImage(key) || getBuiltInAppImage(name || '');
     if (builtInImg) return builtInImg;
   }
-  return readPersistedFresh(key) || '';
+  return readPersistedFresh(key) || getOAuthVendorLogo(name) || '';
 };
 
 // Stable, accessible color from a string (HSL hue 0-360).

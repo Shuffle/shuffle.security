@@ -19,6 +19,11 @@ import { toast } from '@/Shuffle-Core/lib/toast';
 import { ShuffleCompanyLogo } from '@/components/common/ShuffleLogo';
 import { AppFallbackIcon } from '../AppFallbackIcon';
 import { getClientProfile, type ClientProfile } from './OAuthAuthorizeView';
+import {
+  getVerificationStatusMeta,
+  type OAuthRawSource,
+  type OAuthVerificationStatus,
+} from './oauthVendors';
 
 export interface OAuthConnectionItem {
   id: string;
@@ -26,6 +31,7 @@ export interface OAuthConnectionItem {
   client_name?: string;
   client_uri?: string;
   logo_uri?: string;
+  redirect_uri?: string;
   token_type?: string;
   scope?: string;
   allowed_apps?: string[];
@@ -34,6 +40,17 @@ export interface OAuthConnectionItem {
   created_at?: number | string;
   expires_at?: string | number;
   token_masked?: string;
+  vendor_id?: string;
+  vendor_name?: string;
+  image_id?: string;
+  vendor_verified?: boolean;
+  verification_status?: OAuthVerificationStatus | string;
+  verification_reason?: string;
+  verified_domain?: string;
+  claimed_vendor_id?: string;
+  claimed_vendor_name?: string;
+  vendor_spoof_warning?: string;
+  raw_source?: OAuthRawSource;
 }
 
 export interface OAuthConnectionsSettingsProps {
@@ -92,9 +109,23 @@ const resolveConnectionProfile = (conn: OAuthConnectionItem): ClientProfile => {
   return getClientProfile(
     conn.client_id,
     conn.client_name,
-    undefined,
+    conn.redirect_uri || conn.raw_source?.raw_redirect_uri,
     conn.logo_uri,
-    conn.client_uri,
+    conn.client_uri || conn.raw_source?.raw_client_uri,
+    {
+      rawClientName: conn.raw_source?.raw_client_name || conn.client_name,
+      vendorId: conn.vendor_id,
+      vendorName: conn.vendor_name,
+      imageId: conn.image_id,
+      vendorVerified: conn.vendor_verified,
+      verificationStatus: conn.verification_status,
+      verificationReason: conn.verification_reason,
+      verifiedDomain: conn.verified_domain,
+      claimedVendorId: conn.claimed_vendor_id,
+      claimedVendorName: conn.claimed_vendor_name,
+      vendorSpoofWarning: conn.vendor_spoof_warning,
+      rawSource: conn.raw_source,
+    },
   );
 };
 
@@ -308,12 +339,22 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
           {connections.map((conn, idx) => {
             const connKey = conn.id || conn.token_masked || `conn-${idx}`;
             const profile = resolveConnectionProfile(conn);
+            const verificationMeta = getVerificationStatusMeta(
+              profile.verificationStatus,
+              profile.verifiedDomain,
+            );
             const scopes = parseScopes(conn.scope);
             const isRevoking = revokingId === connKey;
             const isExpanded = expandedIds.has(connKey);
             const allowedApps = Array.isArray(conn.allowed_apps)
               ? conn.allowed_apps.filter((a) => a && a !== '*')
               : [];
+            const rawSource = conn.raw_source;
+            const effectiveRedirectUri =
+              conn.redirect_uri ||
+              rawSource?.raw_redirect_uri ||
+              (rawSource?.raw_redirect_uris && rawSource.raw_redirect_uris[0]) ||
+              '';
 
             return (
               <Box
@@ -394,6 +435,17 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                         >
                           {profile.name}
                         </Typography>
+                        {profile.vendor && profile.vendor !== 'Third-Party Developer' && (
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: 'hsl(var(--muted-foreground))',
+                              fontSize: '0.75rem',
+                            }}
+                          >
+                            by {profile.vendor}
+                          </Typography>
+                        )}
                         <Box
                           component="span"
                           sx={{
@@ -409,7 +461,37 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                         >
                           Active
                         </Box>
+                        <Box
+                          component="span"
+                          sx={{
+                            px: 0.85,
+                            py: 0.15,
+                            fontSize: '0.68rem',
+                            fontWeight: 600,
+                            borderRadius: 1,
+                            bgcolor: verificationMeta.bgColor,
+                            color: verificationMeta.color,
+                            border: `1px solid ${verificationMeta.borderColor}`,
+                          }}
+                        >
+                          {verificationMeta.label}
+                        </Box>
                       </Box>
+
+                      {profile.vendorSpoofWarning && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: '#EF4444',
+                            fontWeight: 600,
+                            display: 'block',
+                            fontSize: '0.73rem',
+                            mb: 0.5,
+                          }}
+                        >
+                          {profile.vendorSpoofWarning}
+                        </Typography>
+                      )}
 
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
                         <Typography
@@ -573,6 +655,144 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                           }}
                         >
                           {conn.token_masked}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    <Box>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.72rem' }}
+                      >
+                        Source Verification
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: verificationMeta.color,
+                          fontWeight: 600,
+                          fontSize: '0.78rem',
+                        }}
+                      >
+                        {verificationMeta.label}
+                      </Typography>
+                      {profile.verificationReason && (
+                        <Typography
+                          variant="caption"
+                          sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.7rem', mt: 0.25 }}
+                        >
+                          {profile.verificationReason}
+                        </Typography>
+                      )}
+                    </Box>
+
+                    {(rawSource?.raw_client_name || conn.client_name) && (
+                      <Box>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.72rem' }}
+                        >
+                          Raw Client Name (Self-Reported)
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: 'hsl(var(--foreground))',
+                            fontFamily: 'monospace',
+                            fontSize: '0.76rem',
+                            wordBreak: 'break-all',
+                          }}
+                        >
+                          {rawSource?.raw_client_name || conn.client_name}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {effectiveRedirectUri && (
+                      <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.72rem' }}
+                        >
+                          Callback / Redirect URI (Cross-Referenced Destination)
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: 'hsl(var(--foreground))',
+                            fontFamily: 'monospace',
+                            fontSize: '0.75rem',
+                            wordBreak: 'break-all',
+                          }}
+                        >
+                          {effectiveRedirectUri}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {rawSource?.mcp_client_name && (
+                      <Box>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.72rem' }}
+                        >
+                          MCP Handshake ClientInfo
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: 'hsl(var(--foreground))',
+                            fontFamily: 'monospace',
+                            fontSize: '0.76rem',
+                            wordBreak: 'break-all',
+                          }}
+                        >
+                          {rawSource.mcp_client_name}
+                          {rawSource.mcp_client_version ? ` v${rawSource.mcp_client_version}` : ''}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {(rawSource?.token_remote_addr || rawSource?.remote_addr) && (
+                      <Box>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.72rem' }}
+                        >
+                          Source IP Address
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: 'hsl(var(--foreground))',
+                            fontFamily: 'monospace',
+                            fontSize: '0.76rem',
+                            wordBreak: 'break-all',
+                          }}
+                        >
+                          {rawSource.token_remote_addr || rawSource.remote_addr}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {(rawSource?.mcp_user_agent || rawSource?.token_user_agent || rawSource?.user_agent) && (
+                      <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.72rem' }}
+                        >
+                          Client User-Agent
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: 'hsl(var(--foreground))',
+                            fontFamily: 'monospace',
+                            fontSize: '0.72rem',
+                            wordBreak: 'break-all',
+                          }}
+                        >
+                          {rawSource?.mcp_user_agent || rawSource?.token_user_agent || rawSource?.user_agent}
                         </Typography>
                       </Box>
                     )}

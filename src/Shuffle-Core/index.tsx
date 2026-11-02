@@ -650,6 +650,17 @@ export type { LocalLLMConfigProps };
 export { SegmentedControl, type SegmentedControlProps } from "./components/SegmentedControl";
 export { UsageBar, type UsageBarProps } from "./components/UsageBar";
 export { AppFallbackIcon, type AppFallbackIconProps } from "./components/AppFallbackIcon";
+export {
+  OAUTH_VENDOR_REGISTRY,
+  findOAuthVendorSpec,
+  getOAuthVendorLogo,
+  evaluateOAuthVendorIdentity,
+  getVerificationStatusMeta,
+  type OAuthVendorSpec,
+  type OAuthVendorEvaluation,
+  type OAuthRawSource,
+  type OAuthVerificationStatus,
+} from "./components/oauth/oauthVendors";
 export { AuthStatusChip } from "./components/AuthStatusChip";
 export { IntegrationStatus, type IntegrationStatusProps } from "./components/IntegrationStatus";
 export {

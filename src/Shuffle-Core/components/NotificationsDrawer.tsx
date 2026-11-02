@@ -177,6 +177,7 @@ const NotificationsDrawer = ({
 }: NotificationsDrawerProps) => {
   const [items, setItems] = useState<ExecutionNotification[]>([]);
   const [agentItems, setAgentItems] = useState<ExecutionNotification[]>([]);
+  const [personalApiItems, setPersonalApiItems] = useState<ExecutionNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<ScopeValue>('workflows');
@@ -292,9 +293,13 @@ const NotificationsDrawer = ({
     setError(null);
     const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };
     try {
-      const [resp, agentResp] = await Promise.all([
+      const [resp, agentResp, personalResp] = await Promise.all([
         fetch(getApiUrl('/api/v1/notifications'), { credentials: 'include', headers }),
         fetch(getApiUrl('/api/v1/notifications?origin=agent_approval'), {
+          credentials: 'include',
+          headers,
+        }),
+        fetch(getApiUrl('/api/v1/notifications?personal=true'), {
           credentials: 'include',
           headers,
         }),
@@ -309,10 +314,18 @@ const NotificationsDrawer = ({
       } else {
         setAgentItems([]);
       }
+
+      if (personalResp.ok) {
+        const personalData = await personalResp.json();
+        setPersonalApiItems(Array.isArray(personalData?.notifications) ? personalData.notifications : []);
+      } else {
+        setPersonalApiItems([]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setItems([]);
       setAgentItems([]);
+      setPersonalApiItems([]);
     } finally {
       setLoading(false);
     }
@@ -334,6 +347,7 @@ const NotificationsDrawer = ({
           : n;
       setItems((prev) => prev.map(patch));
       setAgentItems((prev) => prev.map(patch));
+      setPersonalApiItems((prev) => prev.map(patch));
       try {
         await fetch(getApiUrl(`/api/v1/notifications/${id}/markasread${qs}`), {
           credentials: 'include',
@@ -358,13 +372,21 @@ const NotificationsDrawer = ({
   const clearAll = useCallback(async () => {
     setClearing(true);
     try {
-      const resp = await fetch(getApiUrl('/api/v1/notifications/clear'), {
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-      });
+      const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };
+      const [resp] = await Promise.all([
+        fetch(getApiUrl('/api/v1/notifications/clear'), {
+          credentials: 'include',
+          headers,
+        }),
+        fetch(getApiUrl('/api/v1/notifications/clear?personal=true'), {
+          credentials: 'include',
+          headers,
+        }).catch(() => null),
+      ]);
       if (!resp.ok) throw new Error(`Clear failed (${resp.status})`);
       setItems([]);
       setAgentItems([]);
+      setPersonalApiItems([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to clear notifications');
       load();
@@ -386,19 +408,19 @@ const NotificationsDrawer = ({
     [items, agentIds],
   );
 
-  // Personal notifications: flagged personal by the backend, or addressed to this user.
+  // Personal notifications: fetched from ?personal=true, or flagged personal / addressed to this user.
   const personalItems = useMemo(() => {
     const seen = new Set<string>();
     const isMine = (n: ExecutionNotification) =>
       n.personal === true || (!!userId && String(n.user_id || '') === userId);
-    return [...items, ...agentItems].filter((n) => {
+    return [...personalApiItems, ...items, ...agentItems].filter((n) => {
       if (!isMine(n)) return false;
       const key = String(n.id || '');
       if (key && seen.has(key)) return false;
       if (key) seen.add(key);
       return true;
     });
-  }, [items, agentItems, userId]);
+  }, [personalApiItems, items, agentItems, userId]);
 
   useEffect(() => {
     if (!open || !username) return;
@@ -680,57 +702,9 @@ const NotificationsDrawer = ({
           )}
 
           {scope === 'personal' && (
-            <Box sx={{ mb: 3 }}>
-              <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', mb: 1 }}>
-                Open assigned cases{assignedCases.length > 0 ? ` (${assignedCases.length})` : ''}
-              </Typography>
-              {assignedLoading && assignedCases.length === 0 ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1.5 }}>
-                  <CircularProgress size={14} sx={{ color: 'hsl(var(--muted-foreground))' }} />
-                  <Typography sx={{ fontSize: '0.8125rem', color: 'hsl(var(--muted-foreground))' }}>Loading assigned cases...</Typography>
-                </Box>
-              ) : assignedCases.length === 0 ? (
-                <Typography sx={{ fontSize: '0.8125rem', color: 'hsl(var(--muted-foreground))', py: 1.5 }}>
-                  No open cases are assigned to you.
-                </Typography>
-              ) : (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {assignedCases.map((c) => {
-                    const cfg = statusConfig[c.status];
-                    return (
-                      <Box
-                        key={c.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => { onClose(); navigate(`/incidents/${encodeURIComponent(c.id)}`); }}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { onClose(); navigate(`/incidents/${encodeURIComponent(c.id)}`); } }}
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1.5,
-                          borderRadius: '14px',
-                          p: 2,
-                          cursor: 'pointer',
-                          bgcolor: 'hsl(var(--muted) / 0.25)',
-                          transition: 'background-color 0.15s ease',
-                          '&:hover': { bgcolor: 'hsl(var(--muted) / 0.45)' },
-                        }}
-                      >
-                        <Typography sx={{ flex: 1, minWidth: 0, fontSize: '0.875rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {c.title}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: cfg?.color || 'hsl(var(--muted-foreground))', flexShrink: 0 }}>
-                          {cfg?.label || c.status.replace(/_/g, ' ')}
-                        </Typography>
-                      </Box>
-                    );
-                  })}
-                </Box>
-              )}
-              <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', mt: 3 }}>
-                Personal notifications
-              </Typography>
-            </Box>
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', mb: 1 }}>
+              Personal notifications
+            </Typography>
           )}
 
           {!loading && !error && visible.length === 0 && (
@@ -740,14 +714,15 @@ const NotificationsDrawer = ({
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: 1.5,
-                py: 8,
+                py: scope === 'personal' ? 1.5 : 8,
               }}
             >
               <Typography
                 sx={{
                   fontSize: '0.8125rem',
                   color: 'hsl(var(--muted-foreground))',
-                  textAlign: 'center',
+                  textAlign: scope === 'personal' ? 'left' : 'center',
+                  alignSelf: scope === 'personal' ? 'stretch' : 'center',
                 }}
               >
                 {filtering
@@ -965,6 +940,57 @@ const NotificationsDrawer = ({
               </Box>
             ))}
           </Box>
+
+          {scope === 'personal' && (
+            <Box sx={{ mt: 3 }}>
+              <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: 'hsl(var(--muted-foreground))', textTransform: 'uppercase', letterSpacing: '0.04em', mb: 1 }}>
+                Open assigned cases{assignedCases.length > 0 ? ` (${assignedCases.length})` : ''}
+              </Typography>
+              {assignedLoading && assignedCases.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1.5 }}>
+                  <CircularProgress size={14} sx={{ color: 'hsl(var(--muted-foreground))' }} />
+                  <Typography sx={{ fontSize: '0.8125rem', color: 'hsl(var(--muted-foreground))' }}>Loading assigned cases...</Typography>
+                </Box>
+              ) : assignedCases.length === 0 ? (
+                <Typography sx={{ fontSize: '0.8125rem', color: 'hsl(var(--muted-foreground))', py: 1.5 }}>
+                  No open cases are assigned to you.
+                </Typography>
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {assignedCases.map((c) => {
+                    const cfg = statusConfig[c.status];
+                    return (
+                      <Box
+                        key={c.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => { onClose(); navigate(`/incidents/${encodeURIComponent(c.id)}`); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { onClose(); navigate(`/incidents/${encodeURIComponent(c.id)}`); } }}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1.5,
+                          borderRadius: '14px',
+                          p: 2,
+                          cursor: 'pointer',
+                          bgcolor: 'hsl(var(--muted) / 0.25)',
+                          transition: 'background-color 0.15s ease',
+                          '&:hover': { bgcolor: 'hsl(var(--muted) / 0.45)' },
+                        }}
+                      >
+                        <Typography sx={{ flex: 1, minWidth: 0, fontSize: '0.875rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.title}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: cfg?.color || 'hsl(var(--muted-foreground))', flexShrink: 0 }}>
+                          {cfg?.label || c.status.replace(/_/g, ' ')}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
+            </Box>
+          )}
         </Box>
       </Box>
 

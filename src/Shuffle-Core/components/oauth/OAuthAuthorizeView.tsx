@@ -53,6 +53,13 @@ import { safeRandomUUID } from '@/utils/uuid';
 import { ShuffleCompanyLogo } from '@/components/common/ShuffleLogo';
 import { useOptionalAuth } from '@/context/AuthContext';
 import { AppFallbackIcon } from '../AppFallbackIcon';
+import {
+  evaluateOAuthVendorIdentity,
+  findOAuthVendorSpec,
+  getVerificationStatusMeta,
+  type OAuthRawSource,
+  type OAuthVerificationStatus,
+} from './oauthVendors';
 
 export interface OrganizationLike {
   id: string;
@@ -375,11 +382,20 @@ const parseDynamicScope = (rawScope: string): OAuthScopeDetail => {
 export interface ClientProfile {
   name: string;
   vendor: string;
+  vendorId?: string;
   iconBg: string;
   iconColor: string;
   description: string;
   logoUrl?: string;
   iconLookupName?: string;
+  vendorVerified?: boolean;
+  verificationStatus?: OAuthVerificationStatus | string;
+  verificationReason?: string;
+  verifiedDomain?: string;
+  claimedVendorId?: string;
+  claimedVendorName?: string;
+  vendorSpoofWarning?: string;
+  rawSource?: OAuthRawSource;
 }
 
 interface BackendConsentScope {
@@ -398,138 +414,33 @@ interface BackendConsentInfo {
   scopes?: BackendConsentScope[];
   available_orgs?: OrganizationLike[];
   selected_org_id?: string;
+  vendor_id?: string;
+  vendor_name?: string;
+  image_id?: string;
+  vendor_verified?: boolean;
+  verification_status?: OAuthVerificationStatus | string;
+  verification_reason?: string;
+  verified_domain?: string;
+  claimed_vendor_id?: string;
+  claimed_vendor_name?: string;
+  vendor_spoof_warning?: string;
+  raw_source?: OAuthRawSource;
 }
 
-const isUuidLike = (val?: string): boolean => {
-  if (!val) return false;
-  const cleaned = val.replace(/^shuffle[_-]client[_-]/i, '').trim();
-  return (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleaned) ||
-    /^[0-9a-f]{32}$/i.test(cleaned) ||
-    /^[0-9a-f]{8,}$/i.test(cleaned) ||
-    /^application\s+[0-9a-f]+/i.test(cleaned)
-  );
-};
-
-const matchKnownPlatform = (
-  signal: string,
-): ClientProfile | null => {
-  const lower = signal.toLowerCase();
-
-  if (lower.includes('chatgpt.com') || lower.includes('openai.com') || lower.includes('chatgpt') || lower.includes('openai')) {
-    return {
-      name: 'ChatGPT',
-      vendor: 'OpenAI',
-      iconBg: '#10A37F',
-      iconColor: '#FFFFFF',
-      description: 'OpenAI custom assistant & MCP platform integration',
-      iconLookupName: 'OpenAI',
-    };
-  }
-
-  if (lower.includes('claude.ai') || lower.includes('anthropic.com') || lower.includes('claude') || lower.includes('anthropic')) {
-    return {
-      name: 'Claude',
-      vendor: 'Anthropic',
-      iconBg: '#D97706',
-      iconColor: '#FFFFFF',
-      description: 'Anthropic Claude assistant & MCP integration',
-      iconLookupName: 'Claude',
-    };
-  }
-
-  if (
-    lower.includes('gemini.google.com') ||
-    lower.includes('aistudio.google.com') ||
-    lower.includes('makersuite.google.com') ||
-    lower.includes('vertexai') ||
-    lower.includes('gemini')
-  ) {
-    return {
-      name: 'Google Gemini',
-      vendor: 'Google',
-      iconBg: '#1A73E8',
-      iconColor: '#FFFFFF',
-      description: 'Google Gemini assistant & agent integration',
-      iconLookupName: 'Google Gemini',
-    };
-  }
-
-  if (lower.includes('cursor.sh') || lower.includes('cursor.com') || lower.includes('cursor://') || lower.includes('cursor')) {
-    return {
-      name: 'Cursor',
-      vendor: 'Anysphere',
-      iconBg: '#000000',
-      iconColor: '#FFFFFF',
-      description: 'Cursor IDE tool & context runner',
-      iconLookupName: 'Cursor',
-    };
-  }
-
-  if (lower.includes('copilot') || lower.includes('github.com') || lower.includes('github')) {
-    return {
-      name: 'GitHub Copilot',
-      vendor: 'GitHub / Microsoft',
-      iconBg: '#24292F',
-      iconColor: '#FFFFFF',
-      description: 'GitHub Copilot Workspace & agent integration',
-      iconLookupName: 'GitHub',
-    };
-  }
-
-  if (lower.includes('vscode://') || lower.includes('vscode.dev') || lower.includes('vscode') || lower.includes('visual studio code')) {
-    return {
-      name: 'VS Code Extension',
-      vendor: 'Microsoft',
-      iconBg: '#007ACC',
-      iconColor: '#FFFFFF',
-      description: 'Visual Studio Code extension integration',
-      iconLookupName: 'Visual Studio Code',
-    };
-  }
-
-  if (lower.includes('windsurf') || lower.includes('codeium')) {
-    return {
-      name: 'Windsurf',
-      vendor: 'Codeium',
-      iconBg: '#09B6A2',
-      iconColor: '#FFFFFF',
-      description: 'Windsurf AI IDE & MCP tool runner',
-      iconLookupName: 'Windsurf',
-    };
-  }
-
-  if (lower.includes('raycast')) {
-    return {
-      name: 'Raycast',
-      vendor: 'Raycast',
-      iconBg: '#FF6363',
-      iconColor: '#FFFFFF',
-      description: 'Raycast AI extension & tool integration',
-      iconLookupName: 'Raycast',
-    };
-  }
-
-  return null;
-};
-
-const getAppFromRedirectUri = (
-  redirectUri?: string,
-  clientUri?: string,
-): ClientProfile | null => {
-  const candidates = [redirectUri, clientUri].filter(Boolean) as string[];
-  for (const raw of candidates) {
-    let decoded = raw;
-    try {
-      decoded = decodeURIComponent(raw);
-    } catch {
-      // ignore
-    }
-    const matched = matchKnownPlatform(decoded);
-    if (matched) return matched;
-  }
-  return null;
-};
+export interface ClientProfileOptions {
+  rawClientName?: string;
+  vendorId?: string;
+  vendorName?: string;
+  imageId?: string;
+  vendorVerified?: boolean;
+  verificationStatus?: OAuthVerificationStatus | string;
+  verificationReason?: string;
+  verifiedDomain?: string;
+  claimedVendorId?: string;
+  claimedVendorName?: string;
+  vendorSpoofWarning?: string;
+  rawSource?: OAuthRawSource;
+}
 
 export const getClientProfile = (
   clientId?: string,
@@ -537,98 +448,79 @@ export const getClientProfile = (
   redirectUri?: string,
   logoUri?: string,
   clientUri?: string,
+  options?: ClientProfileOptions,
 ): ClientProfile => {
-  const cleanName = clientName && !isUuidLike(clientName) ? clientName.trim() : '';
-  const id = (clientId || '').toLowerCase();
-  const nameLower = cleanName.toLowerCase();
-  const redirectLower = (redirectUri || '').toLowerCase();
+  const rawSource = options?.rawSource;
+  const effectiveRedirectUri = redirectUri || rawSource?.raw_redirect_uri || '';
+  const effectiveRawName = options?.rawClientName || rawSource?.raw_client_name || clientName || '';
+  const effectiveClientUri = clientUri || rawSource?.raw_client_uri || '';
+  const effectiveLogoUri = logoUri || rawSource?.raw_logo_uri || '';
 
-  // 1. Identify known platforms via redirect_uri or client_uri first
-  const fromUri = getAppFromRedirectUri(redirectUri, clientUri);
-  if (fromUri) {
-    const customName =
-      cleanName &&
-      nameLower !== 'shuffle agent' &&
-      nameLower !== 'mcp client' &&
-      nameLower !== 'application'
-        ? cleanName
-        : fromUri.name;
-    return {
-      ...fromUri,
-      name: customName,
-      logoUrl: logoUri || fromUri.logoUrl,
-    };
-  }
+  const evaluated = evaluateOAuthVendorIdentity({
+    clientId,
+    rawClientName: effectiveRawName,
+    redirectUri: effectiveRedirectUri,
+    clientUri: effectiveClientUri,
+    logoUri: effectiveLogoUri,
+    softwareId: rawSource?.software_id,
+    userAgent: rawSource?.mcp_user_agent || rawSource?.token_user_agent || rawSource?.user_agent,
+    mcpClientName: rawSource?.mcp_client_name,
+  });
 
-  // 2. Identify known platforms via registered client_name or client_id
-  const fromNameOrId = matchKnownPlatform(`${cleanName} ${id}`);
-  if (fromNameOrId) {
-    const customName =
-      cleanName &&
-      nameLower !== 'shuffle agent' &&
-      nameLower !== 'mcp client' &&
-      nameLower !== 'application'
-        ? cleanName
-        : fromNameOrId.name;
-    return {
-      ...fromNameOrId,
-      name: customName,
-      logoUrl: logoUri || fromNameOrId.logoUrl,
-    };
-  }
+  const explicitSpec =
+    findOAuthVendorSpec(options?.vendorId) ||
+    findOAuthVendorSpec(evaluated.vendorId) ||
+    findOAuthVendorSpec(options?.imageId) ||
+    findOAuthVendorSpec(clientName);
 
-  // 3. Identify explicit Shuffle Agent (do NOT match generic shuffle_client_<uuid> IDs!)
-  const idWithoutPrefix = id.replace(/^shuffle[_-]client[_-]/i, '');
-  if (
-    id === 'shuffle-agent' ||
-    id.includes('shuffle_agent') ||
-    idWithoutPrefix.includes('shuffle') ||
-    nameLower.includes('shuffle')
-  ) {
-    return {
-      name: cleanName || 'Shuffle Agent',
-      vendor: 'Shuffle',
-      iconBg: '#f85f38',
-      iconColor: '#FFFFFF',
-      description: 'Shuffle Agent runner requesting access to execute tools and actions on your behalf.',
-      logoUrl: logoUri,
-    };
-  }
+  const resolvedName =
+    clientName &&
+    clientName.trim() &&
+    clientName.toLowerCase() !== 'shuffle agent' &&
+    clientName.toLowerCase() !== 'mcp client' &&
+    clientName.toLowerCase() !== 'application'
+      ? clientName.trim()
+      : evaluated.name;
 
-  // 4. Local loopback MCP clients (127.0.0.1 / localhost)
-  if (redirectLower.includes('127.0.0.1') || redirectLower.includes('localhost') || redirectLower.includes('[::1]')) {
-    return {
-      name: cleanName || 'Local MCP Client',
-      vendor: cleanName ? 'Local MCP Integration' : 'Local Developer Tool',
-      iconBg: '#3B82F6',
-      iconColor: '#FFFFFF',
-      description: 'Local Model Context Protocol (MCP) client requesting access to execute tools on your behalf.',
-      logoUrl: logoUri,
-      iconLookupName: cleanName || undefined,
-    };
-  }
+  const resolvedVendor =
+    options?.vendorName ||
+    explicitSpec?.vendorName ||
+    evaluated.vendor;
 
-  // 5. User-friendly client name if provided (and not a raw UUID)
-  if (cleanName) {
-    return {
-      name: cleanName,
-      vendor: 'Connected Application',
-      iconBg: '#3B82F6',
-      iconColor: '#FFFFFF',
-      description: `${cleanName} is requesting permission to access your Shuffle tenant.`,
-      logoUrl: logoUri,
-      iconLookupName: cleanName,
-    };
-  }
+  const resolvedImageId =
+    options?.imageId ||
+    explicitSpec?.imageId ||
+    evaluated.imageId ||
+    resolvedName;
 
-  // 6. Default clean fallback ("Application", no messy UUID)
+  const resolvedLogoUrl =
+    logoUri ||
+    explicitSpec?.logoUrl ||
+    evaluated.logoUrl ||
+    undefined;
+
+  const resolvedStatus = (options?.verificationStatus || evaluated.verificationStatus || 'unverified') as OAuthVerificationStatus;
+  const resolvedVerified =
+    options?.vendorVerified !== undefined ? options.vendorVerified : evaluated.vendorVerified;
+  const resolvedSpoofWarning = options?.vendorSpoofWarning || evaluated.vendorSpoofWarning;
+
   return {
-    name: 'Application',
-    vendor: 'Third-Party Developer',
-    iconBg: '#3B82F6',
-    iconColor: '#FFFFFF',
-    description: 'External application requesting permission to access your Shuffle tenant.',
-    logoUrl: logoUri,
+    name: resolvedName,
+    vendor: resolvedVendor,
+    vendorId: options?.vendorId || explicitSpec?.id || evaluated.vendorId,
+    iconBg: explicitSpec?.iconBg || evaluated.iconBg,
+    iconColor: explicitSpec?.iconColor || evaluated.iconColor,
+    description: explicitSpec?.description || evaluated.description,
+    logoUrl: resolvedLogoUrl,
+    iconLookupName: resolvedImageId,
+    vendorVerified: resolvedVerified,
+    verificationStatus: resolvedStatus,
+    verificationReason: options?.verificationReason || evaluated.verificationReason,
+    verifiedDomain: options?.verifiedDomain || evaluated.verifiedDomain,
+    claimedVendorId: options?.claimedVendorId || evaluated.claimedVendorId,
+    claimedVendorName: options?.claimedVendorName || evaluated.claimedVendorName,
+    vendorSpoofWarning: resolvedSpoofWarning,
+    rawSource,
   };
 };
 
@@ -712,6 +604,8 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
     queryParams.get('app_name') ||
     queryParams.get('name') ||
     '';
+  const rawClientNameParam = queryParams.get('raw_client_name') || '';
+  const vendorIdParam = queryParams.get('vendor_id') || '';
   const clientUriParam = queryParams.get('client_uri') || '';
   const logoUriParam = queryParams.get('logo_uri') || '';
   const issuerParam =
@@ -772,6 +666,7 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
       if (codeChallenge) search.set('code_challenge', codeChallenge);
       if (codeChallengeMethod) search.set('code_challenge_method', codeChallengeMethod);
       if (clientNameParam) search.set('client_name', clientNameParam);
+      if (rawClientNameParam) search.set('raw_client_name', rawClientNameParam);
       if (clientUriParam) search.set('client_uri', clientUriParam);
       if (logoUriParam) search.set('logo_uri', logoUriParam);
 
@@ -818,14 +713,59 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
     state,
   ]);
 
-  const effectiveClientName = clientNameParam || backendConsentInfo?.client_name || '';
-  const effectiveLogoUri = logoUriParam || backendConsentInfo?.logo_uri || '';
-  const effectiveClientUri = clientUriParam || backendConsentInfo?.client_uri || '';
+  const effectiveClientName = backendConsentInfo?.client_name || clientNameParam || '';
+  const effectiveLogoUri = backendConsentInfo?.logo_uri || logoUriParam || '';
+  const effectiveClientUri = backendConsentInfo?.client_uri || clientUriParam || '';
+  const effectiveIssuer = useMemo(() => {
+    const raw = (issuerParam || backendConsentInfo?.issuer || '').trim();
+    if (!raw) return '';
+    try {
+      const parsed = new URL(raw);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+        return parsed.origin;
+      }
+    } catch {}
+    return raw.replace(/\/+$/, '');
+  }, [issuerParam, backendConsentInfo?.issuer]);
 
   const clientProfile = useMemo(
-    () => getClientProfile(clientId, effectiveClientName, redirectUri, effectiveLogoUri, effectiveClientUri),
-    [clientId, effectiveClientName, redirectUri, effectiveLogoUri, effectiveClientUri],
+    () =>
+      getClientProfile(clientId, effectiveClientName, redirectUri, effectiveLogoUri, effectiveClientUri, {
+        rawClientName:
+          backendConsentInfo?.raw_source?.raw_client_name ||
+          rawClientNameParam ||
+          clientNameParam ||
+          undefined,
+        vendorId: backendConsentInfo?.vendor_id || vendorIdParam || undefined,
+        vendorName: backendConsentInfo?.vendor_name || undefined,
+        imageId: backendConsentInfo?.image_id || undefined,
+        vendorVerified: backendConsentInfo?.vendor_verified,
+        verificationStatus: backendConsentInfo?.verification_status,
+        verificationReason: backendConsentInfo?.verification_reason,
+        verifiedDomain: backendConsentInfo?.verified_domain,
+        claimedVendorId: backendConsentInfo?.claimed_vendor_id,
+        claimedVendorName: backendConsentInfo?.claimed_vendor_name,
+        vendorSpoofWarning: backendConsentInfo?.vendor_spoof_warning,
+        rawSource: backendConsentInfo?.raw_source,
+      }),
+    [
+      backendConsentInfo,
+      clientId,
+      clientNameParam,
+      effectiveClientName,
+      effectiveClientUri,
+      effectiveLogoUri,
+      rawClientNameParam,
+      redirectUri,
+      vendorIdParam,
+    ],
   );
+
+  const verificationMeta = useMemo(
+    () => getVerificationStatusMeta(clientProfile.verificationStatus, clientProfile.verifiedDomain),
+    [clientProfile.verificationStatus, clientProfile.verifiedDomain],
+  );
+  const [showSourceDetails, setShowSourceDetails] = useState<boolean>(false);
 
   // Parse scopes dynamically, enriching with backend scope metadata when available
   const scopes = useMemo<OAuthScopeDetail[]>(() => {
@@ -1037,6 +977,7 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
         client_name: clientProfile.name,
         client_uri: effectiveClientUri || undefined,
         logo_uri: clientProfile.logoUrl || undefined,
+        issuer: effectiveIssuer || undefined,
         redirect_uri: redirectUri,
         scope: approvedScopeString,
         state,
@@ -1104,7 +1045,7 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
         return;
       }
 
-      let backendCode = generatedCode;
+      let backendCode = '';
       let redirectUrlFromBackend = '';
       try {
         const resData = await response.json();
@@ -1116,22 +1057,39 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
         }
       } catch {}
 
+      if (!backendCode && !redirectUrlFromBackend) {
+        setErrorMsg('Authorization failed: The authorization server did not return a valid authorization code.');
+        setAuthorizingStep('idle');
+        return;
+      }
+
       if (onAuthSuccess) {
         onAuthSuccess(backendCode, redirectUri);
       }
 
       if (redirectUrlFromBackend) {
         setAuthorizingStep('redirecting');
-        window.location.href = redirectUrlFromBackend;
+        let finalRedirectUrl = redirectUrlFromBackend;
+        if (effectiveIssuer) {
+          try {
+            const parsedRedirect = new URL(redirectUrlFromBackend);
+            parsedRedirect.searchParams.set('iss', effectiveIssuer);
+            finalRedirectUrl = parsedRedirect.toString();
+          } catch {}
+        }
+        window.location.href = finalRedirectUrl;
         return;
       }
 
-      if (redirectUri) {
+      if (redirectUri && backendCode) {
         setAuthorizingStep('redirecting');
         const callbackUrl = new URL(redirectUri);
         callbackUrl.searchParams.set('code', backendCode);
         if (state) {
           callbackUrl.searchParams.set('state', state);
+        }
+        if (effectiveIssuer) {
+          callbackUrl.searchParams.set('iss', effectiveIssuer);
         }
         window.location.href = callbackUrl.toString();
         return;
@@ -1162,6 +1120,9 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
         );
         if (state) {
           callbackUrl.searchParams.set('state', state);
+        }
+        if (effectiveIssuer) {
+          callbackUrl.searchParams.set('iss', effectiveIssuer);
         }
         window.location.href = callbackUrl.toString();
         return;
@@ -1677,7 +1638,7 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
             Authorize {clientProfile.name}
           </Typography>
 
-          <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.85rem' }}>
+          <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.85rem', mb: 1.25 }}>
             {clientProfile.name === 'Application' ? (
               <>An external application wants to access your Shuffle tools.</>
             ) : (
@@ -1690,6 +1651,43 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
               </>
             )}
           </Typography>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 1 }}>
+            <Tooltip title={clientProfile.verificationReason || verificationMeta.label}>
+              <Box
+                component="span"
+                sx={{
+                  px: 1,
+                  py: 0.25,
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  borderRadius: 1,
+                  bgcolor: verificationMeta.bgColor,
+                  color: verificationMeta.color,
+                  border: `1px solid ${verificationMeta.borderColor}`,
+                }}
+              >
+                {verificationMeta.label}
+              </Box>
+            </Tooltip>
+            <Button
+              size="small"
+              variant="text"
+              onClick={() => setShowSourceDetails((prev) => !prev)}
+              sx={{
+                fontSize: '0.72rem',
+                textTransform: 'none',
+                py: 0.15,
+                px: 0.75,
+                minWidth: 'auto',
+                color: 'hsl(var(--muted-foreground))',
+                fontWeight: 600,
+                '&:hover': { color: 'hsl(var(--foreground))', bgcolor: 'hsl(var(--muted) / 0.5)' },
+              }}
+            >
+              {showSourceDetails ? 'Hide Source Details' : 'Verify Source Details'}
+            </Button>
+          </Box>
         </Box>
 
         {/* Support Inspector Panel */}
@@ -2183,7 +2181,145 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
             </Box>
           </Box>
 
-          {/* Security & Redirect Notice */}
+          {/* Security & Redirect Notice + Spoof Warning + Raw Source Verification */}
+          {clientProfile.vendorSpoofWarning && (
+            <Box
+              sx={{
+                p: 1.75,
+                borderRadius: 2,
+                bgcolor: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                mb: 2,
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{ color: '#EF4444', fontWeight: 700, display: 'block', mb: 0.5, fontSize: '0.78rem' }}
+              >
+                Identity Cross-Reference Warning
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'hsl(var(--foreground))', display: 'block', lineHeight: 1.45 }}>
+                {clientProfile.vendorSpoofWarning}
+              </Typography>
+            </Box>
+          )}
+
+          <Collapse in={showSourceDetails || Boolean(clientProfile.vendorSpoofWarning)}>
+            <Box
+              sx={{
+                p: 1.75,
+                borderRadius: 2,
+                bgcolor: 'hsl(var(--muted) / 0.25)',
+                border: '1px solid hsl(var(--border))',
+                mb: 2,
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                gap: 1.25,
+              }}
+            >
+              <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    fontWeight: 700,
+                    color: 'hsl(var(--muted-foreground))',
+                    fontSize: '0.68rem',
+                  }}
+                >
+                  Cross-Referenced Request Source
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.7rem' }}>
+                  Claimed Client Name (Raw)
+                </Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.76rem', wordBreak: 'break-all' }}>
+                  {clientProfile.rawSource?.raw_client_name || rawClientNameParam || clientNameParam || '(not provided)'}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.7rem' }}>
+                  Verification Status
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 600, fontSize: '0.76rem', color: verificationMeta.color }}
+                >
+                  {verificationMeta.label}
+                </Typography>
+              </Box>
+
+              <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+                <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.7rem' }}>
+                  Callback / Redirect URI (Actual Token Destination)
+                </Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', wordBreak: 'break-all' }}>
+                  {redirectUri || clientProfile.rawSource?.raw_redirect_uri || '(none)'}
+                </Typography>
+              </Box>
+
+              {clientProfile.verificationReason && (
+                <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+                  <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.7rem' }}>
+                    Cross-Reference Check
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontSize: '0.75rem', color: 'hsl(var(--foreground))' }}>
+                    {clientProfile.verificationReason}
+                  </Typography>
+                </Box>
+              )}
+
+              {clientProfile.rawSource?.raw_client_uri && (
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.7rem' }}>
+                    Client URI
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.74rem', wordBreak: 'break-all' }}>
+                    {clientProfile.rawSource.raw_client_uri}
+                  </Typography>
+                </Box>
+              )}
+
+              {clientProfile.rawSource?.software_id && (
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.7rem' }}>
+                    Software ID
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.74rem', wordBreak: 'break-all' }}>
+                    {clientProfile.rawSource.software_id}
+                    {clientProfile.rawSource.software_version ? ` (${clientProfile.rawSource.software_version})` : ''}
+                  </Typography>
+                </Box>
+              )}
+
+              {clientProfile.rawSource?.remote_addr && (
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.7rem' }}>
+                    Registration Source IP
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.74rem', wordBreak: 'break-all' }}>
+                    {clientProfile.rawSource.remote_addr}
+                  </Typography>
+                </Box>
+              )}
+
+              {clientProfile.rawSource?.user_agent && (
+                <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
+                  <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', display: 'block', fontSize: '0.7rem' }}>
+                    Registration User-Agent
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.72rem', wordBreak: 'break-all' }}>
+                    {clientProfile.rawSource.user_agent}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Collapse>
+
           <Box
             sx={{
               p: 1.5,
@@ -2192,11 +2328,11 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
               border: '1px solid hsl(var(--border))',
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'space-between',
               gap: 1,
               mb: 3,
             }}
           >
-            <ShieldCheck size={16} color="hsl(var(--primary))" />
             <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', flexGrow: 1 }}>
               {redirectHost ? (
                 <>

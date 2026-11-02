@@ -75,6 +75,7 @@ import { resolveApp } from '@/Shuffle-MCPs/resolveApp';
 import { publicAppImage } from '@/Shuffle-Core/publicAppImages';
 import { collectLlmImageAttachments } from '@/Shuffle-MCPs/agentAttachments';
 import { toast } from '@/Shuffle-Core/toast';
+import { stripSystemNotes } from '@/lib/docsPromptContext';
 import { Pencil, StopCircle, AlertTriangle } from 'lucide-react';
 
 import { SegmentedControl } from '@/Shuffle-Core/components/SegmentedControl';
@@ -438,7 +439,7 @@ const getRunPrompt = (run: AgentRun): string | null => {
  */
 const stripMarkdown = (input: string): string => {
   if (!input) return '';
-  let s = input
+  let s = stripSystemNotes(input)
     .replace(/\n*=== USECASE CONTEXT ===[\s\S]*?(?:=== END USECASE CONTEXT ===|$)/g, '')
     .replace(/\n*=== DOCS ARTICLE CONTEXT ===[\s\S]*?(?:=== END DOCS CONTEXT ===|$)/g, '');
   // Fenced/inline code

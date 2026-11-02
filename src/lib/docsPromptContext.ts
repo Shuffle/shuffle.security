@@ -207,6 +207,8 @@ export const isDocInjectedPrompt = (prompt?: string | null): boolean => {
 import { extractCleanIncidentPrompt, isIncidentInjectedPrompt } from './incidentPromptContext';
 import { extractCleanUsecasePrompt, isUsecaseInjectedPrompt } from './usecasePromptContext';
 
+export const stripSystemNotes = (text: string): string => text.replace(/\s*\[System note:[^\]]*\]/g, '');
+
 /**
  * Extracts the user's actual question from a doc-injected, incident-injected,
  * or usecase-injected prompt, so the UI header, chat thread, and rerun forms
@@ -214,7 +216,7 @@ import { extractCleanUsecasePrompt, isUsecaseInjectedPrompt } from './usecasePro
  */
 export const extractCleanDisplayPrompt = (prompt?: string | null): string => {
   if (!prompt || typeof prompt !== 'string') return '';
-  let trimmed = prompt.trim();
+  let trimmed = stripSystemNotes(prompt).trim();
 
   if (isUsecaseInjectedPrompt(trimmed)) {
     trimmed = extractCleanUsecasePrompt(trimmed);

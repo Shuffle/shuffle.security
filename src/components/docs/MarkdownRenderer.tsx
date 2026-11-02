@@ -649,6 +649,9 @@ export const MarkdownRenderer = ({
           ml: 0,
           fontStyle: 'italic',
           color: 'hsl(var(--foreground) / 0.82)',
+          '& p::before, & p::after': {
+            content: 'none !important',
+          },
         },
         '& hr': {
           border: 'none',

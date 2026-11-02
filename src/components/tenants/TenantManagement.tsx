@@ -70,7 +70,7 @@ const OrgRow = ({ org, currentOrgId, switchingOrgId, onSwitchOrg, showSwitch = t
         </Box>
       </TableCell>
       <TableCell>
-        <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+        <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', fontFamily: 'monospace', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
           {org.id}
         </Typography>
       </TableCell>
@@ -85,6 +85,7 @@ const OrgRow = ({ org, currentOrgId, switchingOrgId, onSwitchOrg, showSwitch = t
             sx={{
               fontSize: '0.75rem',
               textTransform: 'none',
+              whiteSpace: 'nowrap',
               borderColor: 'hsl(var(--border))',
               color: 'hsl(var(--foreground))',
               '&:hover': { borderColor: 'hsl(var(--primary))', bgcolor: 'hsl(var(--primary) / 0.1)' },
@@ -310,10 +311,18 @@ const TenantManagement = ({ autoOpenCreate }: TenantManagementHostProps = {}) =>
     }
   };
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 4, sm: 5 } }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 3, sm: 5 } }}>
       {/* Header with Create button */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          gap: 1.5,
+        }}
+      >
+        <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography variant="h5" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
             Tenants
           </Typography>
@@ -323,10 +332,15 @@ const TenantManagement = ({ autoOpenCreate }: TenantManagementHostProps = {}) =>
         </Box>
         <Button
           variant="contained"
-          startIcon={<AddIcon />}
+          startIcon={<AddIcon size={16} />}
           onClick={() => setCreateDialogOpen(true)}
           sx={{
+            height: 36,
+            px: 2,
             textTransform: 'none',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            alignSelf: { xs: 'flex-start', sm: 'center' },
             bgcolor: 'hsl(var(--primary))',
             color: 'hsl(var(--primary-foreground))',
             '&:hover': { bgcolor: 'hsl(var(--primary) / 0.9)' },
@@ -337,13 +351,13 @@ const TenantManagement = ({ autoOpenCreate }: TenantManagementHostProps = {}) =>
       </Box>
 
       {/* Current Tenant */}
-      <Paper sx={{ bgcolor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+      <Paper sx={{ bgcolor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', overflow: 'hidden' }}>
         <Box sx={{ p: 2.5, borderBottom: '1px solid hsl(var(--border))' }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
             Current Tenant
           </Typography>
         </Box>
-        <TableContainer>
+        <TableContainer sx={{ overflowX: 'auto' }}>
           <Table>
             <TableHead>
               <TableRow>

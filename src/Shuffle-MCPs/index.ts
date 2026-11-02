@@ -119,7 +119,7 @@ import AskAiSidePanelRaw, {
 } from '@/Shuffle-MCPs/components/AskAiSidePanel';
 import AskAiWidgetRaw from '@/Shuffle-MCPs/components/AskAiWidget';
 import ApiCallViewerRaw from '@/Shuffle-Core/components/ApiCallViewer';
-import CodeBlockEditorRaw from '@/Shuffle-Core/components/CodeBlockEditor';
+import HighlightedFileEditorRaw from '@/Shuffle-Core/components/HighlightedFileEditor';
 import AgentPresetsRaw from '@/Shuffle-Core/components/AgentPresets';
 
 
@@ -175,9 +175,10 @@ export const AskAiWidget = withMcpTheme(AskAiWidgetRaw as React.ComponentType<an
 export type { AskAiWidgetProps } from '@/Shuffle-MCPs/components/AskAiWidget';
 export const ApiCallViewer = withMcpTheme(ApiCallViewerRaw as React.ComponentType<any>, 'ApiCallViewer');
 export type { ApiCallViewerProps, ApiCallConfig } from '@/Shuffle-Core/components/ApiCallViewer';
-export const CodeBlockEditor = withMcpTheme(CodeBlockEditorRaw as React.ComponentType<any>, 'CodeBlockEditor');
-export { detectCodeLanguage, highlightCodeSnippet } from '@/Shuffle-Core/components/CodeBlockEditor';
-export type { CodeBlockEditorProps, CodeBlockLanguage } from '@/Shuffle-Core/components/CodeBlockEditor';
+export const HighlightedFileEditor = withMcpTheme(HighlightedFileEditorRaw as React.ComponentType<any>, 'HighlightedFileEditor');
+export const CodeBlockEditor = HighlightedFileEditor;
+export { detectCodeLanguage, highlightCodeSnippet } from '@/Shuffle-Core/components/HighlightedFileEditor';
+export type { HighlightedFileEditorProps, CodeBlockEditorProps, CodeBlockLanguage } from '@/Shuffle-Core/components/HighlightedFileEditor';
 export {
   useContextAwareAgent,
   AGENT_DRAWER_OPEN_EVENT,

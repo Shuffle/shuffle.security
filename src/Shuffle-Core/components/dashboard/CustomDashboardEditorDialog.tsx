@@ -34,6 +34,7 @@ import {
   type WidgetSpan,
 } from './customDashboardTypes';
 import { DATASTORE_CATEGORIES, getDatastoreByCategory } from '../../datastore';
+import { HighlightedFileEditor } from '../HighlightedFileEditor';
 
 const DEFAULT_STAT_KEYS = [
   'total_workflow_executions',
@@ -1155,23 +1156,16 @@ export const DashboardJsonDialog = ({
           </Box>
         )}
 
-        <TextField
+        <HighlightedFileEditor
           value={rawJson}
-          onChange={(e) => {
-            setRawJson(e.target.value);
+          onChange={(nextVal) => {
+            setRawJson(nextVal);
             if (error) setError(null);
           }}
-          multiline
-          minRows={16}
-          maxRows={24}
-          fullWidth
-          InputProps={{
-            sx: {
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-              fontSize: '0.78rem',
-              lineHeight: 1.5,
-            },
-          }}
+          language="json"
+          validateJson
+          minHeight={360}
+          maxHeight={520}
         />
       </DialogContent>
 
@@ -1285,23 +1279,15 @@ export const DashboardDataGuideDialog = ({
             <strong>In the Dashboard:</strong> Open <strong>Add Widget</strong>, choose <strong>Organization Custom Stat</strong>, and either select your key from the list or type any key name directly. You can also chart any key in the <strong>Automation &rarr; Custom Stats</strong> panel.
           </Typography>
 
-          <Box
-            component="pre"
-            sx={{
-              m: 0,
-              p: 1.25,
-              borderRadius: 1.5,
-              bgcolor: 'hsl(var(--background))',
-              border: '1px solid hsl(var(--border))',
-              fontSize: '0.72rem',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              color: 'hsl(var(--foreground))',
-              overflowX: 'auto',
-              lineHeight: 1.45,
-            }}
-          >
-            {statsCurlExample}
-          </Box>
+          <HighlightedFileEditor
+            code={statsCurlExample}
+            language="curl"
+            editable={false}
+            runnable={false}
+            showHeader={false}
+            minHeight={96}
+            maxHeight={180}
+          />
         </Box>
 
         {/* Section 2: Datastore Categories */}
@@ -1342,23 +1328,15 @@ export const DashboardDataGuideDialog = ({
             <strong>In the Dashboard:</strong> Open <strong>Add Widget</strong>, choose <strong>Datastore Category</strong>, type or select your category name, and pick an aggregation: <strong>Total Item Count</strong>, <strong>Group by JSON Field</strong>, or <strong>Sum / Average / Max / Min</strong> of any numeric JSON field.
           </Typography>
 
-          <Box
-            component="pre"
-            sx={{
-              m: 0,
-              p: 1.25,
-              borderRadius: 1.5,
-              bgcolor: 'hsl(var(--background))',
-              border: '1px solid hsl(var(--border))',
-              fontSize: '0.72rem',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              color: 'hsl(var(--foreground))',
-              overflowX: 'auto',
-              lineHeight: 1.45,
-            }}
-          >
-            {datastoreCurlExample}
-          </Box>
+          <HighlightedFileEditor
+            code={datastoreCurlExample}
+            language="curl"
+            editable={false}
+            runnable={false}
+            showHeader={false}
+            minHeight={140}
+            maxHeight={220}
+          />
         </Box>
 
         {/* Section 3: Built-in Categories Reference */}

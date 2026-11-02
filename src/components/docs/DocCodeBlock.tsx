@@ -1,28 +1,25 @@
-import { type ReactNode } from 'react';
-import { Box } from '@mui/material';
-import CodeBlockEditor from '@/Shuffle-Core/components/CodeBlockEditor';
-
-interface DocCodeBlockProps {
-  children?: ReactNode;
-  /** Raw text content of the block, used for the editor, copy button, and runner. */
-  text: string;
-  /** Language tag from the markdown fence (e.g. "python", "bash"), if any. */
-  language?: string;
-  /** Optional title override for the header bar. */
-  title?: string;
-}
-
 /**
- * Documentation code block wrapper around Shuffle-Core's shared CodeBlockEditor.
- * Renders syntax-highlighted, line-numbered, editable code with live execution
- * via Shuffle Tools (execute_python / execute_bash) or HTTP (curl) and interactive
- * JSON tree view.
+ * DocCodeBlock — Standardized interactive code editor and runner for documentation.
+ *
+ * Re-exports the platform-wide `HighlightedFileEditor` from `@/Shuffle-Core` so
+ * Markdown, Documentation, and Raw File views share the exact same editor.
  */
-export function DocCodeBlock({ text, language, title }: DocCodeBlockProps) {
-  return (
-    <Box className="not-prose" sx={{ my: 2.5 }}>
-      <CodeBlockEditor code={text} language={language} title={title} />
-    </Box>
-  );
-}
 
+import React from 'react';
+import {
+  HighlightedFileEditor,
+  detectCodeLanguage,
+  highlightCodeSnippet,
+  type HighlightedFileEditorProps,
+  type CodeLanguage,
+} from '@/Shuffle-Core/components/HighlightedFileEditor';
+
+export { detectCodeLanguage, highlightCodeSnippet };
+export type { CodeLanguage };
+export type DocCodeBlockProps = HighlightedFileEditorProps;
+
+export const DocCodeBlock: React.FC<DocCodeBlockProps> = (props) => {
+  return <HighlightedFileEditor {...props} />;
+};
+
+export default DocCodeBlock;

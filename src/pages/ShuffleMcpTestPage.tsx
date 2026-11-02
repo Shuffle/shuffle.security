@@ -1,4 +1,4 @@
-import { ChevronDown as ExpandMoreIcon, Copy as ContentCopyIcon, Check as CheckIcon, ChevronDown as KeyboardArrowDownIcon, Github as GitHubIcon } from 'lucide-react';
+import { ChevronDown as ExpandMoreIcon, ChevronDown as KeyboardArrowDownIcon, Github as GitHubIcon } from 'lucide-react';
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import {
   Box,
@@ -8,8 +8,6 @@ import {
   Stack,
   Paper,
   Collapse,
-  IconButton,
-  Tooltip,
   Popover,
   Avatar,
 } from '@mui/material';
@@ -19,6 +17,7 @@ import {
   AppDetailDrawer,
   AppAuthSection,
   AppTitleHeader,
+  HighlightedFileEditor,
 } from '@/Shuffle-Core';
 import {
   TryMcpSection,
@@ -151,117 +150,18 @@ const lookup = useAppLookup('VirusTotal');
   categories={lookup.categories}
 />`;
 
-// Lightweight JSX/TSX syntax highlighter for the demo "Show source" snippets.
-// Uses semantic HSL tokens so it tracks the active theme.
-const SYNTAX_COLORS = {
-  comment: 'hsl(var(--muted-foreground))',
-  string: 'hsl(142 60% 55%)',      // green
-  keyword: 'hsl(280 70% 70%)',     // purple
-  tag: 'hsl(var(--primary))',      // brand orange — JSX tag names
-  attr: 'hsl(40 90% 65%)',         // amber — JSX attribute names
-  number: 'hsl(25 95% 65%)',       // orange — numeric literals
-  punct: 'hsl(var(--muted-foreground))',
-};
-
-const KEYWORDS = new Set([
-  'import', 'from', 'export', 'default', 'const', 'let', 'var', 'function',
-  'return', 'if', 'else', 'for', 'while', 'switch', 'case', 'break', 'continue',
-  'new', 'class', 'extends', 'this', 'await', 'async', 'true', 'false', 'null',
-  'undefined', 'typeof', 'in', 'of', 'as', 'interface', 'type',
-]);
-
-function highlightCode(code: string): React.ReactNode[] {
-  // Token regex: comments | strings | template strings | JSX tag open/close | numbers | identifiers | other
-  const re = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`)|(<\/?[A-Za-z][A-Za-z0-9_]*)|([A-Za-z_$][\w$]*)|(\d+(?:\.\d+)?)|([^\s\w]+)|(\s+)/g;
-  const out: React.ReactNode[] = [];
-  let m: RegExpExecArray | null;
-  let key = 0;
-  let prevWasTagOpen = false; // we're inside a JSX tag — color identifiers as attrs
-  while ((m = re.exec(code)) !== null) {
-    const [, comment, str, tag, ident, num, punct, ws] = m;
-    if (comment) {
-      out.push(<span key={key++} style={{ color: SYNTAX_COLORS.comment, fontStyle: 'italic' }}>{comment}</span>);
-    } else if (str) {
-      out.push(<span key={key++} style={{ color: SYNTAX_COLORS.string }}>{str}</span>);
-    } else if (tag) {
-      prevWasTagOpen = true;
-      out.push(<span key={key++} style={{ color: SYNTAX_COLORS.punct }}>{tag.startsWith('</') ? '</' : '<'}</span>);
-      out.push(<span key={key++} style={{ color: SYNTAX_COLORS.tag }}>{tag.replace(/^<\/?/, '')}</span>);
-    } else if (ident) {
-      if (prevWasTagOpen) {
-        out.push(<span key={key++} style={{ color: SYNTAX_COLORS.attr }}>{ident}</span>);
-      } else if (KEYWORDS.has(ident)) {
-        out.push(<span key={key++} style={{ color: SYNTAX_COLORS.keyword }}>{ident}</span>);
-      } else {
-        out.push(<span key={key++} style={{ color: 'hsl(var(--foreground))' }}>{ident}</span>);
-      }
-    } else if (num) {
-      out.push(<span key={key++} style={{ color: SYNTAX_COLORS.number }}>{num}</span>);
-    } else if (punct) {
-      if (prevWasTagOpen && (punct === '>' || punct === '/>')) prevWasTagOpen = false;
-      if (punct === '{' || punct === '}') prevWasTagOpen = false;
-      out.push(<span key={key++} style={{ color: SYNTAX_COLORS.punct }}>{punct}</span>);
-    } else if (ws) {
-      out.push(ws);
-    }
-  }
-  return out;
-}
-
 function CodeBlock({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(code);
-      }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // ignore
-    }
-  };
   return (
-    <Box
-      sx={{
-        position: 'relative',
-        mt: 2,
-        borderRadius: 1.5,
-        border: '1px solid hsl(var(--border))',
-        backgroundColor: 'hsl(var(--muted) / 0.4)',
-      }}
-    >
-      <Tooltip title={copied ? 'Copied' : 'Copy'} placement="left">
-        <IconButton
-          size="small"
-          onClick={handleCopy}
-          sx={{
-            position: 'absolute',
-            top: 6,
-            right: 6,
-            color: 'hsl(var(--muted-foreground))',
-            '&:hover': { color: 'hsl(var(--foreground))' },
-          }}
-        >
-          {copied ? <CheckIcon size={20} /> : <ContentCopyIcon size={20} />}
-        </IconButton>
-      </Tooltip>
-      <Box
-        component="pre"
-        sx={{
-          m: 0,
-          p: 2,
-          pr: 5,
-          overflowX: 'auto',
-          fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-          fontSize: '0.78rem',
-          lineHeight: 1.55,
-          color: 'hsl(var(--foreground))',
-          whiteSpace: 'pre',
-        }}
-      >
-        <code>{highlightCode(code)}</code>
-      </Box>
+    <Box sx={{ mt: 2 }}>
+      <HighlightedFileEditor
+        code={code}
+        language="tsx"
+        editable={false}
+        runnable={false}
+        showHeader
+        minHeight={120}
+        maxHeight={340}
+      />
     </Box>
   );
 }

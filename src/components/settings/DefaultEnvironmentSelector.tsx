@@ -771,7 +771,7 @@ export const DefaultEnvironmentSelector = ({
             })}
           </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5, pt: 1, gap: 1 }}>
+        <DialogActions sx={{ px: 3, pb: 2.5, pt: 1, gap: 1, flexWrap: 'wrap' }}>
           <Button
             variant="outlined"
             color="inherit"
@@ -781,6 +781,7 @@ export const DefaultEnvironmentSelector = ({
             }}
             disabled={saving || updatingWorkflows}
             size="small"
+            sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
           >
             Cancel
           </Button>
@@ -793,6 +794,7 @@ export const DefaultEnvironmentSelector = ({
             }}
             disabled={saving || updatingWorkflows}
             size="small"
+            sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
           >
             No, Change Default Only
           </Button>
@@ -811,6 +813,7 @@ export const DefaultEnvironmentSelector = ({
               saving || updatingWorkflows || selectedWorkflowIds.size === 0
             }
             size="small"
+            sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
           >
             {updatingWorkflows
               ? `Updating (${workflowProgress.current}/${workflowProgress.total})...`

@@ -25,6 +25,7 @@ import { getApiUrl, getAuthHeader, API_CONFIG } from '@/Shuffle-Core/api';
 import { Link } from '@/lib/router-compat';
 import WebhookStatusBanner from '@/components/detection/WebhookStatusBanner';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import HighlightedFileEditor from '@/components/incidents/HighlightedFileEditor';
 
 const SIGMA_NAMESPACE = 'sigma';
 
@@ -589,16 +590,25 @@ const RulesPage = () => {
   };
 
   return (
-    <Box sx={{ p: 4, maxWidth: 1400, width: '100%', mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 1400, width: '100%', mx: 'auto' }}>
       {/* Webhook status */}
       <Box sx={{ mb: 3 }}>
         <WebhookStatusBanner />
       </Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-            <SecurityIcon size={28} style={{ color: 'hsl(var(--primary))' }} />
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'flex-start', md: 'flex-start' },
+          gap: 2,
+          mb: 4,
+        }}
+      >
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
+            <SecurityIcon size={28} style={{ color: 'hsl(var(--primary))', flexShrink: 0 }} />
             <Typography variant="h4" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
               Detection Rules
             </Typography>
@@ -608,7 +618,7 @@ const RulesPage = () => {
             Manage Sigma detection rules for threat hunting and alerting
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', flexShrink: 0 }}>
           <Tooltip title="Default Rules">
             <Button
               variant="outlined"
@@ -617,6 +627,8 @@ const RulesPage = () => {
               disabled={loadingDefaultRules}
               sx={{
                 height: 36,
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
                 borderColor: 'hsl(var(--border))',
                 color: 'hsl(var(--foreground))',
                 '&:hover': {
@@ -635,6 +647,7 @@ const RulesPage = () => {
               sx={{
                 width: 36,
                 height: 36,
+                flexShrink: 0,
                 borderRadius: 1,
                 border: '1px solid hsl(var(--border))',
                 color: 'hsl(var(--foreground))',
@@ -653,6 +666,7 @@ const RulesPage = () => {
               sx={{
                 width: 36,
                 height: 36,
+                flexShrink: 0,
                 borderRadius: 1,
                 border: '1px solid hsl(var(--border))',
                 color: 'hsl(var(--foreground))',
@@ -677,6 +691,8 @@ const RulesPage = () => {
             onClick={handleOpenCreateDialog}
             sx={{
               height: 36,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
               backgroundColor: 'hsl(var(--primary))',
               '&:hover': {
                 backgroundColor: 'hsl(var(--primary) / 0.9)',
@@ -696,19 +712,20 @@ const RulesPage = () => {
           borderRadius: 2,
           display: 'flex',
           alignItems: 'center',
+          flexWrap: 'wrap',
           gap: 1.5,
           backgroundColor: 'hsla(var(--primary) / 0.08)',
           border: '1px solid hsla(var(--primary) / 0.2)',
         }}>
-          <WarningAmberIcon size={20} style={{ color: 'hsl(var(--primary))' }} />
-          <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--foreground))', flex: 1 }}>
+          <WarningAmberIcon size={20} style={{ color: 'hsl(var(--primary))', flexShrink: 0 }} />
+          <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--foreground))', flex: '1 1 220px' }}>
             No Log Ingestion is running. Rules are uploaded but won't be active until Log Ingestion is running.
           </Typography>
           <Button
             component={Link}
             to="/detection"
             size="small"
-            sx={{ textTransform: 'none', fontWeight: 600, color: 'hsl(var(--primary))' }}
+            sx={{ textTransform: 'none', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0, color: 'hsl(var(--primary))' }}
           >
             Go to Detection Setup →
           </Button>
@@ -716,14 +733,15 @@ const RulesPage = () => {
       )}
 
       {/* Search + count */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}>
         <TextField
           placeholder="Search rules..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           size="small"
           sx={{
-            width: 320,
+            width: { xs: '100%', sm: 320 },
+            flex: { xs: '1 1 200px', sm: '0 0 auto' },
             '& .MuiOutlinedInput-root': {
               height: 36,
               backgroundColor: 'hsl(var(--muted))',
@@ -901,22 +919,14 @@ const RulesPage = () => {
               <CircularProgress size={32} sx={{ color: 'hsl(var(--primary))' }} />
             </Box>
           ) : (
-            <Box
-              component="pre"
-              sx={{
-                m: 0,
-                p: 3,
-                backgroundColor: 'hsl(var(--muted))',
-                color: 'hsl(var(--foreground))',
-                fontSize: '0.875rem',
-                fontFamily: 'monospace',
-                overflow: 'auto',
-                maxHeight: 500,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-              }}
-            >
-              {fileContent}
+            <Box sx={{ p: 2 }}>
+              <HighlightedFileEditor
+                value={fileContent}
+                onChange={() => {}}
+                validateJson={false}
+                editable={false}
+                language="yaml"
+              />
             </Box>
           )}
         </DialogContent>
@@ -979,24 +989,15 @@ const RulesPage = () => {
                 {isGenerating ? 'Generating…' : 'Generate Rule'}
               </Button>
             </Box>
-            <TextField
-              multiline
-              rows={5}
+            <HighlightedFileEditor
               value={sampleLog}
-              onChange={(e) => setSampleLog(e.target.value)}
-              fullWidth
+              onChange={setSampleLog}
+              validateJson={false}
+              editable={true}
+              language="json"
               placeholder="Paste a sample log entry here and click Generate to create a Sigma rule automatically…"
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  backgroundColor: 'hsl(var(--muted))',
-                  fontFamily: 'monospace',
-                  fontSize: '0.8rem',
-                  '& fieldset': { borderColor: 'hsl(var(--border))' },
-                  '&:hover fieldset': { borderColor: 'hsl(var(--border))' },
-                  '&.Mui-focused fieldset': { borderColor: 'hsl(var(--primary))' },
-                },
-                '& .MuiOutlinedInput-input': { color: 'hsl(var(--foreground))' },
-              }}
+              minHeight={110}
+              maxHeight={220}
             />
             <Box sx={{ display: 'flex', gap: 0.75, mt: 1, flexWrap: 'wrap' }}>
               <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', mr: 0.5, lineHeight: '24px' }}>
@@ -1136,33 +1137,13 @@ const RulesPage = () => {
                 </Box>
               )}
             </Box>
-            <TextField
-              multiline
-              rows={20}
+            <HighlightedFileEditor
               value={ruleContent}
-              onChange={(e) => setRuleContent(e.target.value)}
-              fullWidth
-              placeholder="Enter Sigma rule YAML..."
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  backgroundColor: 'hsl(var(--muted))',
-                  fontFamily: 'monospace',
-                  fontSize: '0.875rem',
-                  '& fieldset': {
-                    borderColor: justGenerated ? 'hsl(142 76% 36% / 0.5)' : 'hsl(var(--border))',
-                    transition: 'border-color 0.5s ease',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: 'hsl(var(--border))',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'hsl(var(--primary))',
-                  },
-                },
-                '& .MuiOutlinedInput-input': {
-                  color: 'hsl(var(--foreground))',
-                },
-              }}
+              onChange={setRuleContent}
+              validateJson={false}
+              editable={true}
+              language="yaml"
+              minHeight={360}
             />
           </Box>
         </DialogContent>

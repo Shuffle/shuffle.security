@@ -46,6 +46,7 @@ import {
   cacheFileBlob,
   getCachedFileBlob,
 } from '@/services/files';
+import { HighlightedFileEditor } from '@/Shuffle-Core/components/HighlightedFileEditor';
 
 export interface MarkdownDescriptionEditorProps {
   value: string;
@@ -700,13 +701,7 @@ export const MarkdownDescriptionEditor = ({
       )}
 
       {raw ? (
-        <TextField
-          value={rawDraft}
-          onChange={(event) => {
-            const next = event.target.value;
-            setRawDraft(next);
-            scheduleCommit(next);
-          }}
+        <Box
           onBlur={() => {
             commit(rawDraft);
           }}
@@ -724,23 +719,21 @@ export const MarkdownDescriptionEditor = ({
               void insertImages(images);
             }
           }}
-          fullWidth
-          multiline
-          minRows={minRows}
-          placeholder={placeholder}
-          variant="standard"
-          autoFocus
-          inputProps={{ readOnly }}
-          sx={{
-            '& .MuiInput-root:before, & .MuiInput-root:after': { display: 'none' },
-            '& textarea': {
-              fontSize: compact ? '0.82rem' : '0.9rem',
-              lineHeight: compact ? 1.55 : 1.7,
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              color: 'hsl(var(--foreground))',
-            },
-          }}
-        />
+        >
+          <HighlightedFileEditor
+            value={rawDraft}
+            onChange={(next) => {
+              setRawDraft(next);
+              scheduleCommit(next);
+            }}
+            validateJson={false}
+            editable={!readOnly}
+            language="code"
+            placeholder={placeholder}
+            minHeight={Math.max(minRows * 24, 96)}
+            maxHeight={420}
+          />
+        </Box>
       ) : (
         <Box
           onPaste={(event) => {

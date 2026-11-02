@@ -26,6 +26,7 @@ import { getApiUrl, getAuthHeader, API_CONFIG } from '@/Shuffle-Core/api';
 import { Link } from '@/lib/router-compat';
 import { askAI } from '@/services/ai';
 import WebhookStatusBanner from '@/components/detection/WebhookStatusBanner';
+import { HighlightedFileEditor } from '@/Shuffle-Core/components/HighlightedFileEditor';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
 interface Environment {
@@ -763,16 +764,25 @@ Use case: ${aiPrompt}`,
   };
 
   return (
-    <Box sx={{ p: 4, maxWidth: 1400, width: '100%', mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 1400, width: '100%', mx: 'auto' }}>
       {/* Webhook status */}
       <Box sx={{ mb: 3 }}>
         <WebhookStatusBanner />
       </Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-            <StorageIcon size={28} style={{ color: '#FF6600' }} />
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          justifyContent: 'space-between',
+          gap: 2,
+          mb: 4,
+        }}
+      >
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
+            <StorageIcon size={28} style={{ color: '#FF6600', flexShrink: 0 }} />
             <Typography variant="h4" sx={{ color: 'hsl(var(--foreground))', fontWeight: 600 }}>
               Tenzir Pipelines
             </Typography>
@@ -783,13 +793,14 @@ Use case: ${aiPrompt}`,
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', flexShrink: 0 }}>
           <Tooltip title="Refresh">
             <IconButton
               onClick={() => { setIsLoading(true); fetchEnvironments(); }}
               sx={{
                 width: 36,
                 height: 36,
+                flexShrink: 0,
                 borderRadius: 1,
                 border: '1px solid hsl(var(--border))',
                 color: 'hsl(var(--foreground))',
@@ -812,6 +823,8 @@ Use case: ${aiPrompt}`,
                   height: 36,
                   backgroundColor: 'hsl(var(--primary))',
                   textTransform: 'none',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
                   fontWeight: 600,
                   '&:hover': { backgroundColor: 'hsl(var(--primary) / 0.9)' },
                   '&.Mui-disabled': { bgcolor: 'hsla(var(--muted-foreground) / 0.2)', color: 'hsl(var(--muted-foreground))' },
@@ -832,19 +845,20 @@ Use case: ${aiPrompt}`,
           borderRadius: 2,
           display: 'flex',
           alignItems: 'center',
+          flexWrap: 'wrap',
           gap: 1.5,
           backgroundColor: 'hsla(var(--primary) / 0.08)',
           border: '1px solid hsla(var(--primary) / 0.2)',
         }}>
-          <WarningAmberIcon size={20} style={{ color: 'hsl(var(--primary))' }} />
-          <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--foreground))', flex: 1 }}>
+          <WarningAmberIcon size={20} style={{ color: 'hsl(var(--primary))', flexShrink: 0 }} />
+          <Typography sx={{ fontSize: '0.85rem', color: 'hsl(var(--foreground))', flex: '1 1 220px' }}>
             No Log Ingestion is running. Set one up first to create detection pipelines.
           </Typography>
           <Button
             component={Link}
             to="/detection"
             size="small"
-            sx={{ textTransform: 'none', fontWeight: 600, color: 'hsl(var(--primary))' }}
+            sx={{ textTransform: 'none', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0, color: 'hsl(var(--primary))' }}
           >
             Go to Detection Setup →
           </Button>
@@ -859,7 +873,9 @@ Use case: ${aiPrompt}`,
           onChange={(e) => setSearchQuery(e.target.value)}
           size="small"
           sx={{
-            minWidth: 260,
+            minWidth: { xs: 0, sm: 260 },
+            width: { xs: '100%', sm: 'auto' },
+            flex: { xs: '1 1 200px', sm: '0 0 auto' },
             '& .MuiOutlinedInput-root': {
               height: 36,
               backgroundColor: 'hsl(var(--muted))',
@@ -1402,24 +1418,14 @@ Use case: ${aiPrompt}`,
             </Box>
           )}
 
-          <TextField
-            placeholder='e.g. load_tcp "0.0.0.0:1514" { read_syslog } | import'
+          <HighlightedFileEditor
             value={newCommand}
-            onChange={(e) => setNewCommand(e.target.value)}
-            fullWidth
-            multiline
-            minRows={4}
-            maxRows={20}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                backgroundColor: 'hsl(var(--muted))',
-                fontFamily: 'monospace',
-                fontSize: '0.85rem',
-                '& fieldset': { borderColor: justGenerated ? 'rgba(255, 102, 0, 0.6)' : 'hsl(var(--border))' },
-                transition: 'border-color 0.3s',
-              },
-              '& .MuiOutlinedInput-input': { color: 'hsl(var(--foreground))' },
-            }}
+            onChange={setNewCommand}
+            validateJson={false}
+            language="bash"
+            placeholder='e.g. load_tcp "0.0.0.0:1514" { read_syslog } | import'
+            minHeight={140}
+            maxHeight={340}
           />
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>

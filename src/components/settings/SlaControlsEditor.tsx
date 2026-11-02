@@ -126,13 +126,13 @@ export const TaskSlaEditor = () => {
         help="Mark tasks as overdue when they are not completed within the target for their category."
       />
       <Box sx={{ opacity: draft.taskSlaEnabled ? 1 : 0.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1.4fr) minmax(160px, 1fr)', gap: 2, px: 1, pb: 0.5, borderBottom: '1px solid hsl(var(--border))' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr auto', sm: 'minmax(180px, 1.4fr) minmax(160px, 1fr)' }, gap: { xs: 1, sm: 2 }, px: 1, pb: 0.5, borderBottom: '1px solid hsl(var(--border))' }}>
           <Typography variant="caption" sx={captionSx}>Task category</Typography>
           <Typography variant="caption" sx={captionSx}>Complete within</Typography>
         </Box>
         {TASK_SLA_CATEGORIES.map((c) => (
-          <Box key={c.value} sx={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1.4fr) minmax(160px, 1fr)', gap: 2, alignItems: 'center', px: 1, py: 0.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+          <Box key={c.value} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr auto', sm: 'minmax(180px, 1.4fr) minmax(160px, 1fr)' }, gap: { xs: 1, sm: 2 }, alignItems: 'center', px: 1, py: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
               <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: c.color, flexShrink: 0 }} />
               <Typography variant="body2" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>{c.label}</Typography>
             </Box>
@@ -167,7 +167,7 @@ export const TaskSlaEditor = () => {
 export const SloEditor = () => {
   const { draft, dirty, saving, update, save } = useDraft();
   const pctField = (label: string, key: 'incidentSloPercent' | 'taskSloPercent') => (
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1.4fr) minmax(160px, 1fr)', gap: 2, alignItems: 'center', px: 1, py: 0.5 }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr auto', sm: 'minmax(180px, 1.4fr) minmax(160px, 1fr)' }, gap: { xs: 1, sm: 2 }, alignItems: 'center', px: 1, py: 0.5 }}>
       <Typography variant="body2" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>{label}</Typography>
       <TextField
         size="small" type="number" disabled={!draft.sloEnabled}
@@ -198,8 +198,8 @@ export const SloEditor = () => {
         {pctField('Incidents within SLA', 'incidentSloPercent')}
         {pctField('Tasks within SLA', 'taskSloPercent')}
       </Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Button size="small" onClick={() => update({ incidentSloPercent: DEFAULT_SLA_CONTROLS.incidentSloPercent, taskSloPercent: DEFAULT_SLA_CONTROLS.taskSloPercent })} sx={{ color: 'hsl(var(--muted-foreground))', textTransform: 'none' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Button size="small" onClick={() => update({ incidentSloPercent: DEFAULT_SLA_CONTROLS.incidentSloPercent, taskSloPercent: DEFAULT_SLA_CONTROLS.taskSloPercent })} sx={{ color: 'hsl(var(--muted-foreground))', textTransform: 'none', whiteSpace: 'nowrap' }}>
           Reset to defaults
         </Button>
         <SaveRow dirty={dirty} saving={saving} onSave={handleSave} label="Save SLO targets" />

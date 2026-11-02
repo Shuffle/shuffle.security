@@ -185,7 +185,7 @@ export const SlaEditor = () => {
       {/* Header row */}
       <Box
         sx={{
-          display: 'grid',
+          display: { xs: 'none', sm: 'grid' },
           gridTemplateColumns: 'minmax(180px, 1.4fr) minmax(160px, 1fr) minmax(160px, 1fr)',
           gap: 2,
           px: 1,
@@ -211,12 +211,13 @@ export const SlaEditor = () => {
             key={sev}
             sx={{
               display: 'grid',
-              gridTemplateColumns: 'minmax(180px, 1.4fr) minmax(160px, 1fr) minmax(160px, 1fr)',
-              gap: 2,
+              gridTemplateColumns: { xs: '1fr', sm: 'minmax(180px, 1.4fr) minmax(160px, 1fr) minmax(160px, 1fr)' },
+              gap: { xs: 1, sm: 2 },
               alignItems: 'center',
               px: 1,
-              py: 0.75,
+              py: { xs: 1, sm: 0.75 },
               borderRadius: 1,
+              borderBottom: { xs: '1px solid hsl(var(--border) / 0.5)', sm: 'none' },
               '&:hover': { bgcolor: 'hsl(var(--muted) / 0.4)' },
             }}
           >
@@ -249,22 +250,32 @@ export const SlaEditor = () => {
                 </Typography>
               </Box>
             </Box>
-            <DurationField
-              value={draft[sev].respond}
-              onChange={(next) => updateRow(sev, 'respond', next)}
-              ariaLabel={`${meta.label} respond`}
-            />
-            <DurationField
-              value={draft[sev].resolve}
-              onChange={(next) => updateRow(sev, 'resolve', next)}
-              ariaLabel={`${meta.label} resolve`}
-            />
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="caption" sx={{ display: { xs: 'block', sm: 'none' }, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>
+                Respond within
+              </Typography>
+              <DurationField
+                value={draft[sev].respond}
+                onChange={(next) => updateRow(sev, 'respond', next)}
+                ariaLabel={`${meta.label} respond`}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="caption" sx={{ display: { xs: 'block', sm: 'none' }, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>
+                Resolve within
+              </Typography>
+              <DurationField
+                value={draft[sev].resolve}
+                onChange={(next) => updateRow(sev, 'resolve', next)}
+                ariaLabel={`${meta.label} resolve`}
+              />
+            </Box>
           </Box>
         );
       })}
 
       {/* Action row */}
-      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1 }}>
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', flexWrap: 'wrap', mt: 1 }}>
         <Tooltip title="Reset all rows to recommended defaults">
           <Button
             size="small"
@@ -273,6 +284,7 @@ export const SlaEditor = () => {
             sx={{
               color: 'hsl(var(--muted-foreground))',
               textTransform: 'none',
+              whiteSpace: 'nowrap',
               '&:hover': { bgcolor: 'hsl(var(--muted) / 0.6)', color: 'hsl(var(--foreground))' },
             }}
           >
@@ -288,6 +300,7 @@ export const SlaEditor = () => {
             bgcolor: 'hsl(var(--primary))',
             color: 'hsl(var(--primary-foreground))',
             textTransform: 'none',
+            whiteSpace: 'nowrap',
             boxShadow: 'none',
             '&:hover': { bgcolor: 'hsl(var(--primary) / 0.9)', boxShadow: 'none' },
             '&.Mui-disabled': {

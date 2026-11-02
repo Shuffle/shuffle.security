@@ -622,8 +622,8 @@ const EntityReferencePage = ({ type }: EntityReferencePageProps) => {
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/vulnerabilities')} className="gap-1.5 shrink-0">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/vulnerabilities')} className="gap-1.5 shrink-0 whitespace-nowrap">
           <ArrowLeft size={14} /> Back
         </Button>
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -651,12 +651,12 @@ const EntityReferencePage = ({ type }: EntityReferencePageProps) => {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           {syncedCount !== null && !syncing && (
             <button
               type="button"
               onClick={() => navigate('/vulnerabilities')}
-              className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[0.7rem] font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[0.7rem] font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 transition-colors whitespace-nowrap shrink-0"
               title="Open Vulnerabilities page"
             >
               <CheckCircle2 size={12} />
@@ -668,7 +668,7 @@ const EntityReferencePage = ({ type }: EntityReferencePageProps) => {
             size="sm"
             onClick={syncVulns}
             disabled={syncing || vulnsWithMeta.filter(m => m.affectedHosts.length > 0).length === 0}
-            className="gap-1.5"
+            className="gap-1.5 whitespace-nowrap shrink-0"
             title="Persist affected vulnerabilities to shuffle-security_vulns"
           >
             <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
@@ -678,8 +678,8 @@ const EntityReferencePage = ({ type }: EntityReferencePageProps) => {
       </div>
 
       {/* Hosts containing this entity */}
-      <div className="rounded-lg border border-border bg-card p-5 space-y-3">
-        <div className="flex items-center justify-between gap-2">
+      <div className="rounded-lg border border-border bg-card p-4 sm:p-5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-foreground">
             <Server size={14} className="text-muted-foreground" />
             <span className="text-sm font-medium">Hosts with this {config.label.toLowerCase()}</span>

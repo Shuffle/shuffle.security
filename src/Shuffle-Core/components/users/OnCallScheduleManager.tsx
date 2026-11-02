@@ -34,6 +34,7 @@ import {
   LinearProgress,
   Switch,
   FormControlLabel,
+  Tooltip,
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { toast } from '@/Shuffle-Core/lib/toast';
@@ -667,43 +668,36 @@ export const OnCallScheduleManager = ({
               </Typography>
             </Box>
           )}
-          <Box sx={{ display: 'flex', gap: 1.5, ml: compact ? 'auto' : undefined }}>
-            <Button
-              variant="outlined"
-              size={compact ? 'small' : 'medium'}
-              startIcon={<CalendarIcon />}
-              onClick={() => setTimelineDialogOpen(true)}
-              sx={{
-                height: 36,
-                borderColor: 'hsl(var(--border))',
-                color: 'hsl(var(--foreground))',
-                '&:hover': { borderColor: 'hsl(var(--primary))', bgcolor: 'hsl(var(--primary) / 0.08)' },
-              }}
-            >
-              Schedule View
-              <Chip
-                label="Beta"
-                size="small"
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', ml: compact ? { xs: 0, sm: 'auto' } : undefined }}>
+            <Tooltip title="Schedule view (Beta)">
+              <Button
+                variant="outlined"
+                size={compact ? 'small' : 'medium'}
+                startIcon={<CalendarIcon size={16} />}
+                onClick={() => setTimelineDialogOpen(true)}
                 sx={{
-                  ml: 1,
-                  height: 18,
-                  fontSize: '0.65rem',
-                  fontWeight: 600,
-                  bgcolor: 'hsl(var(--primary) / 0.1)',
-                  color: 'hsl(var(--primary))',
-                  border: '1px solid hsl(var(--primary) / 0.25)',
-                  borderRadius: 1,
-                  '& .MuiChip-label': { px: 0.5 },
+                  height: 36,
+                  textTransform: 'none',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  borderColor: 'hsl(var(--border))',
+                  color: 'hsl(var(--foreground))',
+                  '&:hover': { borderColor: 'hsl(var(--primary))', bgcolor: 'hsl(var(--primary) / 0.08)' },
                 }}
-              />
-            </Button>
+              >
+                Schedule View
+              </Button>
+            </Tooltip>
             <Button
               variant="outlined"
               size={compact ? 'small' : 'medium'}
-              startIcon={<UploadIcon />}
+              startIcon={<UploadIcon size={16} />}
               onClick={() => setImportDialogOpen(true)}
               sx={{
                 height: 36,
+                textTransform: 'none',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
                 borderColor: 'hsl(var(--border))',
                 color: 'hsl(var(--foreground))',
                 '&:hover': { borderColor: 'hsl(var(--primary))', bgcolor: 'hsl(var(--primary) / 0.08)' },
@@ -722,6 +716,8 @@ export const OnCallScheduleManager = ({
                 color: 'hsl(var(--primary-foreground))',
                 fontWeight: 600,
                 textTransform: 'none',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
                 '&:hover': { bgcolor: 'hsl(var(--primary) / 0.9)' },
               }}
             >
@@ -939,7 +935,7 @@ export const OnCallScheduleManager = ({
                         }}>
                           <Box sx={{
                             display: 'flex', justifyContent: 'space-between',
-                            alignItems: 'center', mb: 2.5,
+                            alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 2.5,
                           }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                               <AccessTimeIcon size={18} style={{ color: 'hsl(var(--muted-foreground))' }} />
@@ -949,10 +945,13 @@ export const OnCallScheduleManager = ({
                             </Box>
                             <Button
                               size="small"
-                              startIcon={<AddIcon />}
+                              startIcon={<AddIcon size={16} />}
                               onClick={() => handleAddScheduleEntry(user.id)}
                               sx={{
                                 color: 'hsl(var(--foreground))',
+                                textTransform: 'none',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
                                 '&:hover': { bgcolor: 'hsl(var(--muted))' },
                               }}
                             >
@@ -1098,13 +1097,13 @@ export const OnCallScheduleManager = ({
         <DialogTitle>{editingEntry ? 'Edit Availability Window' : 'Add Availability Window'}</DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 2 }}>
-            <Box display="flex" gap={2}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
               <TextField label="Start Date" type="date" value={entryStartDate}
                 onChange={(e) => setEntryStartDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
               <TextField label="End Date" type="date" value={entryEndDate}
                 onChange={(e) => setEntryEndDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
             </Box>
-            <Box display="flex" gap={2}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
               <TextField label="Start Time" type="time" value={entryStartTime}
                 onChange={(e) => setEntryStartTime(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
               <TextField label="End Time" type="time" value={entryEndTime}

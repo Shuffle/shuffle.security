@@ -13,6 +13,8 @@ export { getStoredVapidKey, saveStoredVapidKey, registerFirebaseWebPush };
 
 export interface PagerIncident {
   id: string;
+  notificationId?: string;
+  orgId?: string;
   title: string;
   severity: 'critical' | 'high' | 'medium' | 'low' | string;
   source?: string;
@@ -318,7 +320,9 @@ export const setupPushNotificationListeners = () => {
       const data = payload.data || {};
       if (data.type === 'pager_alert' || data.incidentId) {
         triggerIncomingPagerCall({
-          id: data.incidentId || String(Date.now()),
+          id: data.incidentId || data.notificationId || String(Date.now()),
+          notificationId: data.notificationId,
+          orgId: data.orgId,
           title: payload.title || data.title || 'Critical Security Incident',
           severity: data.severity || 'critical',
           source: data.source || 'Shuffle SOC',
@@ -359,7 +363,9 @@ export const setupPushNotificationListeners = () => {
       const data = notification.data || {};
       if (data.type === 'pager_alert' || data.incidentId) {
         triggerIncomingPagerCall({
-          id: data.incidentId || String(Date.now()),
+          id: data.incidentId || data.notificationId || String(Date.now()),
+          notificationId: data.notificationId,
+          orgId: data.orgId,
           title: notification.title || data.title || 'Critical Security Incident',
           severity: data.severity || 'critical',
           source: data.source || 'Shuffle SOC',
@@ -458,7 +464,8 @@ export const triggerIncomingPagerCall = (incident: PagerIncident) => {
   }, timeoutMs);
 };
 
-export const dismissPagerCall = (incidentId?: string) => {
+export const dismissPagerCall = (incidentId?: string, notificationId?: string) => {
+  const resolvedNotifId = notificationId || activeCallIncident?.notificationId;
   stopEmergencySiren();
   stopPagerVibration();
   if (autoEscalateTimer) {
@@ -467,10 +474,14 @@ export const dismissPagerCall = (incidentId?: string) => {
   }
   activeCallIncident = null;
 
+  if (resolvedNotifId && resolvedNotifId.length === 36) {
+    shuffleFetch(getApiUrl(`/api/v1/notifications/${resolvedNotifId}/markasread`)).catch(() => {});
+  }
+
   if (typeof window !== 'undefined') {
     window.dispatchEvent(
       new CustomEvent(CALL_DISMISSED_EVENT, {
-        detail: { incidentId },
+        detail: { incidentId, notificationId: resolvedNotifId },
       }),
     );
   }

@@ -1355,7 +1355,7 @@ const DetectionOnboardingPage = () => {
   };
 
   return (
-    <Box sx={{ p: 4, maxWidth: 1400, width: '100%', mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 1400, width: '100%', mx: 'auto' }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
@@ -1417,9 +1417,9 @@ const DetectionOnboardingPage = () => {
           }}
         >
           {getStepIcon(1, sensorStatus)}
-          <Box sx={{ flex: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <SensorsIcon size={20} style={{ color: 'hsl(var(--primary))' }} />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+              <SensorsIcon size={20} style={{ color: 'hsl(var(--primary))', flexShrink: 0 }} />
               <Typography sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
                 Set up Log Ingestion
               </Typography>
@@ -1513,9 +1513,9 @@ const DetectionOnboardingPage = () => {
               </Box>
             ) : (
               <Box sx={{ mb: 4 }}>
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   {!isCreatingNew ? (
-                    <FormControl size="small" sx={{ minWidth: 280 }}>
+                    <FormControl size="small" sx={{ minWidth: { xs: 0, sm: 280 }, width: { xs: '100%', sm: 'auto' }, flex: { xs: '1 1 220px', sm: '0 0 auto' } }}>
                       <InputLabel 
                         sx={{ 
                           color: 'hsl(var(--muted-foreground))',
@@ -1628,6 +1628,8 @@ const DetectionOnboardingPage = () => {
                         ? 'hsl(var(--primary))'
                         : 'hsl(var(--foreground))',
                       textTransform: 'none',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
                       height: 40,
                       fontWeight: selectedEnvironment && !isSensorValid(selectedEnvironment) ? 600 : 500,
                       '&:hover': {

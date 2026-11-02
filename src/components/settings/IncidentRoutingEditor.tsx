@@ -1226,10 +1226,10 @@ const IncidentRoutingEditorInner = ({
         >
           {/* Collapsed summary row */}
           {!isOpen && (
-            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', gap: { xs: 1, sm: 1.5 }, alignItems: 'center', flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
               <Box
                 onClick={() => toggleExpanded(rule.id)}
-                sx={{ flex: 1, minWidth: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 0.25 }}
+                sx={{ flex: '1 1 180px', minWidth: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 0.25 }}
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

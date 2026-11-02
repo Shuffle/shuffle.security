@@ -52,6 +52,7 @@ import TryMcpSection from '@/Shuffle-Core/views/TryMcpSection';
 import SingulActionsPreview from '@/Shuffle-Core/components/SingulActionsPreview';
 import ApiCallViewer from '@/Shuffle-Core/components/ApiCallViewer';
 import AppRelatedUsecasesRaw from '@/Shuffle-Core/components/AppRelatedUsecases';
+import { McpSetupButtons } from '@/Shuffle-Core/components/oauth/McpSetupButtons';
 
 class UsecasesBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   override state = { hasError: false };
@@ -1221,6 +1222,7 @@ export default function AppDetailContent({
               <>
                 <TryMcpSection
                   appName={canonicalExecutionAppName}
+                  displayName={displayName}
                   appIcon={resolvedImage}
                   appId={canonicalExecutionAppId}
                   categories={appInfo?.categories}
@@ -1280,7 +1282,18 @@ export default function AppDetailContent({
                 />
               </>
             ) : allowGuestLocked ? (
-              <Box sx={{ mb: 4 }}>
+              <Box sx={{ mt: 5, mb: 4 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+                  <Typography sx={{ color: 'hsl(var(--foreground))', fontWeight: 600, fontSize: '0.95rem' }}>
+                    Try MCP
+                  </Typography>
+                  <McpSetupButtons
+                    appName={canonicalExecutionAppName}
+                    appTitle={displayName}
+                    globalUrl={globalUrl}
+                    size="compact"
+                  />
+                </Box>
                 <GuestLockedSection
                   title="AI-Powered Actions"
                   description={`Run automated actions with ${displayName} using natural language. Sign up to try it.`}

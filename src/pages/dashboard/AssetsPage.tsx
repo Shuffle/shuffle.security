@@ -280,9 +280,18 @@ const AssetsPage = () => {
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1400, width: '100%', mx: 'auto' }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          justifyContent: 'space-between',
+          gap: 1.5,
+          mb: 2.5,
+        }}
+      >
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
             <Typography variant="h4" sx={{ fontWeight: 600, lineHeight: 1.2 }}>Assets</Typography>
             <Chip
               label="Beta"
@@ -301,13 +310,19 @@ const AssetsPage = () => {
             Unified inventory across endpoints, cloud, identity, and code
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, alignSelf: { xs: 'flex-start', sm: 'center' } }}>
           <Tooltip title="Refresh">
             <IconButton size="small" onClick={handleRefreshActive} sx={{ height: 36, width: 36 }}>
               <RefreshCw size={16} />
             </IconButton>
           </Tooltip>
-          <Button variant="contained" size="small" startIcon={<Plus size={16} />} onClick={() => setCreateOpen(true)} sx={{ height: 36 }}>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<Plus size={16} />}
+            onClick={() => setCreateOpen(true)}
+            sx={{ height: 36, whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
             {activeTab === 'identity_users' ? 'Add User' : 'Add Asset'}
           </Button>
         </Box>

@@ -57,6 +57,8 @@ import {
   fetchNotificationDevices,
   saveNotificationDevice,
   resolveDevicePreferences,
+  getSelectedOrgIdsForDeviceType,
+  buildUpdatedOrgPreferences,
   getLocalDeviceId,
   getLocalDeviceName,
   getLocalDevicePlatform,
@@ -297,28 +299,68 @@ const getPermissionHelp = (): PermissionHelp => {
   };
 };
 
+export interface PagerTenantOption {
+  id: string;
+  name: string;
+}
+
+export interface PagerUserInfo {
+  id?: string;
+  username?: string;
+  active_org?: { id?: string; name?: string };
+  orgs?: Array<{ id?: string; name?: string }>;
+}
+
 export interface PagerNotificationSettingsProps {
   /** Current user. Optional — when omitted the component loads it from /api/v1/getinfo. */
-  userInfo?: { id?: string; username?: string } | null;
+  userInfo?: PagerUserInfo | null;
 }
 
 export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotificationSettingsProps = {}) => {
-  const [loadedUser, setLoadedUser] = useState<{ id?: string; username?: string } | null>(null);
+  const [loadedUser, setLoadedUser] = useState<PagerUserInfo | null>(null);
   const userInfo = userInfoProp ?? loadedUser;
 
   useEffect(() => {
-    if (userInfoProp) return;
+    if (userInfoProp && Array.isArray(userInfoProp.orgs) && userInfoProp.orgs.length > 0) return;
     let cancelled = false;
     fetch(getApiUrl('/api/v1/getinfo'), { credentials: 'include', headers: { ...getAuthHeader() } })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!cancelled && data) setLoadedUser({ id: data.id, username: data.username });
+        if (!cancelled && data) {
+          setLoadedUser({
+            id: data.id,
+            username: data.username,
+            active_org: data.active_org,
+            orgs: Array.isArray(data.orgs) ? data.orgs : undefined,
+          });
+        }
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, [userInfoProp]);
+
+  const activeOrgId = userInfo?.active_org?.id || loadedUser?.active_org?.id || '';
+  const userTenants: PagerTenantOption[] = (() => {
+    const map = new Map<string, string>();
+    const rawOrgs = [
+      ...(Array.isArray(userInfo?.orgs) ? userInfo!.orgs! : []),
+      ...(Array.isArray(loadedUser?.orgs) ? loadedUser!.orgs! : []),
+      ...(userInfo?.active_org ? [userInfo.active_org] : []),
+      ...(loadedUser?.active_org ? [loadedUser.active_org] : []),
+    ];
+    for (const org of rawOrgs) {
+      const id = String(org?.id || '').trim();
+      if (!id) continue;
+      const name = String(org?.name || id).trim();
+      if (!map.has(id)) {
+        map.set(id, name);
+      }
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  })();
+  const allTenantIds = userTenants.map((t) => t.id);
 
   const [settings, setSettings] = useState<PagerSettings>(getPagerSettings());
   const [isPlayingTestSiren, setIsPlayingTestSiren] = useState(false);
@@ -599,6 +641,117 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       ...remotePreferences,
       [PREFERENCE_KEY[type]]: value,
     });
+  };
+
+  const setSectionTenants = (type: NotificationType, selectedOrgIds: string[]) => {
+    const nextPrefs = buildUpdatedOrgPreferences(
+      remotePreferences,
+      type,
+      selectedOrgIds,
+      allTenantIds,
+    );
+    void persistDevicePreferences(nextPrefs);
+  };
+
+  const renderTenantRoutingRow = (type: NotificationType) => {
+    const selectedTenantIds = getSelectedOrgIdsForDeviceType(remotePreferences, type, allTenantIds);
+    const allSelected = allTenantIds.length === 0 || selectedTenantIds.length === allTenantIds.length;
+    const deviceLabel = selectedDevice?.device_name || 'this device';
+
+    return (
+      <SettingRow
+        label="Allowed tenants"
+        hint={`Choose which organizations can send this page type to ${deviceLabel}. All tenants are selected by default.`}
+        control={
+          <FormControl size="small" sx={{ minWidth: 190, maxWidth: 260 }}>
+            <Select
+              multiple
+              displayEmpty
+              value={selectedTenantIds}
+              disabled={savingDevice || !controlsAvailable || allTenantIds.length === 0}
+              onChange={(e) => {
+                const rawVal = e.target.value;
+                const valArray = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(',');
+                if (valArray.includes('__ALL__')) {
+                  setSectionTenants(type, allSelected ? [] : allTenantIds);
+                  return;
+                }
+                setSectionTenants(
+                  type,
+                  valArray.filter((v) => v && v !== '__ALL__'),
+                );
+              }}
+              renderValue={() => {
+                if (allTenantIds.length === 0) return 'All tenants';
+                if (selectedTenantIds.length === allTenantIds.length) {
+                  return allTenantIds.length > 1 ? `All tenants (${allTenantIds.length})` : (userTenants[0]?.name || 'All tenants');
+                }
+                if (selectedTenantIds.length === 0) return 'No tenants';
+                if (selectedTenantIds.length === 1) {
+                  return userTenants.find((t) => t.id === selectedTenantIds[0])?.name || selectedTenantIds[0];
+                }
+                return `${selectedTenantIds.length} of ${allTenantIds.length} tenants`;
+              }}
+              sx={{
+                height: 36,
+                fontSize: '0.85rem',
+                color: 'hsl(var(--foreground))',
+                '& fieldset': { borderColor: 'hsl(var(--border))' },
+              }}
+            >
+              <MenuItem
+                value="__ALL__"
+                sx={{
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 1.5,
+                }}
+              >
+                <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+                  All tenants
+                </Typography>
+                <Switch size="small" checked={allSelected} color="primary" sx={{ pointerEvents: 'none' }} />
+              </MenuItem>
+              {userTenants.length > 0 && <Divider sx={{ my: 0.5, borderColor: 'hsl(var(--border))' }} />}
+              {userTenants.map((tenant) => {
+                const checked = selectedTenantIds.includes(tenant.id);
+                const isCurrent = tenant.id === activeOrgId;
+                return (
+                  <MenuItem
+                    key={tenant.id}
+                    value={tenant.id}
+                    sx={{
+                      fontSize: '0.82rem',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 1.5,
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: '0.82rem',
+                        color: 'hsl(var(--foreground))',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {tenant.name}
+                      {isCurrent ? ' (current)' : ''}
+                    </Typography>
+                    <Switch size="small" checked={checked} color="primary" sx={{ pointerEvents: 'none' }} />
+                  </MenuItem>
+                );
+              })}
+            </Select>
+          </FormControl>
+        }
+      />
+    );
   };
 
   const handleRequestPermissions = async () => {
@@ -1192,6 +1345,8 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               : `Critical Pager is not available on ${testTargetName}, so it cannot be tested. It requires the mobile app.`
           }
         >
+          {renderTenantRoutingRow('critical')}
+
           <SettingRow
             label="Emergency siren"
             hint="Plays escalating siren audio while ringing."
@@ -1296,6 +1451,8 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           testing={sendingType === 'agent_request'}
           testTooltip={`Send a real agent-request push to ${testTargetName} right now, exactly as an agent approval would arrive.`}
         >
+          {renderTenantRoutingRow('agent_request')}
+
           <SettingRow
             label="Sound"
             hint="Plays a short chime when an agent asks for input."
@@ -1354,6 +1511,8 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           testing={sendingType === 'general'}
           testTooltip={`Send a real general push to ${testTargetName} right now, exactly as a routine update would arrive.`}
         >
+          {renderTenantRoutingRow('general')}
+
           <SettingRow
             label="Sound"
             hint="Plays a short chime for informational updates."

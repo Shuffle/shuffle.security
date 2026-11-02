@@ -57,6 +57,7 @@ import { toast } from '@/lib/toast';
 import { useLocation, useNavigate } from '@/lib/router-compat';
 import { DATASTORE_CATEGORIES, RBACConfig, filterItemsByCategory } from '@/Shuffle-Core/datastore';
 import { CategoryAutomationsDialog } from '@/Shuffle-Core/components/CategoryAutomationsDialog';
+import { HighlightedFileEditor } from '@/Shuffle-Core/components/HighlightedFileEditor';
 import { ShareAccessModal } from '@/components/common/ShareAccessModal';
 import { useSubOrgs } from '@/hooks/useSubOrgs';
 
@@ -1104,11 +1105,13 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
                 sx={{
                   display: 'inline-flex',
                   alignItems: 'center',
+                  flexWrap: 'wrap',
+                  maxWidth: '100%',
                   border: '1px solid hsl(var(--border))',
                   borderRadius: 1.5,
                   bgcolor: 'hsl(var(--card))',
                   px: 0.5,
-                  height: 36,
+                  minHeight: 36,
                   gap: 0.5,
                 }}
               >
@@ -1129,8 +1132,9 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
                     return data.charAt(0).toUpperCase() + data.slice(1).replace(/_/g, ' ');
                   }}
                   sx={{
-                    minWidth: 220,
-                    maxWidth: 320,
+                    minWidth: { xs: 150, sm: 220 },
+                    maxWidth: '100%',
+                    flex: { xs: '1 1 150px', sm: '0 0 auto' },
                     '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
                     '& .MuiOutlinedInput-root': { py: 0, height: 32 },
                   }}
@@ -1397,6 +1401,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexWrap: 'wrap',
             gap: 1.5,
             mb: 1.5,
             px: 2,
@@ -1409,14 +1414,14 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
           <Typography variant="body2" sx={{ fontWeight: 600, color: 'hsl(var(--destructive))', fontSize: '0.82rem' }}>
             {selectedKeys.length} key{selectedKeys.length > 1 ? 's' : ''} selected
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button
               variant="contained"
               color="error"
               size="small"
               startIcon={<Trash2 size={14} />}
               onClick={() => handleInitiateDelete(selectedKeys)}
-              sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25, px: 1.5 }}
+              sx={{ textTransform: 'none', whiteSpace: 'nowrap', fontSize: '0.75rem', py: 0.25, px: 1.5 }}
             >
               Delete Selected
             </Button>
@@ -1424,7 +1429,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
               variant="text"
               size="small"
               onClick={() => setSelectedKeys([])}
-              sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}
+              sx={{ textTransform: 'none', whiteSpace: 'nowrap', fontSize: '0.75rem', py: 0.25 }}
             >
               Deselect All
             </Button>
@@ -1886,26 +1891,31 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
               </Box>
               <Box
                 sx={{
-                  p: 1.5,
                   borderRadius: 1.5,
                   bgcolor: isDark ? 'hsl(var(--card) / 0.8)' : 'hsl(var(--muted) / 0.4)',
-                  border: '1px solid hsl(var(--border))',
                   maxHeight: 500,
                   overflowY: 'auto',
                 }}
               >
                 {typeof inspectItem.value === 'object' && inspectItem.value !== null ? (
-                  <JsonView
-                    src={inspectItem.value}
-                    dark={isDark}
-                    theme="default"
-                    collapseStringsAfterLength={120}
-                    collapsed={defaultCollapsed}
-                  />
+                  <Box sx={{ p: 1.5, border: '1px solid hsl(var(--border))', borderRadius: 1.5 }}>
+                    <JsonView
+                      src={inspectItem.value}
+                      dark={isDark}
+                      theme="default"
+                      collapseStringsAfterLength={120}
+                      collapsed={defaultCollapsed}
+                    />
+                  </Box>
                 ) : (
-                  <Typography component="pre" sx={{ m: 0, fontFamily: 'monospace', fontSize: '0.82rem', whiteSpace: 'pre-wrap' }}>
-                    {String(inspectItem.value ?? '')}
-                  </Typography>
+                  <HighlightedFileEditor
+                    value={String(inspectItem.value ?? '')}
+                    onChange={() => {}}
+                    validateJson={false}
+                    editable={false}
+                    minHeight={140}
+                    maxHeight={420}
+                  />
                 )}
               </Box>
             </Box>
@@ -1994,22 +2004,19 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
             </Button>
           </Box>
 
-          <TextField
-            multiline
-            rows={10}
-            fullWidth
+          <HighlightedFileEditor
             value={formValue}
-            onChange={(e) => handleValueChange(e.target.value)}
-            error={!isJsonValid}
-            helperText={!isJsonValid ? 'Value is not valid JSON (will be saved as raw string if submitted)' : ''}
-            sx={{
-              '& textarea': {
-                fontFamily: 'monospace',
-                fontSize: '0.82rem',
-                lineHeight: 1.5,
-              },
-            }}
+            onChange={(nextVal) => handleValueChange(nextVal)}
+            validateJson={false}
+            language="json"
+            minHeight={220}
+            maxHeight={360}
           />
+          {!isJsonValid && (
+            <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', px: 0.5 }}>
+              Value is not valid JSON (will be saved as raw string if submitted)
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 1.5, borderTop: '1px solid hsl(var(--border))' }}>
           <Button
@@ -2072,22 +2079,19 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
             </Button>
           </Box>
 
-          <TextField
-            multiline
-            rows={10}
-            fullWidth
+          <HighlightedFileEditor
             value={formValue}
-            onChange={(e) => handleValueChange(e.target.value)}
-            error={!isJsonValid}
-            helperText={!isJsonValid ? 'Value is not valid JSON' : ''}
-            sx={{
-              '& textarea': {
-                fontFamily: 'monospace',
-                fontSize: '0.82rem',
-                lineHeight: 1.5,
-              },
-            }}
+            onChange={(nextVal) => handleValueChange(nextVal)}
+            validateJson={false}
+            language="json"
+            minHeight={220}
+            maxHeight={360}
           />
+          {!isJsonValid && (
+            <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', px: 0.5 }}>
+              Value is not valid JSON (will be saved as raw string if submitted)
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 1.5, borderTop: '1px solid hsl(var(--border))' }}>
           <Button

@@ -270,20 +270,20 @@ const AuthenticatedVulnerabilitiesView = () => {
 
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-[1400px] mx-auto space-y-6">
       {/* Vulnerability Automation — only useful while it is not running yet */}
       <VulnerabilityAutomationBanner hideWhenActive />
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2 flex-wrap">
             Vulnerabilities
             <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary ring-1 ring-inset ring-primary/20">Beta</span>
           </h1>
           <p className="text-sm text-muted-foreground">Track and manage vulnerabilities across your assets and users</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <IngestionSourcesRow
             workflowLabel="Ingest Vulnerabilities"
             category="vulnerabilities"

@@ -24,8 +24,9 @@ import {
   type OAuthAppPermission,
 } from './OAuthAuthorizeView';
 import { McpSetupModal, type McpSetupModalProps } from './McpSetupModal';
+import { McpSetupButtons, type McpSetupButtonsProps } from './McpSetupButtons';
 
-export { McpSetupModal, type McpSetupModalProps };
+export { McpSetupModal, type McpSetupModalProps, McpSetupButtons, type McpSetupButtonsProps };
 import {
   getVerificationStatusMeta,
   type OAuthRawSource,
@@ -154,7 +155,6 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<OAuthConnectionItem | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
-  const [setupModalOpen, setSetupModalOpen] = useState<boolean>(false);
 
   const toggleExpanded = useCallback((connKey: string) => {
     setExpandedIds((prev) => {
@@ -291,34 +291,7 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => setSetupModalOpen(true)}
-            startIcon={
-              <AppFallbackIcon
-                name="ChatGPT"
-                size={16}
-                alt="ChatGPT"
-                style={{ borderRadius: '50%', objectFit: 'cover' }}
-              />
-            }
-            sx={{
-              height: 32,
-              px: 1.75,
-              textTransform: 'none',
-              fontSize: '0.8rem',
-              borderRadius: 1.5,
-              borderColor: 'hsl(var(--border))',
-              color: 'hsl(var(--foreground))',
-              '&:hover': {
-                borderColor: 'hsl(var(--primary))',
-                bgcolor: 'hsl(var(--muted) / 0.4)',
-              },
-            }}
-          >
-            ChatGPT
-          </Button>
+          <McpSetupButtons globalUrl={globalUrl} size="default" />
 
           <Button
             variant="outlined"
@@ -1207,11 +1180,6 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
           </Button>
         </DialogActions>
       </Dialog>
-
-      <McpSetupModal
-        open={setupModalOpen}
-        onClose={() => setSetupModalOpen(false)}
-      />
     </Paper>
   );
 };

@@ -191,15 +191,15 @@ const ThreatFeedsPage = () => {
 
       {/* Header — matches the standard page header used on Incidents / Vulnerabilities */}
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <RssFeedIcon size={28} style={{ color: 'hsl(var(--primary))' }} />
-          <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', minWidth: 0, flex: '1 1 240px' }}>
+          <RssFeedIcon size={28} style={{ color: 'hsl(var(--primary))', flexShrink: 0 }} />
+          <Box sx={{ minWidth: 0, flex: '1 1 200px' }}>
             <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>Threat Feeds</Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               External intelligence sources that enrich incidents with indicators of compromise
             </Typography>
           </Box>
-          {isLoading && <CircularProgress size={18} />}
+          {isLoading && <CircularProgress size={18} sx={{ flexShrink: 0 }} />}
           {!isLoading && feeds.length > 0 && (
             <Chip
               label={enabledCount === feeds.length ? `${enabledCount} active feeds` : `${enabledCount}/${feeds.length} active feeds`}
@@ -207,7 +207,6 @@ const ThreatFeedsPage = () => {
               variant="outlined"
               sx={{
                 height: 24,
-                ml: 1,
                 bgcolor: enabledCount > 0 ? 'hsl(var(--severity-low) / 0.12)' : 'transparent',
                 color: enabledCount > 0 ? 'hsl(var(--severity-low))' : 'text.secondary',
                 borderColor: enabledCount > 0 ? 'hsl(var(--severity-low) / 0.4)' : undefined,
@@ -215,7 +214,7 @@ const ThreatFeedsPage = () => {
             />
           )}
         </Box>
-        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField
             size="small"
             placeholder="Search feeds..."
@@ -229,10 +228,10 @@ const ThreatFeedsPage = () => {
               ),
               sx: { height: 36 },
             }}
-            sx={{ minWidth: 220 }}
+            sx={{ minWidth: { xs: 180, sm: 220 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
           />
           <Tooltip title="Refresh feeds">
-            <IconButton onClick={() => refetch()} sx={{ height: 36, width: 36 }}>
+            <IconButton onClick={() => refetch()} sx={{ height: 36, width: 36, flexShrink: 0 }}>
               <RefreshIcon size={20} />
             </IconButton>
           </Tooltip>
@@ -243,14 +242,14 @@ const ThreatFeedsPage = () => {
                   variant="outlined"
                   onClick={handleResetDefaults}
                   disabled={isInitializing}
-                  sx={{ height: 36 }}
+                  sx={{ height: 36, whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   Reset to Defaults
                 </Button>
               </span>
             </Tooltip>
           )}
-          <Button variant="outlined" startIcon={<AddIcon />} onClick={() => handleOpenDialog()} sx={{ height: 36 }}>
+          <Button variant="outlined" startIcon={<AddIcon />} onClick={() => handleOpenDialog()} sx={{ height: 36, whiteSpace: 'nowrap', flexShrink: 0 }}>
             Add Feed
           </Button>
         </Box>

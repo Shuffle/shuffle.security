@@ -11,43 +11,96 @@ import {
 } from '@mui/material';
 import { AppFallbackIcon } from '../AppFallbackIcon';
 import { toast } from '@/Shuffle-Core/lib/toast';
+import { API_CONFIG } from '../../api';
+
+export type McpPlatform = 'chatgpt' | 'claude';
 
 export interface McpSetupModalProps {
   open: boolean;
   onClose: () => void;
+  platform?: McpPlatform;
   title?: string;
   platformName?: string;
   pluginsUrl?: string;
   defaultServerName?: string;
   defaultServerUrl?: string;
+  appName?: string;
+  appTitle?: string;
+  globalUrl?: string;
   step1Image?: string;
   step2Image?: string;
   step3Image?: string;
 }
 
+export const resolveBackendBaseUrl = (globalUrl?: string): string => {
+  const candidate = (globalUrl || API_CONFIG.baseUrl || '').trim().replace(/\/+$/, '');
+  if (candidate && /^https?:\/\//i.test(candidate)) {
+    return candidate;
+  }
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin.replace(/\/+$/, '');
+  }
+  return 'https://shuffler.io';
+};
+
 export const McpSetupModal: React.FC<McpSetupModalProps> = ({
   open,
   onClose,
-  title = 'Connect ChatGPT to Shuffle MCP',
-  platformName = 'ChatGPT',
-  pluginsUrl = 'https://chatgpt.com/plugins',
-  defaultServerName = 'Shuffle Workflow Builder',
-  defaultServerUrl = 'https://shuffler.io/api/v1/agent/workflow-edit',
-  step1Image = '/images/mcp/chatgpt-add-mcp.png',
-  step2Image = '/images/mcp/chatgpt-mcp-form.png',
+  platform = 'chatgpt',
+  title,
+  platformName,
+  pluginsUrl,
+  defaultServerName,
+  defaultServerUrl,
+  appName,
+  appTitle,
+  globalUrl,
+  step1Image,
+  step2Image,
   step3Image,
 }) => {
-  const [serverName, setServerName] = useState(defaultServerName);
-  const [serverUrl, setServerUrl] = useState(defaultServerUrl);
+  const isClaude = platform === 'claude' || platformName?.toLowerCase() === 'claude';
+  const resolvedPlatformName = platformName || (isClaude ? 'Claude' : 'ChatGPT');
+  const resolvedPluginsUrl =
+    pluginsUrl || (isClaude ? 'https://claude.ai/new#customize/connectors' : 'https://chatgpt.com/plugins');
+
+  const resolvedStep1Image =
+    step1Image !== undefined ? step1Image : isClaude ? undefined : '/images/mcp/chatgpt-add-mcp.png';
+  const resolvedStep2Image =
+    step2Image !== undefined
+      ? step2Image
+      : isClaude
+        ? '/images/mcp/claude-add-connector.png'
+        : '/images/mcp/chatgpt-mcp-form.png';
+
+  const baseUrl = resolveBackendBaseUrl(globalUrl);
+  const cleanAppName = (appName || '').trim();
+  const displayAppTitle = (appTitle || cleanAppName.replace(/_/g, ' ')).trim();
+
+  const resolvedDefaultName =
+    defaultServerName || (displayAppTitle ? `Shuffle ${displayAppTitle}` : 'Shuffle Workflow Builder');
+  const resolvedDefaultUrl =
+    defaultServerUrl ||
+    (cleanAppName
+      ? `${baseUrl}/api/v1/apps/${encodeURIComponent(cleanAppName)}/mcp`
+      : `${baseUrl}/api/v1/agent/workflow-edit`);
+  const resolvedTitle =
+    title ||
+    (displayAppTitle
+      ? `Connect ${resolvedPlatformName} to ${displayAppTitle} MCP`
+      : `Connect ${resolvedPlatformName} to Shuffle MCP`);
+
+  const [serverName, setServerName] = useState(resolvedDefaultName);
+  const [serverUrl, setServerUrl] = useState(resolvedDefaultUrl);
   const [copiedField, setCopiedField] = useState<'name' | 'url' | null>(null);
 
   useEffect(() => {
-    setServerName(defaultServerName);
-  }, [defaultServerName]);
+    setServerName(resolvedDefaultName);
+  }, [resolvedDefaultName, open]);
 
   useEffect(() => {
-    setServerUrl(defaultServerUrl);
-  }, [defaultServerUrl]);
+    setServerUrl(resolvedDefaultUrl);
+  }, [resolvedDefaultUrl, open]);
 
   const handleCopy = (value: string, field: 'name' | 'url') => {
     try {
@@ -89,16 +142,16 @@ export const McpSetupModal: React.FC<McpSetupModalProps> = ({
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
           <AppFallbackIcon
-            name={platformName}
+            name={resolvedPlatformName}
             size={26}
-            alt={platformName}
+            alt={resolvedPlatformName}
             style={{ borderRadius: '50%', objectFit: 'cover' }}
           />
           <Typography
             variant="subtitle1"
             sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, fontSize: '1rem' }}
           >
-            {title}
+            {resolvedTitle}
           </Typography>
         </Box>
       </DialogTitle>
@@ -111,7 +164,7 @@ export const McpSetupModal: React.FC<McpSetupModalProps> = ({
               <strong>1.</strong> Go to{' '}
               <Box
                 component="a"
-                href={pluginsUrl}
+                href={resolvedPluginsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 sx={{
@@ -121,20 +174,30 @@ export const McpSetupModal: React.FC<McpSetupModalProps> = ({
                   '&:hover': { textDecoration: 'underline' },
                 }}
               >
-                {pluginsUrl}
+                {resolvedPluginsUrl}
               </Box>
             </Typography>
           </Box>
 
           {/* Step 2 */}
           <Box>
-            <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem', mb: 1 }}>
-              <strong>2.</strong> Click <strong>&quot;Add &gt; Add custom MCP server&quot;</strong> in the top-right corner
+            <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem', mb: resolvedStep1Image ? 1 : 0 }}>
+              <strong>2.</strong>{' '}
+              {isClaude ? (
+                <>
+                  Click <strong>&quot;Add&quot;</strong> in the top-right corner and select{' '}
+                  <strong>&quot;Add custom connector&quot;</strong>
+                </>
+              ) : (
+                <>
+                  Click <strong>&quot;Add &gt; Add custom MCP server&quot;</strong> in the top-right corner
+                </>
+              )}
             </Typography>
-            {step1Image && (
+            {resolvedStep1Image && (
               <Box
                 component="img"
-                src={step1Image}
+                src={resolvedStep1Image}
                 alt="Add custom MCP server"
                 onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
                   e.currentTarget.style.display = 'none';
@@ -153,7 +216,10 @@ export const McpSetupModal: React.FC<McpSetupModalProps> = ({
           {/* Step 3 */}
           <Box>
             <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem', mb: 1 }}>
-              <strong>3.</strong> Fill in a name, and the workflow edit MCP example:
+              <strong>3.</strong>{' '}
+              {displayAppTitle
+                ? `Enter the Name and the ${displayAppTitle} MCP server URL below:`
+                : 'Enter the Name and the MCP server URL below:'}
             </Typography>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 1.25 }}>
@@ -190,7 +256,7 @@ export const McpSetupModal: React.FC<McpSetupModalProps> = ({
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <TextField
-                  label="MCP Server URL"
+                  label="MCP server URL"
                   size="small"
                   fullWidth
                   value={serverUrl}
@@ -220,10 +286,10 @@ export const McpSetupModal: React.FC<McpSetupModalProps> = ({
               </Box>
             </Box>
 
-            {step2Image && (
+            {resolvedStep2Image && (
               <Box
                 component="img"
-                src={step2Image}
+                src={resolvedStep2Image}
                 alt="Fill in MCP server details"
                 onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
                   e.currentTarget.style.display = 'none';
@@ -239,43 +305,73 @@ export const McpSetupModal: React.FC<McpSetupModalProps> = ({
             )}
           </Box>
 
-          {/* Step 4 */}
-          <Box>
-            <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem' }}>
-              <strong>4.</strong> Click <strong>&quot;Create as plugin&quot;</strong>
-            </Typography>
-          </Box>
-
-          {/* Step 5 */}
-          <Box>
-            <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem', mb: step3Image ? 1 : 0 }}>
-              <strong>5.</strong> Login with Shuffle
-            </Typography>
-            {step3Image && (
-              <Box
-                component="img"
-                src={step3Image}
-                alt="Login with Shuffle"
-                onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-                sx={{
-                  display: 'block',
-                  maxWidth: 420,
-                  width: '100%',
-                  borderRadius: 2,
-                  border: '1px solid hsl(var(--border))',
-                }}
-              />
-            )}
-          </Box>
-
-          {/* Step 6 */}
-          <Box>
-            <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem' }}>
-              <strong>6.</strong> Use it in your chats!
-            </Typography>
-          </Box>
+          {/* Step 4 & Step 5 / Step 6 */}
+          {isClaude ? (
+            <>
+              <Box>
+                <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem', mb: step3Image ? 1 : 0 }}>
+                  <strong>4.</strong> Click <strong>&quot;Continue&quot;</strong> and log in with Shuffle
+                </Typography>
+                {step3Image && (
+                  <Box
+                    component="img"
+                    src={step3Image}
+                    alt="Login with Shuffle"
+                    onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                    sx={{
+                      display: 'block',
+                      maxWidth: 420,
+                      width: '100%',
+                      borderRadius: 2,
+                      border: '1px solid hsl(var(--border))',
+                    }}
+                  />
+                )}
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem' }}>
+                  <strong>5.</strong> Start using it in your chats!
+                </Typography>
+              </Box>
+            </>
+          ) : (
+            <>
+              <Box>
+                <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem' }}>
+                  <strong>4.</strong> Click <strong>&quot;Create as plugin&quot;</strong>
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem', mb: step3Image ? 1 : 0 }}>
+                  <strong>5.</strong> Log in with Shuffle
+                </Typography>
+                {step3Image && (
+                  <Box
+                    component="img"
+                    src={step3Image}
+                    alt="Login with Shuffle"
+                    onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                    sx={{
+                      display: 'block',
+                      maxWidth: 420,
+                      width: '100%',
+                      borderRadius: 2,
+                      border: '1px solid hsl(var(--border))',
+                    }}
+                  />
+                )}
+              </Box>
+              <Box>
+                <Typography variant="body2" sx={{ color: 'hsl(var(--foreground))', fontSize: '0.85rem' }}>
+                  <strong>6.</strong> Start using it in your chats!
+                </Typography>
+              </Box>
+            </>
+          )}
         </Box>
       </DialogContent>
 

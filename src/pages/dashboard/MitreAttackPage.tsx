@@ -176,12 +176,21 @@ const MitreAttackPage = () => {
   const totalSubTechniques = techniques.filter((t) => t.isSubtechnique).length;
 
   return (
-    <Box sx={{ p: 4, maxWidth: 1400, width: '100%', mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 1400, width: '100%', mx: 'auto' }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-            <AccountTreeIcon size={28} style={{ color: 'hsl(var(--primary))' }} />
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 2,
+          mb: 4,
+        }}
+      >
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
+            <AccountTreeIcon size={28} style={{ color: 'hsl(var(--primary))', flexShrink: 0 }} />
             <Typography variant="h4" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
               MITRE ATT&CK
             </Typography>
@@ -195,7 +204,7 @@ const MitreAttackPage = () => {
             </Typography>
           )}
         </Box>
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', flexShrink: 0 }}>
           <Button
             variant="outlined"
             startIcon={<SyncIcon className={isSyncing ? 'animate-spin' : ''} />}
@@ -203,6 +212,8 @@ const MitreAttackPage = () => {
             disabled={isSyncing || isLoading}
             sx={{
               height: 36,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
               borderColor: 'hsl(var(--border))',
               color: 'hsl(var(--foreground))',
               '&:hover': {
@@ -221,6 +232,8 @@ const MitreAttackPage = () => {
             target="_blank"
             sx={{
               height: 36,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
               borderColor: 'hsl(var(--border))',
               color: 'hsl(var(--foreground))',
               '&:hover': {
@@ -259,7 +272,7 @@ const MitreAttackPage = () => {
           onChange={(e) => setSearchQuery(e.target.value)}
           size="small"
           sx={{
-            width: 320,
+            width: { xs: '100%', sm: 320 },
             '& .MuiOutlinedInput-root': {
               height: 36,
               backgroundColor: 'hsl(var(--muted))',
@@ -292,11 +305,12 @@ const MitreAttackPage = () => {
       </Box>
 
       {/* Stats */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
         <Card sx={{ 
           backgroundColor: 'hsl(var(--card))', 
           border: '1px solid hsl(var(--border))',
-          minWidth: 140,
+          minWidth: { xs: 110, sm: 140 },
+          flex: { xs: '1 1 calc(33.333% - 12px)', sm: '0 0 auto' },
         }}>
           <CardContent sx={{ py: 2, px: 3, '&:last-child': { pb: 2 } }}>
             {isLoading ? (
@@ -314,7 +328,8 @@ const MitreAttackPage = () => {
         <Card sx={{ 
           backgroundColor: 'hsl(var(--card))', 
           border: '1px solid hsl(var(--border))',
-          minWidth: 140,
+          minWidth: { xs: 110, sm: 140 },
+          flex: { xs: '1 1 calc(33.333% - 12px)', sm: '0 0 auto' },
         }}>
           <CardContent sx={{ py: 2, px: 3, '&:last-child': { pb: 2 } }}>
             {isLoading ? (
@@ -332,7 +347,8 @@ const MitreAttackPage = () => {
         <Card sx={{ 
           backgroundColor: 'hsl(var(--card))', 
           border: '1px solid hsl(var(--border))',
-          minWidth: 140,
+          minWidth: { xs: 110, sm: 140 },
+          flex: { xs: '1 1 calc(33.333% - 12px)', sm: '0 0 auto' },
         }}>
           <CardContent sx={{ py: 2, px: 3, '&:last-child': { pb: 2 } }}>
             {isLoading ? (

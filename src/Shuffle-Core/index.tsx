@@ -461,6 +461,9 @@ export {
   fetchNotificationDevices,
   saveNotificationDevice,
   resolveDevicePreferences,
+  isOrgAllowedForDeviceType,
+  getSelectedOrgIdsForDeviceType,
+  buildUpdatedOrgPreferences,
   getLocalDeviceId,
   getLocalDeviceName,
   getLocalDevicePlatform,
@@ -468,6 +471,7 @@ export {
 export type {
   NotificationDevice,
   DevicePreferences,
+  DeviceNotificationCategory,
 } from "./services/notificationDevices";
 
 // OAuth 2.1 authorization consent surface for MCPs and integrations
@@ -644,15 +648,17 @@ import ApiCallViewerRaw, { type ApiCallViewerProps } from "./components/ApiCallV
 export const ApiCallViewer = withTheme<ApiCallViewerProps>(ApiCallViewerRaw as any, "ApiCallViewer");
 export type { ApiCallViewerProps };
 
-import CodeBlockEditorRaw, {
+import HighlightedFileEditorRaw, {
+  type HighlightedFileEditorProps,
   type CodeBlockEditorProps,
   type CodeBlockLanguage,
   detectCodeLanguage,
   highlightCodeSnippet,
-} from "./components/CodeBlockEditor";
-export const CodeBlockEditor = withTheme<CodeBlockEditorProps>(CodeBlockEditorRaw as any, "CodeBlockEditor");
+} from "./components/HighlightedFileEditor";
+export const HighlightedFileEditor = withTheme<HighlightedFileEditorProps>(HighlightedFileEditorRaw as any, "HighlightedFileEditor");
+export const CodeBlockEditor = HighlightedFileEditor;
 export { detectCodeLanguage, highlightCodeSnippet };
-export type { CodeBlockEditorProps, CodeBlockLanguage };
+export type { HighlightedFileEditorProps, CodeBlockEditorProps, CodeBlockLanguage };
 
 import AiAgentPromptsEditorRaw, { type AiAgentPromptsEditorProps } from "./components/AiAgentPromptsEditor";
 export const AiAgentPromptsEditor = withTheme<AiAgentPromptsEditorProps>(AiAgentPromptsEditorRaw as any, "AiAgentPromptsEditor");
@@ -679,6 +685,8 @@ export {
   type OAuthVerificationStatus,
 } from "./components/oauth/oauthVendors";
 export { AuthStatusChip } from "./components/AuthStatusChip";
+export { McpSetupModal, type McpSetupModalProps, type McpPlatform, resolveBackendBaseUrl } from "./components/oauth/McpSetupModal";
+export { McpSetupButtons, type McpSetupButtonsProps } from "./components/oauth/McpSetupButtons";
 export { IntegrationStatus, type IntegrationStatusProps } from "./components/IntegrationStatus";
 export {
   ShuffleCoreThemeProvider,

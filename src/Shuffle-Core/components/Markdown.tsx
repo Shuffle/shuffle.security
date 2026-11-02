@@ -25,7 +25,7 @@ import 'react18-json-view/src/dark.css';
 import { defaultCollapsed } from '@/lib/jsonView';
 import { VideoEmbed, resolveVideoUrl } from './VideoEmbed';
 import { resolveProductLink } from '@/lib/shuffleUrls';
-import CodeBlockEditor from './CodeBlockEditor';
+import HighlightedFileEditor from './HighlightedFileEditor';
 import ApiCallViewer from './ApiCallViewer';
 
 /** Parse a string into an object/array, or return null when it is not JSON. */
@@ -130,6 +130,7 @@ const baseSx: SxProps<Theme> = {
     pl: 1.5,
     borderLeft: '3px solid hsl(var(--border))',
     color: 'hsl(var(--muted-foreground))',
+    '& p::before, & p::after': { content: 'none !important' },
   },
   '& table': { width: '100%', borderCollapse: 'collapse', mb: 1 },
   '& th, & td': {
@@ -147,7 +148,131 @@ const baseSx: SxProps<Theme> = {
   '& img': { maxWidth: '100%', borderRadius: '2px' },
 };
 
+const ADMONITION_META: Record<
+  string,
+  { label: string; borderColor: string; bgColor: string; labelColor: string }
+> = {
+  NOTE: {
+    label: 'Note',
+    borderColor: 'hsl(215 90% 52%)',
+    bgColor: 'hsl(215 90% 52% / 0.08)',
+    labelColor: 'hsl(215 90% 52%)',
+  },
+  TIP: {
+    label: 'Tip',
+    borderColor: 'hsl(142 71% 42%)',
+    bgColor: 'hsl(142 71% 42% / 0.08)',
+    labelColor: 'hsl(142 71% 42%)',
+  },
+  IMPORTANT: {
+    label: 'Important',
+    borderColor: 'hsl(265 80% 58%)',
+    bgColor: 'hsl(265 80% 58% / 0.08)',
+    labelColor: 'hsl(265 80% 58%)',
+  },
+  WARNING: {
+    label: 'Warning',
+    borderColor: 'hsl(38 92% 48%)',
+    bgColor: 'hsl(38 92% 48% / 0.08)',
+    labelColor: 'hsl(38 92% 48%)',
+  },
+  CAUTION: {
+    label: 'Caution',
+    borderColor: 'hsl(0 72% 51%)',
+    bgColor: 'hsl(0 72% 51% / 0.08)',
+    labelColor: 'hsl(0 72% 51%)',
+  },
+};
+
+const extractAdmonitionFromChildren = (
+  children: React.ReactNode,
+): { type: string; strippedChildren: React.ReactNode } | null => {
+  const arr = React.Children.toArray(children);
+  for (let i = 0; i < arr.length; i++) {
+    const child = arr[i];
+    if (typeof child === 'string' && !child.trim()) continue;
+    if (!React.isValidElement(child)) return null;
+
+    const pChildren = React.Children.toArray((child.props as any)?.children);
+    if (pChildren.length === 0) return null;
+
+    const first = pChildren[0];
+    if (typeof first !== 'string') return null;
+
+    const match = first.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*\r?\n?/i);
+    if (!match) return null;
+
+    const type = match[1].toUpperCase();
+    const restOfFirst = first.slice(match[0].length);
+    const nextPChildren = restOfFirst ? [restOfFirst, ...pChildren.slice(1)] : pChildren.slice(1);
+    while (
+      nextPChildren.length > 0 &&
+      React.isValidElement(nextPChildren[0]) &&
+      nextPChildren[0].type === 'br'
+    ) {
+      nextPChildren.shift();
+    }
+
+    const updatedParagraph =
+      nextPChildren.length > 0
+        ? React.cloneElement(child as React.ReactElement<any>, {}, ...nextPChildren)
+        : null;
+
+    const nextArr = [...arr.slice(0, i), ...(updatedParagraph ? [updatedParagraph] : []), ...arr.slice(i + 1)];
+    return { type, strippedChildren: nextArr };
+  }
+  return null;
+};
+
 const defaultComponents: MarkdownComponentOverrides = {
+  blockquote: ({ children, ...props }: any) => {
+    const parsed = extractAdmonitionFromChildren(children);
+    if (!parsed) {
+      return <blockquote {...props}>{children}</blockquote>;
+    }
+    const meta = ADMONITION_META[parsed.type] || ADMONITION_META.NOTE;
+    return (
+      <Box
+        component="blockquote"
+        className="not-prose"
+        sx={{
+          my: 2,
+          mx: 0,
+          p: 2,
+          pl: 2.25,
+          borderRadius: 1.5,
+          border: '1px solid hsl(var(--border))',
+          borderLeft: `4px solid ${meta.borderColor}`,
+          bgcolor: meta.bgColor,
+          fontStyle: 'normal !important',
+          color: 'hsl(var(--foreground))',
+          '& p': {
+            m: 0,
+            mb: 1,
+            fontStyle: 'normal',
+            color: 'hsl(var(--foreground) / 0.9)',
+            lineHeight: 1.65,
+          },
+          '& p:last-of-type': { mb: 0 },
+          '& p::before, & p::after': { content: 'none !important' },
+        }}
+      >
+        <Box
+          sx={{
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+            color: meta.labelColor,
+            mb: 0.75,
+          }}
+        >
+          {meta.label}
+        </Box>
+        {parsed.strippedChildren}
+      </Box>
+    );
+  },
   a: ({ href, children, ...props }: any) => {
     const isInternal = typeof href === 'string' && href.startsWith('/');
     const video = isInternal ? null : resolveVideoUrl(href);
@@ -197,7 +322,7 @@ const defaultComponents: MarkdownComponentOverrides = {
     ) {
       return <ApiCallViewer rawCurl={text} />;
     }
-    return <CodeBlockEditor code={text} language={language} />;
+    return <HighlightedFileEditor code={text} language={language} />;
   },
 };
 

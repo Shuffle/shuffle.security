@@ -30,6 +30,7 @@ import {
   type AgentPreset,
 } from "@/Shuffle-Core/components/AgentPresets";
 import AppMcpChat from "@/Shuffle-Core/views/AppMcpChat";
+import { McpSetupButtons } from "@/Shuffle-Core/components/oauth/McpSetupButtons";
 import { useAppLookup } from "@/Shuffle-Core/useAppLookup";
 import AgentIcon from "@/Shuffle-Core/components/AgentIcon";
 import { openAgentDrawer } from "@/lib/agentDrawer";
@@ -241,34 +242,112 @@ export const DocTryMcp: React.FC<DocTryMcpProps> = ({
 
   return (
     <Box sx={{ my: 4 }}>
-      {title && (
-        <Typography
-          sx={{
-            fontSize: "1.05rem",
-            fontWeight: 600,
-            color: "hsl(var(--foreground))",
-            mb: 0.5,
-          }}
-        >
-          {title}
-        </Typography>
-      )}
-      {subtitle && (
-        <Typography
-          sx={{
-            fontSize: "0.875rem",
-            color: "hsl(var(--muted-foreground))",
-            mb: 1.5,
-          }}
-        >
-          {subtitle}
-        </Typography>
-      )}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1.5,
+          flexWrap: "wrap",
+          mb: 1.5,
+        }}
+      >
+        <Box>
+          <Typography
+            sx={{
+              fontSize: "0.95rem",
+              fontWeight: 600,
+              color: "hsl(var(--foreground))",
+              mb: subtitle ? 0.25 : 0,
+            }}
+          >
+            {title || "Try MCP"}
+          </Typography>
+          {subtitle && (
+            <Typography
+              sx={{
+                fontSize: "0.85rem",
+                color: "hsl(var(--muted-foreground))",
+              }}
+            >
+              {subtitle}
+            </Typography>
+          )}
+        </Box>
+        <McpSetupButtons
+          appName={resolvedAppName}
+          appTitle={resolvedAppName.replace(/_/g, " ")}
+          size="compact"
+        />
+      </Box>
       <AppMcpChat
         appName={resolvedAppName}
         appIcon={finalAppIcon}
         appId={finalAppId}
         categories={lookup.categories}
+      />
+    </Box>
+  );
+};
+
+interface DocMcpSetupProps {
+  app?: string;
+  appname?: string;
+  apptitle?: string;
+  title?: string;
+  label?: string;
+  subtitle?: string;
+  description?: string;
+  compact?: string | boolean;
+  servername?: string;
+  serverurl?: string;
+}
+
+export const DocMcpSetup: React.FC<DocMcpSetupProps> = ({
+  app,
+  appname,
+  apptitle,
+  title,
+  label,
+  subtitle,
+  description,
+  compact = false,
+  servername,
+  serverurl,
+}) => {
+  const isCompact = compact === true || String(compact) === "true";
+  const resolvedApp = (app || appname || "").trim() || undefined;
+  const resolvedAppTitle =
+    apptitle || (resolvedApp ? resolvedApp.replace(/_/g, " ") : undefined);
+  const heading =
+    title ||
+    label ||
+    (isCompact ? undefined : "Connect External AI Clients (MCP)");
+  const sub =
+    subtitle ||
+    description ||
+    (isCompact
+      ? undefined
+      : "Set up ChatGPT or Claude as an MCP client with your Shuffle tools in a few clicks.");
+
+  return (
+    <Box
+      sx={{
+        my: 2.5,
+        p: isCompact ? 0 : 2,
+        borderRadius: isCompact ? 0 : 2,
+        border: isCompact ? "none" : "1px solid hsl(var(--border))",
+        bgcolor: isCompact ? "transparent" : "hsl(var(--muted) / 0.15)",
+      }}
+    >
+      <McpSetupButtons
+        appName={resolvedApp}
+        appTitle={resolvedAppTitle}
+        defaultServerName={servername}
+        defaultServerUrl={serverurl}
+        label={heading}
+        subtitle={sub}
+        size={isCompact ? "compact" : "default"}
       />
     </Box>
   );
@@ -2172,6 +2251,13 @@ export const DocDynamicComponent: React.FC<DocDynamicComponentProps> = ({
       case "mcp":
       case "app-mcp":
         return <DocTryMcp {...props} />;
+
+      case "mcp-setup":
+      case "mcp-connect":
+      case "connect-mcp":
+      case "mcp-buttons":
+      case "oauth-mcp":
+        return <DocMcpSetup {...props} />;
 
       case "agent-sidebar":
       case "agent-drawer":

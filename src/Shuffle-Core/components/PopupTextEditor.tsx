@@ -41,6 +41,7 @@ import {
   type TextFieldProps,
 } from '@mui/material';
 import { getTopSurfaceZIndex } from '@/Shuffle-Core/drawerLayer';
+import { HighlightedFileEditor } from './HighlightedFileEditor';
 export type PopupTextEditorSyntax = 'plain' | 'yaml' | 'json' | 'markdown';
 
 export interface PopupTextEditorProps {
@@ -233,25 +234,37 @@ export const PopupTextEditor: React.FC<PopupTextEditorProps> = ({
         </DialogTitle>
         <Divider sx={{ borderColor: 'hsl(var(--border))' }} />
         <DialogContent sx={{ pt: 2.5 }} onKeyDown={handleKeyDown}>
-          <TextField
-            autoFocus
-            fullWidth
-            multiline
-            minRows={popupMinRows}
-            maxRows={popupMaxRows}
-            placeholder={placeholder}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                bgcolor: 'hsl(var(--background))',
-                fontFamily: useMono ? monoFont : undefined,
-                fontSize: '0.85rem',
-                lineHeight: 1.55,
-                alignItems: 'flex-start',
-              },
-            }}
-          />
+          {useMono ? (
+            <HighlightedFileEditor
+              value={draft}
+              onChange={setDraft}
+              language={syntax === 'yaml' ? 'yaml' : 'json'}
+              validateJson={syntax === 'json'}
+              editable={!disabled}
+              minHeight={popupMinRows * 22}
+              maxHeight={popupMaxRows * 22}
+            />
+          ) : (
+            <TextField
+              autoFocus
+              fullWidth
+              multiline
+              minRows={popupMinRows}
+              maxRows={popupMaxRows}
+              placeholder={placeholder}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: 'hsl(var(--background))',
+                  fontFamily: useMono ? monoFont : undefined,
+                  fontSize: '0.85rem',
+                  lineHeight: 1.55,
+                  alignItems: 'flex-start',
+                },
+              }}
+            />
+          )}
         </DialogContent>
         <Divider sx={{ borderColor: 'hsl(var(--border))' }} />
         <DialogActions sx={{ px: 3, py: 2, gap: 1, justifyContent: 'space-between' }}>

@@ -429,16 +429,16 @@ const IOCTypesPage = () => {
       {!enrichmentStatus.active && <ThreatIntelAutomationBanner />}
       {/* Header — matches the standard page header used on Incidents / Vulnerabilities */}
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: '1 1 240px' }}>
+          <Box sx={{ minWidth: 0 }}>
             <Typography variant="h5" sx={{ fontWeight: 600, fontSize: '1.25rem' }}>Observables</Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               Observable / indicator of compromise types used to extract and enrich incident data
             </Typography>
           </Box>
-          {isLoading && <CircularProgress size={18} />}
+          {isLoading && <CircularProgress size={18} sx={{ flexShrink: 0 }} />}
         </Box>
-        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField
             size="small"
             placeholder="Search IOC types..."
@@ -452,19 +452,19 @@ const IOCTypesPage = () => {
               ),
               sx: { height: 36 },
             }}
-            sx={{ minWidth: 220 }}
+            sx={{ minWidth: { xs: 180, sm: 220 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
           />
           <Tooltip title="Reset all IOC types to defaults" arrow>
             <Button
               variant="outlined"
               startIcon={<RestartAltIcon />}
               onClick={handleInitDefaults}
-              sx={{ height: 36 }}
+              sx={{ height: 36, whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               Reset to Defaults
             </Button>
           </Tooltip>
-          <Button variant="outlined" startIcon={<AddIcon />} onClick={() => handleOpenDialog()} sx={{ height: 36 }}>
+          <Button variant="outlined" startIcon={<AddIcon />} onClick={() => handleOpenDialog()} sx={{ height: 36, whiteSpace: 'nowrap', flexShrink: 0 }}>
             Add IOC Type
           </Button>
         </Box>
@@ -481,7 +481,7 @@ const IOCTypesPage = () => {
             { value: 'todo', label: 'TODO', count: todoCount },
           ]}
         />
-        <Box sx={{ flex: 1 }} />
+        <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />
         <TextField
           size="small"
           placeholder="Test a value against all patterns..."
@@ -491,7 +491,7 @@ const IOCTypesPage = () => {
             setTestResults({});
           }}
           InputProps={{ sx: { height: 36, fontFamily: 'monospace' } }}
-          sx={{ minWidth: 260, maxWidth: 360 }}
+          sx={{ minWidth: { xs: 180, sm: 260 }, maxWidth: { xs: '100%', sm: 360 }, flex: { xs: '1 1 200px', sm: '0 0 auto' } }}
         />
         <Button
           variant="outlined"

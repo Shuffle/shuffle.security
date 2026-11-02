@@ -1221,20 +1221,20 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
   }, [addHostOpen, groupsLoading, loadError, groups.length, creatingGroupLoading, allEnvs, loadGroups]);
 
   return (
-    <div className={dialogOnly ? '' : 'p-6 max-w-[1400px] mx-auto space-y-6'}>
+    <div className={dialogOnly ? '' : 'p-4 sm:p-6 max-w-[1400px] mx-auto space-y-6'}>
       {!dialogOnly && (<>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2 flex-wrap">
             Monitors
             <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary ring-1 ring-inset ring-primary/20">Beta</span>
           </h1>
           <p className="text-sm text-muted-foreground">Monitor host compliance and security posture across your endpoints</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => loadGroups()} disabled={groupsLoading}>
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <Button size="sm" variant="ghost" className="gap-1.5 whitespace-nowrap shrink-0" onClick={() => loadGroups()} disabled={groupsLoading}>
             <RefreshCw size={14} className={groupsLoading ? 'animate-spin' : ''} />
             Refresh
           </Button>
@@ -1342,24 +1342,24 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
         </div>
       ) : allHosts.length === 0 ? (
         <div className="rounded-lg border border-border bg-card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-border">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                 <Laptop size={18} className="text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-foreground">Host Monitors</h3>
                 <p className="text-xs text-muted-foreground">Deploy lightweight monitors on endpoints to check compliance & posture</p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Button size="sm" variant="outline" className="gap-1.5" onClick={handleOpenAddHost}>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button size="sm" variant="outline" className="gap-1.5 whitespace-nowrap shrink-0" onClick={handleOpenAddHost}>
                 <Plus size={14} />
                 Add Host
               </Button>
             </div>
           </div>
-          <div className="grid grid-cols-5 gap-0 divide-x divide-border">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-0 divide-x divide-y md:divide-y-0 divide-border">
             {HOST_OVERVIEW_TILES.map(check => (
               <div key={check.id} className="px-4 py-4 flex flex-col items-center text-center gap-2">
                 <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
@@ -1470,7 +1470,7 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
               {/* Checks */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">Checks to Enable</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {HOST_CHECK_OPTIONS.map(check => (
                     <div key={check.id}>
                       <label

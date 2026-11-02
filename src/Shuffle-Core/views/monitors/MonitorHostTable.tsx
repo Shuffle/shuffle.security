@@ -571,19 +571,21 @@ export const MonitorHostTable = ({
       >
         {!hideHeader && (
           <div
-            className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-card"
+            className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b border-border bg-card"
             style={{
               display: 'flex',
+              flexWrap: 'wrap',
               alignItems: 'center',
               justifyContent: 'space-between',
+              gap: 12,
               padding: '14px 20px',
               borderBottom: '1px solid hsl(var(--border))',
               backgroundColor: 'hsl(var(--card))',
             }}
           >
-            <div className="flex items-center gap-3" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="flex items-center gap-3 min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 220px' }}>
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                 style={{
                   width: 32,
                   height: 32,
@@ -598,8 +600,8 @@ export const MonitorHostTable = ({
               >
                 <Laptop size={18} />
               </div>
-              <div>
-                <div className="flex items-center gap-2" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ minWidth: 0 }}>
+                <div className="flex items-center gap-2 flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span className="text-sm font-semibold text-foreground" style={{ fontSize: '0.875rem', fontWeight: 600 }}>
                     {title || (group?.name && group.name !== 'Monitored Hosts' ? `${group.name} - Host Monitors` : 'Host Monitors')}
                   </span>
@@ -619,12 +621,12 @@ export const MonitorHostTable = ({
               </div>
             </div>
             {showAddHost && (
-              <div className="flex items-center gap-1.5" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div className="flex items-center gap-1.5 shrink-0" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="gap-1.5 h-8 text-xs"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, fontSize: '0.75rem' }}
+                  className="gap-1.5 h-8 text-xs whitespace-nowrap shrink-0"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, fontSize: '0.75rem', whiteSpace: 'nowrap', flexShrink: 0 }}
                   onClick={openAddHost}
                 >
                   <Plus size={13} />

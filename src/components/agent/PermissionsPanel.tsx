@@ -755,7 +755,7 @@ const PermissionsPanel = ({ compact = false }: PermissionsPanelProps) => {
       {/* Summary bar */}
       <Box
         sx={{
-          px: 3,
+          px: { xs: 2, sm: 3 },
           py: 1.5,
           mb: 3,
           bgcolor: 'hsl(var(--card))',
@@ -763,27 +763,30 @@ const PermissionsPanel = ({ compact = false }: PermissionsPanelProps) => {
           borderRadius: 1,
           display: 'flex',
           alignItems: 'center',
-          gap: 2,
+          flexWrap: 'wrap',
+          gap: 1.5,
         }}
       >
-        <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
-          Enabled
-        </Typography>
-        <Chip
-          label={`${enabledPermissions}/${totalPermissions}`}
-          size="small"
-          sx={{
-            fontWeight: 600,
-            bgcolor: enabledPermissions === totalPermissions
-              ? 'hsl(var(--severity-low) / 0.15)'
-              : 'hsl(var(--primary) / 0.15)',
-            color: enabledPermissions === totalPermissions
-              ? 'hsl(var(--severity-low))'
-              : 'hsl(var(--primary))',
-          }}
-        />
-        <Box sx={{ flex: 1 }} />
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
+            Enabled
+          </Typography>
+          <Chip
+            label={`${enabledPermissions}/${totalPermissions}`}
+            size="small"
+            sx={{
+              fontWeight: 600,
+              bgcolor: enabledPermissions === totalPermissions
+                ? 'hsl(var(--severity-low) / 0.15)'
+                : 'hsl(var(--primary) / 0.15)',
+              color: enabledPermissions === totalPermissions
+                ? 'hsl(var(--severity-low))'
+                : 'hsl(var(--primary))',
+            }}
+          />
+        </Box>
+        <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
           {(['low', 'medium', 'high'] as RiskLevel[]).map(risk => {
             const cfg = RISK_CONFIG[risk];
             const count = categories.reduce(
@@ -816,6 +819,9 @@ const PermissionsPanel = ({ compact = false }: PermissionsPanelProps) => {
               borderColor: 'hsl(var(--border))',
               color: 'hsl(var(--muted-foreground))',
               textTransform: 'none',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              ml: { xs: 'auto', sm: 0 },
               '&:hover': {
                 borderColor: 'hsl(var(--primary))',
                 color: 'hsl(var(--primary))',

@@ -62,6 +62,14 @@ export interface ExecutionNotification {
   read?: boolean;
   ignored?: boolean;
   severity?: string;
+  origin?: string;
+  org_id?: string;
+  org_name?: string;
+  user_id?: string;
+  personal?: boolean;
+  tags?: string[];
+  bucket_description?: string;
+  modified_by?: string;
   execution_id?: string;
   workflow_id?: string;
   [key: string]: any;
@@ -159,11 +167,50 @@ const getSeverityColor = (sev?: string): string | null => {
   return SEVERITY_MAP[sev.toLowerCase()] || null;
 };
 
+const isPagerNotification = (n: ExecutionNotification): boolean => {
+  if (String(n.origin || '').toLowerCase() === 'pager') return true;
+  if (n.modified_by === 'pager_push' || n.modified_by === 'device_push') return true;
+  if (Array.isArray(n.tags)) {
+    return n.tags.some((t) => {
+      const tag = String(t || '').toLowerCase();
+      return tag === 'pager' || tag.startsWith('push:');
+    });
+  }
+  return false;
+};
+
+const getPagerBadgeLabel = (n: ExecutionNotification): string | null => {
+  if (!isPagerNotification(n)) return null;
+  const tags = Array.isArray(n.tags) ? n.tags.map((t) => String(t || '').toLowerCase()) : [];
+  if (tags.includes('push:critical') || String(n.severity || '').toLowerCase() === 'critical') {
+    return 'Pager: Critical';
+  }
+  if (tags.includes('push:agent_request')) {
+    return 'Pager: Agent Request';
+  }
+  if (tags.includes('push:general')) {
+    return 'Pager: Device Push';
+  }
+  return 'Pager';
+};
+
 const matchesQuery = (n: ExecutionNotification, q: string): boolean => {
   if (!q) return true;
   const needle = q.toLowerCase();
-  return [n.title, n.description, n.reference_url, n.execution_id, n.workflow_id, n.severity]
-    .some((v) => String(v || '').toLowerCase().includes(needle));
+  const tagText = Array.isArray(n.tags) ? n.tags.join(' ') : '';
+  return [
+    n.title,
+    n.description,
+    n.reference_url,
+    n.execution_id,
+    n.workflow_id,
+    n.severity,
+    n.origin,
+    n.org_name,
+    n.org_id,
+    n.bucket_description,
+    tagText,
+  ].some((v) => String(v || '').toLowerCase().includes(needle));
 };
 
 const NotificationsDrawer = ({
@@ -630,7 +677,12 @@ const NotificationsDrawer = ({
               size="sm"
               variant="filled"
               value={scope}
-              onChange={setScope}
+              onChange={(nextScope) => {
+                setScope(nextScope);
+                if (nextScope === 'personal') {
+                  setShowRead(true);
+                }
+              }}
               ariaLabel="Notification scope"
               options={[
                 { value: 'workflows', label: 'Workflows', count: pillCount(workflowVisible.length, counts.workflows) },
@@ -803,6 +855,77 @@ const NotificationsDrawer = ({
                   </Box>
 
                   <Box sx={{ flex: 1, minWidth: 0 }}>
+                    {(() => {
+                      const pagerLabel = getPagerBadgeLabel(n);
+                      const orgLabel = n.org_name || n.org_id;
+                      const showReadStatus = scope === 'personal' || Boolean(pagerLabel) || n.personal === true;
+                      const readLabel = n.read
+                        ? n.modified_by === 'pager_push' || n.modified_by === 'device_push'
+                          ? 'Read (Pushed to device)'
+                          : 'Read'
+                        : 'Unread';
+
+                      if (!pagerLabel && !orgLabel && !showReadStatus) return null;
+
+                      return (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
+                          {pagerLabel && (
+                            <Typography
+                              component="span"
+                              sx={{
+                                fontSize: '0.6875rem',
+                                fontWeight: 700,
+                                letterSpacing: '0.03em',
+                                textTransform: 'uppercase',
+                                color: 'hsl(var(--primary))',
+                                bgcolor: 'hsl(var(--primary) / 0.12)',
+                                border: '1px solid hsl(var(--primary) / 0.4)',
+                                px: 0.75,
+                                py: 0.15,
+                                borderRadius: '6px',
+                              }}
+                            >
+                              {pagerLabel}
+                            </Typography>
+                          )}
+                          {orgLabel && (
+                            <Typography
+                              component="span"
+                              sx={{
+                                fontSize: '0.6875rem',
+                                fontWeight: 600,
+                                color: 'hsl(var(--foreground) / 0.85)',
+                                bgcolor: 'hsl(var(--muted) / 0.5)',
+                                border: '1px solid hsl(var(--border))',
+                                px: 0.75,
+                                py: 0.15,
+                                borderRadius: '6px',
+                              }}
+                            >
+                              Org: {orgLabel}
+                            </Typography>
+                          )}
+                          {showReadStatus && (
+                            <Typography
+                              component="span"
+                              sx={{
+                                fontSize: '0.6875rem',
+                                fontWeight: 600,
+                                color: n.read ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary))',
+                                bgcolor: 'hsl(var(--muted) / 0.35)',
+                                border: '1px solid hsl(var(--border))',
+                                px: 0.75,
+                                py: 0.15,
+                                borderRadius: '6px',
+                              }}
+                            >
+                              {readLabel}
+                            </Typography>
+                          )}
+                        </Box>
+                      );
+                    })()}
+
                     <Typography
                       sx={{
                         fontSize: '0.875rem',
@@ -830,13 +953,14 @@ const NotificationsDrawer = ({
                       </Typography>
                     )}
 
-                    {/* Stats row: first seen, last seen, times seen */}
+                    {/* Stats row: delivery details, first seen, last seen, times seen */}
                     {(() => {
                       const firstSeen = n.first_seen || n.created_at;
                       const lastSeen = n.last_seen || n.updated_at;
                       const timesSeen =
                         n.times_seen != null ? n.times_seen : n.amount;
                       const stats: string[] = [];
+                      if (n.bucket_description) stats.push(String(n.bucket_description));
                       if (firstSeen) stats.push(`First seen: ${formatTime(firstSeen)}`);
                       if (lastSeen) stats.push(`Last seen: ${formatTime(lastSeen)}`);
                       if (timesSeen != null && Number(timesSeen) > 0) {

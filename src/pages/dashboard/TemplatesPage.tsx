@@ -188,14 +188,14 @@ const TemplatesPage = () => {
       style={{ maxWidth: 1400, width: '100%', margin: '0 auto' }}
     >
       {/* Header */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Typography variant="h5" sx={{ fontWeight: 600 }}>
             Case Templates
           </Typography>
           {isLoading && <CircularProgress size={20} />}
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
           {templates.length === 0 && (
             <Tooltip title="Restore default templates">
               <IconButton
@@ -204,6 +204,7 @@ const TemplatesPage = () => {
                 sx={{ 
                   width: 36,
                   height: 36,
+                  flexShrink: 0,
                   color: 'text.secondary',
                   border: '1px solid',
                   borderColor: 'divider',
@@ -218,7 +219,7 @@ const TemplatesPage = () => {
             variant="contained" 
             startIcon={<AddIcon />}
             onClick={handleOpenCreate}
-            sx={{ height: 36 }}
+            sx={{ height: 36, whiteSpace: 'nowrap', flexShrink: 0 }}
           >
             New Template
           </Button>
@@ -230,6 +231,7 @@ const TemplatesPage = () => {
         <Box sx={{ 
           textAlign: 'center', 
           py: 8,
+          px: 2,
           bgcolor: 'action.hover',
           borderRadius: 2,
           border: '1px dashed',
@@ -242,22 +244,24 @@ const TemplatesPage = () => {
           <Typography variant="body2" sx={{ color: 'text.disabled', mb: 3 }}>
             Create a template to standardize your incident workflows
           </Typography>
-          <Button 
-            variant="outlined" 
-            startIcon={<RefreshIcon />}
-            onClick={handleResetToDefaults}
-            sx={{ mr: 2, height: 36 }}
-          >
-            Load Defaults
-          </Button>
-          <Button 
-            variant="contained" 
-            startIcon={<AddIcon />}
-            onClick={handleOpenCreate}
-            sx={{ height: 36 }}
-          >
-            Create Template
-          </Button>
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+            <Button 
+              variant="outlined" 
+              startIcon={<RefreshIcon />}
+              onClick={handleResetToDefaults}
+              sx={{ height: 36, whiteSpace: 'nowrap', flexShrink: 0 }}
+            >
+              Load Defaults
+            </Button>
+            <Button 
+              variant="contained" 
+              startIcon={<AddIcon />}
+              onClick={handleOpenCreate}
+              sx={{ height: 36, whiteSpace: 'nowrap', flexShrink: 0 }}
+            >
+              Create Template
+            </Button>
+          </Box>
         </Box>
       ) : (
         <Grid container spacing={3}>

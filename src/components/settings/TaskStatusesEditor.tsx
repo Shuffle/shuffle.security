@@ -215,17 +215,17 @@ export const TaskStatusesEditor = () => {
           variant="outlined"
           startIcon={<AddIcon />}
           onClick={handleAdd}
-          sx={{ textTransform: 'none', height: 36 }}
+          sx={{ textTransform: 'none', whiteSpace: 'nowrap', height: 36 }}
         >
           Add status
         </Button>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button
             size="small"
             variant="text"
             startIcon={<RestartAltIcon />}
             onClick={handleReset}
-            sx={{ textTransform: 'none', height: 36 }}
+            sx={{ textTransform: 'none', whiteSpace: 'nowrap', height: 36 }}
           >
             Reset to default
           </Button>
@@ -234,7 +234,7 @@ export const TaskStatusesEditor = () => {
             variant="contained"
             disabled={!dirty}
             onClick={handleSave}
-            sx={{ textTransform: 'none', height: 36 }}
+            sx={{ textTransform: 'none', whiteSpace: 'nowrap', height: 36 }}
           >
             Save changes
           </Button>

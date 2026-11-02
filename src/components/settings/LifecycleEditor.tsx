@@ -81,80 +81,84 @@ export const LifecycleEditor = () => {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         <Typography variant="body2" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>{title}</Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: '140px 1fr 56px 72px 40px', gap: 1.5, alignItems: 'center' }}>
-          <Typography sx={headerSx}>Default</Typography>
-          <Typography sx={headerSx}>Label</Typography>
-          <Typography sx={headerSx}>Colour</Typography>
-          <Typography sx={headerSx}>{kind === 'statuses' ? 'Hidden' : ''}</Typography>
-          <span />
-          {builtins.map((b) => {
-            const ov = draft[kind].builtin[b.key] || {};
-            const canHide = kind === 'statuses' && b.key !== 'new' && b.key !== 'resolved' && b.key !== 'merged';
-            return (
-              <Box key={b.key} sx={{ display: 'contents' }}>
-                <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>{b.label}</Typography>
-                <TextField size="small" placeholder={b.label} value={ov.label || ''} sx={fieldSx}
-                  inputProps={{ 'aria-label': `${b.label} label` }}
-                  onChange={(e) => setBuiltin(kind, b.key, { label: e.target.value })} />
-                <input type="color" aria-label={`${b.label} colour`} value={toHex(ov.color || b.color)}
-                  onChange={(e) => setBuiltin(kind, b.key, { color: e.target.value })}
-                  style={{ width: 40, height: 32, border: 'none', background: 'transparent', cursor: 'pointer' }} />
-                <Box>
-                  {canHide && (
-                    <Tooltip title="Hide from status pickers. Incidents already in this state still show it.">
-                      <Checkbox size="small" checked={!!ov.hidden}
-                        onChange={(e) => setBuiltin(kind, b.key, { hidden: e.target.checked })} />
-                    </Tooltip>
-                  )}
+        <Box sx={{ overflowX: 'auto' }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 140px) minmax(120px, 1fr) 56px 56px 40px', gap: 1.5, alignItems: 'center', minWidth: 380 }}>
+            <Typography sx={headerSx}>Default</Typography>
+            <Typography sx={headerSx}>Label</Typography>
+            <Typography sx={headerSx}>Colour</Typography>
+            <Typography sx={headerSx}>{kind === 'statuses' ? 'Hidden' : ''}</Typography>
+            <span />
+            {builtins.map((b) => {
+              const ov = draft[kind].builtin[b.key] || {};
+              const canHide = kind === 'statuses' && b.key !== 'new' && b.key !== 'resolved' && b.key !== 'merged';
+              return (
+                <Box key={b.key} sx={{ display: 'contents' }}>
+                  <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))' }}>{b.label}</Typography>
+                  <TextField size="small" placeholder={b.label} value={ov.label || ''} sx={fieldSx}
+                    inputProps={{ 'aria-label': `${b.label} label` }}
+                    onChange={(e) => setBuiltin(kind, b.key, { label: e.target.value })} />
+                  <input type="color" aria-label={`${b.label} colour`} value={toHex(ov.color || b.color)}
+                    onChange={(e) => setBuiltin(kind, b.key, { color: e.target.value })}
+                    style={{ width: 40, height: 32, border: 'none', background: 'transparent', cursor: 'pointer' }} />
+                  <Box>
+                    {canHide && (
+                      <Tooltip title="Hide from status pickers. Incidents already in this state still show it.">
+                        <Checkbox size="small" checked={!!ov.hidden}
+                          onChange={(e) => setBuiltin(kind, b.key, { hidden: e.target.checked })} />
+                      </Tooltip>
+                    )}
+                  </Box>
+                  <Tooltip title="Reset to default">
+                    <IconButton size="small" aria-label={`Reset ${b.label}`}
+                      sx={{ p: 0.75, borderRadius: 1.5, border: '1px solid hsl(var(--border))' }}
+                      onClick={() => update((d) => { delete d[kind].builtin[b.key]; })}>
+                      <RotateCcw size={18} />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
-                <Tooltip title="Reset to default">
-                  <IconButton size="small" aria-label={`Reset ${b.label}`}
-                    sx={{ p: 0.75, borderRadius: 1.5, border: '1px solid hsl(var(--border))' }}
-                    onClick={() => update((d) => { delete d[kind].builtin[b.key]; })}>
-                    <RotateCcw size={18} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            );
-          })}
+              );
+            })}
+          </Box>
         </Box>
 
         {draft[kind].custom.length > 0 && (
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 160px 1fr 56px 40px', gap: 1.5, alignItems: 'center', mt: 1 }}>
-            <Typography sx={headerSx}>Custom name</Typography>
-            <Typography sx={headerSx}>Based on</Typography>
-            <Typography sx={headerSx}>Synonyms</Typography>
-            <Typography sx={headerSx}>Colour</Typography>
-            <span />
-            {draft[kind].custom.map((c, i) => (
-              <Box key={i} sx={{ display: 'contents' }}>
-                <TextField size="small" value={c.label} sx={fieldSx} placeholder="Name"
-                  onChange={(e) => setCustom(kind, i, { label: e.target.value, key: '' })} />
-                <TextField size="small" select value={c.base} sx={fieldSx}
-                  onChange={(e) => setCustom(kind, i, { base: e.target.value })}>
-                  {builtins.filter((b) => b.key !== 'merged').map((b) => (
-                    <MenuItem key={b.key} value={b.key}>{b.label}</MenuItem>
-                  ))}
-                </TextField>
-                <TextField size="small" sx={fieldSx} placeholder="Comma separated"
-                  value={(c.synonyms || []).join(', ')}
-                  onChange={(e) => setCustom(kind, i, { synonyms: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
-                <input type="color" aria-label={`${c.label} colour`} value={toHex(c.color)}
-                  onChange={(e) => setCustom(kind, i, { color: e.target.value })}
-                  style={{ width: 40, height: 32, border: 'none', background: 'transparent', cursor: 'pointer' }} />
-                <Tooltip title="Delete custom state">
-                  <IconButton size="small" aria-label={`Delete ${c.label}`}
-                    sx={{ p: 0.75, borderRadius: 1.5, border: '1px solid hsl(var(--border))' }}
-                    onClick={() => update((d) => { d[kind].custom.splice(i, 1); })}>
-                    <Trash2 size={18} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            ))}
+          <Box sx={{ overflowX: 'auto' }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(110px, 1fr) 140px minmax(110px, 1fr) 56px 40px', gap: 1.5, alignItems: 'center', mt: 1, minWidth: 460 }}>
+              <Typography sx={headerSx}>Custom name</Typography>
+              <Typography sx={headerSx}>Based on</Typography>
+              <Typography sx={headerSx}>Synonyms</Typography>
+              <Typography sx={headerSx}>Colour</Typography>
+              <span />
+              {draft[kind].custom.map((c, i) => (
+                <Box key={i} sx={{ display: 'contents' }}>
+                  <TextField size="small" value={c.label} sx={fieldSx} placeholder="Name"
+                    onChange={(e) => setCustom(kind, i, { label: e.target.value, key: '' })} />
+                  <TextField size="small" select value={c.base} sx={fieldSx}
+                    onChange={(e) => setCustom(kind, i, { base: e.target.value })}>
+                    {builtins.filter((b) => b.key !== 'merged').map((b) => (
+                      <MenuItem key={b.key} value={b.key}>{b.label}</MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField size="small" sx={fieldSx} placeholder="Comma separated"
+                    value={(c.synonyms || []).join(', ')}
+                    onChange={(e) => setCustom(kind, i, { synonyms: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
+                  <input type="color" aria-label={`${c.label} colour`} value={toHex(c.color)}
+                    onChange={(e) => setCustom(kind, i, { color: e.target.value })}
+                    style={{ width: 40, height: 32, border: 'none', background: 'transparent', cursor: 'pointer' }} />
+                  <Tooltip title="Delete custom state">
+                    <IconButton size="small" aria-label={`Delete ${c.label}`}
+                      sx={{ p: 0.75, borderRadius: 1.5, border: '1px solid hsl(var(--border))' }}
+                      onClick={() => update((d) => { d[kind].custom.splice(i, 1); })}>
+                      <Trash2 size={18} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              ))}
+            </Box>
           </Box>
         )}
         <Box>
-          <Button size="small" variant="outlined" sx={{ height: 36, textTransform: 'none' }}
+          <Button size="small" variant="outlined" sx={{ height: 36, textTransform: 'none', whiteSpace: 'nowrap' }}
             onClick={() => update((d) => { d[kind].custom.push({ key: '', label: '', base: builtins[0].key, synonyms: [] }); })}>
             Add custom {kind === 'statuses' ? 'status' : 'severity'}
           </Button>
@@ -167,12 +171,12 @@ export const LifecycleEditor = () => {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {renderSection('statuses', 'Statuses')}
       {renderSection('severities', 'Severities')}
-      <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
-        <Button variant="outlined" sx={{ height: 36, textTransform: 'none' }}
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+        <Button variant="outlined" sx={{ height: 36, textTransform: 'none', whiteSpace: 'nowrap' }}
           onClick={() => { setDraft(JSON.parse(JSON.stringify(EMPTY_LIFECYCLE))); setDirty(true); }}>
           Reset all to defaults
         </Button>
-        <Button variant="contained" disabled={!dirty || saving} sx={{ height: 36, textTransform: 'none' }} onClick={save}>
+        <Button variant="contained" disabled={!dirty || saving} sx={{ height: 36, textTransform: 'none', whiteSpace: 'nowrap' }} onClick={save}>
           {saving ? 'Saving' : 'Save'}
         </Button>
       </Box>

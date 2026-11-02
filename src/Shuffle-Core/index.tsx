@@ -685,7 +685,7 @@ export {
   type OAuthVerificationStatus,
 } from "./components/oauth/oauthVendors";
 export { AuthStatusChip } from "./components/AuthStatusChip";
-export { McpSetupModal, type McpSetupModalProps, type McpPlatform, resolveBackendBaseUrl } from "./components/oauth/McpSetupModal";
+export { type McpPlatform, resolveBackendBaseUrl } from "./components/oauth/McpSetupModal";
 export { McpSetupButtons, type McpSetupButtonsProps } from "./components/oauth/McpSetupButtons";
 export { IntegrationStatus, type IntegrationStatusProps } from "./components/IntegrationStatus";
 export {

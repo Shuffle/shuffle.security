@@ -127,6 +127,10 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
     >
       <Tooltip title={effectiveTooltip} arrow placement="top-end">
         <ButtonBase
+          onMouseDown={(e) => {
+            // Preserve active text selection on the page when clicking the Ask button
+            e.preventDefault();
+          }}
           onClick={(e) => {
             onClick?.();
           }}

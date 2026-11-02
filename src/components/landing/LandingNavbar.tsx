@@ -21,6 +21,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { trackCTA } from '@/lib/analytics';
 import { ShuffleLogo } from '@/components/common/ShuffleLogo';
+import { fetchDocsList } from '@/components/docs/remoteDocs';
 
 const navItems = [
   { label: 'Features', href: '/#features', internal: true },
@@ -132,6 +133,11 @@ export const LandingNavbar = ({ onMobileMenuClick }: LandingNavbarProps = {}) =>
                     <Typography
                       component={Link}
                       to={item.href}
+                      onMouseEnter={() => {
+                        if (item.href === '/docs') {
+                          fetchDocsList().catch(() => {});
+                        }
+                      }}
                       sx={{
                         color: 'text.secondary',
                         textDecoration: 'none',

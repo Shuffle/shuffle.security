@@ -4,7 +4,7 @@ import { X as XIcon } from 'lucide-react';
 import { Link } from '@/lib/router-compat';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 import { DocsSidebar, toVisibleDocs } from '@/components/docs/DocsSidebar';
-import { fetchDocsList, KNOWN_DOCS, type RemoteDocEntry } from '@/components/docs/remoteDocs';
+import { fetchDocsList, getInitialDocsList, type RemoteDocEntry } from '@/components/docs/remoteDocs';
 import { groupRemoteDocs } from '@/components/docs/docGroups';
 import { liteClient } from 'algoliasearch/lite';
 import { algoliaDocToItem, type AlgoliaDocHit, type DocItem } from '@/Shuffle-Core';
@@ -19,7 +19,7 @@ const quickLinks = [
 const linkStyle = { display: 'block', py: 1, color: 'text.primary', textDecoration: 'none', fontSize: 15, overflowWrap: 'anywhere', '&:hover': { color: 'primary.main', textDecoration: 'underline' } };
 
 export default function DocsIndexPage() {
-  const [docs, setDocs] = useState<RemoteDocEntry[]>(KNOWN_DOCS);
+  const [docs, setDocs] = useState<RemoteDocEntry[]>(() => getInitialDocsList());
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<DocItem[]>([]);
   const [searching, setSearching] = useState(false);

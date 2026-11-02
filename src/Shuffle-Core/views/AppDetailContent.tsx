@@ -44,6 +44,7 @@ import { useAppAuth } from '@/Shuffle-Core/useAppAuth';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { fetchAppsViaApiConfig } from '@/Shuffle-Core/appsCache';
 import { fetchAppConfig } from '@/Shuffle-Core/appConfigFetch';
+import { fetchAppDoc, getCachedAppDoc, type AppDocResult } from '@/Shuffle-Core/appDocsFetch';
 import AppTitleHeader, { AppIngestButton } from '@/Shuffle-Core/components/AppTitleHeader';
 import { getShuffleCoreUrl } from '@/Shuffle-Core/lib/shuffleUrls';
 import { getAppEditUrl } from '@/Shuffle-Core/appEditUrl';
@@ -85,6 +86,9 @@ export interface AppInfo {
   actions?: unknown[];
   authentication?: AppAuthentication;
   algoliaId?: string;
+  generated?: boolean;
+  app_version?: string;
+  version?: string;
   [key: string]: unknown;
 }
 
@@ -151,7 +155,7 @@ export const CollapsibleDescription = ({ description }: { description: string })
         }),
         '& p': { fontSize: '0.78rem', lineHeight: 1.5, color: 'hsl(var(--muted-foreground))', m: 0, '&:not(:last-child)': { mb: 1 } },
         '& a': { color: 'hsl(var(--primary))', textDecoration: 'underline' },
-        '& code': { fontSize: '0.7rem', fontFamily: "'JetBrains Mono', monospace", bgcolor: 'hsl(var(--muted))', px: 0.5, borderRadius: 0.5 },
+        '& code': { fontSize: '0.7rem', fontFamily: "'JetBrains Mono', monospace", bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--foreground))', px: 0.5, borderRadius: 0.5 },
         '& ul, & ol': { pl: 2, fontSize: '0.78rem', color: 'hsl(var(--muted-foreground))' },
       }}
     >
@@ -160,6 +164,136 @@ export const CollapsibleDescription = ({ description }: { description: string })
         <Typography sx={{ fontSize: '0.68rem', color: 'hsl(var(--primary))', mt: 0.5, fontWeight: 500 }}>
           Show more…
         </Typography>
+      )}
+    </Box>
+  );
+};
+
+/** Collapsible app documentation card loaded from /api/v1/docs/{appname} */
+export const AppDocumentationSection = ({
+  doc,
+  defaultExpanded = false,
+}: {
+  doc: AppDocResult;
+  defaultExpanded?: boolean;
+}) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const readTime = doc.meta?.read_time;
+  const sourceLink = doc.meta?.link;
+  const locationLabel = doc.location === 'python'
+    ? `Python${doc.version ? ` v${doc.version}` : ''}`
+    : 'OpenAPI';
+
+  return (
+    <Box
+      sx={{
+        mb: 3,
+        borderRadius: 2,
+        border: '1px solid hsl(var(--border))',
+        bgcolor: 'hsl(var(--card))',
+        overflow: 'hidden',
+      }}
+    >
+      <Box
+        onClick={() => setExpanded(prev => !prev)}
+        sx={{
+          px: 2,
+          py: 1.25,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1.5,
+          cursor: 'pointer',
+          borderBottom: expanded ? '1px solid hsl(var(--border))' : 'none',
+          bgcolor: 'hsl(var(--muted) / 0.35)',
+          '&:hover': { bgcolor: 'hsl(var(--muted) / 0.55)' },
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', minWidth: 0 }}>
+          <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
+            Documentation
+          </Typography>
+          <Typography
+            component="span"
+            sx={{
+              fontSize: '0.68rem',
+              fontWeight: 500,
+              px: 0.75,
+              py: 0.15,
+              borderRadius: 1,
+              border: '1px solid hsl(var(--border))',
+              bgcolor: 'hsl(var(--background))',
+              color: 'hsl(var(--muted-foreground))',
+            }}
+          >
+            {locationLabel}
+          </Typography>
+          {typeof readTime === 'number' && readTime > 0 && (
+            <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))' }}>
+              {readTime} min read
+            </Typography>
+          )}
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
+          {sourceLink && (
+            <Typography
+              component="a"
+              href={sourceLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+              sx={{
+                fontSize: '0.72rem',
+                fontWeight: 500,
+                color: 'hsl(var(--muted-foreground))',
+                textDecoration: 'none',
+                '&:hover': { color: 'hsl(var(--primary))', textDecoration: 'underline' },
+              }}
+            >
+              Source
+            </Typography>
+          )}
+          <Typography
+            sx={{
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              color: 'hsl(var(--primary))',
+              userSelect: 'none',
+            }}
+          >
+            {expanded ? 'Hide' : 'Read docs'}
+          </Typography>
+        </Box>
+      </Box>
+
+      {expanded && (
+        <Box
+          sx={{
+            p: 2,
+            fontSize: '0.82rem',
+            lineHeight: 1.65,
+            color: 'hsl(var(--foreground))',
+            '& h1': { fontSize: '1.1rem', fontWeight: 700, mt: 2, mb: 1, color: 'hsl(var(--foreground))' },
+            '& h2': { fontSize: '0.98rem', fontWeight: 600, mt: 2, mb: 0.75, color: 'hsl(var(--foreground))' },
+            '& h3, & h4': { fontSize: '0.88rem', fontWeight: 600, mt: 1.5, mb: 0.5, color: 'hsl(var(--foreground))' },
+            '& p': { fontSize: '0.82rem', lineHeight: 1.65, color: 'hsl(var(--foreground))', mb: 1.25 },
+            '& ul, & ol': { pl: 2.5, mb: 1.25, color: 'hsl(var(--foreground))' },
+            '& li': { mb: 0.35 },
+            '& img': { maxWidth: '100%', height: 'auto', borderRadius: 1, my: 1 },
+            '& code': {
+              fontSize: '0.76rem',
+              fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+              bgcolor: 'hsl(var(--muted))',
+              color: 'hsl(var(--foreground))',
+              px: 0.6,
+              py: 0.15,
+              borderRadius: 0.5,
+            },
+          }}
+        >
+          <ShuffleMarkdown disableBreaks>{doc.markdown}</ShuffleMarkdown>
+        </Box>
       )}
     </Box>
   );
@@ -435,6 +569,8 @@ export default function AppDetailContent({
           actions: prev?.actions,
           authentication: prev?.authentication,
           algoliaId: algoliaId || match.objectID,
+          generated: typeof prev?.generated === 'boolean' ? prev.generated : (typeof match.generated === 'boolean' ? match.generated : undefined),
+          app_version: prev?.app_version || match.app_version || match.version,
         }));
         setAppLoading(false);
       }
@@ -457,6 +593,8 @@ export default function AppDetailContent({
             categories: localMatch.categories || [],
             authentication: localMatch.authentication,
             algoliaId: localMatch.id,
+            generated: typeof localMatch.generated === 'boolean' ? localMatch.generated : undefined,
+            app_version: localMatch.app_version || localMatch.version,
           });
         }
       }
@@ -592,6 +730,49 @@ export default function AppDetailContent({
   }, [appName, appInfo, isAuthenticated, authenticatedApps, resolvedAlgoliaId]);
 
   const isBuiltIn = isNoAuthApp(appInfo?.name || appName || '');
+
+  // App documentation (cached in localStorage across 'openapi' and 'python')
+  const [appDoc, setAppDoc] = useState<AppDocResult | null>(() =>
+    getCachedAppDoc(appName)
+  );
+
+  useEffect(() => {
+    if (!open || !appName || isBuiltIn) {
+      setAppDoc(null);
+      return;
+    }
+
+    const targetDocName = appInfo?.name || appName;
+    const generated = typeof appInfo?.generated === 'boolean' ? appInfo.generated : undefined;
+    const version = (appInfo?.app_version || appInfo?.version || '1.0.0') as string;
+
+    // Immediately show any localStorage hit for either the resolved app name or URL slug
+    const cached =
+      getCachedAppDoc(targetDocName, { generated, version }) ??
+      (targetDocName !== appName ? getCachedAppDoc(appName, { generated, version }) : null);
+    setAppDoc(cached);
+
+    // Wait until app metadata has settled (or generated is explicitly known) before firing network requests
+    if (appLoading && generated === undefined) return;
+
+    let cancelled = false;
+    fetchAppDoc(targetDocName, { generated, version }).then((res) => {
+      if (cancelled) return;
+      if (res) {
+        setAppDoc(res);
+      } else if (targetDocName !== appName) {
+        fetchAppDoc(appName, { generated, version }).then((fallbackRes) => {
+          if (!cancelled && fallbackRes) {
+            setAppDoc(fallbackRes);
+          }
+        });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, appName, isBuiltIn, appLoading, appInfo?.name, appInfo?.generated, appInfo?.app_version, appInfo?.version]);
 
   const resolvedImage = useMemo(() => {
     if (appImage) return appImage;
@@ -1089,6 +1270,15 @@ export default function AppDetailContent({
               <Box sx={{ mb: 3 }}>
                 <CollapsibleDescription description={appInfo.description} />
               </Box>
+            )}
+
+            {/* App Documentation (OpenAPI / Python README from /api/v1/docs/{appname}) */}
+            {appDoc?.markdown && appDoc.markdown.trim() !== (appInfo?.description || '').trim() && (
+              <AppDocumentationSection
+                key={`${appDoc.location}:${appInfo?.name || appName || ''}`}
+                doc={appDoc}
+                defaultExpanded={mode === 'page'}
+              />
             )}
 
             {/* Ingestion & Incident Stats */}

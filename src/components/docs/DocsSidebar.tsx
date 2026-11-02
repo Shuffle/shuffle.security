@@ -14,7 +14,7 @@ import {
   ListItemText,
   Typography,
 } from '@mui/material';
-import { fetchDocsList, docSlug } from '@/components/docs/remoteDocs';
+import { fetchDocsList, getInitialDocsList, docSlug } from '@/components/docs/remoteDocs';
 import { fetchRemoteDoc } from '@/components/docs/useDocContent';
 import {
   groupRemoteDocs,
@@ -84,7 +84,9 @@ export const DocsSidebar = ({
   const params = useParams<{ slug?: string; name?: string }>();
   const slug = params.slug || params.name || 'index';
   const navigate = useNavigate();
-  const [remoteDocs, setRemoteDocs] = useState<RemoteDoc[]>([]);
+  const [remoteDocs, setRemoteDocs] = useState<RemoteDoc[]>(() =>
+    toVisibleDocs(getInitialDocsList(folder), folder),
+  );
   const [searchOpen, setSearchOpen] = useState(false);
 
   const folderKey = folder || 'docs';
@@ -96,10 +98,52 @@ export const DocsSidebar = ({
     folder === 'legal';
   const prevSlugRef = useRef<string | null>(null);
 
-  // Initialize or get stored collapsed groups for this session
+  // Normalize slug: when at root /docs (slug === 'index' or empty), resolve to 'getting-started'
+  // which is the default document auto-loaded by useDocContent.
+  const currentSlug = useMemo(() => {
+    const raw = (propActiveSlug || slug || '').toLowerCase().replace(/_+/g, '-');
+    if (!raw || raw === 'index') {
+      if (!folder || folder === 'docs') {
+        return 'getting-started';
+      }
+      return remoteDocs[0]?.slug ? docSlug(remoteDocs[0].slug) : 'getting-started';
+    }
+    return raw;
+  }, [propActiveSlug, slug, folder, remoteDocs]);
+
+  // Group the loaded docs into Usability, Automation, Security, Infrastructure
+  const categories = useMemo(() => {
+    return groupRemoteDocs(remoteDocs, folder);
+  }, [remoteDocs, folder]);
+
+  // Identify the active category for the current doc
+  const activeCategory = useMemo(() => {
+    return categories.find((cat) =>
+      cat.docs.some(
+        (d) => docSlug(d.slug) === currentSlug || d.slug.toLowerCase() === currentSlug,
+      ),
+    );
+  }, [categories, currentSlug]);
+
+  const activeGroup = useMemo(() => getDocGroup(currentSlug), [currentSlug]);
+
+  // Initialize or get stored collapsed groups for this session synchronously
+  // so the first render already has the right category expanded with no flash.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     const stored = sessionCollapsedStore.get(folderKey);
-    return stored ? new Set(stored) : new Set();
+    if (stored) return new Set(stored);
+    const initial = new Set<string>();
+    if (!isAutoExpandedSection && categories.length > 0) {
+      const targetGroupId = activeCategory?.id || activeGroup?.id || 'usability';
+      for (const cat of categories) {
+        if (cat.id !== targetGroupId) {
+          initial.add(cat.id);
+        }
+      }
+      sessionCollapsedStore.set(folderKey, new Set(initial));
+      prevSlugRef.current = currentSlug;
+    }
+    return initial;
   });
 
   // Sync state across multiple DocsSidebar instances (e.g. mobile drawer and desktop sidebar)
@@ -118,19 +162,6 @@ export const DocsSidebar = ({
     };
   }, [folderKey]);
 
-  // Normalize slug: when at root /docs (slug === 'index' or empty), resolve to 'getting-started'
-  // which is the default document auto-loaded by useDocContent.
-  const currentSlug = useMemo(() => {
-    const raw = (propActiveSlug || slug || '').toLowerCase().replace(/_+/g, '-');
-    if (!raw || raw === 'index') {
-      if (!folder || folder === 'docs') {
-        return 'getting-started';
-      }
-      return remoteDocs[0]?.slug ? docSlug(remoteDocs[0].slug) : 'getting-started';
-    }
-    return raw;
-  }, [propActiveSlug, slug, folder, remoteDocs]);
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -144,31 +175,19 @@ export const DocsSidebar = ({
 
   useEffect(() => {
     let cancelled = false;
+    const initial = toVisibleDocs(getInitialDocsList(folder), folder);
+    if (initial.length > 0) {
+      setRemoteDocs(initial);
+    }
     (async () => {
       const list = await fetchDocsList(false, folder);
       const mapped: RemoteDoc[] = toVisibleDocs(list, folder);
-      if (!cancelled) setRemoteDocs(mapped);
+      if (!cancelled && mapped.length > 0) setRemoteDocs(mapped);
     })();
     return () => {
       cancelled = true;
     };
   }, [folder]);
-
-  // Group the loaded docs into Usability, Automation, Security, Infrastructure
-  const categories = useMemo(() => {
-    return groupRemoteDocs(remoteDocs, folder);
-  }, [remoteDocs, folder]);
-
-  // Identify the active category for the current doc
-  const activeCategory = useMemo(() => {
-    return categories.find((cat) =>
-      cat.docs.some(
-        (d) => docSlug(d.slug) === currentSlug || d.slug.toLowerCase() === currentSlug,
-      ),
-    );
-  }, [categories, currentSlug]);
-
-  const activeGroup = useMemo(() => getDocGroup(currentSlug), [currentSlug]);
 
   // Handle initial category setup and navigation without closing previously opened areas
   useEffect(() => {

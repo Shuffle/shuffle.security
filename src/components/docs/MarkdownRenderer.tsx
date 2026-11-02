@@ -8,6 +8,10 @@ import {
 } from './DocDynamicComponents';
 import { DocCurlViewer } from './DocCurlViewer';
 import { DocCodeBlock } from './DocCodeBlock';
+import {
+  enrichOrborusDeployMarkdown,
+  useOrborusDeployConfig,
+} from '@/lib/orborusDeployCommand';
 import { Link, useLocation, useNavigate } from '@/lib/router-compat';
 import {
   Avatar,
@@ -117,7 +121,12 @@ export const MarkdownRenderer = ({
   );
 
   const title = propTitle !== undefined ? propTitle : hookDoc.title;
-  const content = isControlled ? propContent : hookDoc.content;
+  const rawContent = isControlled ? propContent : hookDoc.content;
+  const orborusDeployConfig = useOrborusDeployConfig();
+  const content = useMemo(
+    () => enrichOrborusDeployMarkdown(rawContent || '', orborusDeployConfig),
+    [rawContent, orborusDeployConfig],
+  );
   const meta = isControlled ? (propMeta ?? null) : hookDoc.meta;
   const loading = isControlled ? Boolean(propLoading) : hookDoc.loading;
   const resetting = isControlled ? Boolean(propResetting) : hookDoc.resetting;
@@ -138,6 +147,8 @@ export const MarkdownRenderer = ({
     left: number;
     placement: 'above' | 'below';
   } | null>(null);
+
+  const lastSelectionTimestampRef = useRef<number>(0);
 
   const updateSelectionPopup = useCallback(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -165,16 +176,25 @@ export const MarkdownRenderer = ({
       }
     }
 
+    const clearPopupIfAppropriate = () => {
+      // Guard against transient focus/selection shifts right after a valid selection was captured
+      // (e.g., when a drag ends adjacent to an execution component's code editor overlay).
+      if (Date.now() - lastSelectionTimestampRef.current < 180) {
+        return;
+      }
+      setSelectionPopup((prev) => {
+        if (prev && !isAgentDrawerOpen()) {
+          setActiveDocSelectedText(null);
+        }
+        return null;
+      });
+    };
+
     // 2. Standard DOM selection inside the documentation container
     if (!rawText) {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-        setSelectionPopup((prev) => {
-          if (prev && !isAgentDrawerOpen()) {
-            setActiveDocSelectedText(null);
-          }
-          return null;
-        });
+        clearPopupIfAppropriate();
         return;
       }
       const range = sel.getRangeAt(0);
@@ -182,12 +202,7 @@ export const MarkdownRenderer = ({
       const focusInRoot = sel.focusNode ? root.contains(sel.focusNode) : false;
       const commonInRoot = root.contains(range.commonAncestorContainer);
       if (!anchorInRoot && !focusInRoot && !commonInRoot) {
-        setSelectionPopup((prev) => {
-          if (prev && !isAgentDrawerOpen()) {
-            setActiveDocSelectedText(null);
-          }
-          return null;
-        });
+        clearPopupIfAppropriate();
         return;
       }
       rawText = sel.toString().trim();
@@ -203,12 +218,7 @@ export const MarkdownRenderer = ({
     }
 
     if (!rawText || rawText.length < 2 || !rect) {
-      setSelectionPopup((prev) => {
-        if (prev && !isAgentDrawerOpen()) {
-          setActiveDocSelectedText(null);
-        }
-        return null;
-      });
+      clearPopupIfAppropriate();
       return;
     }
 
@@ -226,13 +236,79 @@ export const MarkdownRenderer = ({
     const placeBelow = rect.top < 88;
     const top = placeBelow ? rect.bottom + 10 : rect.top - 10;
 
+    lastSelectionTimestampRef.current = Date.now();
     setActiveDocSelectedText(rawText);
-    setSelectionPopup({
-      text: rawText,
-      preview,
-      top,
-      left: clampedLeft,
-      placement: placeBelow ? 'below' : 'above',
+    setSelectionPopup((prev) => {
+      if (
+        prev &&
+        prev.text === rawText &&
+        prev.preview === preview &&
+        Math.abs(prev.top - top) < 1 &&
+        Math.abs(prev.left - clampedLeft) < 1 &&
+        prev.placement === (placeBelow ? 'below' : 'above')
+      ) {
+        return prev;
+      }
+      return {
+        text: rawText,
+        preview,
+        top,
+        left: clampedLeft,
+        placement: placeBelow ? 'below' : 'above',
+      };
+    });
+  }, []);
+
+  const repositionSelectionPopup = useCallback(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    const root = containerRef.current;
+    if (!root) return;
+
+    setSelectionPopup((prev) => {
+      if (!prev) return null;
+      let rect: DOMRect | null = null;
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        root.contains(activeEl) &&
+        (activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLInputElement) &&
+        (activeEl.selectionEnd ?? 0) > (activeEl.selectionStart ?? 0)
+      ) {
+        rect = activeEl.getBoundingClientRect();
+      } else {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const rangeRect = range.getBoundingClientRect();
+          if (rangeRect && (rangeRect.width > 0 || rangeRect.height > 0)) {
+            rect = rangeRect;
+          } else {
+            const clientRects = range.getClientRects();
+            if (clientRects.length > 0) rect = clientRects[0];
+          }
+        }
+      }
+      if (!rect) return prev;
+      const viewportW = window.innerWidth || 1200;
+      const clampedLeft = Math.min(
+        Math.max(rect.left + rect.width / 2, 160),
+        Math.max(160, viewportW - 160),
+      );
+      const placeBelow = rect.top < 88;
+      const top = placeBelow ? rect.bottom + 10 : rect.top - 10;
+      if (
+        Math.abs(prev.top - top) < 1 &&
+        Math.abs(prev.left - clampedLeft) < 1 &&
+        prev.placement === (placeBelow ? 'below' : 'above')
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        top,
+        left: clampedLeft,
+        placement: placeBelow ? 'below' : 'above',
+      };
     });
   }, []);
 
@@ -246,22 +322,29 @@ export const MarkdownRenderer = ({
         updateSelectionPopup();
       });
     };
+    const scheduleReposition = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        repositionSelectionPopup();
+      });
+    };
 
     document.addEventListener('selectionchange', scheduleUpdate);
     document.addEventListener('mouseup', scheduleUpdate);
     document.addEventListener('keyup', scheduleUpdate);
-    window.addEventListener('scroll', scheduleUpdate, true);
-    window.addEventListener('resize', scheduleUpdate);
+    window.addEventListener('scroll', scheduleReposition, true);
+    window.addEventListener('resize', scheduleReposition);
 
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       document.removeEventListener('selectionchange', scheduleUpdate);
       document.removeEventListener('mouseup', scheduleUpdate);
       document.removeEventListener('keyup', scheduleUpdate);
-      window.removeEventListener('scroll', scheduleUpdate, true);
-      window.removeEventListener('resize', scheduleUpdate);
+      window.removeEventListener('scroll', scheduleReposition, true);
+      window.removeEventListener('resize', scheduleReposition);
     };
-  }, [updateSelectionPopup]);
+  }, [updateSelectionPopup, repositionSelectionPopup]);
 
   const handleAskAboutSelection = useCallback(() => {
     if (!selectionPopup) return;
@@ -342,6 +425,130 @@ export const MarkdownRenderer = ({
     const words = (content || '').trim().split(/\s+/).filter(Boolean).length;
     return Math.max(1, Math.ceil(words / 200));
   }, [meta?.read_time, content]);
+
+  const segments = useMemo(() => parseMarkdownSegments(content), [content]);
+
+  const linkComponent = useMemo(
+    () => ({
+      a: ({ href, children, ...restProps }: any) => {
+        // In-page anchors update the URL as well as scrolling. Explicitly
+        // scroll too, because selecting the same hash twice does not cause
+        // React Router's location state to change.
+        if (href?.startsWith('#')) {
+          return (
+            <a
+              href={href}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(`${location.pathname}${location.search}${href}`);
+                scrollToDocAnchor(href);
+              }}
+              {...restProps}
+            >
+              {children}
+            </a>
+          );
+        }
+
+        // Reference docs contain a mix of `/docs/name`, `name.md`, and
+        // relative `./name.md` links. Route all of those through the SPA
+        // and preserve their heading hash.
+        if (href) {
+          const trimmed = href.trim();
+          const isRelativeDoc =
+            !/^[a-z][a-z\d+.-]*:/i.test(trimmed) &&
+            /(?:^|\/)\.?\.?\/?[^/#?]+\.md(?:$|[?#])/i.test(trimmed);
+
+          // Product-aware link resolution: detects whether current platform is
+          // Shuffle Security or Shuffle Core / Automation and resolves paths like
+          // /workflows, /workflows/debug, /incidents, /alerts accordingly.
+          const resolved = resolveProductLink(trimmed, currentProduct);
+
+          if (resolved.targetProduct === 'doc' || isRelativeDoc) {
+            let parsed: URL | null = null;
+            try {
+              const baseUrl =
+                typeof window !== 'undefined' && window.location?.origin
+                  ? window.location.href
+                  : 'https://shuffle.security/docs';
+              parsed = new URL(trimmed, baseUrl);
+            } catch {
+              parsed = null;
+            }
+
+            if (parsed) {
+              const isDocsPath = /^\/docs(?:\/|$)/i.test(parsed.pathname);
+              const relativeName = parsed.pathname
+                .split('/')
+                .filter(Boolean)
+                .pop()
+                ?.replace(/\.md$/i, '');
+              const path =
+                isRelativeDoc && !isDocsPath && relativeName
+                  ? `${basePath}/${docSlug(relativeName)}`
+                  : normalizeDocPath(parsed.pathname, basePath);
+              return (
+                <Link to={`${path}${parsed.search}${parsed.hash}`}>
+                  {children}
+                </Link>
+              );
+            }
+          }
+
+          // Internal SPA link for the current platform
+          if (resolved.isInternal) {
+            return <Link to={resolved.url}>{children}</Link>;
+          }
+
+          // Cross-platform link (e.g. from Shuffle Security to Shuffle Core) or external
+          return (
+            <a
+              href={resolved.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={async (e) => {
+                if (resolved.isCrossDomainToCore && (getSessionToken() || hasShuffleAuth())) {
+                  const isNewTab = e.ctrlKey || e.metaKey || e.button === 1;
+                  e.preventDefault();
+                  await navigateToShuffleCore(resolved.url, {
+                    newTab: isNewTab || true,
+                  });
+                }
+              }}
+              {...restProps}
+            >
+              {children}
+            </a>
+          );
+        }
+
+        // External links fallback
+        return (
+          <a href={href} target="_blank" rel="noopener noreferrer" {...restProps}>
+            {children}
+          </a>
+        );
+      },
+      pre: ({ children, ...props }: any) => {
+        const child: any = Array.isArray(children) ? children[0] : children;
+        const raw = child?.props?.children;
+        const text = Array.isArray(raw) ? raw.join('') : typeof raw === 'string' ? raw : '';
+        const clean = text.replace(/^(?:#[^\r\n]*\r?\n\s*)+/, '').trim();
+        const isPipedShellInstaller = /\|\s*(?:sudo\s+)?(?:ba)?sh\b/i.test(clean);
+        if (/^(?:\$\s*)?curl(?:\s+|$)/i.test(clean) && !isPipedShellInstaller) {
+          return <DocCurlViewer rawCurl={text} />;
+        }
+        const className: string = child?.props?.className || '';
+        const language = /language-([\w-]+)/.exec(className)?.[1] || (isPipedShellInstaller ? 'bash' : undefined);
+        return (
+          <DocCodeBlock text={text} language={language} {...props}>
+            {children}
+          </DocCodeBlock>
+        );
+      },
+    }),
+    [navigate, location.pathname, location.search, scrollToDocAnchor, currentProduct, basePath],
+  );
 
   const actionButtons = (
     <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: 'auto' }}>
@@ -878,180 +1085,59 @@ export const MarkdownRenderer = ({
       {mobileToc}
 
       {/* 3. Actual Content */}
-      {(() => {
-        const segments = parseMarkdownSegments(content);
-        const linkComponent = {
-          a: ({ href, children, ...restProps }: any) => {
-            // In-page anchors update the URL as well as scrolling. Explicitly
-            // scroll too, because selecting the same hash twice does not cause
-            // React Router's location state to change.
-            if (href?.startsWith('#')) {
-              return (
-                <a
-                  href={href}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate(`${location.pathname}${location.search}${href}`);
-                    scrollToDocAnchor(href);
-                  }}
-                  {...restProps}
-                >
-                  {children}
-                </a>
-              );
-            }
+      {segments.map((segment, idx) => {
+        if (segment.type === 'markdown' && segment.content) {
+          return (
+            <ShuffleMarkdown
+              key={`md-${idx}`}
+              disableBreaks
+              sx={{
+                '& p': { mb: 2 },
+                '& img': { maxWidth: '100%', borderRadius: '2px' },
+                '& > h2:first-of-type': {
+                  mt: idx === 0 ? 0 : { xs: '2.75rem !important', md: '5rem !important' },
+                },
+                '& h2': {
+                  mt: { xs: '2.75rem !important', md: '5rem !important' },
+                  mb: 2.5,
+                },
+              }}
+              components={linkComponent}
+            >
+              {segment.content}
+            </ShuffleMarkdown>
+          );
+        }
 
-            // Reference docs contain a mix of `/docs/name`, `name.md`, and
-            // relative `./name.md` links. Route all of those through the SPA
-            // and preserve their heading hash.
-            if (href) {
-              const trimmed = href.trim();
-              const isRelativeDoc =
-                !/^[a-z][a-z\d+.-]*:/i.test(trimmed) &&
-                /(?:^|\/)\.?\.?\/?[^/#?]+\.md(?:$|[?#])/i.test(trimmed);
-
-              // Product-aware link resolution: detects whether current platform is
-              // Shuffle Security or Shuffle Core / Automation and resolves paths like
-              // /workflows, /workflows/debug, /incidents, /alerts accordingly.
-              const resolved = resolveProductLink(trimmed, currentProduct);
-
-              if (resolved.targetProduct === 'doc' || isRelativeDoc) {
-                let parsed: URL | null = null;
-                try {
-                  const baseUrl =
-                    typeof window !== 'undefined' && window.location?.origin
-                      ? window.location.href
-                      : 'https://shuffle.security/docs';
-                  parsed = new URL(trimmed, baseUrl);
-                } catch {
-                  parsed = null;
-                }
-
-                if (parsed) {
-                  const isDocsPath = /^\/docs(?:\/|$)/i.test(parsed.pathname);
-                  const relativeName = parsed.pathname
-                    .split('/')
-                    .filter(Boolean)
-                    .pop()
-                    ?.replace(/\.md$/i, '');
-                  const path =
-                    isRelativeDoc && !isDocsPath && relativeName
-                      ? `${basePath}/${docSlug(relativeName)}`
-                      : normalizeDocPath(parsed.pathname, basePath);
-                  return (
-                    <Link to={`${path}${parsed.search}${parsed.hash}`}>
-                      {children}
-                    </Link>
-                  );
-                }
-              }
-
-              // Internal SPA link for the current platform
-              if (resolved.isInternal) {
-                return <Link to={resolved.url}>{children}</Link>;
-              }
-
-              // Cross-platform link (e.g. from Shuffle Security to Shuffle Core) or external
-              return (
-                <a
-                  href={resolved.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={async (e) => {
-                    if (resolved.isCrossDomainToCore && (getSessionToken() || hasShuffleAuth())) {
-                      const isNewTab = e.ctrlKey || e.metaKey || e.button === 1;
-                      e.preventDefault();
-                      await navigateToShuffleCore(resolved.url, {
-                        newTab: isNewTab || true,
-                      });
-                    }
-                  }}
-                  {...restProps}
-                >
-                  {children}
-                </a>
-              );
-            }
-
-            // External links fallback
-            return (
-              <a href={href} target="_blank" rel="noopener noreferrer" {...restProps}>
-                {children}
-              </a>
-            );
-          },
-          pre: ({ children, ...props }: any) => {
-            const child: any = Array.isArray(children) ? children[0] : children;
-            const raw = child?.props?.children;
-            const text = Array.isArray(raw) ? raw.join('') : typeof raw === 'string' ? raw : '';
-            const clean = text.replace(/^(?:#[^\r\n]*\r?\n\s*)+/, '').trim();
-            if (/^(?:\$\s*)?curl(?:\s+|$)/i.test(clean)) {
-              return <DocCurlViewer rawCurl={text} />;
-            }
-            const className: string = child?.props?.className || '';
-            const language = /language-([\w-]+)/.exec(className)?.[1];
-            return (
-              <DocCodeBlock text={text} language={language} {...props}>
-                {children}
-              </DocCodeBlock>
-            );
-          },
-        };
-
-        return segments.map((segment, idx) => {
-          if (segment.type === 'markdown' && segment.content) {
-            return (
-              <ShuffleMarkdown
-                key={`md-${idx}`}
-                disableBreaks
-                sx={{
-                  '& p': { mb: 2 },
-                  '& img': { maxWidth: '100%', borderRadius: '2px' },
-                  '& > h2:first-of-type': {
-                    mt: idx === 0 ? 0 : { xs: '2.75rem !important', md: '5rem !important' },
-                  },
-                  '& h2': {
-                    mt: { xs: '2.75rem !important', md: '5rem !important' },
-                    mb: 2.5,
-                  },
-                }}
-                components={linkComponent}
-              >
-                {segment.content}
-              </ShuffleMarkdown>
-            );
-          }
-
-          if (segment.type === 'component' && segment.componentName) {
-            return (
-              <ComponentErrorBoundary
-                key={`comp-${idx}-${segment.componentName}`}
-                name={`DocComponent-${segment.componentName}`}
-                fallback={null}
-              >
-                <DocDynamicComponent
-                  name={segment.componentName}
-                  props={segment.props || {}}
-                />
-              </ComponentErrorBoundary>
-            );
-          }
-
-          if (segment.type === 'expandable') {
-            return (
-              <DocExpandable
-                key={`exp-${idx}`}
-                title={segment.title || 'Details'}
-                content={segment.content}
-                defaultOpen={segment.defaultOpen}
-                linkComponent={linkComponent}
+        if (segment.type === 'component' && segment.componentName) {
+          return (
+            <ComponentErrorBoundary
+              key={`comp-${idx}-${segment.componentName}`}
+              name={`DocComponent-${segment.componentName}`}
+              fallback={null}
+            >
+              <DocDynamicComponent
+                name={segment.componentName}
+                props={segment.props || {}}
               />
-            );
-          }
+            </ComponentErrorBoundary>
+          );
+        }
 
-          return null;
-        });
-      })()}
+        if (segment.type === 'expandable') {
+          return (
+            <DocExpandable
+              key={`exp-${idx}`}
+              title={segment.title || 'Details'}
+              content={segment.content}
+              defaultOpen={segment.defaultOpen}
+              linkComponent={linkComponent}
+            />
+          );
+        }
+
+        return null;
+      })}
 
       {selectionPopup &&
         typeof document !== 'undefined' &&
@@ -1072,6 +1158,10 @@ export const MarkdownRenderer = ({
             <ButtonBase
               onMouseDown={(e) => {
                 // Keep text selection alive when clicking the popover button
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onMouseUp={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
               }}

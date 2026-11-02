@@ -322,10 +322,12 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onDocSelection = (e: Event) => {
-      const detail = (e as CustomEvent<{ selectedText?: string | null }>).detail;
+      const detail = (e as CustomEvent<{ selectedText?: string | null; explicitClear?: boolean }>).detail;
       const next = detail?.selectedText ?? getActiveDocSelectedText();
-      setSelectedText(next);
-      if (!next) {
+      if (next) {
+        setSelectedText(next);
+      } else if (detail?.explicitClear) {
+        setSelectedText(null);
         setCustomHeaderTitle(null);
         setCustomTitle(null);
       }
@@ -1319,7 +1321,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                     size="small"
                     variant="text"
                     onClick={() => {
-                      setActiveDocSelectedText(null);
+                      setActiveDocSelectedText(null, { explicitClear: true });
                       setSelectedText(null);
                       setCustomHeaderTitle(null);
                       setCustomTitle(null);

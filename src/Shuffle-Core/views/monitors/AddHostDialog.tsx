@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import { getApiUrl, getAuthHeader, API_CONFIG } from '@/Shuffle-Core/api';
+import { useAuth } from '@/Shuffle-Core/contexts/AuthContext';
 import { trackPredefinedEvent, GA_EVENTS } from '@/Shuffle-Core/lib/analytics';
 
 export interface MonitoringGroupLike {
@@ -73,6 +74,7 @@ export const AddHostDialog = ({
   onHostDetected,
   onRefresh,
 }: AddHostDialogProps) => {
+  const { userInfo } = useAuth();
   const [addHostStep, setAddHostStep] = useState<'checks' | 'deploy'>('checks');
   const [hostPlatform, setHostPlatform] = useState<'linux' | 'macos' | 'windows'>('linux');
   const [winRunAsAdmin, setWinRunAsAdmin] = useState(true);
@@ -311,7 +313,8 @@ export const AddHostDialog = ({
     parts.push('sensor_mode=true');
     if (activeGroup) {
       parts.push(`queue=${activeGroup.queue}`);
-      if (activeGroup.org_id) parts.push(`org_id=${activeGroup.org_id}`);
+      const resolvedOrgId = activeGroup.org_id || userInfo?.active_org?.id || '';
+      if (resolvedOrgId) parts.push(`org_id=${resolvedOrgId}`);
     }
     parts.push(`software_list_enabled=${hostChecks.installed_software}`);
     parts.push(`hd_encrypted_check=${hostChecks.hd_encrypted}`);
@@ -709,7 +712,8 @@ export const AddHostDialog = ({
   flags.push('--sensor_mode=true');
   if (activeGroup) {
     flags.push(`--queue=${activeGroup.queue}`);
-    if (activeGroup.org_id) flags.push(`--org_id=${activeGroup.org_id}`);
+    const resolvedOrgId = activeGroup.org_id || userInfo?.active_org?.id || '';
+    if (resolvedOrgId) flags.push(`--org_id=${resolvedOrgId}`);
     if (activeGroup.auth) flags.push(`--auth=${activeGroup.auth}`);
   }
   flags.push(`--software_list_enabled=${hostChecks.installed_software}`);
@@ -734,7 +738,8 @@ export const AddHostDialog = ({
                         flags.push('--sensor_mode=true');
                         if (activeGroup) {
                           flags.push(`--queue=${activeGroup.queue}`);
-                          if (activeGroup.org_id) flags.push(`--org_id=${activeGroup.org_id}`);
+                          const resolvedOrgId = activeGroup.org_id || userInfo?.active_org?.id || '';
+                          if (resolvedOrgId) flags.push(`--org_id=${resolvedOrgId}`);
                           if (activeGroup.auth) flags.push(`--auth=${activeGroup.auth}`);
                         }
                         flags.push(`--software_list_enabled=${hostChecks.installed_software}`);

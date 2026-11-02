@@ -72,7 +72,10 @@ export const setActiveDocPromptContext = (info: ActiveDocInfo | null) => {
  * Sets or clears the currently marked/selected text in the active documentation page
  * and notifies listeners (such as AskAiWidget and AskAiSidePanel).
  */
-export const setActiveDocSelectedText = (selectedText: string | null) => {
+export const setActiveDocSelectedText = (
+  selectedText: string | null,
+  options?: { explicitClear?: boolean },
+) => {
   const scope = getGlobalScope();
   if (!scope) return;
   const cleaned = (selectedText || '').trim();
@@ -91,7 +94,10 @@ export const setActiveDocSelectedText = (selectedText: string | null) => {
     try {
       window.dispatchEvent(
         new CustomEvent(DOC_SELECTION_EVENT, {
-          detail: { selectedText: cleaned || null },
+          detail: {
+            selectedText: cleaned || null,
+            explicitClear: Boolean(options?.explicitClear),
+          },
         }),
       );
     } catch {

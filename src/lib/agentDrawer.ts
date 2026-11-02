@@ -62,6 +62,9 @@ export const openAgentDrawer = (
     selectedText?: string | null;
   },
 ) => {
+  if (typeof window !== 'undefined' && !isAgentRoute(window.location.pathname)) {
+    (window as any).__shuffleAskAiOpen = true;
+  }
   window.dispatchEvent(
     new CustomEvent<AgentDrawerOpenDetail>(AGENT_DRAWER_OPEN_EVENT, {
       detail: {
@@ -88,6 +91,7 @@ export const openAgentDrawer = (
 
 export const closeAgentDrawer = () => {
   if (typeof window !== 'undefined') {
+    (window as any).__shuffleAskAiOpen = false;
     window.dispatchEvent(new CustomEvent(AGENT_DRAWER_CLOSE_EVENT));
   }
 };

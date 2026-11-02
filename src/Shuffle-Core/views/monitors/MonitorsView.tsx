@@ -444,6 +444,7 @@ const MonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps = {}) => {
 
 const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps) => {
   const navigate = useNavigate();
+  const { userInfo } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [addHostOpen, setAddHostOpen] = useState(false);
@@ -957,9 +958,12 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
     const parts: string[] = [];
     parts.push(`base_url=${baseUrl}`);
     parts.push('sensor_mode=true');
+    const effectiveOrgId = selectedGroup?.org_id || userInfo?.active_org?.id || '';
     if (selectedGroup) {
       parts.push(`queue=${selectedGroup.queue}`);
-      if (selectedGroup.org_id) parts.push(`org_id=${selectedGroup.org_id}`);
+    }
+    if (effectiveOrgId) {
+      parts.push(`org_id=${effectiveOrgId}`);
     }
     parts.push(`software_list_enabled=${hostChecks.installed_software}`);
     parts.push(`hd_encrypted_check=${hostChecks.hd_encrypted}`);
@@ -1643,9 +1647,10 @@ const AuthenticatedMonitorsView = ({ mode = 'page', onClose }: MonitorsViewProps
   const flags: string[] = [];
   flags.push(`--base_url=${API_CONFIG.baseUrl}`);
   flags.push('--sensor_mode=true');
+  const effectiveOrgId = selectedGroup?.org_id || userInfo?.active_org?.id || '';
   if (selectedGroup) {
     flags.push(`--queue=${selectedGroup.queue}`);
-    if (selectedGroup.org_id) flags.push(`--org_id=${selectedGroup.org_id}`);
+    if (effectiveOrgId) flags.push(`--org_id=${effectiveOrgId}`);
     if (selectedGroup.auth) flags.push(`--auth=${selectedGroup.auth}`);
   }
   flags.push(`--software_list_enabled=${hostChecks.installed_software}`);

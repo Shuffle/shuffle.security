@@ -21,6 +21,11 @@ import {
   HardDrive,
 } from 'lucide-react';
 import { useHostMonitorCount } from '@/hooks/useHostMonitorCount';
+import {
+  buildOrborusDeployCommand,
+  useOrborusDeployConfig,
+  type OrborusPlatform,
+} from '@/lib/orborusDeployCommand';
 import { toast } from '@/lib/toast';
 
 interface HostMonitoringDetailSlotProps {
@@ -29,7 +34,7 @@ interface HostMonitoringDetailSlotProps {
   compact?: boolean;
 }
 
-type Platform = 'linux' | 'macos' | 'windows';
+type Platform = OrborusPlatform;
 
 export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> = ({
   onDeployClick,
@@ -37,22 +42,13 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
   compact = false,
 }) => {
   const hostCount = useHostMonitorCount();
+  const deployConfig = useOrborusDeployConfig();
   const [platform, setPlatform] = useState<Platform>('linux');
   const [copied, setCopied] = useState(false);
 
   const isConnected = typeof hostCount === 'number' && hostCount > 0;
 
-  const getQuickCommand = (plat: Platform) => {
-    switch (plat) {
-      case 'windows':
-        return `powershell -ExecutionPolicy Bypass -Command "& {iex (irm 'https://shuffler.io/api/v1/orborus?sensor_mode=true&os=windows')}"`;
-      case 'macos':
-        return `curl -sSL 'https://shuffler.io/api/v1/orborus?sensor_mode=true&os=darwin' | sudo bash`;
-      case 'linux':
-      default:
-        return `curl -sSL 'https://shuffler.io/api/v1/orborus?sensor_mode=true' | bash`;
-    }
-  };
+  const getQuickCommand = (plat: Platform) => buildOrborusDeployCommand(plat, deployConfig);
 
   const handleCopy = () => {
     const cmd = getQuickCommand(platform);
@@ -237,7 +233,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
         <Box
           sx={{
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'space-between',
             gap: 1.5,
             p: 1.25,
@@ -255,9 +251,9 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
               fontFamily: 'monospace',
               fontSize: '0.76rem',
               color: 'text.primary',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              lineHeight: 1.5,
               flex: 1,
             }}
           >
@@ -273,6 +269,7 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
                 py: 0.3,
                 fontSize: '0.72rem',
                 textTransform: 'none',
+                flexShrink: 0,
                 color: copied ? 'hsl(var(--severity-low))' : 'text.secondary',
                 bgcolor: 'background.paper',
                 border: '1px solid',
@@ -286,7 +283,15 @@ export const HostMonitoringDetailSlot: React.FC<HostMonitoringDetailSlotProps> =
         </Box>
 
         <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mt: 1 }}>
-          Run on target machines as root/administrator. For custom monitor groups or token auth, click <strong>Deploy Host</strong> above.
+          {deployConfig.hasRealCredentials ? (
+            <>
+              Pre-configured with your organization ID, monitoring group queue (<code>{deployConfig.queue}</code>), and Auth key. Click <strong>Deploy Host</strong> above to customize posture checks or switch monitoring groups.
+            </>
+          ) : (
+            <>
+              Requires your organization ID (<code>org_id</code>), monitoring group Runtime Location (<code>queue</code>), and environment <code>Auth</code> header. Sign in or click <strong>Deploy Host</strong> above to populate your credentials automatically.
+            </>
+          )}
         </Typography>
       </Box>
 

@@ -1422,7 +1422,7 @@ interface TimelineRowProps {
   appsById: Record<string, AgentUIApp>;
   totalDuration: number;
   originalStartTime: number;
-  maxWidth: number | string;
+  maxWidth: number;
   questionAnswers: Record<string, { index: number; value: string }>;
   setQuestionAnswers: React.Dispatch<React.SetStateAction<Record<string, { index: number; value: string }>>>;
   onSubmitQuestions: (decisionId: string, answers: Record<string, any>, isContinuation?: boolean) => void;
@@ -1465,7 +1465,7 @@ const ScheduledLiveBar: React.FC<{
   startSec: number;
   originalStartTime: number;
   totalDuration: number;
-  maxWidth: number | string;
+  maxWidth: number;
 }> = ({ startSec, originalStartTime, totalDuration, maxWidth }) => {
   const [nowSec, setNowSec] = useState(() => Date.now() / 1000);
   useEffect(() => {

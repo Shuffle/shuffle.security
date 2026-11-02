@@ -2680,6 +2680,7 @@ export const OAuthAuthorizeView: React.FC<OAuthAuthorizeViewProps> = ({
               ))}
             </Box>
           </Box>
+          )}
 
           {/* Security & Redirect Notice + Spoof Warning + Raw Source Verification */}
           {clientProfile.vendorSpoofWarning && (

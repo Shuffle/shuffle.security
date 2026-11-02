@@ -139,7 +139,7 @@ const baseSx: SxProps<Theme> = {
     pl: 1.5,
     borderLeft: '3px solid hsl(var(--border))',
     color: 'hsl(var(--muted-foreground))',
-    '& p::before, & p::after': { content: 'none !important' },
+    '& p::before, & p::after': { content: 'none' },
   },
   '& table': { width: '100%', borderCollapse: 'collapse', mb: 0 },
   '& th, & td': {
@@ -265,7 +265,7 @@ const defaultComponents: MarkdownComponentOverrides = {
             lineHeight: 1.65,
           },
           '& p:last-of-type': { mb: 0 },
-          '& p::before, & p::after': { content: 'none !important' },
+          '& p::before, & p::after': { content: 'none' },
         }}
       >
         <Box

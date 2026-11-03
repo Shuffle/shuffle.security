@@ -373,12 +373,13 @@ const PRINT_CSS = `
   }
 
   blockquote {
-    border-left: 4px solid #f46a25;
-    background: #fff8f5;
-    border-radius: 0 6px 6px 0;
-    margin: 14px 0;
-    padding: 10px 16px;
-    color: #431407;
+    border: none;
+    border-left: 3px solid #94a3b8;
+    background: transparent;
+    border-radius: 0;
+    margin: 18px 0;
+    padding: 2px 0 2px 16px;
+    color: #334155;
     font-size: 10.5pt;
     page-break-inside: avoid;
     break-inside: avoid;

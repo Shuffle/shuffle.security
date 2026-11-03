@@ -892,15 +892,24 @@ export const MarkdownRenderer = ({
             wordBreak: 'normal',
           },
         },
-        '& blockquote': {
-          borderLeft: '4px solid',
-          borderColor: 'primary.main',
-          pl: { xs: 2, sm: 3 },
+        '& blockquote:not([data-admonition])': {
+          border: 'none',
+          borderLeft: '3px solid hsl(var(--muted-foreground) / 0.45)',
+          bgcolor: 'transparent',
+          borderRadius: 0,
+          pl: { xs: 2, sm: 2.5 },
+          py: 0.25,
+          pr: 0,
           ml: 0,
-          fontStyle: 'italic',
-          color: 'hsl(var(--foreground) / 0.82)',
+          mr: 0,
+          my: 3,
+          fontStyle: 'normal',
+          color: 'hsl(var(--foreground) / 0.88)',
           '& p::before, & p::after': {
             content: 'none',
+          },
+          '& p:last-of-type': {
+            mb: 0,
           },
         },
         '& hr': {
@@ -1093,6 +1102,9 @@ export const MarkdownRenderer = ({
               disableBreaks
               sx={{
                 '& p': { mb: 2 },
+                '& ul, & ol': { mb: 2.5, pl: { xs: 2.25, sm: 3 } },
+                '& li': { mb: 0.75 },
+                '& blockquote': { my: 3, '& p': { mb: 1 }, '& p:last-of-type': { mb: 0 } },
                 '& img': { maxWidth: '100%', borderRadius: '2px' },
                 '& > h2:first-of-type': {
                   mt: idx === 0 ? 0 : { xs: '2.75rem !important', md: '5rem !important' },

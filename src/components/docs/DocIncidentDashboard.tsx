@@ -169,7 +169,7 @@ export const DocIncidentDashboard: React.FC<DocIncidentDashboardProps> = ({
   if (!ready) return null;
 
   return (
-    <Box sx={{ my: 3.5, '& > .MuiBox-root': { mb: 0 } }}>
+    <Box sx={{ my: { xs: 2.5, sm: 3.5 }, width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden', '& > .MuiBox-root': { mb: 0 } }}>
       <DashboardOverview
         compact
         incidents={useSample ? sampleIncidents : parsedIncidents}

@@ -98,7 +98,7 @@ const baseSx: SxProps<Theme> = {
   fontSize: 'inherit',
   lineHeight: 1.6,
   wordBreak: 'break-word',
-  '& > *:first-of-type': { mt: 0 },
+  '& > *:first-child:not(blockquote)': { mt: 0 },
   '& > *:last-child': { mb: 0 },
   '& p': { m: 0, mb: 1 },
   '& strong, & b': { color: 'inherit', fontWeight: 600 },
@@ -134,12 +134,19 @@ const baseSx: SxProps<Theme> = {
     '& code': { p: 0, backgroundColor: 'transparent', overflowWrap: 'normal', wordBreak: 'normal' },
   },
   '& blockquote': {
-    m: 0,
-    mb: 1,
-    pl: 1.5,
+    mx: 0,
+    my: 2.5,
+    py: 0.25,
+    pl: { xs: 2, sm: 2.5 },
+    pr: 0,
+    border: 'none',
     borderLeft: '3px solid hsl(var(--border))',
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    fontStyle: 'normal',
     color: 'hsl(var(--muted-foreground))',
     '& p::before, & p::after': { content: 'none' },
+    '& > *:last-child': { mb: 0 },
   },
   '& table': { width: '100%', borderCollapse: 'collapse', mb: 0 },
   '& th, & td': {
@@ -161,37 +168,32 @@ const baseSx: SxProps<Theme> = {
 
 const ADMONITION_META: Record<
   string,
-  { label: string; borderColor: string; bgColor: string; labelColor: string }
+  { label: string; borderColor: string; labelColor: string }
 > = {
   NOTE: {
     label: 'Note',
-    borderColor: 'hsl(215 90% 52%)',
-    bgColor: 'hsl(215 90% 52% / 0.08)',
-    labelColor: 'hsl(215 90% 52%)',
+    borderColor: 'hsl(var(--muted-foreground) / 0.45)',
+    labelColor: 'hsl(var(--foreground))',
   },
   TIP: {
     label: 'Tip',
-    borderColor: 'hsl(142 71% 42%)',
-    bgColor: 'hsl(142 71% 42% / 0.08)',
-    labelColor: 'hsl(142 71% 42%)',
+    borderColor: 'hsl(var(--primary) / 0.75)',
+    labelColor: 'hsl(var(--foreground))',
   },
   IMPORTANT: {
     label: 'Important',
-    borderColor: 'hsl(265 80% 58%)',
-    bgColor: 'hsl(265 80% 58% / 0.08)',
-    labelColor: 'hsl(265 80% 58%)',
+    borderColor: 'hsl(var(--primary))',
+    labelColor: 'hsl(var(--primary))',
   },
   WARNING: {
     label: 'Warning',
-    borderColor: 'hsl(38 92% 48%)',
-    bgColor: 'hsl(38 92% 48% / 0.08)',
-    labelColor: 'hsl(38 92% 48%)',
+    borderColor: 'hsl(38 92% 50% / 0.85)',
+    labelColor: 'hsl(38 92% 50%)',
   },
   CAUTION: {
     label: 'Caution',
-    borderColor: 'hsl(0 72% 51%)',
-    bgColor: 'hsl(0 72% 51% / 0.08)',
-    labelColor: 'hsl(0 72% 51%)',
+    borderColor: 'hsl(0 72% 55% / 0.85)',
+    labelColor: 'hsl(0 72% 55%)',
   },
 };
 
@@ -245,23 +247,24 @@ const defaultComponents: MarkdownComponentOverrides = {
     return (
       <Box
         component="blockquote"
-        className="not-prose"
+        data-admonition={parsed.type.toLowerCase()}
         sx={{
-          my: 2,
+          my: 3,
           mx: 0,
-          p: 2,
-          pl: 2.25,
-          borderRadius: 1.5,
-          border: '1px solid hsl(var(--border))',
-          borderLeft: `4px solid ${meta.borderColor}`,
-          bgcolor: meta.bgColor,
+          py: 0.25,
+          pl: { xs: 2, sm: 2.5 },
+          pr: 0,
+          border: 'none',
+          borderLeft: `3px solid ${meta.borderColor}`,
+          borderRadius: 0,
+          bgcolor: 'transparent',
           fontStyle: 'normal !important',
-          color: 'hsl(var(--foreground))',
+          color: 'hsl(var(--foreground) / 0.88)',
           '& p': {
             m: 0,
             mb: 1,
             fontStyle: 'normal',
-            color: 'hsl(var(--foreground) / 0.9)',
+            color: 'hsl(var(--foreground) / 0.88)',
             lineHeight: 1.65,
           },
           '& p:last-of-type': { mb: 0 },
@@ -271,11 +274,11 @@ const defaultComponents: MarkdownComponentOverrides = {
         <Box
           sx={{
             fontSize: '0.75rem',
-            fontWeight: 700,
+            fontWeight: 600,
             textTransform: 'uppercase',
-            letterSpacing: '0.04em',
+            letterSpacing: '0.05em',
             color: meta.labelColor,
-            mb: 0.75,
+            mb: 0.5,
           }}
         >
           {meta.label}

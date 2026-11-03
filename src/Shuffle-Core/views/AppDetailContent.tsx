@@ -188,6 +188,9 @@ export const AppDocumentationSection = ({
     <Box
       sx={{
         mb: 3,
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
         borderRadius: 2,
         border: '1px solid hsl(var(--border))',
         bgcolor: 'hsl(var(--card))',
@@ -197,11 +200,12 @@ export const AppDocumentationSection = ({
       <Box
         onClick={() => setExpanded(prev => !prev)}
         sx={{
-          px: 2,
+          px: { xs: 1.5, sm: 2 },
           py: 1.25,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          flexWrap: 'wrap',
           gap: 1.5,
           cursor: 'pointer',
           borderBottom: expanded ? '1px solid hsl(var(--border))' : 'none',
@@ -270,17 +274,22 @@ export const AppDocumentationSection = ({
       {expanded && (
         <Box
           sx={{
-            p: 2,
+            p: { xs: 1.5, sm: 2 },
+            width: '100%',
+            maxWidth: '100%',
+            minWidth: 0,
+            overflowX: 'hidden',
             fontSize: '0.82rem',
             lineHeight: 1.65,
             color: 'hsl(var(--foreground))',
-            '& h1': { fontSize: '1.1rem', fontWeight: 700, mt: 2, mb: 1, color: 'hsl(var(--foreground))' },
-            '& h2': { fontSize: '0.98rem', fontWeight: 600, mt: 2, mb: 0.75, color: 'hsl(var(--foreground))' },
-            '& h3, & h4': { fontSize: '0.88rem', fontWeight: 600, mt: 1.5, mb: 0.5, color: 'hsl(var(--foreground))' },
-            '& p': { fontSize: '0.82rem', lineHeight: 1.65, color: 'hsl(var(--foreground))', mb: 1.25 },
-            '& ul, & ol': { pl: 2.5, mb: 1.25, color: 'hsl(var(--foreground))' },
-            '& li': { mb: 0.35 },
+            '& h1': { fontSize: '1.1rem', fontWeight: 700, mt: 2, mb: 1, color: 'hsl(var(--foreground))', overflowWrap: 'anywhere' },
+            '& h2': { fontSize: '0.98rem', fontWeight: 600, mt: 2, mb: 0.75, color: 'hsl(var(--foreground))', overflowWrap: 'anywhere' },
+            '& h3, & h4': { fontSize: '0.88rem', fontWeight: 600, mt: 1.5, mb: 0.5, color: 'hsl(var(--foreground))', overflowWrap: 'anywhere' },
+            '& p': { fontSize: '0.82rem', lineHeight: 1.65, color: 'hsl(var(--foreground))', mb: 1.25, overflowWrap: 'anywhere' },
+            '& ul, & ol': { pl: { xs: 2, sm: 2.5 }, mb: 1.5, color: 'hsl(var(--foreground))' },
+            '& li': { mb: 0.35, overflowWrap: 'anywhere' },
             '& img': { maxWidth: '100%', height: 'auto', borderRadius: 1, my: 1 },
+            '& pre': { maxWidth: '100%', overflowX: 'auto' },
             '& code': {
               fontSize: '0.76rem',
               fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
@@ -289,6 +298,7 @@ export const AppDocumentationSection = ({
               px: 0.6,
               py: 0.15,
               borderRadius: 0.5,
+              wordBreak: 'break-word',
             },
           }}
         >

@@ -184,7 +184,16 @@ export const DocAgentUI: React.FC<DocAgentUIProps> = ({
   const effectiveTitle = title !== undefined ? title : "Try the AI Agent";
 
   return (
-    <Box className="not-prose" sx={{ my: 4 }}>
+    <Box
+      className="not-prose"
+      sx={{
+        my: { xs: 2.5, sm: 4 },
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        overflowX: "hidden",
+      }}
+    >
       <AgentUI
         compact={isCompact}
         hideHeroIcon={true}
@@ -234,14 +243,22 @@ export const DocTryMcp: React.FC<DocTryMcpProps> = ({
 
   if (lookup.loading) {
     return (
-      <Box sx={{ my: 4 }}>
+      <Box sx={{ my: { xs: 2.5, sm: 4 }, width: "100%", maxWidth: "100%", minWidth: 0 }}>
         <Skeleton variant="rectangular" height={160} sx={{ borderRadius: 3 }} />
       </Box>
     );
   }
 
   return (
-    <Box sx={{ my: 4 }}>
+    <Box
+      sx={{
+        my: { xs: 2.5, sm: 4 },
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        overflowX: "hidden",
+      }}
+    >
       <Box
         sx={{
           display: "flex",
@@ -252,7 +269,7 @@ export const DocTryMcp: React.FC<DocTryMcpProps> = ({
           mb: 1.5,
         }}
       >
-        <Box>
+        <Box sx={{ flex: "1 1 200px", minWidth: 0 }}>
           <Typography
             sx={{
               fontSize: "0.95rem",
@@ -274,11 +291,13 @@ export const DocTryMcp: React.FC<DocTryMcpProps> = ({
             </Typography>
           )}
         </Box>
-        <McpSetupButtons
-          appName={resolvedAppName}
-          appTitle={resolvedAppName.replace(/_/g, " ")}
-          size="compact"
-        />
+        <Box sx={{ width: { xs: "100%", sm: "auto" }, maxWidth: "100%", overflowX: "auto" }}>
+          <McpSetupButtons
+            appName={resolvedAppName}
+            appTitle={resolvedAppName.replace(/_/g, " ")}
+            size="compact"
+          />
+        </Box>
       </Box>
       <AppMcpChat
         appName={resolvedAppName}
@@ -334,7 +353,12 @@ export const DocMcpSetup: React.FC<DocMcpSetupProps> = ({
     <Box
       sx={{
         my: 2.5,
-        p: isCompact ? 0 : 2,
+        p: isCompact ? 0 : { xs: 1.5, sm: 2 },
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        overflowX: "hidden",
+        boxSizing: "border-box",
         borderRadius: isCompact ? 0 : 2,
         border: isCompact ? "none" : "1px solid hsl(var(--border))",
         bgcolor: isCompact ? "transparent" : "hsl(var(--muted) / 0.15)",
@@ -370,14 +394,22 @@ export const DocAgentActivity: React.FC<DocAgentActivityProps> = ({
   const effectiveTop = typeof top === "string" ? parseInt(top, 10) || 3 : top;
 
   return (
-    <Box sx={{ my: 3.5 }}>
+    <Box
+      sx={{
+        my: { xs: 2.5, sm: 3.5 },
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        overflowX: "hidden",
+      }}
+    >
       <AgentActivityList
         limit={effectiveLimit}
         top={effectiveTop}
         onRunClick={setSelectedRun}
         initialRuns={!isAuthenticated ? DEMO_AGENT_RUNS.slice(0, effectiveLimit) : undefined}
         disableFetch={!isAuthenticated}
-        rowSx={{ py: 1.25, px: 2 }}
+        rowSx={{ py: 1.25, px: { xs: 1.25, sm: 2 } }}
       />
 
       <AgentExecutionDrawer
@@ -493,6 +525,9 @@ export const DocExpandable: React.FC<DocExpandableProps> = ({
     <Box
       sx={{
         my: 2.5,
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
         borderRadius: 2,
         border: "1px solid hsl(var(--border))",
         backgroundColor: "hsl(var(--card))",
@@ -507,8 +542,10 @@ export const DocExpandable: React.FC<DocExpandableProps> = ({
         onClick={() => setOpen((prev) => !prev)}
         sx={{
           width: "100%",
-          py: 1.5,
-          px: 2,
+          py: { xs: 1.25, sm: 1.5 },
+          px: { xs: 1.5, sm: 2 },
+          gap: 1,
+          minWidth: 0,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -524,6 +561,9 @@ export const DocExpandable: React.FC<DocExpandableProps> = ({
             fontWeight: 600,
             fontSize: "0.875rem",
             color: "hsl(var(--foreground))",
+            minWidth: 0,
+            overflowWrap: "break-word",
+            wordBreak: "break-word",
           }}
         >
           {displayTitle}
@@ -534,7 +574,7 @@ export const DocExpandable: React.FC<DocExpandableProps> = ({
             fontSize: "0.75rem",
             fontWeight: 600,
             color: "hsl(var(--muted-foreground))",
-            ml: 1.5,
+            ml: 1,
             flexShrink: 0,
             textTransform: "uppercase",
             letterSpacing: "0.04em",
@@ -546,9 +586,12 @@ export const DocExpandable: React.FC<DocExpandableProps> = ({
       <Collapse in={open} timeout="auto" unmountOnExit>
         <Box
           sx={{
-            p: 2,
+            p: { xs: 1.5, sm: 2 },
+            minWidth: 0,
+            maxWidth: "100%",
+            overflowX: "auto",
             backgroundColor: "hsl(var(--background) / 0.4)",
-            "& pre": { my: 1 },
+            "& pre": { my: 1, maxWidth: "100%", overflowX: "auto" },
           }}
         >
           {content ? (
@@ -602,7 +645,10 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
   return (
     <Box
       sx={{
-        my: 3.5,
+        my: { xs: 2.5, sm: 3.5 },
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
         display: "flex",
         flexDirection: "column",
         gap: 1.5,
@@ -614,10 +660,10 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
           alignItems: "center",
           justifyContent: "space-between",
           flexWrap: "wrap",
-          gap: 2,
+          gap: 1.5,
         }}
       >
-        <Box>
+        <Box sx={{ flex: "1 1 220px", minWidth: 0 }}>
           <Typography
             sx={{
               fontWeight: 600,
@@ -629,12 +675,12 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
           </Typography>
           <Typography
             variant="caption"
-            sx={{ color: "hsl(var(--muted-foreground))" }}
+            sx={{ color: "hsl(var(--muted-foreground))", display: "block" }}
           >
             {subtitle}
           </Typography>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: { xs: "100%", sm: "auto" }, maxWidth: "100%", overflowX: "auto" }}>
           <AgentPresets
             variant="default"
             selectedPreset={selectedPreset}
@@ -666,7 +712,7 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
               gap: 1,
             }}
           >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
               <Typography
                 component="span"
                 sx={{
@@ -702,10 +748,11 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
                   textTransform: "none",
                   fontWeight: 500,
                   fontSize: "0.75rem",
-                  py: 0.25,
+                  py: 0.4,
                   px: 1.25,
                   borderRadius: 1,
                   minHeight: 0,
+                  width: { xs: "100%", sm: "auto" },
                 }}
               >
                 Launch in Ask AI
@@ -777,8 +824,10 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
               <Box
                 sx={{
                   display: "flex",
+                  flexDirection: { xs: "column", sm: "row" },
                   alignItems: "flex-start",
-                  gap: 0.75,
+                  gap: { xs: 0.5, sm: 0.75 },
+                  width: "100%",
                 }}
               >
                 <Typography
@@ -787,7 +836,7 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
                     fontWeight: 600,
                     color: "hsl(var(--foreground))",
                     flexShrink: 0,
-                    pt: 0.2,
+                    pt: { xs: 0, sm: 0.2 },
                   }}
                 >
                   Prompt:
@@ -803,6 +852,8 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
                     border: "1px solid hsl(var(--border))",
                     color: "hsl(var(--foreground))",
                     flex: 1,
+                    width: { xs: "100%", sm: "auto" },
+                    boxSizing: "border-box",
                     whiteSpace: "pre-wrap",
                     wordBreak: "break-word",
                   }}
@@ -873,7 +924,7 @@ export const DocShuffleAI: React.FC<DocShuffleAIProps> = ({
   const helperText = subtitle || description;
 
   return (
-    <Box sx={{ my: 2.5 }}>
+    <Box sx={{ my: 2.5, width: "100%", maxWidth: "100%", minWidth: 0 }}>
       {title && (
         <Typography
           sx={{
@@ -888,11 +939,12 @@ export const DocShuffleAI: React.FC<DocShuffleAIProps> = ({
       )}
       <Box
         sx={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 1.5,
+          display: "flex",
+          alignItems: { xs: "flex-start", sm: "center" },
+          flexDirection: { xs: "column", sm: "row" },
+          gap: { xs: 1, sm: 1.5 },
           flexWrap: "wrap",
-          verticalAlign: "middle",
+          maxWidth: "100%",
         }}
       >
         <Tooltip title="Configure or swap LLM provider (Shuffle AI, OpenAI, Gemini, Ollama...)">
@@ -962,8 +1014,7 @@ export const DocShuffleAI: React.FC<DocShuffleAIProps> = ({
               lineHeight: 1.4,
               m: 0,
               p: 0,
-              display: "inline-flex",
-              alignItems: "center",
+              minWidth: 0,
             }}
           >
             {helperText ||
@@ -991,16 +1042,19 @@ export const DocIngest: React.FC<DocIngestProps> = ({
   return (
     <Box
       sx={{
-        my: 3.5,
+        my: { xs: 2.5, sm: 3.5 },
         pt: 1.5,
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
         display: "flex",
-        alignItems: "center",
+        alignItems: { xs: "stretch", sm: "center" },
         justifyContent: "space-between",
         flexWrap: "wrap",
         gap: 2,
       }}
     >
-      <Box>
+      <Box sx={{ flex: "1 1 220px", minWidth: 0 }}>
         <Typography
           sx={{
             fontWeight: 600,
@@ -1021,7 +1075,7 @@ export const DocIngest: React.FC<DocIngestProps> = ({
             "Toggle push webhooks, connect authenticated source apps, or trigger a manual sync."}
         </Typography>
       </Box>
-      <Box sx={{ pt: 1 }}>
+      <Box sx={{ pt: { xs: 0.25, sm: 1 }, width: { xs: "100%", sm: "auto" }, maxWidth: "100%", overflowX: "auto" }}>
         <IngestionSourcesRow
           workflowLabel={workflow}
           category={category}
@@ -1183,7 +1237,7 @@ export const DocUsecases: React.FC<DocUsecasesProps> = ({
 
   return (
     <>
-      <Box sx={{ my: 4 }}>
+      <Box sx={{ my: { xs: 2.5, sm: 4 }, width: "100%", maxWidth: "100%", minWidth: 0 }}>
         <Box
           sx={{
             display: "flex",
@@ -1194,7 +1248,7 @@ export const DocUsecases: React.FC<DocUsecasesProps> = ({
             mb: 2,
           }}
         >
-          <Box>
+          <Box sx={{ flex: "1 1 220px", minWidth: 0 }}>
             <Typography
               sx={{
                 fontSize: "1.05rem",
@@ -1224,6 +1278,7 @@ export const DocUsecases: React.FC<DocUsecasesProps> = ({
               textTransform: "none",
               fontWeight: 500,
               borderRadius: 1.5,
+              width: { xs: "100%", sm: "auto" },
             }}
           >
             View all use cases
@@ -1254,6 +1309,7 @@ export const DocUsecases: React.FC<DocUsecasesProps> = ({
                 backgroundColor: "hsl(var(--background))",
                 cursor: "pointer",
                 transition: "all 0.15s ease",
+                minWidth: 0,
                 "&:hover": {
                   borderColor: "hsl(var(--primary))",
                   transform: "translateY(-1px)",
@@ -1308,7 +1364,7 @@ export const DocAutomationReadiness: React.FC<DocAutomationReadinessProps> = ({
   const isVuln = target.includes("vuln");
 
   return (
-    <Box sx={{ my: 3.5 }}>
+    <Box sx={{ my: { xs: 2.5, sm: 3.5 }, width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "hidden" }}>
       {isVuln ? (
         <VulnerabilityReadinessBanner />
       ) : (
@@ -1355,7 +1411,7 @@ export const DocVulnStatus: React.FC<DocVulnStatusProps> = ({
   if (!ready) return null;
 
   return (
-    <Box sx={{ my: 3.5 }}>
+    <Box sx={{ my: { xs: 2.5, sm: 3.5 }, width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "hidden" }}>
       <VulnerabilitiesDashboard
         orgId={isAuthenticated ? userInfo?.active_org?.id : SAMPLE_ORG_ID}
         days={dayCount}
@@ -1395,7 +1451,7 @@ export const DocCveLookup: React.FC<DocCveLookupProps> = ({
   ];
 
   return (
-    <Box sx={{ my: 3.5 }}>
+    <Box sx={{ my: { xs: 2.5, sm: 3.5 }, width: "100%", maxWidth: "100%", minWidth: 0 }}>
       <Box
         component="form"
         onSubmit={(e: React.FormEvent) => {
@@ -1496,7 +1552,7 @@ export const DocHostStatus: React.FC<DocHostStatusProps> = () => {
   const [addHostOpen, setAddHostOpen] = useState(false);
 
   return (
-    <Box sx={{ my: 3.5 }}>
+    <Box sx={{ my: { xs: 2.5, sm: 3.5 }, width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "hidden" }}>
       <HostMonitoringDetailSlot
         compact
         onDeployClick={() => {
@@ -1542,15 +1598,18 @@ export const DocSystemHealth: React.FC<DocSystemHealthProps> = () => {
   return (
     <Box
       sx={{
-        my: 3.5,
+        my: { xs: 2.5, sm: 3.5 },
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
         display: "flex",
-        alignItems: "center",
+        alignItems: { xs: "stretch", sm: "center" },
         justifyContent: "space-between",
         flexWrap: "wrap",
         gap: 2,
       }}
     >
-      <Box>
+      <Box sx={{ flex: "1 1 220px", minWidth: 0 }}>
         <Typography
           variant="subtitle2"
           sx={{ fontWeight: 600, color: "hsl(var(--foreground))" }}
@@ -1565,10 +1624,12 @@ export const DocSystemHealth: React.FC<DocSystemHealthProps> = () => {
           groups cannot be selected.
         </Typography>
       </Box>
-      <DefaultEnvironmentSelector
-        environments={!isAuthenticated ? sampleEnvironments : undefined}
-        defaultEnvironment={!isAuthenticated ? sampleEnvironments[0] : undefined}
-      />
+      <Box sx={{ width: { xs: "100%", sm: "auto" }, maxWidth: "100%" }}>
+        <DefaultEnvironmentSelector
+          environments={!isAuthenticated ? sampleEnvironments : undefined}
+          defaultEnvironment={!isAuthenticated ? sampleEnvironments[0] : undefined}
+        />
+      </Box>
     </Box>
   );
 };
@@ -2214,7 +2275,7 @@ export const DocDatastore: React.FC<DocDatastoreProps> = ({
   const effectivePageSize = typeof rawLimit === "string" ? parseInt(rawLimit, 10) || 3 : rawLimit;
 
   return (
-    <Box sx={{ my: 3.5 }}>
+    <Box sx={{ my: { xs: 2.5, sm: 3.5 }, width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "auto" }}>
       <DatastoreCategories
         embedded
         categoryLocked

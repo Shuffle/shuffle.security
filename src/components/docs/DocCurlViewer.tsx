@@ -19,7 +19,7 @@ export type { ParsedCurl };
 
 export const DocCurlViewer: React.FC<DocCurlViewerProps> = (props) => {
   return (
-    <Box className="not-prose" sx={{ my: 2.5 }}>
+    <Box className="not-prose" sx={{ my: 2.5, width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden' }}>
       <ApiCallViewer {...props} />
     </Box>
   );

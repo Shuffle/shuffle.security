@@ -1272,6 +1272,19 @@ export default function AppDetailContent({
               </Box>
             )}
 
+            {/* Use this app from external AI clients (MCP) */}
+            {mode === 'page' && !isBuiltIn && (
+              <Box sx={{ mb: 3 }}>
+                <McpSetupButtons
+                  appName={canonicalExecutionAppName}
+                  appTitle={displayName}
+                  globalUrl={globalUrl}
+                  label="Use this app in ChatGPT"
+                  chatgptLabel="OpenAI"
+                />
+              </Box>
+            )}
+
             {/* App Documentation (OpenAPI / Python README from /api/v1/docs/{appname}) */}
             {appDoc?.markdown && appDoc.markdown.trim() !== (appInfo?.description || '').trim() && (
               <AppDocumentationSection
@@ -1538,37 +1551,6 @@ export default function AppDetailContent({
                     </Box>
                   )}
 
-                  <Box
-                    sx={{
-                      flex: 1,
-                      minWidth: 200,
-                      p: 2.5,
-                      borderRadius: 2,
-                      backgroundColor: hasValidAuth
-                        ? 'hsla(142, 76%, 36%, 0.08)'
-                        : 'hsl(var(--muted) / 0.5)',
-                      border: '1px solid',
-                      borderColor: hasValidAuth
-                        ? 'hsla(142, 76%, 36%, 0.2)'
-                        : 'hsl(var(--border))',
-                    }}
-                  >
-                    <Typography variant="overline" sx={{ color: 'hsl(var(--muted-foreground))', fontWeight: 600, letterSpacing: 1 }}>
-                      Status
-                    </Typography>
-                    <Typography
-                      variant="body1"
-                      sx={{
-                        color: hasValidAuth ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground))',
-                        fontWeight: 500,
-                        mt: 0.5,
-                      }}
-                    >
-                      {isAuthenticated
-                        ? hasValidAuth ? 'Connected' : hasAnyAuth ? 'Pending Validation' : 'Not Configured'
-                        : 'Sign up to connect'}
-                    </Typography>
-                  </Box>
                 </Box>
               </motion.div>
             )}

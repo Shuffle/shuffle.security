@@ -20,6 +20,8 @@ export interface McpSetupButtonsProps {
   subtitle?: string;
   /** Button height in pixels (default 28 for compact headers, or 32 for toolbars/docs). */
   size?: 'compact' | 'default';
+  /** Label for the ChatGPT button (default "ChatGPT"). */
+  chatgptLabel?: string;
   /** Optional wrapper sx styles. */
   sx?: SxProps<Theme>;
 }
@@ -33,6 +35,7 @@ export const McpSetupButtons: React.FC<McpSetupButtonsProps> = ({
   label,
   subtitle,
   size = 'default',
+  chatgptLabel = 'ChatGPT',
   sx,
 }) => {
   const [setupPlatform, setSetupPlatform] = useState<McpPlatform | null>(null);
@@ -71,7 +74,7 @@ export const McpSetupButtons: React.FC<McpSetupButtonsProps> = ({
           },
         }}
       >
-        ChatGPT
+        {chatgptLabel}
       </Button>
 
       <Button

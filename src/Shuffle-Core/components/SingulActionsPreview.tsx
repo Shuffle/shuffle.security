@@ -22,6 +22,7 @@ import {
   IconButton,
   Tooltip,
   Avatar,
+  Collapse,
   useTheme,
 } from '@mui/material';
 import {
@@ -180,7 +181,7 @@ const ALL_ACTIONS: SingulAction[] = ACTION_CATEGORIES.flatMap((cat) =>
 );
 
 /** Pick the best matching default category for an app, given its raw categories. */
-function pickDefaultCategory(categories?: string[]): string {
+export function pickDefaultCategory(categories?: string[]): string {
   if (!categories || categories.length === 0) return 'Other';
   const known = ACTION_CATEGORIES.map((c) => c.name.toLowerCase());
   for (const cat of categories) {
@@ -191,6 +192,12 @@ function pickDefaultCategory(categories?: string[]): string {
     if (partial) return ACTION_CATEGORIES.find((c) => c.name.toLowerCase() === partial)!.name;
   }
   return 'Other';
+}
+
+/** Return Singul actions for the best-matching category (or all categories matching the app's categories). */
+export function getCategorySingulActions(categories?: string[]): SingulAction[] {
+  const defaultCat = pickDefaultCategory(categories);
+  return ALL_ACTIONS.filter((a) => a.category === defaultCat);
 }
 
 function buildSingulCurl(
@@ -337,6 +344,8 @@ export interface SingulActionsPreviewProps extends ShuffleHostProps {
   appId?: string | null;
   categories?: string[];
   activeOrgId?: string | null;
+  /** Whether the section starts expanded. Defaults to false (contracted). */
+  defaultExpanded?: boolean;
   /** Optional click handler invoked when the user presses the
    *  "Authenticate {App}" button surfaced after an
    *  `action: "app_authentication"` response. */
@@ -348,8 +357,10 @@ const SingulActionsPreview = ({
   appIcon,
   categories,
   activeOrgId,
+  defaultExpanded = false,
   onAuthenticate,
 }: SingulActionsPreviewProps) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const theme = useTheme();
   const themeScope = useShuffleCoreTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -474,36 +485,57 @@ const SingulActionsPreview = ({
   const lineCount = useMemo(() => Math.max(snippet.split('\n').length, 1), [snippet]);
 
   return (
-    <Box sx={{ mt: 5, mb: 3, opacity: isDisabled ? 0.55 : 1 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-        <Typography sx={{ color: 'hsl(var(--foreground))', fontWeight: 600, fontSize: '0.95rem' }}>
+    <Box
+      sx={{
+        mt: 4.5,
+        mb: 4.5,
+        opacity: isDisabled ? 0.55 : 1,
+        borderRadius: 2,
+        border: '1px solid hsl(var(--border))',
+        bgcolor: 'hsl(var(--card))',
+        overflow: 'hidden',
+      }}
+    >
+      <Box
+        onClick={() => setExpanded(prev => !prev)}
+        sx={{
+          px: { xs: 2, sm: 2.5 },
+          py: 1.75,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1.5,
+          cursor: 'pointer',
+          borderBottom: expanded ? '1px solid hsl(var(--border))' : 'none',
+          bgcolor: 'hsl(var(--muted) / 0.35)',
+          '&:hover': { bgcolor: 'hsl(var(--muted) / 0.55)' },
+        }}
+      >
+        <Typography sx={{ color: 'hsl(var(--foreground))', fontWeight: 600, fontSize: '0.9rem' }}>
           Try individual actions ({sortedActions.length})
+        </Typography>
+        <Typography
+          sx={{
+            fontSize: '0.72rem',
+            fontWeight: 600,
+            color: 'hsl(var(--primary))',
+            userSelect: 'none',
+          }}
+        >
+          {expanded ? 'Collapse' : 'Expand'}
         </Typography>
       </Box>
 
-      <Box
-        sx={{
-          position: 'relative',
-          p: 2,
-          borderRadius: 2,
-          border: '1px solid hsl(var(--border))',
-          background: 'linear-gradient(180deg, hsl(var(--muted) / 0.35) 0%, hsl(var(--background) / 0.6) 100%)',
-          pointerEvents: isDisabled ? 'none' : 'auto',
-          overflow: 'hidden',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            inset: -1,
-            borderRadius: 2,
-            padding: '1px',
-            background: 'linear-gradient(135deg, hsl(var(--primary) / 0.35), transparent 40%, hsl(var(--primary) / 0.15))',
-            WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
-            WebkitMaskComposite: 'xor',
-            maskComposite: 'exclude',
-            pointerEvents: 'none',
-          },
-        }}
-      >
+      <Collapse in={expanded}>
+        <Box
+          sx={{
+            position: 'relative',
+            p: { xs: 2, sm: 2.5 },
+            background: 'linear-gradient(180deg, hsl(var(--muted) / 0.35) 0%, hsl(var(--background) / 0.6) 100%)',
+            pointerEvents: isDisabled ? 'none' : 'auto',
+            overflow: 'hidden',
+          }}
+        >
         {isDisabled ? (
           <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', textAlign: 'center', py: 1 }}>
             No category detected for this app
@@ -890,7 +922,8 @@ const SingulActionsPreview = ({
             </Box>
           );
         })()}
-      </Box>
+        </Box>
+      </Collapse>
     </Box>
   );
 };

@@ -69,7 +69,7 @@ const writeStoredDocsList = (key: string, list: RemoteDocEntry[]) => {
   }
 };
 
-const readStoredDocMarkdown = (cacheKey: string): string | null => {
+export const readStoredDocMarkdown = (cacheKey: string): string | null => {
   if (cachedMarkdown[cacheKey]) return cachedMarkdown[cacheKey];
   if (typeof window === 'undefined') return null;
   try {
@@ -84,13 +84,23 @@ const readStoredDocMarkdown = (cacheKey: string): string | null => {
   return null;
 };
 
-const writeStoredDocMarkdown = (cacheKey: string, markdown: string) => {
+export const writeStoredDocMarkdown = (cacheKey: string, markdown: string) => {
   cachedMarkdown[cacheKey] = markdown;
   if (typeof window === 'undefined' || !markdown) return;
   try {
     window.localStorage.setItem(`${STORAGE_DOC_PREFIX}${cacheKey}`, markdown);
   } catch {
     // Ignore storage quota / privacy errors
+  }
+};
+
+export const removeStoredDocMarkdown = (cacheKey: string) => {
+  delete cachedMarkdown[cacheKey];
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(`${STORAGE_DOC_PREFIX}${cacheKey}`);
+  } catch {
+    // Ignore storage errors
   }
 };
 

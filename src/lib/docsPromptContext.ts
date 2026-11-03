@@ -212,15 +212,20 @@ export const isDocInjectedPrompt = (prompt?: string | null): boolean => {
 
 import { extractCleanIncidentPrompt, isIncidentInjectedPrompt } from './incidentPromptContext';
 import { extractCleanUsecasePrompt, isUsecaseInjectedPrompt } from './usecasePromptContext';
+import { extractCleanAppPrompt, isAppInjectedPrompt } from './appPromptContext';
 
 /**
  * Extracts the user's actual question from a doc-injected, incident-injected,
- * or usecase-injected prompt, so the UI header, chat thread, and rerun forms
- * stay completely clean.
+ * usecase-injected, or app-injected prompt, so the UI header, chat thread,
+ * and rerun forms stay completely clean.
  */
 export const extractCleanDisplayPrompt = (prompt?: string | null): string => {
   if (!prompt || typeof prompt !== 'string') return '';
   let trimmed = prompt.trim();
+
+  if (isAppInjectedPrompt(trimmed)) {
+    trimmed = extractCleanAppPrompt(trimmed);
+  }
 
   if (isUsecaseInjectedPrompt(trimmed)) {
     trimmed = extractCleanUsecasePrompt(trimmed);
@@ -228,7 +233,7 @@ export const extractCleanDisplayPrompt = (prompt?: string | null): string => {
 
   // If this is an incident-injected prompt or task assignment, clean it cleanly
   if (isIncidentInjectedPrompt(trimmed)) {
-    return extractCleanIncidentPrompt(trimmed);
+    trimmed = extractCleanIncidentPrompt(trimmed);
   }
 
   if (!isDocInjectedPrompt(trimmed)) return trimmed;
@@ -379,8 +384,18 @@ User Question:
 ${trimmedQuestion}`;
   }
 
+  if (markedExcerpt) {
+    return `Answer the users question about Shuffle ${categoryName} based on the following content:
+${DOC_PROMPT_DELIMITER_START}
+${excerptBlock.trim()}
+${DOC_PROMPT_DELIMITER_END}
+
+User Question:
+${trimmedQuestion}`;
+  }
+
   // Fallback when markdown is empty or still loading
-  return `Answer the users question about Shuffle ${categoryName}:${excerptBlock}
+  return `Answer the users question about Shuffle ${categoryName}:
 
 ${trimmedQuestion}`;
 };

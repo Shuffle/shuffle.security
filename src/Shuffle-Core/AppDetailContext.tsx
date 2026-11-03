@@ -1,9 +1,14 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 
+export interface AppDetailOpenOptions {
+  focusAuthentication?: boolean;
+}
+
 export interface AppDetailContextType {
-  openApp: (appName: string) => void;
+  openApp: (appName: string, options?: AppDetailOpenOptions) => void;
   closeApp: () => void;
   currentAppName: string | null;
+  focusAuthentication: boolean;
   isOpen: boolean;
 }
 
@@ -15,6 +20,7 @@ const fallbackContext: AppDetailContextType = {
   },
   closeApp: () => {},
   currentAppName: null,
+  focusAuthentication: false,
   isOpen: false,
 };
 
@@ -22,17 +28,20 @@ const AppDetailContext = createContext<AppDetailContextType>(fallbackContext);
 
 export const AppDetailProvider = ({ children }: { children: ReactNode }) => {
   const [currentAppName, setCurrentAppName] = useState<string | null>(null);
+  const [focusAuthentication, setFocusAuthentication] = useState<boolean>(false);
 
-  const openApp = useCallback((appName: string) => {
+  const openApp = useCallback((appName: string, options?: AppDetailOpenOptions) => {
+    setFocusAuthentication(Boolean(options?.focusAuthentication));
     setCurrentAppName(appName);
   }, []);
 
   const closeApp = useCallback(() => {
     setCurrentAppName(null);
+    setFocusAuthentication(false);
   }, []);
 
   return (
-    <AppDetailContext.Provider value={{ openApp, closeApp, currentAppName, isOpen: currentAppName !== null }}>
+    <AppDetailContext.Provider value={{ openApp, closeApp, currentAppName, focusAuthentication, isOpen: currentAppName !== null }}>
       {children}
     </AppDetailContext.Provider>
   );

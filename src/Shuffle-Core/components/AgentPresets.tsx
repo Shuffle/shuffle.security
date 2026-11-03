@@ -282,11 +282,33 @@ export const AgentPresets = ({
   }, [computeIsDark, open]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
     const handleThemeChange = () => setIsDark(computeIsDark());
     window.addEventListener('shuffle:theme-change', handleThemeChange);
-    return () => window.removeEventListener('shuffle:theme-change', handleThemeChange);
-  }, [computeIsDark]);
+    const observer = new MutationObserver(handleThemeChange);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme'],
+    });
+    if (document.body) {
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'data-theme'],
+      });
+    }
+    let node: HTMLElement | null = (anchorEl || buttonRef.current)?.parentElement ?? null;
+    while (node) {
+      observer.observe(node, {
+        attributes: true,
+        attributeFilter: ['class', 'data-shuffle-mode'],
+      });
+      node = node.parentElement;
+    }
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('shuffle:theme-change', handleThemeChange);
+    };
+  }, [computeIsDark, anchorEl]);
 
   const scopeStyle = isDark ? darkTokenStyle : lightTokenStyle;
   const scopeClassName = isDark

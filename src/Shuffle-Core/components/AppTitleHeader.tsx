@@ -15,11 +15,20 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { isNoAuthApp, getBuiltInAppImage } from '@/Shuffle-Core/noAuthApps';
+import { McpSetupButtons } from '@/Shuffle-Core/components/oauth/McpSetupButtons';
 import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 
 export interface AppTitleHeaderProps extends ShuffleHostProps {
   /** Display name of the app (will be capitalized via CSS). */
   name: string;
+  /** Canonical app name/slug used for MCP setup URLs (defaults to `name`). */
+  mcpAppName?: string;
+  /** Hide the ChatGPT / Claude MCP setup buttons in the header. */
+  hideMcpButtons?: boolean;
+  /** Whether the title header should stick to the top when scrolling. Defaults to true. */
+  sticky?: boolean;
+  /** Top offset when sticky. Defaults to 0. */
+  stickyTop?: number | string | Record<string, unknown>;
   /** Image URL for the app icon. */
   image?: string;
   /** Whether at least one valid authentication exists. */
@@ -55,6 +64,10 @@ export interface AppTitleHeaderProps extends ShuffleHostProps {
 
 export default function AppTitleHeader({
   name,
+  mcpAppName,
+  hideMcpButtons = false,
+  sticky = true,
+  stickyTop = 0,
   image,
   hasValidAuth = false,
   hasAnyAuth = false,
@@ -69,24 +82,39 @@ export default function AppTitleHeader({
   highlightActivate = false,
   onAdd,
   hideStatusChips = false,
+  globalUrl,
+  theme,
+  colorMode,
 }: AppTitleHeaderProps) {
   const isBuiltIn = isNoAuthApp(name);
   const resolvedImage = image || (isBuiltIn ? (getBuiltInAppImage(name) || undefined) : undefined);
+  const showMcpButtons = !isBuiltIn && !hideMcpButtons;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2,
-          mb: 3,
-          p: 2.5,
-          borderRadius: 3,
-          background: 'linear-gradient(135deg, hsl(var(--foreground) / 0.03) 0%, hsl(var(--foreground) / 0.01) 100%)',
-          border: '1px solid hsl(var(--border))',
-        }}
-      >
+    <Box
+      sx={{
+        position: sticky ? 'sticky' : 'relative',
+        top: sticky ? (stickyTop as any) : undefined,
+        zIndex: sticky ? 20 : undefined,
+        mb: 4,
+      }}
+    >
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            p: 2.5,
+            borderRadius: 3,
+            backgroundColor: 'hsl(var(--card))',
+            backgroundImage: 'linear-gradient(135deg, hsl(var(--foreground) / 0.03) 0%, hsl(var(--foreground) / 0.01) 100%)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid hsl(var(--border))',
+            boxShadow: sticky ? '0 8px 24px -12px rgba(0, 0, 0, 0.35)' : undefined,
+            flexWrap: 'wrap',
+          }}
+        >
         <Avatar
           src={resolvedImage}
           alt={name}
@@ -159,75 +187,91 @@ export default function AppTitleHeader({
           )}
         </Box>
 
-        {onAdd && (
-          <Button
-            onClick={onAdd}
-            variant="contained"
-            size="small"
-            sx={{
-              textTransform: 'none', fontWeight: 600, fontSize: '0.72rem', borderRadius: 2, px: 1.5, py: 0.5, minHeight: 0, flexShrink: 0,
-              bgcolor: 'hsl(var(--primary))', '&:hover': { bgcolor: 'hsl(var(--primary) / 0.85)' },
-            }}
-          >
-            + Add
-          </Button>
-        )}
-
-        {!onAdd && isAuthenticated && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-            {isIngestEnabled !== null && isIngestEnabled !== undefined && onIngestToggle && (
-              <AppIngestButton name={name} isIngestEnabled={isIngestEnabled} ingestLoading={ingestLoading} onIngestToggle={onIngestToggle} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, flexWrap: 'wrap', ml: 'auto' }}>
+            {showMcpButtons && (
+              <McpSetupButtons
+                appName={mcpAppName || name}
+                appTitle={name}
+                globalUrl={globalUrl}
+                size="compact"
+                theme={theme}
+                colorMode={colorMode}
+              />
             )}
 
-            {!isBuiltIn && isActivated !== null && onActivateToggle && (
+            {onAdd && (
               <Button
-                onClick={onActivateToggle}
-                disabled={activateLoading}
-                variant={isActivated ? 'outlined' : 'contained'}
+                onClick={onAdd}
+                variant="contained"
                 size="small"
                 sx={{
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  fontSize: '0.72rem',
-                  borderRadius: 2,
-                  px: 1.5,
-                  py: 0.5,
-                  minHeight: 0,
-                  flexShrink: 0,
-                  ...(isActivated
-                    ? {
-                        color: 'hsl(var(--muted-foreground))',
-                        borderColor: 'hsl(var(--border))',
-                        '&:hover': {
-                          borderColor: 'hsl(var(--destructive))',
-                          color: 'hsl(var(--destructive))',
-                          bgcolor: 'hsla(var(--destructive) / 0.08)',
-                        },
-                      }
-                    : {
-                        bgcolor: 'hsl(var(--primary))',
-                        '&:hover': { bgcolor: 'hsl(var(--primary) / 0.85)' },
-                      }),
-                  ...(highlightActivate
-                    ? {
-                        boxShadow: '0 0 0 0 hsla(var(--primary) / 0.6)',
-                        animation: 'appTitleActivatePulse 1.1s ease-out infinite',
-                        '@keyframes appTitleActivatePulse': {
-                          '0%': { boxShadow: '0 0 0 0 hsla(var(--primary) / 0.55)' },
-                          '70%': { boxShadow: '0 0 0 10px hsla(var(--primary) / 0)' },
-                          '100%': { boxShadow: '0 0 0 0 hsla(var(--primary) / 0)' },
-                        },
-                      }
-                    : {}),
+                  textTransform: 'none', fontWeight: 600, fontSize: '0.72rem', borderRadius: 2, px: 1.5, py: 0, height: 28, minHeight: 28, whiteSpace: 'nowrap', flexShrink: 0,
+                  bgcolor: 'hsl(var(--primary))', '&:hover': { bgcolor: 'hsl(var(--primary) / 0.85)' },
                 }}
               >
-                {activateLoading ? '…' : isActivated ? 'Deactivate' : 'Activate'}
+                + Add
               </Button>
             )}
+
+            {!onAdd && isAuthenticated && (
+              <>
+                {isIngestEnabled !== null && isIngestEnabled !== undefined && onIngestToggle && (
+                  <AppIngestButton name={name} isIngestEnabled={isIngestEnabled} ingestLoading={ingestLoading} onIngestToggle={onIngestToggle} />
+                )}
+
+                {!isBuiltIn && isActivated !== null && onActivateToggle && (
+                  <Button
+                    onClick={onActivateToggle}
+                    disabled={activateLoading}
+                    variant={isActivated ? 'outlined' : 'contained'}
+                    size="small"
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: '0.72rem',
+                      borderRadius: 2,
+                      px: 1.5,
+                      py: 0,
+                      height: 28,
+                      minHeight: 28,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      ...(isActivated
+                        ? {
+                            color: 'hsl(var(--muted-foreground))',
+                            borderColor: 'hsl(var(--border))',
+                            '&:hover': {
+                              borderColor: 'hsl(var(--destructive))',
+                              color: 'hsl(var(--destructive))',
+                              bgcolor: 'hsla(var(--destructive) / 0.08)',
+                            },
+                          }
+                        : {
+                            bgcolor: 'hsl(var(--primary))',
+                            '&:hover': { bgcolor: 'hsl(var(--primary) / 0.85)' },
+                          }),
+                      ...(highlightActivate
+                        ? {
+                            boxShadow: '0 0 0 0 hsla(var(--primary) / 0.6)',
+                            animation: 'appTitleActivatePulse 1.1s ease-out infinite',
+                            '@keyframes appTitleActivatePulse': {
+                              '0%': { boxShadow: '0 0 0 0 hsla(var(--primary) / 0.55)' },
+                              '70%': { boxShadow: '0 0 0 10px hsla(var(--primary) / 0)' },
+                              '100%': { boxShadow: '0 0 0 0 hsla(var(--primary) / 0)' },
+                            },
+                          }
+                        : {}),
+                    }}
+                  >
+                    {activateLoading ? '…' : isActivated ? 'Deactivate' : 'Activate'}
+                  </Button>
+                )}
+              </>
+            )}
           </Box>
-        )}
-      </Box>
-    </motion.div>
+        </Box>
+      </motion.div>
+    </Box>
   );
 }
 
@@ -267,8 +311,10 @@ export function AppIngestButton({
                       fontSize: '0.72rem',
                       borderRadius: 2,
                       px: 1.5,
-                      py: 0.5,
-                      minHeight: 0,
+                      py: 0,
+                      height: 28,
+                      minHeight: 28,
+                      whiteSpace: 'nowrap',
                       flexShrink: 0,
                       ...(isIngestEnabled
                         ? {

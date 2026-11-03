@@ -87,7 +87,6 @@ export const Route = createFileRoute("/docs/$slug")({
 });
 
 function DocsRouteComponent() {
-  const { slug } = Route.useParams();
   const { doc } = Route.useLoaderData();
-  return <DocsPage key={slug} initialContent={doc?.markdown ?? null} initialMeta={doc?.meta ?? null} />;
+  return <DocsPage initialContent={doc?.markdown ?? null} initialMeta={doc?.meta ?? null} />;
 }

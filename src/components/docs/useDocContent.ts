@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { algoliasearch } from 'algoliasearch';
-import { resolveDocName, fetchDocsList, fetchDocsJson, docSlug } from '@/components/docs/remoteDocs';
+import {
+  resolveDocName,
+  fetchDocsList,
+  fetchDocsJson,
+  docSlug,
+  getInitialDocsList,
+  readStoredDocMarkdown,
+  writeStoredDocMarkdown,
+  removeStoredDocMarkdown,
+} from '@/components/docs/remoteDocs';
 import { extractHeadings, stripInContentToc, extractDocTitleAndBody, type TocHeading } from './tocUtils';
 
 export interface Contributor {
@@ -49,6 +58,43 @@ const docsQuery = (folder?: string, resetCache = false) => {
 const docContentCache = new Map<string, { markdown: string; meta: RemoteDocMeta | null }>();
 const docContentInflight = new Map<string, Promise<{ markdown: string; meta: RemoteDocMeta | null } | null>>();
 
+/**
+ * Synchronously resolve any cached doc content from memory or localStorage
+ * so client-side doc transitions can render immediately without a loading skeleton flash.
+ */
+export const getCachedRemoteDoc = (
+  slug: string,
+  folder?: string,
+): { markdown: string; meta: RemoteDocMeta | null; fromSessionMemory: boolean } | null => {
+  if (!slug) return null;
+  const targetSlug = (slug === 'index' && (!folder || folder === 'docs')) ? 'getting-started' : slug;
+  const cleanSlug = targetSlug.toLowerCase().replace(/_+/g, '-');
+  const folderPrefix = folder || 'docs';
+  const cacheKey = `${folderPrefix}:${cleanSlug}`;
+
+  const inMemory = docContentCache.get(cacheKey);
+  if (inMemory) {
+    return { ...inMemory, fromSessionMemory: true };
+  }
+
+  const stored =
+    readStoredDocMarkdown(cacheKey) ||
+    readStoredDocMarkdown(`${folderPrefix}:${cleanSlug.replace(/-/g, '_')}`) ||
+    readStoredDocMarkdown(`${folderPrefix}:${targetSlug.toLowerCase()}`);
+
+  if (stored && !isMissingDocBody(stored)) {
+    const initialList = getInitialDocsList(folder);
+    const matchedMeta = initialList.find((d) => docSlug(d.name) === cleanSlug) ?? null;
+    return {
+      markdown: stored,
+      meta: matchedMeta,
+      fromSessionMemory: false,
+    };
+  }
+
+  return null;
+};
+
 export const fetchRemoteDoc = async (
   slug: string,
   resetCache = false,
@@ -56,11 +102,14 @@ export const fetchRemoteDoc = async (
   signal?: AbortSignal,
 ): Promise<{ markdown: string; meta: RemoteDocMeta | null } | null> => {
   const cleanSlug = (slug || '').toLowerCase().replace(/_+/g, '-');
-  const cacheKey = `${folder || 'docs'}:${cleanSlug}`;
+  const folderPrefix = folder || 'docs';
+  const cacheKey = `${folderPrefix}:${cleanSlug}`;
 
   if (resetCache) {
     docContentCache.delete(cacheKey);
     docContentInflight.delete(cacheKey);
+    removeStoredDocMarkdown(cacheKey);
+    removeStoredDocMarkdown(`${folderPrefix}:${cleanSlug.replace(/-/g, '_')}`);
   } else {
     const cached = docContentCache.get(cacheKey);
     if (cached) return cached;
@@ -80,16 +129,34 @@ export const fetchRemoteDoc = async (
         new Set([exact, cleanSlug, slug, slug.replace(/-/g, '_')].filter(Boolean) as string[]),
       );
       for (const name of candidates) {
-          try {
+        try {
           const data = await fetchDocsJson(
             `/api/v1/docs/${encodeURIComponent(name)}${docsQuery(folder, resetCache)}`,
           );
-              if (data?.success && typeof data.reason === 'string' && data.reason.trim().length > 0) {
+          if (data?.success && typeof data.reason === 'string' && data.reason.trim().length > 0) {
             if (isMissingDocBody(data.reason)) continue;
-            const result = { markdown: data.reason, meta: (data.meta as RemoteDocMeta) ?? null };
+            const initialList = getInitialDocsList(folder);
+            const fallbackMeta = initialList.find(
+              (d) => docSlug(d.name) === cleanSlug || d.name.toLowerCase() === name.toLowerCase(),
+            );
+            const rawMeta = (data.meta as RemoteDocMeta) ?? null;
+            const mergedMeta: RemoteDocMeta | null = fallbackMeta
+              ? {
+                  ...fallbackMeta,
+                  ...rawMeta,
+                  contributors: rawMeta?.contributors?.length
+                    ? rawMeta.contributors
+                    : fallbackMeta.contributors,
+                  link: rawMeta?.link || fallbackMeta.link,
+                }
+              : rawMeta;
+            const result = { markdown: data.reason, meta: mergedMeta };
             docContentCache.set(cacheKey, result);
+            writeStoredDocMarkdown(cacheKey, data.reason);
             if (exact && exact.toLowerCase() !== cleanSlug) {
-              docContentCache.set(`${folder || 'docs'}:${exact.toLowerCase()}`, result);
+              const exactKey = `${folderPrefix}:${exact.toLowerCase()}`;
+              docContentCache.set(exactKey, result);
+              writeStoredDocMarkdown(exactKey, data.reason);
             }
             return result;
           }
@@ -137,17 +204,20 @@ export const useDocContent = ({
   initialContent = null,
   initialMeta = null,
 }: UseDocContentOptions): UseDocContentResult => {
-  // Clean and extract title from initial SSR markdown if provided
+  // Clean and extract title from initial SSR markdown or synchronous cache if available
   const initialProcessed = useMemo(() => {
-    if (!initialContent) return { title: null, content: '' };
-    const stripped = stripInContentToc(initialContent);
-    return extractDocTitleAndBody(stripped);
-  }, [initialContent]);
+    const rawMarkdown = initialContent || getCachedRemoteDoc(slug, folder)?.markdown || '';
+    if (!rawMarkdown) return { title: null, content: '', hasCached: false };
+    const stripped = stripInContentToc(rawMarkdown);
+    return { ...extractDocTitleAndBody(stripped), hasCached: true };
+  }, [initialContent, slug, folder]);
 
   const [title, setTitle] = useState<string | null>(initialProcessed.title);
   const [content, setContent] = useState<string>(initialProcessed.content);
-  const [meta, setMeta] = useState<RemoteDocMeta | null>(initialMeta);
-  const [loading, setLoading] = useState(!initialContent);
+  const [meta, setMeta] = useState<RemoteDocMeta | null>(
+    () => initialMeta ?? getCachedRemoteDoc(slug, folder)?.meta ?? null,
+  );
+  const [loading, setLoading] = useState(!initialProcessed.hasCached);
   const ssrSlugRef = useRef<string | null>(initialContent ? slug : null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeSlugRef = useRef<string>(slug);
@@ -163,7 +233,11 @@ export const useDocContent = ({
   }, [content]);
 
   const loadContent = useCallback(
-    async (resetCache = false) => {
+    async (resetCache = false, silent = false) => {
+      if (!slug) {
+        setLoading(false);
+        return;
+      }
       // Abort previous in-flight request
       abortControllerRef.current?.abort();
       const controller = new AbortController();
@@ -172,21 +246,27 @@ export const useDocContent = ({
       activeSlugRef.current = slug;
 
       ssrSlugRef.current = null;
-      setLoading(true);
-      setError(null);
-      setMeta(null);
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+        setMeta(null);
+      }
 
       try {
         let target = slug;
         if (slug === 'index' || !slug) {
-          const list = await fetchDocsList(resetCache, folder, controller.signal);
-          if (controller.signal.aborted || currentRequestId !== requestIdRef.current) return;
+          if (!folder || folder === 'docs') {
+            target = 'getting-started';
+          } else {
+            const list = await fetchDocsList(resetCache, folder, controller.signal);
+            if (controller.signal.aborted || currentRequestId !== requestIdRef.current) return;
 
-          const preferred =
-            list.find((d) => docSlug(d.name) === 'index') ??
-            list.find((d) => docSlug(d.name) === 'getting-started') ??
-            list[0];
-          if (preferred) target = docSlug(preferred.name);
+            const preferred =
+              list.find((d) => docSlug(d.name) === 'index') ??
+              list.find((d) => docSlug(d.name) === 'getting-started') ??
+              list[0];
+            if (preferred) target = docSlug(preferred.name);
+          }
         }
 
         let remote = await fetchRemoteDoc(target, resetCache, folder, controller.signal);
@@ -206,30 +286,52 @@ export const useDocContent = ({
         if (remote) {
           const stripped = stripInContentToc(remote.markdown);
           const { title: extractedTitle, content: bodyContent } = extractDocTitleAndBody(stripped);
-          setTitle(extractedTitle);
-          setContent(bodyContent);
-
           let finalMeta = remote.meta;
-          if (!finalMeta?.contributors?.length || !finalMeta?.link) {
-            try {
-              const list = await fetchDocsList(false, folder, controller.signal);
-              const match = list.find(
-                (d) => docSlug(d.name) === target.toLowerCase() || docSlug(d.name) === slug.toLowerCase(),
-              );
-              if (match) {
-                finalMeta = {
-                  ...match,
-                  ...finalMeta,
-                  contributors: finalMeta?.contributors?.length ? finalMeta.contributors : match.contributors,
-                  link: finalMeta?.link || match.link,
-                };
-              }
-            } catch {
-              // ignore
+          const initialList = getInitialDocsList(folder);
+          if ((!finalMeta?.contributors?.length || !finalMeta?.link) && initialList.length > 0) {
+            const match = initialList.find(
+              (d) => docSlug(d.name) === target.toLowerCase() || docSlug(d.name) === slug.toLowerCase(),
+            );
+            if (match && (match.contributors?.length || match.link)) {
+              finalMeta = {
+                ...match,
+                ...finalMeta,
+                contributors: finalMeta?.contributors?.length ? finalMeta.contributors : match.contributors,
+                link: finalMeta?.link || match.link,
+              };
             }
           }
-          setMeta(finalMeta);
-        } else {
+
+          startTransition(() => {
+            setError(null);
+            setTitle(extractedTitle);
+            setContent(bodyContent);
+            setMeta(finalMeta);
+            setLoading(false);
+          });
+
+          // Enrich contributors/link metadata asynchronously in the background if still missing
+          if (!finalMeta?.contributors?.length || !finalMeta?.link) {
+            fetchDocsList(false, folder, controller.signal)
+              .then((list) => {
+                if (controller.signal.aborted || currentRequestId !== requestIdRef.current) return;
+                const match = list.find(
+                  (d) => docSlug(d.name) === target.toLowerCase() || docSlug(d.name) === slug.toLowerCase(),
+                );
+                if (match && (match.contributors?.length || match.link)) {
+                  setMeta((prev) => ({
+                    ...match,
+                    ...prev,
+                    contributors: prev?.contributors?.length ? prev.contributors : match.contributors,
+                    link: prev?.link || match.link,
+                  }));
+                }
+              })
+              .catch(() => {
+                // ignore background metadata errors
+              });
+          }
+        } else if (!silent) {
           setTitle(null);
           setContent('');
           // Known page that failed to load gets a fallback message with a GitHub link;
@@ -252,7 +354,7 @@ export const useDocContent = ({
           );
         }
       } catch (err: any) {
-        if (err?.name === 'AbortError' || controller.signal.aborted) {
+        if (err?.name === 'AbortError' || controller.signal.aborted || silent) {
           return;
         }
         setTitle(null);
@@ -268,24 +370,49 @@ export const useDocContent = ({
   );
 
   useEffect(() => {
+    if (!slug) return;
     if (ssrSlugRef.current === slug) return;
-    // When switching to a new doc page, immediately clear stale content
+
+    const cached = getCachedRemoteDoc(slug, folder);
+    if (cached) {
+      const stripped = stripInContentToc(cached.markdown);
+      const { title: extractedTitle, content: bodyContent } = extractDocTitleAndBody(stripped);
+      startTransition(() => {
+        setError(null);
+        setTitle(extractedTitle);
+        setContent(bodyContent);
+        setMeta(cached.meta);
+        setLoading(false);
+      });
+      // If the hit came from session memory, no network round-trip is needed.
+      // If it came from localStorage, revalidate silently in the background.
+      if (cached.fromSessionMemory) {
+        return;
+      }
+      loadContent(false, true);
+      return () => {
+        abortControllerRef.current?.abort();
+      };
+    }
+
+    // Uncached doc: show loading state and fetch
     setTitle(null);
     setContent('');
     setMeta(null);
-    loadContent();
+    loadContent(false, false);
     return () => {
       abortControllerRef.current?.abort();
     };
-  }, [loadContent, slug]);
+  }, [loadContent, slug, folder]);
 
   useEffect(() => {
-    if (initialContent) {
+    if (initialContent && slug) {
       const cleanSlug = (slug || '').toLowerCase().replace(/_+/g, '-');
       const cacheKey = `${folder || 'docs'}:${cleanSlug}`;
       if (!docContentCache.has(cacheKey)) {
         docContentCache.set(cacheKey, { markdown: initialContent, meta: initialMeta });
       }
+      writeStoredDocMarkdown(cacheKey, initialContent);
     }
   }, [initialContent, initialMeta, slug, folder]);
 

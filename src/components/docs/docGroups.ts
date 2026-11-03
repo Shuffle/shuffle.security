@@ -1,4 +1,5 @@
-import { docSlug, fetchDocMarkdown, resolveDocName } from './remoteDocs';
+import { docSlug, getInitialDocsList } from './remoteDocs';
+import { fetchRemoteDoc } from './useDocContent';
 export * from '@/lib/docGroups';
 import { DOC_GROUPS, getDocDisplayLabel } from '@/lib/docGroups';
 
@@ -123,13 +124,22 @@ export const loadGroupDocsContent = async (
 
   const promise = (async () => {
     const results: Record<string, string> = {};
-    const fetchPromises = groupDef.slugs.map(async (slug) => {
+    const knownSet = new Set(
+      getInitialDocsList(folder).map((d) => docSlug(d.name)),
+    );
+    const uniqueSlugs = Array.from(
+      new Set(
+        groupDef.slugs
+          .map((s) => docSlug(s))
+          .filter((s) => knownSet.size === 0 || knownSet.has(s)),
+      ),
+    );
+    const fetchPromises = uniqueSlugs.map(async (slug) => {
       try {
-        const resolvedName = (await resolveDocName(slug, false, folder, signal)) || slug;
         if (signal?.aborted) return;
-        const markdown = await fetchDocMarkdown(resolvedName, false, folder, signal);
-        if (markdown && typeof markdown === 'string') {
-          results[slug] = markdown;
+        const remote = await fetchRemoteDoc(slug, false, folder, signal);
+        if (remote?.markdown && typeof remote.markdown === 'string') {
+          results[slug] = remote.markdown;
         }
       } catch {
         // Continue if single file fails

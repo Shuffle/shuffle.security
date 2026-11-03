@@ -15,10 +15,8 @@ export interface UserApiKeyInfo {
 export function maskApiKey(key: string | null | undefined): string {
   if (!key || key.trim() === '') return '<API_KEY>';
   const trimmed = key.trim();
-  if (trimmed.length <= 8) return '••••••••';
-  const start = trimmed.slice(0, 4);
-  const end = trimmed.slice(-4);
-  return `${start}••••••••••••${end}`;
+  if (trimmed.length <= 8) return '********';
+  return `${trimmed.slice(0, 8)}...`;
 }
 
 const readCachedOrgId = (): string | null => {

@@ -245,7 +245,9 @@ const readHtmlDarkClass = (): boolean => {
   if (typeof document === "undefined") return false;
   return (
     document.documentElement.classList.contains("dark") ||
-    (Boolean(document.body) && document.body.classList.contains("dark"))
+    document.body?.classList.contains("dark") ||
+    document.documentElement.getAttribute("data-theme") === "dark" ||
+    document.body?.getAttribute("data-theme") === "dark"
   );
 };
 
@@ -270,8 +272,14 @@ const readAncestorDark = (anchor: Element | null): boolean | null => {
   return null;
 };
 
-const useAutoDarkClass = (enabled: boolean, anchorRef: React.RefObject<HTMLElement | null>): boolean => {
-  const [isDark, setIsDark] = React.useState<boolean>(() => (enabled ? readHtmlDarkClass() : false));
+const useAutoDarkClass = (
+  enabled: boolean,
+  anchorRef: React.RefObject<HTMLElement | null>,
+  fallbackDark = false,
+): boolean => {
+  const [isDark, setIsDark] = React.useState<boolean>(() =>
+    enabled ? (typeof document !== "undefined" ? readHtmlDarkClass() : fallbackDark) : false,
+  );
   React.useLayoutEffect(() => {
     if (!enabled || typeof document === "undefined") return;
     const recompute = () => {
@@ -280,9 +288,9 @@ const useAutoDarkClass = (enabled: boolean, anchorRef: React.RefObject<HTMLEleme
     };
     recompute();
     const observer = new MutationObserver(recompute);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
     if (document.body) {
-      observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+      observer.observe(document.body, { attributes: true, attributeFilter: ["class", "data-theme"] });
     }
     const ownRoot = anchorRef.current?.closest('[data-shuffle-core-root], [data-shuffle-mcp-root]');
     let node: HTMLElement | null = ownRoot ? ownRoot.parentElement : anchorRef.current?.parentElement ?? null;
@@ -515,7 +523,8 @@ export const ShuffleMcpThemeProvider: React.FC<ShuffleMcpThemeProviderProps> = (
   const parent = useMuiTheme();
   const parentCtx = useShuffleMcpTheme();
   const anchorRef = React.useRef<HTMLSpanElement>(null);
-  const autoIsDark = useAutoDarkClass(mode === "auto", anchorRef);
+  const fallbackDark = parentCtx ? parentCtx.isDark : (parent as any)?.palette?.mode === "dark";
+  const autoIsDark = useAutoDarkClass(mode === "auto", anchorRef, fallbackDark);
   const effectiveDark = mode === "auto" ? autoIsDark : mode === "dark";
 
   const sameAsParent =

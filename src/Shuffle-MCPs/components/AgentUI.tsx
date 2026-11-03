@@ -718,7 +718,12 @@ import {
   MAX_AUTO_ASSIGNED_TOOLS,
   type ConnectedToolApp,
 } from '@/Shuffle-MCPs/connectedSourcesService';
-import { getPageContextChoice, setPageContextChoice } from '@/Shuffle-MCPs/agentContextRegistry';
+import {
+  getPageContextChoice,
+  setPageContextChoice,
+  getSidebarDraftPrompt,
+  setSidebarDraftPrompt,
+} from '@/Shuffle-MCPs/agentContextRegistry';
 
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -2516,7 +2521,20 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const isPhoneScreen = useMediaQuery('(max-width:600px)', { noSsr: true });
   const isPhone = mobileView !== undefined ? mobileView : isPhoneScreen;
   const themeScope = useShuffleMcpTheme();
-  const scopeClassName = themeScope?.scopeClassName || 'shuffle-mcp-scope';
+  const resolvedModeProp = colorMode || (theme === 'system' ? 'auto' : theme);
+  const effectiveIsDark =
+    resolvedModeProp === 'dark'
+      ? true
+      : resolvedModeProp === 'light'
+      ? false
+      : themeScope
+      ? themeScope.isDark
+      : typeof document !== 'undefined' &&
+        (document.documentElement.classList.contains('dark') ||
+          document.body?.classList.contains('dark') ||
+          document.documentElement.getAttribute('data-theme') === 'dark');
+  const effectiveTheme: 'dark' | 'light' = effectiveIsDark ? 'dark' : 'light';
+  const scopeClassName = themeScope?.scopeClassName || `shuffle-mcp-scope ${effectiveTheme}`;
   const [actionInput, setActionInput] = useState<string>(() => {
     if (defaultInput && defaultInput.trim().length > 0) {
       return defaultInput;
@@ -2527,18 +2545,38 @@ const AgentUI: React.FC<AgentUIProps> = ({
         return saved.draftPrompt;
       }
     }
+    const sharedDraft = getSidebarDraftPrompt();
+    if (sharedDraft && sharedDraft.trim().length > 0) {
+      return sharedDraft;
+    }
     return defaultInput || '';
   });
+  const actionInputRef = useRef(actionInput);
+  actionInputRef.current = actionInput;
+  const userModifiedAppsRef = useRef(false);
+  const userModifiedPresetRef = useRef(false);
+  const onAppsChangeRef = useRef(onAppsChange);
+  onAppsChangeRef.current = onAppsChange;
+
   const lastStorageKeyRef = useRef(contextStorageKey);
   useEffect(() => {
     if (lastStorageKeyRef.current !== contextStorageKey) {
       lastStorageKeyRef.current = contextStorageKey;
+      const currentDraft = actionInputRef.current;
+      if (currentDraft && currentDraft.trim().length > 0) {
+        if (contextStorageKey) {
+          setPageContextChoice(contextStorageKey, { draftPrompt: currentDraft });
+        }
+        setSidebarDraftPrompt(currentDraft);
+        return;
+      }
       if (contextStorageKey) {
         const saved = getPageContextChoice(contextStorageKey);
         if (saved?.draftPrompt !== undefined && saved.draftPrompt !== '') {
           setActionInput(saved.draftPrompt);
         } else {
-          setActionInput(defaultInput || '');
+          const sharedDraft = getSidebarDraftPrompt();
+          setActionInput(sharedDraft || defaultInput || '');
         }
       }
     }
@@ -2612,7 +2650,17 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // The template whose tool set is currently loaded. Tool changes are only
   // persisted as an override once the template's own tools have been seeded.
   const seededPresetIdRef = useRef<string | null>(null);
+  const hasSeededInitialPresetRef = useRef(false);
+  const lastSyncedContextRef = useRef<{ storageKey?: string; presetId?: string | null }>({
+    storageKey: contextStorageKey,
+    presetId: initialPresetId,
+  });
 
+  const defaultAppsSig = useMemo(
+    () => (defaultApps ? defaultApps.map((a) => `${a.id || ''}:${a.name || ''}:${a.icon || ''}`).join('|') : '__undef__'),
+    [defaultApps],
+  );
+  const lastDefaultAppsSigRef = useRef(defaultAppsSig);
 
   // Restore the last used preset from localStorage so the choice survives
   // reloads, matching how assigned agent tools are remembered.
@@ -2620,6 +2668,55 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // existing run) — that prompt is already complete and must not be
   // silently wrapped in an unrelated template.
   useEffect(() => {
+    const isSubsequentRender = hasSeededInitialPresetRef.current;
+    const storageKeyChanged = lastSyncedContextRef.current.storageKey !== contextStorageKey;
+    const defaultAppsChanged = lastDefaultAppsSigRef.current !== defaultAppsSig;
+    const contextChanged =
+      storageKeyChanged ||
+      lastSyncedContextRef.current.presetId !== initialPresetId ||
+      defaultAppsChanged;
+
+    lastSyncedContextRef.current = {
+      storageKey: contextStorageKey,
+      presetId: initialPresetId,
+    };
+    lastDefaultAppsSigRef.current = defaultAppsSig;
+
+    if (storageKeyChanged) {
+      const savedForNewPage = contextStorageKey ? getPageContextChoice(contextStorageKey) : null;
+      if (!savedForNewPage?.apps) {
+        userModifiedAppsRef.current = false;
+      }
+      if (savedForNewPage?.presetId === undefined) {
+        userModifiedPresetRef.current = false;
+      }
+    }
+
+    if (isSubsequentRender && contextChanged && !apps && defaultApps !== undefined && !userModifiedAppsRef.current) {
+      setChosenApps(dedupeAgentApps(defaultApps).slice(0, MAX_AUTO_ASSIGNED_TOOLS));
+    }
+
+    const hasActiveUserDraftOrConfig =
+      actionInputRef.current.trim().length > 0 ||
+      userModifiedPresetRef.current ||
+      userModifiedAppsRef.current;
+
+    if (isSubsequentRender && hasActiveUserDraftOrConfig) {
+      if (contextStorageKey) {
+        if (userModifiedPresetRef.current) {
+          setPageContextChoice(contextStorageKey, { presetId: selectedPreset?.id ?? null });
+        }
+        if (userModifiedAppsRef.current) {
+          setPageContextChoice(contextStorageKey, {
+            apps: chosenApps.map((a) => ({ name: a.name, id: a.id, icon: a.icon })),
+          });
+        }
+      }
+      return;
+    }
+
+    hasSeededInitialPresetRef.current = true;
+
     if (!initialPresetId && defaultInput && defaultInput.trim().length > 0) {
       setSelectedPreset(null);
       return;
@@ -2656,7 +2753,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
     } catch {
       /* ignore storage errors */
     }
-  }, [presets, defaultInput, isEffectiveSupport, initialPresetId, defaultApps, apps]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presets, defaultInput, isEffectiveSupport, initialPresetId, contextStorageKey, defaultAppsSig, apps]);
 
   useEffect(() => {
     const handleToolsChanged = () => {
@@ -2932,6 +3030,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const acceptSuggestion = useCallback((s: string) => {
     programmaticInputRef.current = true;
     setActionInput(s);
+    setSidebarDraftPrompt(s);
     if (contextStorageKey) {
       setPageContextChoice(contextStorageKey, { draftPrompt: s });
     }
@@ -2939,7 +3038,10 @@ const AgentUI: React.FC<AgentUIProps> = ({
     setSuggestionIndex(-1);
     // A text template from the prompt list acts as its own skill, so clear
     // any explicitly selected skill. The user is free to pick a skill again.
+    userModifiedPresetRef.current = true;
+    userModifiedAppsRef.current = true;
     setSelectedPreset(null);
+    onSelectPreset?.(null as any);
     try { localStorage.removeItem(LAST_PRESET_STORAGE_KEY); } catch { /* ignore */ }
     // Replace the current selection with exactly the apps this suggestion
     // needs. Category requirements are surfaced as dashed chips.
@@ -2954,7 +3056,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     requestAnimationFrame(() => {
       try { inputRef.current?.focus(); } catch { /* ignore */ }
     });
-  }, []);
+  }, [contextStorageKey, onSelectPreset, setChosenApps]);
 
 
   const BUILTIN_DEFAULT_APPS: AgentUIApp[] = [
@@ -3052,11 +3154,15 @@ const AgentUI: React.FC<AgentUIProps> = ({
   });
 
   const handleRemovePreset = useCallback(() => {
+    userModifiedPresetRef.current = true;
     try { localStorage.removeItem(LAST_PRESET_STORAGE_KEY); } catch { /* ignore */ }
     setSelectedPreset(null);
-  }, []);
+    onSelectPreset?.(null as any);
+  }, [onSelectPreset]);
 
   const handleSelectPresetInternal = useCallback((preset: AgentPreset) => {
+    userModifiedPresetRef.current = true;
+    userModifiedAppsRef.current = true;
     try { localStorage.setItem(LAST_PRESET_STORAGE_KEY, preset.id); } catch { /* ignore */ }
     const resolved = resolvePresetApps(preset);
     const override = readPresetAppsOverride(preset.id);
@@ -3073,18 +3179,14 @@ const AgentUI: React.FC<AgentUIProps> = ({
       setChosenApps(resolved);
     }
     seededPresetIdRef.current = preset.id;
-
-    if (onSelectPreset) {
-      onSelectPreset(preset);
-      return;
-    }
     setSelectedPreset(preset);
+    onSelectPreset?.(preset);
 
     setTimeout(() => {
       const el = inputRef.current as HTMLTextAreaElement | HTMLInputElement | null;
       try { el?.focus(); } catch { /* ignore */ }
     }, 0);
-  }, [onSelectPreset]);
+  }, [onSelectPreset, setChosenApps]);
 
   const [scheduleAnchor, setScheduleAnchor] = useState<HTMLElement | null>(null);
   // Mobile-only "+" menu that groups Skills / Schedule / Attach into one control.
@@ -3521,24 +3623,27 @@ const AgentUI: React.FC<AgentUIProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify((agentData as any)?.decisions?.map((d: any) => [d?.details?.tool || d?.tool, extractAuthRequest(d)?.appName]) || []), appsById]);
 
-  // Sideload missing app icons via Algolia (same source as the picker), so
-  // built-in/default chips like "http" and "shuffle_tools" show their logo
-  // even when the caller didn't pass one in.
+  // Sideload missing app icons and IDs via Algolia (same source as the picker), so
+  // built-in/default chips like "http" and "shuffle_tools" or page-selected tools
+  // show their logo and canonical ID even when the caller didn't pass one in.
   useEffect(() => {
-    const missing = chosenApps.filter((a) => !a.icon && a.name);
+    const missing = chosenApps.filter((a) => (!a.icon || !a.id) && a.name);
     if (missing.length === 0) return;
     let cancelled = false;
     const norm = (n: string) => n.toLowerCase().replace(/[\s_\-]+/g, '_');
 
     (async () => {
       // Pass 1 — try Algolia (public, works without an API key).
-      const resolved: Record<string, string> = {};
+      const resolvedIcon: Record<string, string> = {};
+      const resolvedId: Record<string, string> = {};
       try {
         const { algoliasearch } = await import('algoliasearch');
         const client = algoliasearch('JNSS5CFDZZ', '33e4e3564f4f060e96e0531957bed552');
         await Promise.all(missing.map(async (a) => {
           const known = availableApps.find((x) => norm(x.name) === norm(a.name));
-          if (known?.icon) { resolved[a.name] = known.icon; return; }
+          if (known?.icon) resolvedIcon[a.name] = known.icon;
+          if (known?.id) resolvedId[a.name] = String(known.id);
+          if (resolvedIcon[a.name] && resolvedId[a.name]) return;
           try {
             const res = await client.searchSingleIndex({
               indexName: 'appsearch',
@@ -3546,7 +3651,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
             });
             const match = (res.hits as any[]).find((h) => norm(h.name || '') === norm(a.name))
               || (res.hits as any[])[0];
-            if (match?.image_url) resolved[a.name] = match.image_url;
+            if (match?.image_url && !resolvedIcon[a.name]) resolvedIcon[a.name] = match.image_url;
+            if (match?.objectID && !resolvedId[a.name]) resolvedId[a.name] = String(match.objectID);
           } catch { /* fall through to /api/v1/apps */ }
         }));
       } catch { /* fall through to /api/v1/apps */ }
@@ -3554,7 +3660,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       // Pass 2 — for anything Algolia didn't resolve, fall back to /api/v1/apps
       // so built-in chips (http, shuffle_tools) still get their logo even when
       // Algolia is blocked or offline.
-      const stillMissing = missing.filter((a) => !resolved[a.name]);
+      const stillMissing = missing.filter((a) => !resolvedIcon[a.name] || !resolvedId[a.name]);
       if (stillMissing.length > 0) {
         try {
           const baseUrl = apiBaseUrl ? apiBaseUrl.replace(/\/+$/, '') : API_CONFIG.baseUrl;
@@ -3567,18 +3673,31 @@ const AgentUI: React.FC<AgentUIProps> = ({
             for (const a of stillMissing) {
               const m = apps.find((x: any) => norm(x.name || '') === norm(a.name));
               const img = m?.large_image || m?.image_url || m?.image;
-              if (img) resolved[a.name] = img;
+              if (img && !resolvedIcon[a.name]) resolvedIcon[a.name] = img;
+              if (m?.id && !resolvedId[a.name]) resolvedId[a.name] = String(m.id);
             }
           }
         } catch { /* chips will just show initials */ }
       }
 
       if (cancelled) return;
-      setChosenApps((prev) => prev.map((a) => {
-        if (a.icon) return a;
-        const icon = resolved[a.name];
-        return icon ? { ...a, icon } : a;
-      }));
+      setChosenApps((prev) => {
+        let changed = false;
+        const next = prev.map((a) => {
+          const icon = a.icon || resolvedIcon[a.name];
+          const id = a.id || resolvedId[a.name];
+          if ((icon && icon !== a.icon) || (id && id !== a.id)) {
+            changed = true;
+            return {
+              ...a,
+              ...(icon ? { icon } : {}),
+              ...(id ? { id } : {}),
+            };
+          }
+          return a;
+        });
+        return changed ? next : prev;
+      });
     })();
     return () => { cancelled = true; };
   }, [chosenApps, availableApps, resolveUrl, resolveHeaders]);
@@ -3671,7 +3790,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
         let baseList = prev;
 
         // If user hasn't explicitly customized apps on this page, merge connected tools (max 4 tools)
-        if (!savedChoice?.apps && connectedTools.length > 0) {
+        if (!savedChoice?.apps && !userModifiedAppsRef.current && connectedTools.length > 0) {
           const merged = mergeConnectedTools(prev, connectedTools, MAX_AUTO_ASSIGNED_TOOLS);
           if (merged.length !== prev.length || merged.some((m, idx) => prev[idx]?.name !== m.name)) {
             baseList = merged;
@@ -3695,9 +3814,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
           return app;
         });
 
-        if (changed && onAppsChange) {
-          onAppsChange(updated);
-        }
         return changed ? updated : prev;
       });
 
@@ -4253,6 +4369,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       setError('Authentication required. Please log in to run AI agents.');
       return;
     }
+    setSidebarDraftPrompt('');
     if (contextStorageKey) {
       setPageContextChoice(contextStorageKey, { draftPrompt: '' });
     }
@@ -4394,6 +4511,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     setAgentRequestLoading(false);
 
     if (!result.success) {
+      setSidebarDraftPrompt(text);
       if (contextStorageKey) {
         setPageContextChoice(contextStorageKey, { draftPrompt: text });
       }
@@ -4486,7 +4604,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     // `selectedPreset` MUST be a dependency: without it the callback keeps a
     // stale skill (e.g. "Build Workflows") and keeps posting to
     // /api/v1/agent/workflow-edit after the skill was unselected.
-  }, [chosenApps, executionApps, getExecution, onRun, attachedImages, readUrlParams, setSearchParams, viewMode, selectedPreset, isLoggedIn]);
+  }, [chosenApps, executionApps, getExecution, onRun, attachedImages, readUrlParams, setSearchParams, viewMode, selectedPreset, isLoggedIn, composeSubmitInput]);
 
   // Auto-submit on mount or when defaultInput updates with autoSubmit.
   const lastSubmittedInputRef = useRef<string | null>(null);
@@ -5499,8 +5617,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
       isInitialMountChosenAppsRef.current = false;
       return;
     }
-    onAppsChange?.(chosenApps);
-  }, [chosenApps, onAppsChange]);
+    if (!userModifiedAppsRef.current) return;
+    onAppsChangeRef.current?.(chosenApps);
+  }, [chosenApps]);
   // Remember tool customisations per template so a template's defaults are a
   // starting point, not a forced set.
   useEffect(() => {
@@ -6417,7 +6536,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       onRemoveSelected={handleRemovePreset}
       onSelectPreset={handleSelectPresetInternal}
       placement="bottom-start"
-      theme={theme || (themeScope?.isDark ? 'dark' : 'light')}
+      theme={effectiveTheme}
       colorMode={colorMode}
       sx={{
         height: 32,
@@ -6435,6 +6554,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
       slotProps={{
         paper: {
+          className: scopeClassName,
           sx: {
             mt: -1,
             minWidth: 220,
@@ -6782,6 +6902,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                 onChange={(e) => {
                   const nextValue = e.target.value;
                   setActionInput(nextValue);
+                  setSidebarDraftPrompt(nextValue);
                   if (contextStorageKey) {
                     setPageContextChoice(contextStorageKey, { draftPrompt: nextValue });
                   }
@@ -6797,6 +6918,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                   // starting). Saving the draft then would bring back the prompt that was just sent.
                   if (!e) return;
                   const node = e.target as HTMLTextAreaElement;
+                  setSidebarDraftPrompt(node.value || '');
                   if (contextStorageKey) {
                     setPageContextChoice(contextStorageKey, { draftPrompt: node.value || '' });
                   }
@@ -6953,7 +7075,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                       selectedPreset={selectedPreset}
                       onRemoveSelected={handleRemovePreset}
                       onSelectPreset={handleSelectPresetInternal}
-                      theme={theme || (themeScope?.isDark ? 'dark' : 'light')}
+                      theme={effectiveTheme}
                       colorMode={colorMode}
                     />
                   )}
@@ -7400,6 +7522,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
                     onClose={() => setLlmMenuAnchor(null)}
                     slotProps={{
                       paper: {
+                        className: scopeClassName,
                         sx: {
                           bgcolor: 'hsl(var(--popover))',
                           color: 'hsl(var(--popover-foreground))',
@@ -7651,7 +7774,11 @@ const AgentUI: React.FC<AgentUIProps> = ({
                     ) : (
                       <IconButton
                         size="small"
-                        onClick={(e) => { e.stopPropagation(); setChosenApps((prev) => prev.filter((_, idx) => idx !== i)); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          userModifiedAppsRef.current = true;
+                          setChosenApps((prev) => prev.filter((_, idx) => idx !== i));
+                        }}
                         disabled={agentRequestLoading}
                         sx={{ p: 0.125, color: 'hsl(var(--muted-foreground))', '&:hover': { color: 'hsl(var(--destructive))' }, '&.Mui-disabled': { opacity: 0.4 } }}
                       >
@@ -8413,9 +8540,10 @@ const AgentUI: React.FC<AgentUIProps> = ({
             multiSelect: true,
             selectedApps: chosenApps.map((a) => ({ name: a.name, id: a.id || null, icon: a.icon })),
             globalUrl: apiBaseUrl,
-            theme,
+            theme: effectiveTheme,
             colorMode,
             onSelectionChange: (next) => {
+              userModifiedAppsRef.current = true;
               const added = next.length > chosenApps.length;
               // Dedupe by normalized name so an app seeded from a previous run
               // (name-only, no Algolia id) cannot linger as a second, invisible
@@ -8462,7 +8590,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
             appImage: authDrawerApp?.icon || null, focusAuthentication: !!authDrawerApp?.focusAuth,
             activeOrgId: orgId || null,
             globalUrl: apiBaseUrl,
-            theme,
+            theme: effectiveTheme,
             colorMode,
           })
         ) : null}

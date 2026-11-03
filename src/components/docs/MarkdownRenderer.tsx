@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
 import {
@@ -122,10 +122,12 @@ export const MarkdownRenderer = ({
 
   const title = propTitle !== undefined ? propTitle : hookDoc.title;
   const rawContent = isControlled ? propContent : hookDoc.content;
+  const deferredRawContent = useDeferredValue(rawContent);
+  const effectiveRawContent = deferredRawContent || rawContent || '';
   const orborusDeployConfig = useOrborusDeployConfig();
   const content = useMemo(
-    () => enrichOrborusDeployMarkdown(rawContent || '', orborusDeployConfig),
-    [rawContent, orborusDeployConfig],
+    () => enrichOrborusDeployMarkdown(effectiveRawContent, orborusDeployConfig),
+    [effectiveRawContent, orborusDeployConfig],
   );
   const meta = isControlled ? (propMeta ?? null) : hookDoc.meta;
   const loading = isControlled ? Boolean(propLoading) : hookDoc.loading;
@@ -163,6 +165,16 @@ export const MarkdownRenderer = ({
 
     // 1. Support selecting text inside editable code block textareas within the doc container
     const activeEl = document.activeElement;
+    if (
+      activeEl &&
+      !root.contains(activeEl) &&
+      (activeEl instanceof HTMLTextAreaElement ||
+        activeEl instanceof HTMLInputElement ||
+        (activeEl as HTMLElement).isContentEditable)
+    ) {
+      // User is typing or interacting in an external input (such as the Ask AI sidebar) — ignore
+      return;
+    }
     if (
       activeEl &&
       root.contains(activeEl) &&

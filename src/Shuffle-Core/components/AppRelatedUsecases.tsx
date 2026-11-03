@@ -165,9 +165,9 @@ export default function AppRelatedUsecases({
   };
 
   return (
-    <Box sx={{ mb: 4 }}>
+    <Box sx={{ mb: 5 }}>
       {/* Header */}
-      <Box sx={{ mb: 2 }}>
+      <Box sx={{ mb: 2.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
           <Typography sx={{ fontWeight: 700, fontSize: '0.92rem', color: 'hsl(var(--foreground))' }}>
             Related Usecases
@@ -204,7 +204,7 @@ export default function AppRelatedUsecases({
           gridTemplateColumns: mode === 'page'
             ? { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }
             : '1fr',
-          gap: 1.5,
+          gap: 2,
         }}
       >
         {relatedUsecases.map((flow) => {

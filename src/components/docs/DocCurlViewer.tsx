@@ -10,6 +10,7 @@ import ApiCallViewer, {
   type ApiCallViewerProps,
   type ParsedCurl,
 } from '@/Shuffle-Core/components/ApiCallViewer';
+import { useTheme } from '@/context/ThemeContext';
 
 export interface DocCurlViewerProps extends Partial<ApiCallViewerProps> {
   rawCurl?: string;
@@ -18,9 +19,10 @@ export interface DocCurlViewerProps extends Partial<ApiCallViewerProps> {
 export type { ParsedCurl };
 
 export const DocCurlViewer: React.FC<DocCurlViewerProps> = (props) => {
+  const { resolvedTheme } = useTheme();
   return (
     <Box className="not-prose" sx={{ my: 2.5, width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden' }}>
-      <ApiCallViewer {...props} />
+      <ApiCallViewer theme={resolvedTheme} {...props} />
     </Box>
   );
 };

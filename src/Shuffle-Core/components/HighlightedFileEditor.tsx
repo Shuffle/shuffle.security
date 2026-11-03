@@ -33,7 +33,14 @@ import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { toast } from '@/Shuffle-Core/toast';
 import { useUserApiKey } from '@/Shuffle-Core/useUserApiKey';
-import { deepParseJsonStrings } from '@/Shuffle-Core/components/ApiCallViewer';
+import {
+  deepParseJsonStrings,
+  unmaskSnippetCredentials,
+} from '@/Shuffle-Core/components/ApiCallViewer';
+import {
+  useShuffleCoreTheme,
+  readHtmlDarkClass,
+} from '@/Shuffle-Core/components/ShuffleCoreThemeProvider';
 import JsonView from 'react18-json-view';
 import 'react18-json-view/src/style.css';
 import 'react18-json-view/src/dark.css';
@@ -119,7 +126,7 @@ const jsonHighlight = HighlightStyle.define([
   { tag: [t.punctuation, t.separator], color: 'hsl(var(--foreground-muted))' },
 ]);
 
-const createEditorTheme = (minHeight: string, maxHeight: string) =>
+const createEditorTheme = (minHeight: string, maxHeight: string, isDark: boolean) =>
   EditorView.theme(
     {
       '&': {
@@ -177,7 +184,7 @@ const createEditorTheme = (minHeight: string, maxHeight: string) =>
         fontWeight: '600',
       },
     },
-    { dark: true },
+    { dark: isDark },
   );
 
 const getJsonError = (value: string, validateJson: boolean): string | null => {
@@ -504,22 +511,43 @@ export function highlightCodeSnippet(code: string, lang: CodeLanguage, isDark = 
   return out.join('');
 }
 
-function usePageDarkMode(fallbackDark: boolean): boolean {
-  const [isDark, setIsDark] = useState(() =>
-    typeof document !== 'undefined'
-      ? document.documentElement.classList.contains('dark')
-      : fallbackDark,
-  );
+function usePageDarkMode(
+  themeProp: string | undefined,
+  colorModeProp: string | undefined,
+  fallbackDark: boolean,
+): boolean {
+  const themeScope = useShuffleCoreTheme();
+  const resolvedModeProp = colorModeProp || (themeProp === 'system' ? 'auto' : themeProp);
+
+  const compute = useCallback((): boolean => {
+    if (resolvedModeProp === 'dark') return true;
+    if (resolvedModeProp === 'light') return false;
+    if (themeScope) return themeScope.isDark;
+    if (typeof document !== 'undefined') {
+      return readHtmlDarkClass();
+    }
+    return fallbackDark;
+  }, [resolvedModeProp, themeScope, fallbackDark]);
+
+  const [isDark, setIsDark] = useState<boolean>(compute);
+
   useEffect(() => {
+    setIsDark(compute());
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
-    setIsDark(root.classList.contains('dark'));
-    const observer = new MutationObserver(() => {
-      setIsDark(root.classList.contains('dark'));
-    });
-    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
+    const handleChange = () => setIsDark(compute());
+    const observer = new MutationObserver(handleChange);
+    observer.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+    if (document.body) {
+      observer.observe(document.body, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+    }
+    window.addEventListener('shuffle:theme-change', handleChange);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('shuffle:theme-change', handleChange);
+    };
+  }, [compute]);
+
   return isDark;
 }
 
@@ -539,6 +567,8 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
   minHeight,
   maxHeight,
   placeholder,
+  theme: themeProp,
+  colorMode: colorModeProp,
 }) => {
   const isControlledMode = controlledValue !== undefined && onChange !== undefined;
   const shouldShowHeader = showHeader ?? !isControlledMode;
@@ -546,7 +576,7 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
 
   const rawInput = controlledValue ?? codeProp ?? text ?? '';
   const theme = useTheme();
-  const isDark = usePageDarkMode(theme.palette.mode === 'dark');
+  const isDark = usePageDarkMode(themeProp, colorModeProp, theme.palette.mode === 'dark');
 
   let userKeyInfo: ReturnType<typeof useUserApiKey> | null = null;
   try {
@@ -555,7 +585,7 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
     // Graceful fallback outside AuthProvider
   }
 
-  const { apiKey, baseUrl: defaultBaseUrl, orgId } = userKeyInfo || {
+  const { apiKey, maskedApiKey, baseUrl: defaultBaseUrl, orgId } = userKeyInfo || {
     apiKey: null,
     maskedApiKey: '<API_KEY>',
     baseUrl: API_CONFIG.baseUrl || 'https://shuffle.security',
@@ -721,8 +751,8 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
   }, [maxHeight, shouldShowHeader]);
 
   const cmTheme = useMemo(
-    () => createEditorTheme(resolvedMinHeight, resolvedMaxHeight),
-    [resolvedMinHeight, resolvedMaxHeight],
+    () => createEditorTheme(resolvedMinHeight, resolvedMaxHeight, isDark),
+    [resolvedMinHeight, resolvedMaxHeight, isDark],
   );
 
   const extensions = useMemo(() => {
@@ -746,18 +776,7 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
     ];
   }, [foldStateKey, persistFoldState, detectedLang, shouldValidateJson]);
 
-  // Block-mode features (Header, Copy, Run, JSON Tree View)
-  const parsedJson = useMemo(() => {
-    if (!shouldShowHeader || detectedLang !== 'json') return null;
-    try {
-      const parsed = JSON.parse(currentCode.trim());
-      return parsed && typeof parsed === 'object' ? parsed : null;
-    } catch {
-      return null;
-    }
-  }, [shouldShowHeader, detectedLang, currentCode]);
-
-  const [jsonViewMode, setJsonViewMode] = useState<'tree' | 'code'>('tree');
+  // Block-mode features (Header, Copy, Run)
   const [copied, setCopied] = useState(false);
 
   const [isRunning, setIsRunning] = useState(false);
@@ -776,18 +795,29 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
 
   const isModified = !isControlledMode && currentCode !== initialCode;
 
+  const handleCreateEditor = useCallback(
+    (view: EditorView) => {
+      editorViewRef.current = view;
+      hasAutoFoldedRef.current = false;
+      if (detectedLang === 'json' || shouldValidateJson) {
+        autoFoldNested(view);
+      }
+    },
+    [autoFoldNested, detectedLang, shouldValidateJson],
+  );
+
   const substituteRuntimeCredentials = useCallback(
     (raw: string) => {
-      let out = raw;
       const effectiveToken = apiKey || API_CONFIG.apiKey || null;
+      let out = unmaskSnippetCredentials(raw, effectiveToken, maskedApiKey, orgId);
       if (effectiveToken) {
         out = out.replace(
-          /\b(?:YOUR_API_KEY|YOUR_TOKEN|<API_KEY>|<APIKEY>|APIKEY|<your-api-key>)\b/g,
+          /(?:<API_KEY>|<APIKEY>|<your-api-key>|<TOKEN>|\b(?:YOUR_API_KEY|YOUR_TOKEN|APIKEY)\b)/gi,
           effectiveToken,
         );
       }
       if (orgId) {
-        out = out.replace(/\b(?:<ORG_ID>|<ORGID>|ORGID|<org_id>)\b/g, orgId);
+        out = out.replace(/(?:<ORG_ID>|<ORGID>|<org_id>|\bORGID\b)/g, orgId);
       }
       if (defaultBaseUrl) {
         out = out
@@ -796,7 +826,7 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
       }
       return out;
     },
-    [apiKey, orgId, defaultBaseUrl],
+    [apiKey, maskedApiKey, orgId, defaultBaseUrl],
   );
 
   const handleCopy = useCallback(async () => {
@@ -1040,48 +1070,6 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
 
             <Box sx={{ flex: 1 }} />
 
-            {parsedJson && (
-              <Box
-                sx={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  p: 0.25,
-                  borderRadius: 1,
-                  bgcolor: 'hsl(var(--muted) / 0.6)',
-                  border: '1px solid hsl(var(--border))',
-                }}
-              >
-                {(['tree', 'code'] as const).map((m) => {
-                  const active = jsonViewMode === m;
-                  return (
-                    <Box
-                      key={m}
-                      onClick={() => setJsonViewMode(m)}
-                      sx={{
-                        height: 20,
-                        px: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: 0.75,
-                        fontSize: '0.62rem',
-                        fontWeight: active ? 700 : 500,
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                        transition: 'all 0.15s ease',
-                        bgcolor: active ? 'hsl(var(--background))' : 'transparent',
-                        color: active
-                          ? 'hsl(var(--foreground))'
-                          : 'hsl(var(--muted-foreground))',
-                      }}
-                    >
-                      {m === 'tree' ? 'Tree' : 'Code'}
-                    </Box>
-                  );
-                })}
-              </Box>
-            )}
-
             {isModified && (
               <Button
                 size="small"
@@ -1165,58 +1153,21 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
           </Box>
         )}
 
-        {parsedJson && jsonViewMode === 'tree' ? (
-          <Box
-            sx={{
-              p: 1.5,
-              maxHeight: 340,
-              overflow: 'auto',
-              bgcolor: 'hsl(var(--background-elevated) / 0.98)',
-              color: 'hsl(var(--foreground))',
-              fontFamily: "'JetBrains Mono', monospace",
-              '& .json-view': {
-                fontSize: '0.75rem !important',
-                fontFamily: 'inherit !important',
-                bgcolor: 'transparent !important',
-              },
-            }}
-          >
-            <JsonView
-              src={deepParseJsonStrings(parsedJson)}
-              dark={isDark}
-              collapsed={defaultCollapsed}
-              collapseStringMode="word"
-              collapseStringsAfterLength={120}
-              enableClipboard
-              displaySize
-            />
-          </Box>
-        ) : (
-          <CodeMirror
-            value={currentCode}
-            onChange={handleCodeChange}
-            placeholder={placeholder}
-            theme={cmTheme}
-            extensions={extensions}
-            basicSetup={{
-              lineNumbers: true,
-              foldGutter: true,
-              highlightActiveLine: true,
-              bracketMatching: true,
-            }}
-            editable={editable}
-            onCreateEditor={useCallback(
-              (view: EditorView) => {
-                editorViewRef.current = view;
-                hasAutoFoldedRef.current = false;
-                if (detectedLang === 'json' || shouldValidateJson) {
-                  autoFoldNested(view);
-                }
-              },
-              [autoFoldNested, detectedLang, shouldValidateJson],
-            )}
-          />
-        )}
+        <CodeMirror
+          value={currentCode}
+          onChange={handleCodeChange}
+          placeholder={placeholder}
+          theme={cmTheme}
+          extensions={extensions}
+          basicSetup={{
+            lineNumbers: true,
+            foldGutter: true,
+            highlightActiveLine: true,
+            bracketMatching: true,
+          }}
+          editable={editable}
+          onCreateEditor={handleCreateEditor}
+        />
 
         {/* Collapsible Execution Response Drawer */}
         {shouldShowHeader && (

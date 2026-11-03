@@ -59,11 +59,11 @@ export default function AppAuthSection({
 }: AppAuthSectionProps) {
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
-      <Box sx={{ mb: 3 }}>
+      <Box sx={{ mb: 5 }}>
         <Typography sx={{ color: 'hsl(var(--foreground))', fontWeight: 600, fontSize: '0.95rem', mb: 0.5 }}>
           Authentication
         </Typography>
-        <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', mb: 1.5 }}>
+        <Typography variant="body2" sx={{ color: 'hsl(var(--muted-foreground))', mb: 2 }}>
           {isAuthenticated
             ? authCount > 0
               ? `${authCount} configuration${authCount > 1 ? 's' : ''} found`

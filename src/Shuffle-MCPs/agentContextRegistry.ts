@@ -9,10 +9,15 @@
  */
 
 import { getCachedConnectedTools, mergeConnectedTools, MAX_AUTO_ASSIGNED_TOOLS } from './connectedSourcesService';
-import { composeDocPromptInput, isDocsRoute } from '@/lib/docsPromptContext';
+import { composeDocPromptInput, getActiveDocSelectedText, isDocsRoute } from '@/lib/docsPromptContext';
 import { composeIncidentPromptInput } from '@/lib/incidentPromptContext';
 import { getDocGroup } from '@/lib/docGroups';
 import { composeUsecasePromptInput, getUsecaseDisplayName } from '@/lib/usecasePromptContext';
+import {
+  composeAppPromptInput,
+  getAppDisplayName,
+  resolveMatchingAppPromptContext,
+} from '@/lib/appPromptContext';
 
 export interface AgentContextApp {
   name: string;
@@ -32,7 +37,7 @@ export interface AgentContextRule {
     | RegExp
     | ((pathname: string, searchParams: URLSearchParams) => boolean | Record<string, string> | null);
   /** Default MCP apps to pre-select for this context */
-  defaultApps: AgentContextApp[];
+  defaultApps: AgentContextApp[] | ((params: Record<string, string>, pathname: string) => AgentContextApp[]);
   /** Default skill/preset id (e.g. 'incident-response', 'vulnerability', 'build-workflows') */
   defaultPresetId?: string | null;
   /** Title shown on drawer header */
@@ -948,7 +953,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     subtitle: () => 'Shuffle Workflows Builder & Apps',
     defaultPrompt: (params, pathname, entity) => formatDocDefaultPrompt(getDocCategory(pathname, entity)),
     placeholder: 'Ask questions about workflows, nodes, triggers, or building automations...',
-    getStorageKey: (params, pathname) => `docs_${pathname.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+    getStorageKey: () => 'docs',
     description: 'Documentation for Shuffle Workflows & Automations with Workflows Builder tools',
     sideshift: true,
   },
@@ -966,7 +971,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     subtitle: () => 'Shuffle Incidents MCP',
     defaultPrompt: (params, pathname, entity) => formatDocDefaultPrompt(getDocCategory(pathname, entity)),
     placeholder: 'Ask questions about incident response, alert feeds, or investigations...',
-    getStorageKey: (params, pathname) => `docs_${pathname.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+    getStorageKey: () => 'docs',
     description: 'Documentation for Shuffle Incidents with Incident Response tools',
     sideshift: true,
   },
@@ -984,7 +989,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     subtitle: () => 'Shuffle Vulnerabilities & Assets',
     defaultPrompt: (params, pathname, entity) => formatDocDefaultPrompt(getDocCategory(pathname, entity)),
     placeholder: 'Ask questions about vulnerability management, CVEs, or asset posture...',
-    getStorageKey: (params, pathname) => `docs_${pathname.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+    getStorageKey: () => 'docs',
     description: 'Documentation for Vulnerabilities & Assets',
     sideshift: true,
   },
@@ -1001,7 +1006,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     subtitle: () => 'Shuffle Host Monitors MCP',
     defaultPrompt: (params, pathname, entity) => formatDocDefaultPrompt(getDocCategory(pathname, entity)),
     placeholder: 'Ask questions about host monitors, agent execution, or terminal controls...',
-    getStorageKey: (params, pathname) => `docs_${pathname.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+    getStorageKey: () => 'docs',
     description: 'Documentation for Host Monitors',
     sideshift: true,
   },
@@ -1018,7 +1023,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     subtitle: () => 'Shuffle Detection MCP',
     defaultPrompt: (params, pathname, entity) => formatDocDefaultPrompt(getDocCategory(pathname, entity)),
     placeholder: 'Ask questions about detection engineering, Sigma rules, or alerts...',
-    getStorageKey: (params, pathname) => `docs_${pathname.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+    getStorageKey: () => 'docs',
     description: 'Documentation for Detection & Sigma',
     sideshift: true,
   },
@@ -1035,7 +1040,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     subtitle: () => 'Shuffle Apps & Integrations',
     defaultPrompt: (params, pathname, entity) => formatDocDefaultPrompt(getDocCategory(pathname, entity)),
     placeholder: 'Ask questions about building or configuring Shuffle apps...',
-    getStorageKey: (params, pathname) => `docs_${pathname.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+    getStorageKey: () => 'docs',
     description: 'Documentation for Apps & Integrations',
     sideshift: true,
   },
@@ -1052,7 +1057,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     subtitle: (params, pathname, entity) => `Shuffle ${getDocCategory(pathname, entity)} Documentation`,
     defaultPrompt: (params, pathname, entity) => formatDocDefaultPrompt(getDocCategory(pathname, entity)),
     placeholder: 'Ask questions about Shuffle features, guides, or API...',
-    getStorageKey: (params, pathname) => `docs_${pathname.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+    getStorageKey: () => 'docs',
     description: 'Documentation assistant for Shuffle guides, features, and API references',
     sideshift: true,
   },
@@ -1073,7 +1078,7 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     subtitle: (params, pathname, entity) => `Shuffle ${getDocPageDisplayName(pathname, entity)} Documentation`,
     defaultPrompt: (params, pathname, entity) => formatDocDefaultPrompt(getDocPageDisplayName(pathname, entity)),
     placeholder: 'Ask questions about Shuffle policies or articles...',
-    getStorageKey: (params, pathname) => `docs_${pathname.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+    getStorageKey: () => 'legal_articles',
     description: 'Assistant for Shuffle legal and article references',
     sideshift: true,
   },
@@ -1100,6 +1105,58 @@ export const DEFAULT_AGENT_CONTEXT_RULES: AgentContextRule[] = [
     getStorageKey: (params) => (params.flowId ? `usecase_${params.flowId}` : 'usecases_list'),
     description: 'Usecase assistant with the usecase details and required APIs',
     composeInput: (raw, params) => composeUsecasePromptInput(raw, params.flowId),
+  },
+
+  // 7j. Individual App Page (/apps/:appname)
+  {
+    id: 'app-detail',
+    match: '/apps/:appname',
+    defaultApps: (params) => {
+      const ctx = resolveMatchingAppPromptContext(params.appname);
+      const primaryApp: AgentContextApp = {
+        name: ctx?.appName || params.appname || 'app',
+        ...(ctx?.appId ? { id: ctx.appId } : {}),
+        ...(ctx?.icon ? { icon: ctx.icon } : {}),
+      };
+      return [
+        primaryApp,
+        { name: 'shuffle_tools' },
+        { name: 'http' },
+      ];
+    },
+    defaultPresetId: null,
+    isBeta: true,
+    buttonLabel: (params) => `Ask about ${getAppDisplayName(params.appname)}`,
+    headerTitle: (params) => `Ask about ${getAppDisplayName(params.appname)}`,
+    title: (params) => `How can we help with ${getAppDisplayName(params.appname)}?`,
+    subtitle: (params) => `${getAppDisplayName(params.appname)} Integration & MCP`,
+    defaultPrompt: (params) => `Help me use ${getAppDisplayName(params.appname)} to: `,
+    placeholder: 'Run an action, test this integration, build a workflow, or ask how to configure it...',
+    getStorageKey: (params) => `app_${(params.appname || '').toLowerCase()}`,
+    description: 'App integration assistant with the tool, documentation, actions, and authentication context pre-loaded',
+    composeInput: (raw, params) => composeAppPromptInput(raw, params.appname),
+    sideshift: true,
+  },
+
+  // 7k. Apps Catalog Overview (/apps)
+  {
+    id: 'apps-list',
+    match: '/apps',
+    defaultApps: [
+      { name: 'shuffle_apps' },
+      { name: 'shuffle_tools' },
+    ],
+    defaultPresetId: null,
+    isBeta: true,
+    buttonLabel: 'Ask about Apps',
+    headerTitle: 'Ask about Apps',
+    title: 'How can we help with Apps & Integrations?',
+    subtitle: 'Shuffle App Catalog MCP',
+    defaultPrompt: 'Help me find or configure an app integration for: ',
+    placeholder: 'Ask which apps to connect, how to authenticate, or how to build an integration...',
+    getStorageKey: () => 'apps_list',
+    description: 'Assistant for discovering and configuring Shuffle app integrations',
+    sideshift: true,
   },
 
   // ==========================================
@@ -1143,12 +1200,46 @@ export const getAgentContextRules = (customRules?: AgentContextRule[]): AgentCon
   return [...(customRules ?? []), ...customRuleRegistry, ...DEFAULT_AGENT_CONTEXT_RULES];
 };
 
+const SIDEBAR_DRAFT_STORAGE_KEY = 'shuffle_agent_sidebar_draft';
+
+/** Read the shared unsent draft prompt from the Ask AI sidebar */
+export const getSidebarDraftPrompt = (): string => {
+  try {
+    return localStorage.getItem(SIDEBAR_DRAFT_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
+/** Persist the shared unsent draft prompt across URL changes in the Ask AI sidebar */
+export const setSidebarDraftPrompt = (draft: string): void => {
+  try {
+    if (draft) {
+      localStorage.setItem(SIDEBAR_DRAFT_STORAGE_KEY, draft);
+    } else {
+      localStorage.removeItem(SIDEBAR_DRAFT_STORAGE_KEY);
+    }
+  } catch {
+    /* ignore storage write failures */
+  }
+};
+
 /** Read saved user choice for a specific page storage key */
 export const getPageContextChoice = (storageKey: string): PageContextChoice | null => {
   try {
     const raw = localStorage.getItem(`${STORAGE_PREFIX}${storageKey}`);
-    if (!raw) return null;
-    return JSON.parse(raw) as PageContextChoice;
+    const parsed = raw ? (JSON.parse(raw) as PageContextChoice) : null;
+    const sharedDraft = getSidebarDraftPrompt();
+    if (!parsed) {
+      if (sharedDraft) {
+        return { draftPrompt: sharedDraft, updatedAt: Date.now() };
+      }
+      return null;
+    }
+    if (!parsed.draftPrompt && sharedDraft) {
+      return { ...parsed, draftPrompt: sharedDraft };
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -1160,7 +1251,11 @@ export const setPageContextChoice = (
   choice: Partial<Omit<PageContextChoice, 'updatedAt'>>,
 ): void => {
   try {
-    const existing = getPageContextChoice(storageKey) || { updatedAt: Date.now() };
+    if (choice.draftPrompt !== undefined) {
+      setSidebarDraftPrompt(choice.draftPrompt);
+    }
+    const raw = localStorage.getItem(`${STORAGE_PREFIX}${storageKey}`);
+    const existing = raw ? (JSON.parse(raw) as PageContextChoice) : { updatedAt: Date.now() };
     const payload: PageContextChoice = {
       ...existing,
       ...choice,
@@ -1176,6 +1271,7 @@ export const setPageContextChoice = (
 export const clearPageContextChoice = (storageKey: string): void => {
   try {
     localStorage.removeItem(`${STORAGE_PREFIX}${storageKey}`);
+    setSidebarDraftPrompt('');
   } catch {
     /* ignore storage removal failures */
   }
@@ -1240,11 +1336,28 @@ export const resolveAgentContext = (
   const cachedConnected = matchedRule.sourceCategory
     ? getCachedConnectedTools(matchedRule.sourceCategory)
     : [];
-  const baseDefaultApps = mergeConnectedTools(matchedRule.defaultApps, cachedConnected, MAX_AUTO_ASSIGNED_TOOLS);
+  const ruleDefaultApps = typeof matchedRule.defaultApps === 'function'
+    ? matchedRule.defaultApps(matchedParams, normPath)
+    : matchedRule.defaultApps;
+  const baseDefaultApps = mergeConnectedTools(ruleDefaultApps, cachedConnected, MAX_AUTO_ASSIGNED_TOOLS);
 
-  let effectiveApps = savedChoice?.apps ?? baseDefaultApps;
+  let effectiveApps = savedChoice?.apps
+    ? savedChoice.apps.map((a) => {
+        if (a.id && a.icon) return a;
+        const normName = (a.name || '').toLowerCase().replace(/[\s-]+/g, '_');
+        const match = baseDefaultApps.find(
+          (d) => (d.name || '').toLowerCase().replace(/[\s-]+/g, '_') === normName,
+        );
+        if (!match) return a;
+        return {
+          ...a,
+          ...(a.id ? {} : match.id ? { id: match.id } : {}),
+          ...(a.icon ? {} : match.icon ? { icon: match.icon } : {}),
+        };
+      })
+    : baseDefaultApps;
   // If this is a documentation route that defaults to no tools, sanitize legacy auto-injected shuffle_tools
-  if (matchedRule.id === 'docs' && matchedRule.defaultApps.length === 0 && effectiveApps.length > 0) {
+  if (matchedRule.id === 'docs' && ruleDefaultApps.length === 0 && effectiveApps.length > 0) {
     const cleaned = effectiveApps.filter(
       (a) => !['shuffle_tools', 'shuffle tools', 'shuffle_tool', 'shuffletools'].includes((a.name || '').toLowerCase().replace(/[-_]/g, '').trim())
     );
@@ -1328,10 +1441,18 @@ export const resolveAgentContext = (
     : Boolean(matchedRule.isBeta);
 
   const composeInput = matchedRule.composeInput
-    ? (rawInput: string) => matchedRule!.composeInput!(rawInput, matchedParams, normPath)
+    ? (rawInput: string) => {
+        const nextInput = getActiveDocSelectedText()
+          ? composeDocPromptInput(rawInput, normPath, getDocPageDisplayName(normPath, getActivePageEntityName()))
+          : rawInput;
+        return matchedRule!.composeInput!(nextInput, matchedParams, normPath);
+      }
     : isDocsRoute(normPath)
       ? (rawInput: string) => composeDocPromptInput(rawInput, normPath, getDocPageDisplayName(normPath, getActivePageEntityName()))
-      : undefined;
+      : (rawInput: string) =>
+          getActiveDocSelectedText()
+            ? composeDocPromptInput(rawInput, normPath, getDocPageDisplayName(normPath, getActivePageEntityName()))
+            : rawInput;
 
   return {
     ruleId: matchedRule.id,

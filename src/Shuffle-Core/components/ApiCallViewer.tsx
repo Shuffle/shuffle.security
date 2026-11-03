@@ -12,6 +12,10 @@ import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { toast } from '@/Shuffle-Core/toast';
 import { useUserApiKey } from '@/Shuffle-Core/useUserApiKey';
+import {
+  useShuffleCoreTheme,
+  readHtmlDarkClass,
+} from '@/Shuffle-Core/components/ShuffleCoreThemeProvider';
 import JsonView from 'react18-json-view';
 import 'react18-json-view/src/style.css';
 import 'react18-json-view/src/dark.css';
@@ -346,19 +350,86 @@ function highlightSnippet(code: string, lang: SnippetLang, isDark = true): strin
   return out.join('');
 }
 
-function buildCurl(
+const sanitizeHeaderValue = (value: string): string =>
+  value.replace(/\u2026/g, '...').replace(/\u2022/g, '*');
+
+const maskAuthorizationHeaderValue = (value: string): string =>
+  sanitizeHeaderValue(value).replace(/(Bearer\s+)(.{8}).*/, '$1$2...');
+
+export function formatPythonValue(val: unknown, indentLevel = 0): string {
+  if (val === null || val === undefined) return 'None';
+  if (typeof val === 'boolean') return val ? 'True' : 'False';
+  if (typeof val === 'number') return Number.isFinite(val) ? String(val) : 'None';
+  if (typeof val === 'string') return JSON.stringify(val);
+
+  const pad = '  '.repeat(indentLevel);
+  const childPad = '  '.repeat(indentLevel + 1);
+
+  if (Array.isArray(val)) {
+    if (val.length === 0) return '[]';
+    const items = val.map((item) => `${childPad}${formatPythonValue(item, indentLevel + 1)}`);
+    return `[\n${items.join(',\n')}\n${pad}]`;
+  }
+
+  if (typeof val === 'object') {
+    const entries = Object.entries(val as Record<string, unknown>);
+    if (entries.length === 0) return '{}';
+    const items = entries.map(
+      ([k, v]) => `${childPad}${JSON.stringify(k)}: ${formatPythonValue(v, indentLevel + 1)}`,
+    );
+    return `{\n${items.join(',\n')}\n${pad}}`;
+  }
+
+  return JSON.stringify(String(val));
+}
+
+export function unmaskSnippetCredentials(
+  snippet: string,
+  effectiveToken: string | null,
+  maskedApiKey?: string,
+  orgId?: string | null,
+): string {
+  let out = snippet;
+  const cleanToken = effectiveToken?.trim() || null;
+
+  if (cleanToken) {
+    if (maskedApiKey && maskedApiKey !== '<API_KEY>') {
+      out = out.split(maskedApiKey).join(cleanToken);
+    }
+    const prefix8 = cleanToken.slice(0, 8);
+    if (prefix8) {
+      out = out.split(`${prefix8}...`).join(cleanToken);
+      out = out.split(`${prefix8}\u2026`).join(cleanToken);
+    }
+    out = out.replace(
+      /(Bearer\s+)(?:[A-Za-z0-9_-]{4,16}(?:\.{3}|\u2026)|[A-Za-z0-9_-]{0,8}[\u2022*]{4,}[A-Za-z0-9_-]{0,8}|APIKEY|API_KEY|<API_KEY>|<APIKEY>|YOUR_API_KEY|<your-api-key>|YOUR_TOKEN|<TOKEN>)/gi,
+      `$1${cleanToken}`,
+    );
+  }
+
+  if (orgId) {
+    out = out.replace(/(?:<ORG_ID>|<ORGID>|<org_id>|\bORGID\b)/g, orgId);
+  }
+
+  // Never allow Unicode ellipsis (\u2026) or bullet (\u2022) characters to remain in code/headers,
+  // as Python's http.client encodes HTTP headers using latin-1.
+  return out.replace(/\u2026/g, '...').replace(/\u2022/g, '*');
+}
+
+export function buildCurl(
   method: string,
   url: string,
   headers: Record<string, string>,
   body: unknown,
   maskAuth: boolean,
 ): string {
-  const parts = [`curl -X ${(method || 'GET').toUpperCase()} '${url}'`];
+  const needsFollowRedirect = /(?:^|\/\/)(?:[a-z0-9-]+\.)?shuffle\.security(?:\/|:|$)/i.test(url);
+  const parts = [`curl${needsFollowRedirect ? ' -L' : ''} -X ${(method || 'GET').toUpperCase()} '${url}'`];
 
   for (const [key, value] of Object.entries(headers)) {
     const displayValue = maskAuth && key.toLowerCase() === 'authorization'
-      ? value.replace(/(Bearer\s+)(.{8}).*/, '$1$2…')
-      : value;
+      ? maskAuthorizationHeaderValue(value)
+      : sanitizeHeaderValue(value);
     parts.push(`  -H '${key}: ${displayValue}'`);
   }
 
@@ -379,7 +450,7 @@ function buildCurl(
   return parts.join(' \\\n');
 }
 
-function buildPython(
+export function buildPython(
   method: string,
   url: string,
   headers: Record<string, string>,
@@ -401,32 +472,34 @@ function buildPython(
     hasJsonBody = true;
   }
 
-  lines.push('');
   lines.push(`url = "${url}"`);
 
   const headerEntries = Object.entries(headers);
-  if (headerEntries.length > 0) {
-    lines.push('');
+  if (headerEntries.length === 1) {
+    const [key, value] = headerEntries[0];
+    const displayValue = maskAuth && key.toLowerCase() === 'authorization'
+      ? maskAuthorizationHeaderValue(value)
+      : sanitizeHeaderValue(value);
+    lines.push(`headers = {"${key}": "${displayValue}"}`);
+  } else if (headerEntries.length > 1) {
     lines.push('headers = {');
     for (const [key, value] of headerEntries) {
       const displayValue = maskAuth && key.toLowerCase() === 'authorization'
-        ? value.replace(/(Bearer\s+)(.{8}).*/, '$1$2…')
-        : value;
-      lines.push(`    "${key}": "${displayValue}",`);
+        ? maskAuthorizationHeaderValue(value)
+        : sanitizeHeaderValue(value);
+      lines.push(`  "${key}": "${displayValue}",`);
     }
     lines.push('}');
   }
 
   if (bodyObj !== undefined && bodyObj !== null) {
-    lines.push('');
     if (hasJsonBody) {
-      lines.push(`payload = ${JSON.stringify(bodyObj, null, 4)}`);
+      lines.push(`payload = ${formatPythonValue(bodyObj, 0)}`);
     } else {
-      lines.push(`payload = """${body}"""`);
+      lines.push(`payload = ${JSON.stringify(String(body).trim())}`);
     }
   }
 
-  lines.push('');
   const methodUpper = (method || 'GET').toUpperCase();
   const headerArg = headerEntries.length > 0 ? ', headers=headers' : '';
   const bodyArg = bodyObj !== undefined && bodyObj !== null
@@ -439,7 +512,7 @@ function buildPython(
   return lines.join('\n');
 }
 
-function buildHttp(
+export function buildHttp(
   method: string,
   url: string,
   headers: Record<string, string>,
@@ -464,8 +537,8 @@ function buildHttp(
   for (const [key, value] of Object.entries(headers)) {
     if (key.toLowerCase() === 'host') continue;
     const displayValue = maskAuth && key.toLowerCase() === 'authorization'
-      ? value.replace(/(Bearer\s+)(.{8}).*/, '$1$2…')
-      : value;
+      ? maskAuthorizationHeaderValue(value)
+      : sanitizeHeaderValue(value);
     lines.push(`${key}: ${displayValue}`);
   }
 
@@ -478,22 +551,43 @@ function buildHttp(
   return lines.join('\n');
 }
 
-function usePageDarkMode(fallbackDark: boolean): boolean {
-  const [isDark, setIsDark] = useState(() =>
-    typeof document !== 'undefined'
-      ? document.documentElement.classList.contains('dark')
-      : fallbackDark,
-  );
+function usePageDarkMode(
+  themeProp: string | undefined,
+  colorModeProp: string | undefined,
+  fallbackDark: boolean,
+): boolean {
+  const themeScope = useShuffleCoreTheme();
+  const resolvedModeProp = colorModeProp || (themeProp === 'system' ? 'auto' : themeProp);
+
+  const compute = useCallback((): boolean => {
+    if (resolvedModeProp === 'dark') return true;
+    if (resolvedModeProp === 'light') return false;
+    if (themeScope) return themeScope.isDark;
+    if (typeof document !== 'undefined') {
+      return readHtmlDarkClass();
+    }
+    return fallbackDark;
+  }, [resolvedModeProp, themeScope, fallbackDark]);
+
+  const [isDark, setIsDark] = useState<boolean>(compute);
+
   useEffect(() => {
+    setIsDark(compute());
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
-    setIsDark(root.classList.contains('dark'));
-    const observer = new MutationObserver(() => {
-      setIsDark(root.classList.contains('dark'));
-    });
-    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
+    const handleChange = () => setIsDark(compute());
+    const observer = new MutationObserver(handleChange);
+    observer.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+    if (document.body) {
+      observer.observe(document.body, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+    }
+    window.addEventListener('shuffle:theme-change', handleChange);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('shuffle:theme-change', handleChange);
+    };
+  }, [compute]);
+
   return isDark;
 }
 
@@ -503,9 +597,11 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
   maskAuth = true,
   defaultMode = 'curl',
   title = 'API Call',
+  theme: themeProp,
+  colorMode: colorModeProp,
 }) => {
   const theme = useTheme();
-  const isDark = usePageDarkMode(theme.palette.mode === 'dark');
+  const isDark = usePageDarkMode(themeProp, colorModeProp, theme.palette.mode === 'dark');
 
   let userKeyInfo: ReturnType<typeof useUserApiKey> | null = null;
   try {
@@ -577,13 +673,20 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
     for (const [k, v] of Object.entries(headers)) {
       if (/^authorization$/i.test(k)) {
         hasAuth = true;
-        if (effectiveToken && (/APIKEY|<API_KEY>|<APIKEY>|YOUR_API_KEY|<your-api-key>/i.test(v))) {
+        if (
+          effectiveToken &&
+          /APIKEY|API_KEY|<API_KEY>|<APIKEY>|YOUR_API_KEY|<your-api-key>|YOUR_TOKEN|<TOKEN>|\u2026|\.{3}|\u2022|\*{4}/i.test(v)
+        ) {
           headers[k] = `Bearer ${effectiveToken}`;
+        } else {
+          headers[k] = sanitizeHeaderValue(v);
         }
       } else if (/^org-id$/i.test(k) && orgId) {
         if (/<ORGID>|<ORG_ID>|ORGID|<org_id>/i.test(v)) {
           headers[k] = orgId;
         }
+      } else {
+        headers[k] = sanitizeHeaderValue(v);
       }
     }
 
@@ -635,40 +738,31 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
     if (mode === 'json') {
       return JSON.stringify(requestInfo.parsedJson, null, 2);
     }
+    const effectiveToken = apiKey || API_CONFIG.apiKey || null;
     const edited = editedSnippets[mode];
     if (edited !== undefined) {
-      const effectiveToken = apiKey || API_CONFIG.apiKey || null;
-      if (effectiveToken && maskedApiKey && maskedApiKey !== '<API_KEY>') {
-        return edited.split(maskedApiKey).join(effectiveToken);
-      }
-      return edited;
+      return unmaskSnippetCredentials(edited, effectiveToken, maskedApiKey, orgId);
     }
-    return unmaskedGeneratedCode[mode];
-  }, [mode, requestInfo, editedSnippets, unmaskedGeneratedCode, apiKey, maskedApiKey]);
+    return unmaskSnippetCredentials(unmaskedGeneratedCode[mode], effectiveToken, maskedApiKey, orgId);
+  }, [mode, requestInfo, editedSnippets, unmaskedGeneratedCode, apiKey, maskedApiKey, orgId]);
 
   const runnableCommand = useMemo(() => {
+    const effectiveToken = apiKey || API_CONFIG.apiKey || null;
     const editedCurl = editedSnippets.curl;
     if (editedCurl !== undefined) {
-      const effectiveToken = apiKey || API_CONFIG.apiKey || null;
-      if (effectiveToken && maskedApiKey && maskedApiKey !== '<API_KEY>') {
-        return editedCurl.split(maskedApiKey).join(effectiveToken);
-      }
-      return editedCurl;
+      return unmaskSnippetCredentials(editedCurl, effectiveToken, maskedApiKey, orgId);
     }
-    return unmaskedGeneratedCode.curl;
-  }, [editedSnippets.curl, unmaskedGeneratedCode.curl, apiKey, maskedApiKey]);
+    return unmaskSnippetCredentials(unmaskedGeneratedCode.curl, effectiveToken, maskedApiKey, orgId);
+  }, [editedSnippets.curl, unmaskedGeneratedCode.curl, apiKey, maskedApiKey, orgId]);
 
   const runnablePython = useMemo(() => {
+    const effectiveToken = apiKey || API_CONFIG.apiKey || null;
     const editedPy = editedSnippets.python;
     if (editedPy !== undefined) {
-      const effectiveToken = apiKey || API_CONFIG.apiKey || null;
-      if (effectiveToken && maskedApiKey && maskedApiKey !== '<API_KEY>') {
-        return editedPy.split(maskedApiKey).join(effectiveToken);
-      }
-      return editedPy;
+      return unmaskSnippetCredentials(editedPy, effectiveToken, maskedApiKey, orgId);
     }
-    return unmaskedGeneratedCode.python;
-  }, [editedSnippets.python, unmaskedGeneratedCode.python, apiKey, maskedApiKey]);
+    return unmaskSnippetCredentials(unmaskedGeneratedCode.python, effectiveToken, maskedApiKey, orgId);
+  }, [editedSnippets.python, unmaskedGeneratedCode.python, apiKey, maskedApiKey, orgId]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -1049,7 +1143,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
           <Box
             aria-hidden="true"
             sx={{
-              py: 1.5,
+              py: 1.25,
               px: 1.25,
               minWidth: 38,
               textAlign: 'right',
@@ -1059,13 +1153,13 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
               bgcolor: isDark ? '#13171e' : '#f8f9fb',
               color: isDark ? '#7d8590' : '#57606a',
               fontSize: '0.72rem',
-              lineHeight: '1.65rem',
+              lineHeight: '1.35rem',
               fontFamily: "'JetBrains Mono', monospace",
               flexShrink: 0,
             }}
           >
             {snippetLines.map((_, idx) => (
-              <Box key={idx} sx={{ height: '1.65rem' }}>
+              <Box key={idx} sx={{ height: '1.35rem' }}>
                 {idx + 1}
               </Box>
             ))}
@@ -1083,17 +1177,17 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
               aria-hidden="true"
               sx={{
                 m: 0,
-                py: 1.5,
+                py: 1.25,
                 px: 1.75,
                 fontSize: '0.76rem',
                 fontFamily: "'JetBrains Mono', monospace",
                 color: isDark ? '#e6edf3' : '#1f2328',
                 bgcolor: 'transparent',
                 border: 'none',
-                lineHeight: '1.65rem',
+                lineHeight: '1.35rem',
                 whiteSpace: 'pre',
                 pointerEvents: 'none',
-                minHeight: `${Math.max(snippetLines.length, 1) * 1.65 + 1.5}rem`,
+                minHeight: `${Math.max(snippetLines.length, 1) * 1.35 + 1.25}rem`,
               }}
               dangerouslySetInnerHTML={{
                 __html: `${highlightSnippet(currentSnippet, mode, isDark)}\n`,
@@ -1102,6 +1196,25 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
             <Box
               component="textarea"
               value={currentSnippet}
+              onCopy={(e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+                const target = e.currentTarget;
+                const start = target.selectionStart ?? 0;
+                const end = target.selectionEnd ?? 0;
+                if (end > start && e.clipboardData) {
+                  const selected = target.value.slice(start, end);
+                  const effectiveToken = apiKey || API_CONFIG.apiKey || null;
+                  const unmasked = unmaskSnippetCredentials(
+                    selected,
+                    effectiveToken,
+                    maskedApiKey,
+                    orgId,
+                  );
+                  if (unmasked !== selected) {
+                    e.preventDefault();
+                    e.clipboardData.setData('text/plain', unmasked);
+                  }
+                }
+              }}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                 const val = e.target.value;
                 setEditedSnippets((prev) => ({
@@ -1142,7 +1255,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
                 width: '100%',
                 height: '100%',
                 m: 0,
-                py: 1.5,
+                py: 1.25,
                 px: 1.75,
                 border: 'none',
                 outline: 'none',
@@ -1152,7 +1265,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
                 caretColor: 'hsl(var(--primary))',
                 fontSize: '0.76rem !important',
                 fontFamily: "'JetBrains Mono', monospace",
-                lineHeight: '1.65rem',
+                lineHeight: '1.35rem',
                 whiteSpace: 'pre',
                 overflow: 'hidden',
                 '&::selection': {

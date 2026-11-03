@@ -3,13 +3,14 @@ import { useAppDetail } from '@/Shuffle-Core/AppDetailContext';
 import { useTheme } from '@/context/ThemeContext';
 
 export const GlobalAppDetailDrawer = () => {
-  const { currentAppName, isOpen, closeApp } = useAppDetail();
+  const { currentAppName, focusAuthentication, isOpen, closeApp } = useAppDetail();
   const { resolvedTheme } = useTheme();
   return (
     <AppDetailDrawer
       open={isOpen}
       onClose={closeApp}
       appName={currentAppName}
+      focusAuthentication={focusAuthentication}
       theme={resolvedTheme}
     />
   );

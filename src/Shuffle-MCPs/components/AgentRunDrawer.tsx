@@ -374,23 +374,21 @@ const AgentRunDrawer = ({
 
       {/* Body */}
       <Box sx={[{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, boxSizing: 'border-box' }, ...(Array.isArray(bodySx) ? bodySx : bodySx ? [bodySx] : [])]}>
-        {safeActiveTab === 'run' && (
-          <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 2, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-            <AgentUI
-              compact
-              hideHeroIcon
-              title=""
-              subtitle={null}
-              maxWidth="100%"
-              {...agentUIProps}
-              isLoggedIn={agentUIProps?.isLoggedIn ?? isLoggedIn}
-              isSupport={agentUIProps?.isSupport ?? (userdata?.support === true || userdata?.support === 'true')}
-              apiBaseUrl={agentUIProps?.apiBaseUrl ?? globalUrl}
-              theme={agentUIProps?.theme ?? theme}
-              colorMode={agentUIProps?.colorMode ?? colorMode}
-            />
-          </Box>
-        )}
+        <Box sx={{ display: safeActiveTab === 'run' ? 'block' : 'none', px: { xs: 1.5, sm: 2 }, py: 2, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+          <AgentUI
+            compact
+            hideHeroIcon
+            title=""
+            subtitle={null}
+            maxWidth="100%"
+            {...agentUIProps}
+            isLoggedIn={agentUIProps?.isLoggedIn ?? isLoggedIn}
+            isSupport={agentUIProps?.isSupport ?? (userdata?.support === true || userdata?.support === 'true')}
+            apiBaseUrl={agentUIProps?.apiBaseUrl ?? globalUrl}
+            theme={agentUIProps?.theme ?? theme}
+            colorMode={agentUIProps?.colorMode ?? colorMode}
+          />
+        </Box>
         {safeActiveTab === 'permissions' && permissionsSlot && (
           <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 }, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>{permissionsSlot}</Box>
         )}

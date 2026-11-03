@@ -61,6 +61,8 @@ import {
   setActiveDocSelectedText,
   truncateDocSelectionPreview,
 } from '@/lib/docsPromptContext';
+import { USECASE_CONTEXT_EVENT } from '@/lib/usecasePromptContext';
+import { APP_CONTEXT_EVENT } from '@/lib/appPromptContext';
 
 export const AGENT_DRAWER_OPEN_EVENT = 'agent-drawer-open';
 export interface AgentDrawerOpenDetail {
@@ -197,7 +199,22 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   sx,
 }) => {
   const themeScope = useShuffleMcpTheme();
-  const effectiveTheme = theme || (themeScope?.isDark ? 'dark' : 'light');
+  const resolvedModeProp = colorMode || (theme === 'system' ? 'auto' : theme);
+  const effectiveTheme: 'dark' | 'light' =
+    resolvedModeProp === 'dark'
+      ? 'dark'
+      : resolvedModeProp === 'light'
+      ? 'light'
+      : themeScope
+      ? themeScope.isDark
+        ? 'dark'
+        : 'light'
+      : typeof document !== 'undefined' &&
+        (document.documentElement.classList.contains('dark') ||
+          document.body?.classList.contains('dark') ||
+          document.documentElement.getAttribute('data-theme') === 'dark')
+      ? 'dark'
+      : 'light';
 
   const [currentPathname, setCurrentPathname] = useState<string>(pathname ?? '/');
   const [currentSearch, setCurrentSearch] = useState<string>(search ?? '');
@@ -251,10 +268,30 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
     }
   }, [isAgentDisabled, open, onClose]);
 
+  // Re-resolve when a page registers new async context (e.g. app or usecase detail view)
+  const [contextTick, setContextTick] = useState(0);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const bump = () => {
+      setContextTick((t) => t + 1);
+      const current = getActivePageEntityName();
+      if (current) {
+        setEntityTitle((prev) => (prev !== current ? current : prev));
+      }
+    };
+    window.addEventListener(USECASE_CONTEXT_EVENT, bump);
+    window.addEventListener(APP_CONTEXT_EVENT, bump);
+    return () => {
+      window.removeEventListener(USECASE_CONTEXT_EVENT, bump);
+      window.removeEventListener(APP_CONTEXT_EVENT, bump);
+    };
+  }, []);
+
   // Resolve context awareness for the active page
   const context = React.useMemo<AgentResolvedContext>(
     () => resolveAgentContext(currentPathname, currentSearch, rules),
-    [currentPathname, currentSearch, rules],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentPathname, currentSearch, rules, contextTick],
   );
 
   // Dynamic entity title detection for pages that load data asynchronously
@@ -265,47 +302,36 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
 
     // Immediate check
     const current = getActivePageEntityName();
-    if (current) setEntityTitle(current);
+    if (current) {
+      setEntityTitle((prev) => (prev !== current ? current : prev));
+    }
+
+    // Documentation routes resolve their category synchronously from the URL slug,
+    // so skip staggered DOM polling to avoid mid-render re-renders while interacting with the sidebar.
+    if (currentPathname.startsWith('/docs')) {
+      return;
+    }
 
     // Staggered polls to catch async fetches on initial mount
     const t1 = setTimeout(() => {
       const e = getActivePageEntityName();
-      if (e) setEntityTitle(e);
+      if (e) setEntityTitle((prev) => (prev !== e ? e : prev));
     }, 150);
 
     const t2 = setTimeout(() => {
       const e = getActivePageEntityName();
-      if (e) setEntityTitle(e);
+      if (e) setEntityTitle((prev) => (prev !== e ? e : prev));
     }, 500);
 
     const t3 = setTimeout(() => {
       const e = getActivePageEntityName();
-      if (e) setEntityTitle(e);
+      if (e) setEntityTitle((prev) => (prev !== e ? e : prev));
     }, 1200);
-
-    // DOM observer for title changes / user edits while panel is open
-    let observer: MutationObserver | null = null;
-    if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
-      observer = new MutationObserver(() => {
-        const e = getActivePageEntityName();
-        if (e) {
-          setEntityTitle((prev) => (prev !== e ? e : prev));
-        }
-      });
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        characterData: true,
-        attributes: true,
-        attributeFilter: ['data-entity-title', 'value'],
-      });
-    }
 
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
-      observer?.disconnect();
     };
   }, [open, currentPathname]);
 
@@ -326,6 +352,11 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
       const next = detail?.selectedText ?? getActiveDocSelectedText();
       if (next) {
         setSelectedText(next);
+        const nextPreview = truncateDocSelectionPreview(next, 34);
+        if (nextPreview) {
+          setCustomHeaderTitle(`Ask about "${nextPreview}"`);
+          setCustomTitle(`How can we help with "${nextPreview}"?`);
+        }
       } else if (detail?.explicitClear) {
         setSelectedText(null);
         setCustomHeaderTitle(null);
@@ -569,8 +600,8 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   ]);
 
   const agentUiKey = activeTaskId
-    ? `${context.storageKey}:task:${activeTaskId}:${activeExecutionId || 'fresh'}:${runResetKey}`
-    : `${context.storageKey}:${runResetKey}`;
+    ? `task:${activeTaskId}:${activeExecutionId || 'fresh'}:${runResetKey}`
+    : `ask_ai:${runResetKey}`;
 
   const effectiveLocalLLMSlot =
     localLLMSlot ?? (
@@ -1153,12 +1184,12 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
         )}
 
         {/* Tab Panel: Run (AgentUI) */}
-        {safeActiveTab === 'run' && contentReady && (
+        {contentReady && (
           <Box
             sx={{
               flex: 1,
               minHeight: 0,
-              display: 'flex',
+              display: safeActiveTab === 'run' ? 'flex' : 'none',
               flexDirection: 'column',
               overflow: 'hidden',
               '@keyframes askAiContentFadeIn': {

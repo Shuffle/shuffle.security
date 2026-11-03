@@ -9,6 +9,7 @@
  */
 
 import { USECASE_CONTEXT_EVENT } from '@/lib/usecasePromptContext';
+import { APP_CONTEXT_EVENT } from '@/lib/appPromptContext';
 import {
   DOC_SELECTION_EVENT,
   getActiveDocSelectedText,
@@ -145,9 +146,11 @@ const AskAiWidgetInner: React.FC<AskAiWidgetProps> = ({
       setDocSelection(detail?.selectedText ?? getActiveDocSelectedText());
     };
     window.addEventListener(USECASE_CONTEXT_EVENT, bump);
+    window.addEventListener(APP_CONTEXT_EVENT, bump);
     window.addEventListener(DOC_SELECTION_EVENT, onDocSelection);
     return () => {
       window.removeEventListener(USECASE_CONTEXT_EVENT, bump);
+      window.removeEventListener(APP_CONTEXT_EVENT, bump);
       window.removeEventListener(DOC_SELECTION_EVENT, onDocSelection);
     };
   }, []);
@@ -232,9 +235,9 @@ const AskAiWidgetInner: React.FC<AskAiWidgetProps> = ({
     currentPath.startsWith('/tickets') ||
     currentPath.startsWith('/docs');
 
-  const isBeta = activeContext.isBeta === true || isIncidentOrDocsRoute;
+  const isBeta = activeContext.isBeta === true || isIncidentOrDocsRoute || Boolean(docSelection);
   const effectiveRequireSupport = isBeta ? false : requireSupport;
-  const defaultTag = isBeta ? 'Beta' : 'Support';
+  const defaultTag = isBeta ? null : 'Support';
   const effectiveTagLabel = buttonProps?.tagLabel !== undefined ? buttonProps.tagLabel : defaultTag;
 
   // Auto-close if a non-support user navigates away from an enabled beta page to a support-only page

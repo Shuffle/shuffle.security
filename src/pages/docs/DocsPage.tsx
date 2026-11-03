@@ -115,36 +115,58 @@ const DocsPage = ({
       groupLabel: group?.label,
     });
 
+    if (doc.loading || !group) return;
+
     let cancelled = false;
-    if (group) {
-      loadGroupDocsContent(group.id, folder).then((contents) => {
-        if (cancelled) return;
-        const groupDocs = Object.entries(contents).map(([s, md]) => ({
-          slug: s,
-          title: getDocDisplayLabel(s),
-          content: md,
-        }));
-        setActiveDocPromptContext({
-          title: docTitle,
-          content: doc.content,
-          slug,
-          basePath,
-          pathname: `${basePath}/${slug}`,
-          groupId: group.id,
-          groupLabel: group.label,
-          groupDocs,
+    const scheduleIdle =
+      typeof (window as any).requestIdleCallback === 'function'
+        ? (cb: () => void) => (window as any).requestIdleCallback(cb, { timeout: 1500 })
+        : (cb: () => void) => window.setTimeout(cb, 500);
+    const cancelIdle =
+      typeof (window as any).cancelIdleCallback === 'function'
+        ? (id: number) => (window as any).cancelIdleCallback(id)
+        : (id: number) => window.clearTimeout(id);
+
+    const idleId = scheduleIdle(() => {
+      if (cancelled) return;
+      loadGroupDocsContent(group.id, folder)
+        .then((contents) => {
+          if (cancelled) return;
+          const groupDocs = Object.entries(contents).map(([s, md]) => ({
+            slug: s,
+            title: getDocDisplayLabel(s),
+            content: md,
+          }));
+          setActiveDocPromptContext({
+            title: docTitle,
+            content: doc.content,
+            slug: effectiveSlug,
+            basePath,
+            pathname: basePath === '/docs' && slug === 'index' ? '/docs' : `${basePath}/${effectiveSlug}`,
+            groupId: group.id,
+            groupLabel: group.label,
+            groupDocs,
+          });
+        })
+        .catch(() => {
+          // Silently keep single doc context if group fetch fails
         });
-      }).catch(() => {
-        // Silently keep single doc context if group fetch fails
-      });
-    }
+    });
 
     return () => {
       cancelled = true;
-      delete (window as any).__shuffleActiveEntityTitle;
+      cancelIdle(idleId);
+    };
+  }, [docTitle, doc.content, doc.loading, effectiveSlug, slug, basePath, folder]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).__shuffleActiveEntityTitle;
+      }
       clearActiveDocPromptContext();
     };
-  }, [docTitle, doc.content, slug, basePath, folder]);
+  }, []);
 
   const hasHeadings = doc.headings.length > 0;
   const theme = useTheme();

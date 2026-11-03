@@ -13,13 +13,15 @@ import {
   type HighlightedFileEditorProps,
   type CodeLanguage,
 } from '@/Shuffle-Core/components/HighlightedFileEditor';
+import { useTheme } from '@/context/ThemeContext';
 
 export { detectCodeLanguage, highlightCodeSnippet };
 export type { CodeLanguage };
 export type DocCodeBlockProps = HighlightedFileEditorProps;
 
 export const DocCodeBlock: React.FC<DocCodeBlockProps> = (props) => {
-  return <HighlightedFileEditor {...props} />;
+  const { resolvedTheme } = useTheme();
+  return <HighlightedFileEditor theme={resolvedTheme} {...props} />;
 };
 
 export default DocCodeBlock;

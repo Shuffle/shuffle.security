@@ -19,6 +19,8 @@ import {
   resolveAgentContext,
   setPageContextChoice,
 } from '@/Shuffle-MCPs/agentContextRegistry';
+import { USECASE_CONTEXT_EVENT } from '@/lib/usecasePromptContext';
+import { APP_CONTEXT_EVENT } from '@/lib/appPromptContext';
 
 export interface AskAiDrawerProps extends Omit<AgentRunDrawerProps, 'title' | 'subtitle'> {
   /** Override drawer title. When omitted, uses the context-aware title. */
@@ -76,12 +78,24 @@ export const AskAiDrawer: React.FC<AskAiDrawerProps> = ({
 
   // Key to force AgentUI to re-mount when page context changes or user clicks "Reset"
   const [resetKey, setResetKey] = useState<number>(0);
+  const [contextTick, setContextTick] = useState<number>(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const bump = () => setContextTick((t) => t + 1);
+    window.addEventListener(USECASE_CONTEXT_EVENT, bump);
+    window.addEventListener(APP_CONTEXT_EVENT, bump);
+    return () => {
+      window.removeEventListener(USECASE_CONTEXT_EVENT, bump);
+      window.removeEventListener(APP_CONTEXT_EVENT, bump);
+    };
+  }, []);
 
   // Resolve context for current location
   const resolvedContext = useMemo(
     () => resolveAgentContext(activePathname, activeSearch, rules),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activePathname, activeSearch, rules, resetKey],
+    [activePathname, activeSearch, rules, resetKey, contextTick],
   );
 
   // Notify listener of resolved context
@@ -109,9 +123,9 @@ export const AskAiDrawer: React.FC<AskAiDrawerProps> = ({
 
   // Handle user changing preset
   const handleSelectPreset = useCallback(
-    (preset: AgentPreset) => {
+    (preset: AgentPreset | null) => {
       setPageContextChoice(resolvedContext.storageKey, {
-        presetId: preset.id,
+        presetId: preset?.id ?? null,
       });
       setIsOverridden(true);
     },
@@ -172,7 +186,7 @@ export const AskAiDrawer: React.FC<AskAiDrawerProps> = ({
       subtitle={effectiveSubtitle}
       agentUIProps={{
         ...agentUIProps,
-        key: `ask_ai_${resolvedContext.storageKey}_${resetKey}`,
+        key: `ask_ai_${resetKey}`,
         defaultApps: resolvedContext.apps,
         initialPresetId: resolvedContext.presetId,
         defaultInput: agentUIProps?.defaultInput ?? resolvedContext.defaultPrompt,
@@ -187,7 +201,9 @@ export const AskAiDrawer: React.FC<AskAiDrawerProps> = ({
         },
         onSelectPreset: (preset) => {
           handleSelectPreset(preset);
-          agentUIProps?.onSelectPreset?.(preset);
+          if (preset) {
+            agentUIProps?.onSelectPreset?.(preset);
+          }
         },
       }}
     />

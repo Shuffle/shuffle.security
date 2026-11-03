@@ -97,6 +97,8 @@ body:not(.dark) .shuffle-core-scope:not(.dark),
   --card-foreground: 0 0% 9%;
   --popover: 0 0% 100%;
   --popover-foreground: 0 0% 9%;
+  --primary: 12 92% 52%;
+  --primary-foreground: 0 0% 100%;
   --secondary: 0 0% 94%;
   --secondary-foreground: 0 0% 9%;
   --muted: 0 0% 94%;
@@ -108,11 +110,14 @@ body:not(.dark) .shuffle-core-scope:not(.dark),
   --border: 0 0% 78%;
   --border-subtle: 0 0% 86%;
   --input: 0 0% 94%;
+  --ring: 12 92% 52%;
   --severity-critical: 0 72% 51%;
   --severity-high: 12 88% 46%;
   --severity-medium: 38 92% 33%;
   --severity-low: 142 72% 31%;
   --severity-info: 215 90% 45%;
+  --status-resolved: 142 72% 31%;
+  --infra-email: 215 90% 45%;
   --sidebar-background: 0 0% 97%;
   --sidebar-foreground: 0 0% 9%;
   --sidebar-accent: 0 0% 94%;
@@ -134,6 +139,8 @@ body:not(.dark) .shuffle-core-scope:not(.dark),
   --card-foreground: 0 0% 100%;
   --popover: 0 0% 12%;
   --popover-foreground: 0 0% 100%;
+  --primary: 12 92% 52%;
+  --primary-foreground: 0 0% 100%;
   --secondary: 0 0% 18%;
   --secondary-foreground: 0 0% 100%;
   --muted: 0 0% 16%;
@@ -145,11 +152,14 @@ body:not(.dark) .shuffle-core-scope:not(.dark),
   --border: 0 0% 20%;
   --border-subtle: 0 0% 16%;
   --input: 0 0% 18%;
+  --ring: 12 92% 52%;
   --severity-critical: 0 84% 60%;
   --severity-high: 12 92% 52%;
   --severity-medium: 45 93% 47%;
   --severity-low: 142 71% 45%;
   --severity-info: 210 100% 56%;
+  --status-resolved: 142 71% 45%;
+  --infra-email: 210 100% 56%;
   --sidebar-background: 0 0% 9%;
   --sidebar-foreground: 0 0% 100%;
   --sidebar-accent: 0 0% 16%;
@@ -214,10 +224,15 @@ export const readAncestorDark = (anchor: Element | null): boolean | null => {
 
 export const readElementAncestorDark = (node: Element | null): boolean | null => {
   if (!node || typeof document === "undefined") return null;
-  const scoped = node.closest('[data-shuffle-mode="dark"], [data-shuffle-mode="light"]');
+  // Start from node.parentElement so an element that stamps data-shuffle-mode
+  // or .dark/.light onto itself (such as AgentPresets' trigger button) never
+  // matches its own stale attribute instead of its true ancestor scope.
+  const start = node.parentElement;
+  if (!start) return null;
+  const scoped = start.closest('[data-shuffle-mode="dark"], [data-shuffle-mode="light"]');
   if (scoped) return scoped.getAttribute("data-shuffle-mode") === "dark";
-  if (node.closest(".dark")) return true;
-  if (node.closest(".light")) return false;
+  if (start.closest(".dark")) return true;
+  if (start.closest(".light")) return false;
   return null;
 };
 
@@ -231,10 +246,14 @@ export const readHtmlDarkClass = (): boolean => {
   );
 };
 
-const useAutoDarkClass = (enabled: boolean, anchorRef: React.RefObject<HTMLElement | null>): boolean => {
-  // Keep the first server and browser render identical. The layout effect
-  // resolves the host theme immediately after hydration.
-  const [isDark, setIsDark] = React.useState<boolean>(false);
+const useAutoDarkClass = (
+  enabled: boolean,
+  anchorRef: React.RefObject<HTMLElement | null>,
+  fallbackDark = false,
+): boolean => {
+  const [isDark, setIsDark] = React.useState<boolean>(() =>
+    enabled ? (typeof document !== "undefined" ? readHtmlDarkClass() : fallbackDark) : false,
+  );
   React.useLayoutEffect(() => {
     if (!enabled || typeof document === "undefined") return;
     const recompute = () => {
@@ -243,9 +262,9 @@ const useAutoDarkClass = (enabled: boolean, anchorRef: React.RefObject<HTMLEleme
     };
     recompute();
     const observer = new MutationObserver(recompute);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
     if (document.body) {
-      observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+      observer.observe(document.body, { attributes: true, attributeFilter: ["class", "data-theme"] });
     }
     const ownRoot = anchorRef.current?.closest('[data-shuffle-core-root], [data-shuffle-mcp-root]');
     let node: HTMLElement | null = ownRoot ? ownRoot.parentElement : anchorRef.current?.parentElement ?? null;
@@ -280,6 +299,8 @@ export const lightTokenStyle: ShuffleTokenStyle = {
   "--card-foreground": "0 0% 9%",
   "--popover": "0 0% 100%",
   "--popover-foreground": "0 0% 9%",
+  "--primary": "12 92% 52%",
+  "--primary-foreground": "0 0% 100%",
   "--secondary": "0 0% 94%",
   "--secondary-foreground": "0 0% 9%",
   "--muted": "0 0% 94%",
@@ -291,11 +312,14 @@ export const lightTokenStyle: ShuffleTokenStyle = {
   "--border": "0 0% 80%",
   "--border-subtle": "0 0% 86%",
   "--input": "0 0% 94%",
+  "--ring": "12 92% 52%",
   "--severity-critical": "0 84% 60%",
   "--severity-high": "12 92% 52%",
   "--severity-medium": "45 93% 47%",
   "--severity-low": "142 71% 45%",
   "--severity-info": "210 100% 56%",
+  "--status-resolved": "142 72% 31%",
+  "--infra-email": "215 90% 45%",
   "--sidebar-background": "0 0% 97%",
   "--sidebar-foreground": "0 0% 9%",
   "--sidebar-accent": "0 0% 94%",
@@ -315,6 +339,8 @@ export const darkTokenStyle: ShuffleTokenStyle = {
   "--card-foreground": "0 0% 100%",
   "--popover": "0 0% 12%",
   "--popover-foreground": "0 0% 100%",
+  "--primary": "12 92% 52%",
+  "--primary-foreground": "0 0% 100%",
   "--secondary": "0 0% 18%",
   "--secondary-foreground": "0 0% 100%",
   "--muted": "0 0% 16%",
@@ -324,6 +350,9 @@ export const darkTokenStyle: ShuffleTokenStyle = {
   "--border": "0 0% 20%",
   "--border-subtle": "0 0% 16%",
   "--input": "0 0% 18%",
+  "--ring": "12 92% 52%",
+  "--status-resolved": "142 71% 45%",
+  "--infra-email": "210 100% 56%",
   "--sidebar-background": "0 0% 9%",
   "--sidebar-foreground": "0 0% 100%",
   "--sidebar-accent": "0 0% 16%",
@@ -566,8 +595,10 @@ export const ShuffleCoreThemeProvider: React.FC<ShuffleCoreThemeProviderProps> =
   mode = "auto",
 }) => {
   const parent = useMuiTheme();
+  const parentCtx = useShuffleCoreTheme();
   const anchorRef = React.useRef<HTMLSpanElement>(null);
-  const autoIsDark = useAutoDarkClass(mode === "auto", anchorRef);
+  const fallbackDark = parentCtx ? parentCtx.isDark : (parent as any)?.palette?.mode === "dark";
+  const autoIsDark = useAutoDarkClass(mode === "auto", anchorRef, fallbackDark);
   const effectiveDark = mode === "auto" ? autoIsDark : mode === "dark";
 
   const scopeClassName = effectiveDark ? "shuffle-core-scope dark" : "shuffle-core-scope light";

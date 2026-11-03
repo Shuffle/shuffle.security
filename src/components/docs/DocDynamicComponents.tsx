@@ -45,7 +45,14 @@ import { useDatastore } from "@/hooks/useDatastore";
 import { DATASTORE_CATEGORIES, type CategoryAutomation } from "@/Shuffle-Core/datastore";
 import { getApiUrl, getAuthHeader, getRegionUrl, setRegionUrl, getShuffleCoreUrl } from "@/Shuffle-Core/api";
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
-import { UsecaseDrawer, CategoryAutomationsDialog } from "@/Shuffle-Core";
+import {
+  UsecaseDrawer,
+  CategoryAutomationsDialog,
+  AppSearchDrawer,
+  AppDetailDrawer,
+  ShuffleCoreThemeProvider,
+} from "@/Shuffle-Core";
+import { ShuffleMcpThemeProvider } from "@/Shuffle-MCPs";
 import { API_CONFIG } from "@/Shuffle-Core/api";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -168,6 +175,7 @@ export const DocAgentUI: React.FC<DocAgentUIProps> = ({
   compact = true,
   apps,
 }) => {
+  const { resolvedTheme } = useTheme();
   const isCompact = compact === true || compact === "true";
 
   const defaultApps = React.useMemo(() => {
@@ -206,6 +214,9 @@ export const DocAgentUI: React.FC<DocAgentUIProps> = ({
         }
         defaultApps={defaultApps}
         readUrlParams={false}
+        theme={resolvedTheme}
+        renderToolDrawer={(p: any) => <AppSearchDrawer {...p} theme={resolvedTheme} />}
+        renderAppDetailDrawer={(p: any) => <AppDetailDrawer {...p} theme={resolvedTheme} />}
       />
     </Box>
   );
@@ -226,6 +237,7 @@ export const DocTryMcp: React.FC<DocTryMcpProps> = ({
   title,
   subtitle,
 }) => {
+  const { resolvedTheme } = useTheme();
   const resolvedAppName = app || appname || "Shuffle Tools";
   const lookup = useAppLookup(resolvedAppName);
 
@@ -297,6 +309,7 @@ export const DocTryMcp: React.FC<DocTryMcpProps> = ({
             appName={resolvedAppName}
             appTitle={resolvedAppName.replace(/_/g, " ")}
             size="compact"
+            theme={resolvedTheme}
           />
         </Box>
       </Box>
@@ -305,6 +318,7 @@ export const DocTryMcp: React.FC<DocTryMcpProps> = ({
         appIcon={finalAppIcon}
         appId={finalAppId}
         categories={lookup.categories}
+        theme={resolvedTheme}
       />
     </Box>
   );
@@ -335,6 +349,7 @@ export const DocMcpSetup: React.FC<DocMcpSetupProps> = ({
   servername,
   serverurl,
 }) => {
+  const { resolvedTheme } = useTheme();
   const isCompact = compact === true || String(compact) === "true";
   const resolvedApp = (app || appname || "").trim() || undefined;
   const resolvedAppTitle =
@@ -373,6 +388,7 @@ export const DocMcpSetup: React.FC<DocMcpSetupProps> = ({
         label={heading}
         subtitle={sub}
         size={isCompact ? "compact" : "default"}
+        theme={resolvedTheme}
       />
     </Box>
   );
@@ -390,6 +406,7 @@ export const DocAgentActivity: React.FC<DocAgentActivityProps> = ({
   top = 3,
 }) => {
   const { isAuthenticated } = useAuth();
+  const { resolvedTheme } = useTheme();
   const [selectedRun, setSelectedRun] = useState<AgentRun | null>(null);
   const effectiveLimit = typeof limit === "string" ? parseInt(limit, 10) || 3 : limit;
   const effectiveTop = typeof top === "string" ? parseInt(top, 10) || 3 : top;
@@ -411,12 +428,14 @@ export const DocAgentActivity: React.FC<DocAgentActivityProps> = ({
         initialRuns={!isAuthenticated ? DEMO_AGENT_RUNS.slice(0, effectiveLimit) : undefined}
         disableFetch={!isAuthenticated}
         rowSx={{ py: 1.25, px: { xs: 1.25, sm: 2 } }}
+        theme={resolvedTheme}
       />
 
       <AgentExecutionDrawer
         open={selectedRun !== null}
         onClose={() => setSelectedRun(null)}
         run={selectedRun}
+        theme={resolvedTheme}
       />
     </Box>
   );
@@ -621,6 +640,7 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
   initialSkill,
   compact = false,
 }) => {
+  const { resolvedTheme } = useTheme();
   const isCompact = compact === true || compact === "true";
   const [selectedPreset, setSelectedPreset] = useState<AgentPreset | null>(
     () => {
@@ -687,6 +707,7 @@ export const DocAgentSkills: React.FC<DocAgentSkillsProps> = ({
             selectedPreset={selectedPreset}
             onSelectPreset={handleSelect}
             onRemoveSelected={() => setSelectedPreset(null)}
+            theme={resolvedTheme}
           />
         </Box>
       </Box>
@@ -2299,6 +2320,7 @@ export const DocDynamicComponent: React.FC<DocDynamicComponentProps> = ({
   props,
 }) => {
   const [mounted, setMounted] = useState(false);
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     setMounted(true);
@@ -2485,7 +2507,11 @@ export const DocDynamicComponent: React.FC<DocDynamicComponentProps> = ({
   return (
     <Box className="not-prose" sx={{ width: "100%", maxWidth: "100%", minWidth: 0 }}>
       <ComponentErrorBoundary name={`DocComponent-${name}`} fallback={null}>
-        {rendered}
+        <ShuffleCoreThemeProvider mode={resolvedTheme}>
+          <ShuffleMcpThemeProvider mode={resolvedTheme}>
+            {rendered}
+          </ShuffleMcpThemeProvider>
+        </ShuffleCoreThemeProvider>
       </ComponentErrorBoundary>
     </Box>
   );

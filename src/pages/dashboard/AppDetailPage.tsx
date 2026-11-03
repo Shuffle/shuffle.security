@@ -5,6 +5,7 @@ import { useParams, useSearchParams, Link } from '@/lib/router-compat';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Box, Button } from '@mui/material';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 import { AppDetailContent, type AppInfo } from '@/Shuffle-Core';
 import type { AppDocResult } from '@/Shuffle-Core/appDocsFetch';
@@ -14,6 +15,7 @@ const AppDetailPage = () => {
   const [searchParams] = useSearchParams();
   const autoActivateRequested = searchParams.get('autoActivate') === '1';
   const { isAuthenticated, userInfo } = useAuth();
+  const { resolvedTheme } = useTheme();
   const loaderData = useLoaderData({ strict: false }) as { doc?: AppDocResult | null } | undefined;
   const [loadedAppInfo, setLoadedAppInfo] = useState<AppInfo | null>(null);
 
@@ -87,6 +89,7 @@ const AppDetailPage = () => {
           showApiCallViewer={true}
           onAppInfoLoaded={setLoadedAppInfo}
           initialDoc={loaderData?.doc ?? null}
+          theme={resolvedTheme}
         />
       </Box>
     </Box>

@@ -2875,8 +2875,9 @@ const IntegrationStatusLite = React.memo(function IntegrationStatusLite({
                 startIcon={<ExternalLink size={14} />}
                 onClick={() => {
                   const name = item.name;
+                  const shouldFocusAuth = !showUsecaseToggle || !item.validated;
                   setPopoverFor(null);
-                  if (appDetail && name) appDetail.openApp(name);
+                  if (appDetail && name) appDetail.openApp(name, { focusAuthentication: shouldFocusAuth });
                 }}
                 sx={{
                   justifyContent: 'flex-start',

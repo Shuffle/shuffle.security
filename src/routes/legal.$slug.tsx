@@ -41,11 +41,9 @@ export const Route = createFileRoute("/legal/$slug")({
 });
 
 function LegalRouteComponent() {
-  const { slug } = Route.useParams();
   const { doc } = Route.useLoaderData();
   return (
     <DocsPage
-      key={slug}
       folder="legal"
       basePath="/legal"
       sectionTitle="Legal"

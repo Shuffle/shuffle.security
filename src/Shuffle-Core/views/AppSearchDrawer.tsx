@@ -165,6 +165,8 @@ export interface AppSearchDrawerProps extends ShuffleHostProps {
   shouldOpenDetail?: (app: { name: string; icon: string; categories: string[]; id: string | null }) => boolean;
   /** When true, the AppDetailDrawer opened from this picker auto-fires Activate. */
   autoActivate?: boolean;
+  /** When true, the AppDetailDrawer opened from this picker expands & scrolls to the Authentication section. */
+  focusAuthentication?: boolean;
   /** Hide the per-app authentication status dot in the result list. */
   hideAuthStatus?: boolean;
 }
@@ -197,6 +199,7 @@ export default function AppSearchDrawer({
   onSelectionChange,
   shouldOpenDetail,
   autoActivate = false,
+  focusAuthentication = false,
   hideAuthStatus = false,
   globalUrl,
   theme,
@@ -206,6 +209,7 @@ export default function AppSearchDrawer({
   const scopeClassName = themeScope?.scopeClassName ?? (theme === 'dark' ? 'shuffle-mcp-scope dark' : theme === 'light' ? 'shuffle-mcp-scope' : undefined);
   const [detailAppName, setDetailAppName] = useState<string | null>(null);
   const [detailAppId, setDetailAppId] = useState<string | null>(null);
+  const [detailFocusAuth, setDetailFocusAuth] = useState(false);
   const [addAppOpen, setAddAppOpen] = useState(false);
   const [addAppQuery, setAddAppQuery] = useState<string>('');
   const [highlightActive, setHighlightActive] = useState(false);
@@ -240,6 +244,7 @@ export default function AppSearchDrawer({
   const handleClose = () => {
     setDetailAppName(null);
     setDetailAppId(null);
+    setDetailFocusAuth(false);
     onClose();
   };
 
@@ -278,6 +283,7 @@ export default function AppSearchDrawer({
     // Apps that still need configuration (e.g. no authentication yet) open the
     // detail drawer even in multi-select mode.
     if (multiSelect && shouldOpenDetail?.(appInfo)) {
+      setDetailFocusAuth(true);
       setDetailAppName(detail.app.name);
       setDetailAppId(algoliaId);
       return;
@@ -321,6 +327,7 @@ export default function AppSearchDrawer({
     if (onSelectOverride?.(appInfo)) {
       return;
     }
+    setDetailFocusAuth(false);
     setDetailAppName(detail.app.name);
     setDetailAppId(algoliaId);
   };
@@ -769,6 +776,7 @@ export default function AppSearchDrawer({
           const name = detailAppName;
           setDetailAppName(null);
           setDetailAppId(null);
+          setDetailFocusAuth(false);
           if (name) onDetailClose?.(name);
         }}
 
@@ -782,6 +790,7 @@ export default function AppSearchDrawer({
         onRefresh={onClose}
         onAddToCanvas={onAddToCanvas}
         autoActivate={autoActivate}
+        focusAuthentication={focusAuthentication || autoActivate || detailFocusAuth}
       />
 
       {/* New App dialog — Shuffle-Core canonical modal for finding / generating apps */}

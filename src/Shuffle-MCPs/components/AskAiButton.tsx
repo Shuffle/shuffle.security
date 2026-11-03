@@ -32,7 +32,7 @@ export interface AskAiButtonProps {
   pathname?: string;
   /** Custom button label. Default: "Ask Shuffle". */
   label?: string;
-  /** Tag label in the button. When undefined, defaults to "Beta" if isBeta is true, else "Support". Set to null to hide tag. */
+  /** Tag label in the button. When undefined, defaults to null if isBeta is true, else "Support". Set to null to hide tag. */
   tagLabel?: string | null;
   /** Optional context name or subtitle shown in tooltip (e.g. "Shuffle Incidents MCP") */
   contextHint?: string;
@@ -88,7 +88,8 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
     currentPath.startsWith('/cases') ||
     currentPath.startsWith('/alerts') ||
     currentPath.startsWith('/tickets') ||
-    currentPath.startsWith('/docs');
+    currentPath.startsWith('/docs') ||
+    currentPath.startsWith('/apps');
 
   const effectiveIsBeta = isBeta || isIncidentOrDocs;
   const effectiveRequireSupport = effectiveIsBeta ? false : requireSupport;
@@ -101,9 +102,9 @@ export const AskAiButton: React.FC<AskAiButtonProps> = ({
   }
 
   const effectiveTagLabel =
-    tagLabel !== undefined && !(tagLabel === 'Support' && isIncidentOrDocs)
+    tagLabel !== undefined && !(tagLabel === 'Support' && effectiveIsBeta)
       ? tagLabel
-      : (effectiveIsBeta ? 'Beta' : 'Support');
+      : (effectiveIsBeta ? null : 'Support');
 
   const effectiveTooltip =
     tooltipTitle !== undefined

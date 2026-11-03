@@ -30,6 +30,7 @@ import {
   Tooltip,
   Divider,
   Alert,
+  Collapse,
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import { isNoAuthRequired, type AppAuthentication } from '@/Shuffle-Core/components/AppAuthConfig';
@@ -50,10 +51,14 @@ import { getShuffleCoreUrl } from '@/Shuffle-Core/lib/shuffleUrls';
 import { getAppEditUrl } from '@/Shuffle-Core/appEditUrl';
 import AppAuthSection from '@/Shuffle-Core/components/AppAuthSection';
 import TryMcpSection from '@/Shuffle-Core/views/TryMcpSection';
-import SingulActionsPreview from '@/Shuffle-Core/components/SingulActionsPreview';
+import SingulActionsPreview, { getCategorySingulActions } from '@/Shuffle-Core/components/SingulActionsPreview';
 import ApiCallViewer from '@/Shuffle-Core/components/ApiCallViewer';
 import AppRelatedUsecasesRaw from '@/Shuffle-Core/components/AppRelatedUsecases';
-import { McpSetupButtons } from '@/Shuffle-Core/components/oauth/McpSetupButtons';
+import {
+  clearActiveAppPromptContext,
+  setActiveAppPromptContext,
+  type AppActionSummary,
+} from '@/lib/appPromptContext';
 
 class UsecasesBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   override state = { hasError: false };
@@ -156,8 +161,9 @@ export const CollapsibleDescription = ({ description }: { description: string })
           },
         }),
         '& p': { fontSize: '0.78rem', lineHeight: 1.5, color: 'hsl(var(--muted-foreground))', m: 0, '&:not(:last-child)': { mb: 1 } },
+        '& .not-prose p, & .not-prose .MuiTypography-root': { mb: 0, mt: 0, lineHeight: 1.5 },
         '& a': { color: 'hsl(var(--primary))', textDecoration: 'underline' },
-        '& code': { fontSize: '0.7rem', fontFamily: "'JetBrains Mono', monospace", bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--foreground))', px: 0.5, borderRadius: 0.5 },
+        '& :not(pre) > code:not(.not-prose code)': { fontSize: '0.7rem', fontFamily: "'JetBrains Mono', monospace", bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--foreground))', px: 0.5, borderRadius: 0.5 },
         '& ul, & ol': { pl: 2, fontSize: '0.78rem', color: 'hsl(var(--muted-foreground))' },
       }}
     >
@@ -186,7 +192,7 @@ export const AppDocumentationSection = ({
   return (
     <Box
       sx={{
-        mb: 3,
+        mb: 4.5,
         width: '100%',
         maxWidth: '100%',
         minWidth: 0,
@@ -199,8 +205,8 @@ export const AppDocumentationSection = ({
       <Box
         onClick={() => setExpanded(prev => !prev)}
         sx={{
-          px: { xs: 1.5, sm: 2 },
-          py: 1.25,
+          px: { xs: 2, sm: 2.5 },
+          py: 1.75,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -272,11 +278,12 @@ export const AppDocumentationSection = ({
             '& h2': { fontSize: '0.98rem', fontWeight: 600, mt: 2, mb: 0.75, color: 'hsl(var(--foreground))', overflowWrap: 'anywhere' },
             '& h3, & h4': { fontSize: '0.88rem', fontWeight: 600, mt: 1.5, mb: 0.5, color: 'hsl(var(--foreground))', overflowWrap: 'anywhere' },
             '& p': { fontSize: '0.82rem', lineHeight: 1.65, color: 'hsl(var(--foreground))', mb: 1.25, overflowWrap: 'anywhere' },
+            '& .not-prose p, & .not-prose .MuiTypography-root': { mb: 0, mt: 0, lineHeight: 1.5 },
             '& ul, & ol': { pl: { xs: 2, sm: 2.5 }, mb: 1.5, color: 'hsl(var(--foreground))' },
             '& li': { mb: 0.35, overflowWrap: 'anywhere' },
             '& img': { maxWidth: '100%', height: 'auto', borderRadius: 1, my: 1 },
             '& pre': { maxWidth: '100%', overflowX: 'auto' },
-            '& code': {
+            '& :not(pre) > code:not(.not-prose code)': {
               fontSize: '0.76rem',
               fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
               bgcolor: 'hsl(var(--muted))',
@@ -288,7 +295,7 @@ export const AppDocumentationSection = ({
             },
           }}
         >
-          <ShuffleMarkdown disableBreaks>{doc.markdown}</ShuffleMarkdown>
+          <ShuffleMarkdown disableBreaks>{doc.markdown.replace(/<!--[\s\S]*?-->/g, '')}</ShuffleMarkdown>
         </Box>
     </Box>
   );
@@ -398,17 +405,25 @@ export default function AppDetailContent({
   const [activatedAppId, setActivatedAppId] = useState<string | null>(null);
   const [activateLoading, setActivateLoading] = useState(false);
   const [resolvedAlgoliaId, setResolvedAlgoliaId] = useState<string | null>(appId || null);
-  const [authExpanded, setAuthExpanded] = useState(true);
+  const [authExpanded, setAuthExpanded] = useState(() => Boolean(focusAuthentication));
+  const [guestAuthExpanded, setGuestAuthExpanded] = useState(() => Boolean(focusAuthentication));
+  const [guestMcpExpanded, setGuestMcpExpanded] = useState(false);
   const [authSectionEl, setAuthSectionEl] = useState<HTMLElement | null>(null);
+
+  // Contract Auth by default when switching apps unless focusAuthentication is active.
+  useEffect(() => {
+    setAuthExpanded(Boolean(focusAuthentication));
+    setGuestAuthExpanded(Boolean(focusAuthentication));
+  }, [appName, focusAuthentication]);
 
   // Opened from an "authenticate this app" affordance: expand the Authentication
   // area and bring it into view as soon as it exists in the drawer.
   useEffect(() => {
     if (!focusAuthentication || !open || !authSectionEl) return;
     setAuthExpanded(true);
+    setGuestAuthExpanded(true);
     authSectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [focusAuthentication, open, authSectionEl]);
-  const lastValidAuthRef = useRef<boolean | null>(null);
   const lastNoAuthRequiredRef = useRef<boolean | null>(null);
   const [incidentStats, setIncidentStats] = useState<{ ingested: number; forwarded: number } | null>(null);
   const [appNotFound, setAppNotFound] = useState(false);
@@ -819,13 +834,6 @@ export default function AppDetailContent({
       : (isActivated || hasAnyAuth);
   const authCount = matchingEntries.length;
 
-  // Auto-collapse / expand auth card
-  useEffect(() => {
-    if (lastValidAuthRef.current === hasValidAuth) return;
-    lastValidAuthRef.current = hasValidAuth;
-    setAuthExpanded(!hasValidAuth);
-  }, [hasValidAuth]);
-
   useEffect(() => {
     if (appLoading) return;
     const noAuth = isNoAuthRequired(appInfo?.authentication);
@@ -835,7 +843,6 @@ export default function AppDetailContent({
   }, [appLoading, appInfo?.authentication]);
 
   useEffect(() => {
-    lastValidAuthRef.current = null;
     lastNoAuthRequiredRef.current = null;
   }, [appName]);
 
@@ -1053,6 +1060,113 @@ export default function AppDetailContent({
     ? (resolvedAlgoliaId || (appInfo as any)?.id || '')
     : (matchingEntries[0]?.app?.id || matchingEntries[0]?.id || resolvedAlgoliaId || (appInfo as any)?.id || appName || '');
 
+  // Publish the active app context for the "Ask about <App>" assistant when rendered as a page
+  useEffect(() => {
+    if (mode !== 'page' || !open || !appName) return;
+
+    const rawActions = Array.isArray(appInfo?.actions) ? appInfo.actions : [];
+    const actions: AppActionSummary[] =
+      rawActions.length > 0
+        ? rawActions.map((act: any) => ({
+            name: String(act?.name || ''),
+            label: act?.label ? String(act.label) : undefined,
+            description: act?.description ? String(act.description) : undefined,
+            category: Array.isArray(act?.category_label)
+              ? act.category_label.join(', ')
+              : act?.category
+              ? String(act.category)
+              : undefined,
+            parameters: Array.isArray(act?.parameters)
+              ? act.parameters.map((p: any) => ({
+                  name: String(p?.name || ''),
+                  description: p?.description ? String(p.description) : undefined,
+                  required: Boolean(p?.required),
+                  type: p?.schema?.type ? String(p.schema.type) : undefined,
+                }))
+              : undefined,
+          })).filter((a: AppActionSummary) => Boolean(a.name))
+        : getCategorySingulActions(appInfo?.categories).map((sa) => ({
+            name: sa.name,
+            label: sa.label,
+            category: sa.category,
+            parameters: sa.fields.map((f) => ({
+              name: f.name,
+              description: f.value ? `Example: ${f.value}` : undefined,
+            })),
+          }));
+
+    const authSchema = appInfo?.authentication
+      ? {
+          type: appInfo.authentication.type,
+          required: appInfo.authentication.required,
+          parameters: Array.isArray(appInfo.authentication.parameters)
+            ? appInfo.authentication.parameters.map((p) => ({
+                name: p.name,
+                description: p.description,
+                example: p.example,
+              }))
+            : undefined,
+        }
+      : undefined;
+
+    const effectiveToolName = appInfo?.name || canonicalExecutionAppName || appName;
+    const effectiveToolId =
+      resolvedAlgoliaId ||
+      (appInfo as any)?.id ||
+      matchingEntries[0]?.app?.id ||
+      matchingEntries[0]?.id ||
+      null;
+
+    setActiveAppPromptContext({
+      appName: effectiveToolName,
+      slug: appName,
+      displayName: displayName || effectiveToolName.replace(/_/g, ' '),
+      appId: effectiveToolId,
+      icon: resolvedImage || undefined,
+      description: appInfo?.description || undefined,
+      categories: appInfo?.categories && appInfo.categories.length > 0 ? appInfo.categories : undefined,
+      appVersion: (appInfo?.app_version || appInfo?.version) as string | undefined,
+      generated: typeof appInfo?.generated === 'boolean' ? appInfo.generated : undefined,
+      isBuiltIn,
+      documentation: appDoc?.markdown || undefined,
+      docSourceUrl: appDoc?.meta?.link || undefined,
+      actions,
+      authentication: authSchema,
+      hasValidAuth,
+      hasAnyAuth,
+      authCount,
+      isActivated: effectiveActivated,
+      isIngestEnabled,
+      targetWorkflowName: targetWorkflowName || undefined,
+      mcpEndpoint: `/api/v1/apps/${encodeURIComponent(effectiveToolName)}/mcp`,
+    });
+  }, [
+    mode,
+    open,
+    appName,
+    appInfo,
+    canonicalExecutionAppName,
+    resolvedAlgoliaId,
+    matchingEntries,
+    displayName,
+    resolvedImage,
+    isBuiltIn,
+    appDoc,
+    hasValidAuth,
+    hasAnyAuth,
+    authCount,
+    effectiveActivated,
+    isIngestEnabled,
+    targetWorkflowName,
+  ]);
+
+  useEffect(() => {
+    if (mode !== 'page' || !appName) return;
+    return () => {
+      clearActiveAppPromptContext(appName);
+    };
+  }, [mode, appName]);
+
   const isGeneratedApp = (appInfo as any)?.generated === true;
   const editAppId = (appInfo as any)?.id || resolvedAlgoliaId || '';
   const [fetchedUser, setFetchedUser] = useState<any>(null);
@@ -1068,9 +1182,13 @@ export default function AppDetailContent({
   const { url: editUrl, canEdit: canEditApp } = isGeneratedApp && editAppId
     ? getAppEditUrl(appInfo as any, editAppId, userdata || fetchedUser, getShuffleCoreUrl)
     : { url: '', canEdit: false };
+  const hideActivateButton = mode === 'drawer' || focusAuthentication || autoActivate || Boolean(onAddToCanvas) || isBuiltIn;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box', height: mode === 'drawer' ? '100%' : 'auto' }}>
+    <Box
+      data-entity-title={mode === 'page' && displayName ? displayName : undefined}
+      sx={{ display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'clip', boxSizing: 'border-box', height: mode === 'drawer' ? '100%' : 'auto' }}
+    >
       {/* Drawer Header Bar (only rendered in drawer mode) */}
       {mode === 'drawer' && (
         <Box
@@ -1238,14 +1356,16 @@ export default function AppDetailContent({
             {/* App Title Header */}
             <AppTitleHeader
               name={displayName}
+              mcpAppName={canonicalExecutionAppName}
+              stickyTop={mode === 'page' ? (!isAuthenticated ? { xs: 68, sm: 76 } : 8) : 0}
               image={resolvedImage}
               hasValidAuth={hasValidAuth}
               hasAnyAuth={hasAnyAuth}
               isAuthenticated={isAuthenticated}
               categories={appInfo?.categories}
-              isActivated={onAddToCanvas || isBuiltIn ? null : effectiveActivated}
+              isActivated={hideActivateButton ? null : effectiveActivated}
               activateLoading={activateLoading}
-              onActivateToggle={onAddToCanvas || isBuiltIn ? undefined : () => handleActivateToggle()}
+              onActivateToggle={hideActivateButton ? undefined : () => handleActivateToggle()}
               hideStatusChips
               highlightActivate={autoActivatePulse}
               onAdd={onAddToCanvas && appName ? () => {
@@ -1254,6 +1374,7 @@ export default function AppDetailContent({
               } : undefined}
               onAuthClick={() => {
                 setAuthExpanded(true);
+                setGuestAuthExpanded(true);
                 document.getElementById('app-auth-section')?.scrollIntoView({ behavior: 'smooth' });
               }}
               globalUrl={globalUrl}
@@ -1267,21 +1388,8 @@ export default function AppDetailContent({
 
             {/* Description (collapsible) */}
             {appInfo?.description && (
-              <Box sx={{ mb: 3 }}>
+              <Box sx={{ mb: 4 }}>
                 <CollapsibleDescription description={appInfo.description} />
-              </Box>
-            )}
-
-            {/* Use this app from external AI clients (MCP) */}
-            {mode === 'page' && !isBuiltIn && (
-              <Box sx={{ mb: 3 }}>
-                <McpSetupButtons
-                  appName={canonicalExecutionAppName}
-                  appTitle={displayName}
-                  globalUrl={globalUrl}
-                  label="Use this app in ChatGPT"
-                  chatgptLabel="OpenAI"
-                />
               </Box>
             )}
 
@@ -1300,8 +1408,8 @@ export default function AppDetailContent({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 2,
-                  mb: 3,
-                  p: 2,
+                  mb: 4.5,
+                  p: 2.5,
                   borderRadius: 2,
                   border: isIngestEnabled ? '1px solid hsl(var(--severity-low) / 0.4)' : '1px solid hsl(var(--border))',
                   bgcolor: isIngestEnabled ? 'hsl(var(--severity-low) / 0.04)' : 'hsl(var(--muted) / 0.3)',
@@ -1409,12 +1517,55 @@ export default function AppDetailContent({
                   />
                 </Box>
               ) : allowGuestLocked ? (
-                <Box sx={{ mb: 4 }} id="app-auth-section" ref={setAuthSectionEl}>
-                  <GuestLockedSection
-                    title="Authentication Required"
-                    description={`Sign up to connect your ${displayName} credentials and start automating workflows.`}
-                    appname={appName || ''}
-                  />
+                <Box
+                  sx={{
+                    mb: 4.5,
+                    borderRadius: 2,
+                    border: '1px solid hsl(var(--border))',
+                    bgcolor: 'hsl(var(--card))',
+                    overflow: 'hidden',
+                  }}
+                  id="app-auth-section"
+                  ref={setAuthSectionEl}
+                >
+                  <Box
+                    onClick={() => setGuestAuthExpanded(prev => !prev)}
+                    sx={{
+                      px: { xs: 2, sm: 2.5 },
+                      py: 1.75,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 1.5,
+                      cursor: 'pointer',
+                      borderBottom: guestAuthExpanded ? '1px solid hsl(var(--border))' : 'none',
+                      bgcolor: 'hsl(var(--muted) / 0.35)',
+                      '&:hover': { bgcolor: 'hsl(var(--muted) / 0.55)' },
+                    }}
+                  >
+                    <Typography sx={{ color: 'hsl(var(--foreground))', fontWeight: 600, fontSize: '0.9rem' }}>
+                      Authentication
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        color: 'hsl(var(--primary))',
+                        userSelect: 'none',
+                      }}
+                    >
+                      {guestAuthExpanded ? 'Collapse' : 'Expand'}
+                    </Typography>
+                  </Box>
+                  <Collapse in={guestAuthExpanded}>
+                    <Box sx={{ p: { xs: 2, sm: 2.5 } }}>
+                      <GuestLockedSection
+                        title="Authentication Required"
+                        description={`Sign up to connect your ${displayName} credentials and start automating workflows.`}
+                        appname={appName || ''}
+                      />
+                    </Box>
+                  </Collapse>
                 </Box>
               ) : null
             )}
@@ -1435,45 +1586,49 @@ export default function AppDetailContent({
                   serverside={serverside}
                   theme={theme}
                   colorMode={colorMode}
-                />
-
-                {showApiCallViewer && (
-                  <Box sx={{ mb: 4 }}>
-                    <ApiCallViewer
-                      config={{
-                        method: 'POST',
-                        url: `${(API_CONFIG.baseUrl || '').replace(/\/+$/, '')}/api/v1/apps/${encodeURIComponent(canonicalExecutionAppName)}/mcp`,
-                        headers: {
-                          'Authorization': `Bearer ${API_CONFIG.apiKey || '<your-api-key>'}`,
-                          ...(activeOrgId ? { 'Org-Id': activeOrgId } : {}),
-                        },
-                        body: {
-                          jsonrpc: '2.0',
-                          id: 'test-mcp-request',
-                          method: 'tools/call',
-                          params: {
-                            tool_name: canonicalExecutionAppName,
-                            tool_id: canonicalExecutionAppId,
-                            input: { text: '<your-prompt>' },
+                >
+                  {showApiCallViewer && (
+                    <Box sx={{ mt: 3 }}>
+                      <ApiCallViewer
+                        config={{
+                          method: 'POST',
+                          url: `${(API_CONFIG.baseUrl || '').replace(/\/+$/, '')}/api/v1/apps/${encodeURIComponent(canonicalExecutionAppName)}/mcp`,
+                          headers: {
+                            'Authorization': `Bearer ${API_CONFIG.apiKey || '<your-api-key>'}`,
+                            ...(activeOrgId ? { 'Org-Id': activeOrgId } : {}),
                           },
-                        },
-                      }}
-                      globalUrl={globalUrl}
-                      userdata={userdata}
-                      isLoaded={isLoaded}
-                      isLoggedIn={isLoggedIn}
-                      serverside={serverside}
-                      theme={theme}
-                      colorMode={colorMode}
-                    />
-                  </Box>
-                )}
+                          body: {
+                            jsonrpc: '2.0',
+                            id: 'test-mcp-request',
+                            method: 'tools/call',
+                            params: {
+                              tool_name: canonicalExecutionAppName,
+                              tool_id: canonicalExecutionAppId,
+                              input: { text: '<your-prompt>' },
+                            },
+                          },
+                        }}
+                        globalUrl={globalUrl}
+                        userdata={userdata}
+                        isLoaded={isLoaded}
+                        isLoggedIn={isLoggedIn}
+                        serverside={serverside}
+                        theme={theme}
+                        colorMode={colorMode}
+                      />
+                    </Box>
+                  )}
+                </TryMcpSection>
 
                 <SingulActionsPreview
                   appName={canonicalExecutionAppName}
                   appIcon={resolvedImage}
                   categories={appInfo?.categories}
                   activeOrgId={activeOrgId || undefined}
+                  onAuthenticate={() => {
+                    setAuthExpanded(true);
+                    document.getElementById('app-auth-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
                   globalUrl={globalUrl}
                   userdata={userdata}
                   isLoaded={isLoaded}
@@ -1484,23 +1639,54 @@ export default function AppDetailContent({
                 />
               </>
             ) : allowGuestLocked ? (
-              <Box sx={{ mt: 5, mb: 4 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
-                  <Typography sx={{ color: 'hsl(var(--foreground))', fontWeight: 600, fontSize: '0.95rem' }}>
+              <Box
+                sx={{
+                  mt: 4.5,
+                  mb: 4.5,
+                  borderRadius: 2,
+                  border: '1px solid hsl(var(--border))',
+                  bgcolor: 'hsl(var(--card))',
+                  overflow: 'hidden',
+                }}
+              >
+                <Box
+                  onClick={() => setGuestMcpExpanded(prev => !prev)}
+                  sx={{
+                    px: { xs: 2, sm: 2.5 },
+                    py: 1.75,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1.5,
+                    cursor: 'pointer',
+                    borderBottom: guestMcpExpanded ? '1px solid hsl(var(--border))' : 'none',
+                    bgcolor: 'hsl(var(--muted) / 0.35)',
+                    '&:hover': { bgcolor: 'hsl(var(--muted) / 0.55)' },
+                  }}
+                >
+                  <Typography sx={{ color: 'hsl(var(--foreground))', fontWeight: 600, fontSize: '0.9rem' }}>
                     Try MCP
                   </Typography>
-                  <McpSetupButtons
-                    appName={canonicalExecutionAppName}
-                    appTitle={displayName}
-                    globalUrl={globalUrl}
-                    size="compact"
-                  />
+                  <Typography
+                    sx={{
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      color: 'hsl(var(--primary))',
+                      userSelect: 'none',
+                    }}
+                  >
+                    {guestMcpExpanded ? 'Collapse' : 'Expand'}
+                  </Typography>
                 </Box>
-                <GuestLockedSection
-                  title="AI-Powered Actions"
-                  description={`Run automated actions with ${displayName} using natural language. Sign up to try it.`}
-                  appname={appName || ''}
-                />
+                <Collapse in={guestMcpExpanded}>
+                  <Box sx={{ p: { xs: 2, sm: 2.5 } }}>
+                    <GuestLockedSection
+                      title="AI-Powered Actions"
+                      description={`Run automated actions with ${displayName} using natural language. Sign up to try it.`}
+                      appname={appName || ''}
+                    />
+                  </Box>
+                </Collapse>
               </Box>
             ) : null}
 
@@ -1511,8 +1697,8 @@ export default function AppDetailContent({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.25 }}
               >
-                <Divider sx={{ borderColor: 'hsl(var(--border))', my: 3 }} />
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Divider sx={{ borderColor: 'hsl(var(--border))', my: 4.5 }} />
+                <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap' }}>
                   <Box
                     sx={{
                       flex: 1,

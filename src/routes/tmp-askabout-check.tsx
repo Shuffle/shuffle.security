@@ -1,35 +1,25 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { AskAiWidget, API_CONFIG } from "@/Shuffle-MCPs";
-import { useTheme } from "@/context/ThemeContext";
-import { useAuth } from "@/context/AuthContext";
+import { createFileRoute } from '@tanstack/react-router'
+import { AgentUI } from '@/Shuffle-MCPs/components/AgentUI'
+import { ShuffleMcpThemeProvider } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider'
+import { API_CONFIG } from '@/config'
 
-export const Route = createFileRoute("/tmp-askabout-check")({
-  head: () => ({
-    meta: [
-      { title: "Temp Ask About Check" },
-      { name: "robots", content: "noindex,nofollow" },
-    ],
-  }),
-  component: TmpAskAboutCheck,
-});
+export const Route = createFileRoute('/tmp-askabout-check')({
+  component: Page,
+})
 
-function TmpAskAboutCheck() {
-  const { resolvedTheme } = useTheme();
-  const { isAuthenticated, userInfo } = useAuth();
+function Page() {
   return (
-    <div style={{ padding: 40, minHeight: "100vh" }}>
-      <h1>Temp Ask About check</h1>
-      <p>Open the panel with the floating button.</p>
-      <AskAiWidget
-        requireSupport={false}
-        isSupport={true}
-        isLoggedIn={isAuthenticated}
-        userdata={userInfo}
-        pathname={window.location.pathname}
-        search={window.location.search}
-        globalUrl={API_CONFIG.baseUrl}
-        theme={resolvedTheme}
-      />
-    </div>
-  );
+    <ShuffleMcpThemeProvider mode="dark">
+      <div style={{ height: '100vh', padding: 16 }}>
+        <AgentUI
+          globalUrl={API_CONFIG.baseUrl}
+          theme="dark"
+          sidebarLayout
+          compact
+          initialView="chat"
+          contextStorageKey="page__tmp-askabout-check"
+        />
+      </div>
+    </ShuffleMcpThemeProvider>
+  )
 }

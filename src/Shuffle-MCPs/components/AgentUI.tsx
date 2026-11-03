@@ -787,6 +787,32 @@ export type AgentUIView = 'start' | 'simple' | 'detailed' | 'chat';
  */
 type RunViewMode = 'chat' | 'detailed';
 
+/**
+ * Whether the user has manually picked the Timeline tab at least once.
+ *
+ * This is the ONLY thing that makes Timeline the default run view. It is
+ * written from the tab click handler alone, so a shared run link, a jump to
+ * evidence from Chat, or another surface's last view can never pin it.
+ */
+const TIMELINE_PIN_STORAGE_KEY = 'shuffle-agents-timeline-pinned';
+
+function isTimelinePinned(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem(TIMELINE_PIN_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** Remember a manual Timeline/Chat tab choice. Only tab clicks call this. */
+function setTimelinePinned(pinned: boolean): void {
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(TIMELINE_PIN_STORAGE_KEY, pinned ? 'true' : 'false');
+    }
+  } catch { /* localStorage unavailable — ignore */ }
+}
+
 export interface AgentUIProps {
   /** Optional React key to force re-mounting when context changes */
   key?: React.Key;

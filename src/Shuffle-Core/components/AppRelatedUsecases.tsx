@@ -11,8 +11,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Box, Typography, Button, useTheme } from '@mui/material';
-import { useNavigate } from '@/lib/router-compat';
+import { Box, Typography, useTheme } from '@mui/material';
 import { useWorkflows } from '@/Shuffle-Core/useWorkflows';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -66,7 +65,6 @@ export default function AppRelatedUsecases({
   const muiTheme = useTheme();
   const drawerTheme: 'light' | 'dark' =
     theme === 'light' || theme === 'dark' ? theme : muiTheme.palette.mode === 'light' ? 'light' : 'dark';
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: workflows = [], refetch: refetchWorkflows } = useWorkflows();
   const [drawerFlowId, setDrawerFlowId] = useState<string | null>(null);
@@ -172,25 +170,11 @@ export default function AppRelatedUsecases({
           <Typography sx={{ fontWeight: 700, fontSize: '0.92rem', color: 'hsl(var(--foreground))' }}>
             Related Usecases
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Button
-            size="small"
-            variant="text"
-            onClick={() => navigate('/usecases')}
-            sx={{
-              textTransform: 'none',
-              fontSize: '0.72rem',
-              fontWeight: 600,
-              color: 'hsl(var(--primary))',
-              p: 0,
-              minHeight: 0,
-              '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' },
-            }}
-          >
-            Browse all /usecases
-          </Button>
-          {headerAction}
-          </Box>
+          {headerAction && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              {headerAction}
+            </Box>
+          )}
         </Box>
         <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--muted-foreground))', mt: 0.25 }}>
           Pre-built automations and pipelines that {displayName} connects to across Shuffle Security. Click any card to open its configuration sidebar.

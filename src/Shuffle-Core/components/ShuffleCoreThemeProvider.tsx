@@ -451,6 +451,17 @@ const buildComponentOverrides = (scopeClassName: string, scopeStyle: ShuffleToke
   MuiDivider: {
     styleOverrides: { root: { borderColor: "hsl(var(--border))" } },
   },
+  MuiSkeleton: {
+    styleOverrides: {
+      root: {
+        backgroundColor: "hsl(var(--muted))",
+        "&::after": {
+          background:
+            "linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.08), transparent)",
+        },
+      },
+    },
+  },
   MuiCheckbox: {
     styleOverrides: {
       root: {
@@ -626,14 +637,16 @@ export const ShuffleCoreThemeProvider: React.FC<ShuffleCoreThemeProviderProps> =
         DialogStyle: { backgroundColor: "hsl(var(--card))" },
       };
       const parentPalette = (parent as any).palette || {};
+      const targetMode = effectiveDark ? "dark" : "light";
+      const sameModePalette = parentPalette.mode === targetMode ? parentPalette : {};
       return createTheme({
         ...parent,
         palette: {
           ...shuffleDefaults,
-          ...parentPalette,
+          ...sameModePalette,
           textFieldStyle: { ...shuffleDefaults.textFieldStyle, ...(parentPalette.textFieldStyle || {}) },
           DialogStyle: { ...shuffleDefaults.DialogStyle, ...(parentPalette.DialogStyle || {}) },
-          mode: effectiveDark ? "dark" : "light",
+          mode: targetMode,
         },
         components: {
           ...(parent as any).components,

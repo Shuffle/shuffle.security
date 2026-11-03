@@ -1,5 +1,6 @@
 import * as React from "react";
 import { motion, LayoutGroup } from "framer-motion";
+import { Tooltip } from "@mui/material";
 
 /**
  * SegmentedControl
@@ -25,6 +26,7 @@ export type SegmentedItem<V extends string = string> =
       label: React.ReactNode;
       count?: number | string;
       title?: string;
+      tooltip?: React.ReactNode;
       disabled?: boolean;
       dataTour?: string;
     }
@@ -34,6 +36,7 @@ export type SegmentedItem<V extends string = string> =
       key: string;
       label: React.ReactNode;
       title?: string;
+      tooltip?: React.ReactNode;
       disabled?: boolean;
       onClick: () => void;
       dataTour?: string;
@@ -182,16 +185,17 @@ export function SegmentedControl<V extends string = string>({
           const isAction = opt.type === "action";
           const active = !isAction && opt.value === value;
           const key = isAction ? opt.key : opt.value;
+          const tooltipContent = opt.tooltip ?? opt.title;
 
-          return (
+          const buttonEl = (
             <button
-              key={key}
+              key={tooltipContent ? undefined : key}
               type="button"
               data-tour={opt.dataTour}
               data-active={active ? "true" : "false"}
               role={isAction ? "button" : "tab"}
               aria-selected={isAction ? undefined : active}
-              title={opt.title}
+              aria-label={typeof opt.title === "string" && typeof opt.label !== "string" ? opt.title : undefined}
               disabled={opt.disabled}
               onClick={() => {
                 if (opt.disabled) return;
@@ -286,6 +290,20 @@ export function SegmentedControl<V extends string = string>({
                 </span>
               )}
             </button>
+          );
+
+          if (!tooltipContent) {
+            return buttonEl;
+          }
+
+          return (
+            <Tooltip key={key} title={tooltipContent} arrow>
+              {opt.disabled ? (
+                <span style={{ display: "inline-flex" }}>{buttonEl}</span>
+              ) : (
+                buttonEl
+              )}
+            </Tooltip>
           );
         })}
         {trailing != null && (

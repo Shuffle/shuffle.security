@@ -40,6 +40,8 @@ import JsonView from 'react18-json-view';
 import 'react18-json-view/src/style.css';
 import 'react18-json-view/src/dark.css';
 import { defaultCollapsed } from '@/lib/jsonView';
+import { setActiveDocSelectedText, truncateDocSelectionPreview } from '@/lib/docsPromptContext';
+import { openAgentDrawer } from '@/lib/agentDrawer';
 
 /** Recursively parse JSON-looking strings into objects/arrays so JsonView can collapse them. */
 const deepParseJsonStrings = (obj: any, depth = 0): any => {
@@ -419,6 +421,64 @@ const SingulActionsPreview = ({
   const [playResult, setPlayResult] = useState<string | null>(null);
   const responseRef = useRef<HTMLDivElement | null>(null);
   const [copied, setCopied] = useState(false);
+  const [selectedResponseText, setSelectedResponseText] = useState<string>('');
+
+  useEffect(() => {
+    setSelectedResponseText('');
+  }, [playResult]);
+
+  const updateResponseSelection = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const sel = window.getSelection();
+    const container = responseRef.current;
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !container) {
+      setSelectedResponseText('');
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    const inContainer =
+      (sel.anchorNode && container.contains(sel.anchorNode)) ||
+      (sel.focusNode && container.contains(sel.focusNode)) ||
+      container.contains(range.commonAncestorContainer);
+    if (!inContainer) {
+      setSelectedResponseText('');
+      return;
+    }
+    const text = sel.toString().trim();
+    if (text.length >= 2) {
+      setSelectedResponseText(text);
+      setActiveDocSelectedText(text);
+    } else {
+      setSelectedResponseText('');
+    }
+  }, []);
+
+  const responseAskTargetText = useMemo(() => {
+    if (selectedResponseText.trim().length >= 2) {
+      return selectedResponseText.trim();
+    }
+    return (playResult || '').trim();
+  }, [selectedResponseText, playResult]);
+
+  const responseAskPreview = useMemo(
+    () => (responseAskTargetText ? truncateDocSelectionPreview(responseAskTargetText, 24) : ''),
+    [responseAskTargetText],
+  );
+
+  const handleAskAboutResponse = useCallback(() => {
+    if (!responseAskTargetText) return;
+    const drawerPreview = truncateDocSelectionPreview(responseAskTargetText, 34);
+    if (!drawerPreview) return;
+    setActiveDocSelectedText(responseAskTargetText);
+    openAgentDrawer('run', {
+      source: 'docs-selection',
+      headerTitle: `Ask about "${drawerPreview}"`,
+      title: `How can we help with "${drawerPreview}"?`,
+      selectedText: responseAskTargetText,
+      defaultInput: `Explain "${drawerPreview}": `,
+      resetExecution: true,
+    });
+  }, [responseAskTargetText]);
 
   const scrollToResponse = () => {
     requestAnimationFrame(() => {
@@ -813,7 +873,12 @@ const SingulActionsPreview = ({
             }
           };
           return (
-            <Box ref={responseRef} sx={{ mt: 1.5 }}>
+            <Box
+              ref={responseRef}
+              onMouseUp={updateResponseSelection}
+              onKeyUp={updateResponseSelection}
+              sx={{ mt: 1.5 }}
+            >
               {needsAuth && (
                 <Box
                   sx={{
@@ -864,11 +929,51 @@ const SingulActionsPreview = ({
                   </Button>
                 </Box>
               )}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
-                <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: needsAuth ? 'hsl(var(--severity-medium))' : 'hsl(140 60% 55%)' }} />
-                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.65rem', color: 'hsl(var(--muted-foreground))', letterSpacing: 0.4 }}>
-                  response
-                </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75, mb: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: needsAuth ? 'hsl(var(--severity-medium))' : 'hsl(140 60% 55%)' }} />
+                  <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.65rem', color: 'hsl(var(--muted-foreground))', letterSpacing: 0.4 }}>
+                    response
+                  </Typography>
+                </Box>
+                {playResult && !playLoading && responseAskPreview && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    data-doc-selection-keep="true"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onMouseUp={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onClick={handleAskAboutResponse}
+                    sx={{
+                      height: 20,
+                      fontSize: '0.62rem',
+                      fontWeight: 600,
+                      textTransform: 'none',
+                      color: 'hsl(var(--primary))',
+                      bgcolor: 'hsl(var(--primary) / 0.08)',
+                      border: '1px solid hsl(var(--primary) / 0.25)',
+                      borderRadius: 0.75,
+                      px: 0.75,
+                      minWidth: 0,
+                      maxWidth: 220,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      '&:hover': {
+                        bgcolor: 'hsl(var(--primary) / 0.15)',
+                        borderColor: 'hsl(var(--primary) / 0.45)',
+                      },
+                    }}
+                  >
+                    {`Ask about "${responseAskPreview}"`}
+                  </Button>
+                )}
               </Box>
               {parsedResult ? (
                 <Box

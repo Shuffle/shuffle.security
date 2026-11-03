@@ -27,7 +27,7 @@ import {
   Typography,
 } from '@mui/material';
 import AgentIcon from '@/Shuffle-Core/components/AgentIcon';
-import { isAgentDrawerOpen, openAgentDrawer } from '@/lib/agentDrawer';
+import { AGENT_DRAWER_OPEN_EVENT, isAgentDrawerOpen, openAgentDrawer } from '@/lib/agentDrawer';
 import {
   setActiveDocSelectedText,
   truncateDocSelectionPreview,
@@ -175,7 +175,33 @@ export const MarkdownRenderer = ({
       // User is typing or interacting in an external input (such as the Ask AI sidebar) — ignore
       return;
     }
+    // 1. Standard DOM selection inside the documentation container (including Response areas)
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const anchorInRoot = sel.anchorNode ? root.contains(sel.anchorNode) : false;
+      const focusInRoot = sel.focusNode ? root.contains(sel.focusNode) : false;
+      const commonInRoot = root.contains(range.commonAncestorContainer);
+      if (anchorInRoot || focusInRoot || commonInRoot) {
+        const domText = sel.toString().trim();
+        if (domText.length >= 2) {
+          rawText = domText;
+          const rangeRect = range.getBoundingClientRect();
+          if (rangeRect && (rangeRect.width > 0 || rangeRect.height > 0)) {
+            rect = rangeRect;
+          } else {
+            const clientRects = range.getClientRects();
+            if (clientRects.length > 0) {
+              rect = clientRects[0];
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Support selecting text inside editable code block textareas within the doc container
     if (
+      !rawText &&
       activeEl &&
       root.contains(activeEl) &&
       (activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLInputElement)
@@ -201,33 +227,6 @@ export const MarkdownRenderer = ({
         return null;
       });
     };
-
-    // 2. Standard DOM selection inside the documentation container
-    if (!rawText) {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-        clearPopupIfAppropriate();
-        return;
-      }
-      const range = sel.getRangeAt(0);
-      const anchorInRoot = sel.anchorNode ? root.contains(sel.anchorNode) : false;
-      const focusInRoot = sel.focusNode ? root.contains(sel.focusNode) : false;
-      const commonInRoot = root.contains(range.commonAncestorContainer);
-      if (!anchorInRoot && !focusInRoot && !commonInRoot) {
-        clearPopupIfAppropriate();
-        return;
-      }
-      rawText = sel.toString().trim();
-      const rangeRect = range.getBoundingClientRect();
-      if (rangeRect && (rangeRect.width > 0 || rangeRect.height > 0)) {
-        rect = rangeRect;
-      } else {
-        const clientRects = range.getClientRects();
-        if (clientRects.length > 0) {
-          rect = clientRects[0];
-        }
-      }
-    }
 
     if (!rawText || rawText.length < 2 || !rect) {
       clearPopupIfAppropriate();
@@ -342,11 +341,14 @@ export const MarkdownRenderer = ({
       });
     };
 
+    const dismissOnDrawerOpen = () => setSelectionPopup(null);
+
     document.addEventListener('selectionchange', scheduleUpdate);
     document.addEventListener('mouseup', scheduleUpdate);
     document.addEventListener('keyup', scheduleUpdate);
     window.addEventListener('scroll', scheduleReposition, true);
     window.addEventListener('resize', scheduleReposition);
+    window.addEventListener(AGENT_DRAWER_OPEN_EVENT, dismissOnDrawerOpen);
 
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
@@ -355,6 +357,7 @@ export const MarkdownRenderer = ({
       document.removeEventListener('keyup', scheduleUpdate);
       window.removeEventListener('scroll', scheduleReposition, true);
       window.removeEventListener('resize', scheduleReposition);
+      window.removeEventListener(AGENT_DRAWER_OPEN_EVENT, dismissOnDrawerOpen);
     };
   }, [updateSelectionPopup, repositionSelectionPopup]);
 

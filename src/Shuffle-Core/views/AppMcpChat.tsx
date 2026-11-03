@@ -1,5 +1,7 @@
 import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import { setActiveDocSelectedText, truncateDocSelectionPreview } from '@/lib/docsPromptContext';
+import { openAgentDrawer } from '@/lib/agentDrawer';
 import {
   CheckCircle as CheckCircleOutlineIcon,
   AlertCircle as ErrorOutlineIcon,
@@ -192,7 +194,66 @@ const AppMcpChat = ({ appName, appIcon, appId, categories, globalUrl }: AppMcpCh
   const [isError, setIsError] = useState(false);
   const [executionId, setExecutionId] = useState('');
   const [executionAuth, setExecutionAuth] = useState('');
+  const [selectedResultText, setSelectedResultText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultOutputRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setSelectedResultText('');
+  }, [result]);
+
+  const updateResultSelection = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const sel = window.getSelection();
+    const container = resultOutputRef.current;
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !container) {
+      setSelectedResultText('');
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    const inContainer =
+      (sel.anchorNode && container.contains(sel.anchorNode)) ||
+      (sel.focusNode && container.contains(sel.focusNode)) ||
+      container.contains(range.commonAncestorContainer);
+    if (!inContainer) {
+      setSelectedResultText('');
+      return;
+    }
+    const text = sel.toString().trim();
+    if (text.length >= 2) {
+      setSelectedResultText(text);
+      setActiveDocSelectedText(text);
+    } else {
+      setSelectedResultText('');
+    }
+  }, []);
+
+  const resultAskTargetText = useMemo(() => {
+    if (selectedResultText.trim().length >= 2) {
+      return selectedResultText.trim();
+    }
+    return (result || '').trim();
+  }, [selectedResultText, result]);
+
+  const resultAskPreview = useMemo(
+    () => (resultAskTargetText ? truncateDocSelectionPreview(resultAskTargetText, 24) : ''),
+    [resultAskTargetText],
+  );
+
+  const handleAskAboutResult = useCallback(() => {
+    if (!resultAskTargetText) return;
+    const drawerPreview = truncateDocSelectionPreview(resultAskTargetText, 34);
+    if (!drawerPreview) return;
+    setActiveDocSelectedText(resultAskTargetText);
+    openAgentDrawer('run', {
+      source: 'docs-selection',
+      headerTitle: `Ask about "${drawerPreview}"`,
+      title: `How can we help with "${drawerPreview}"?`,
+      selectedText: resultAskTargetText,
+      defaultInput: `Explain "${drawerPreview}": `,
+      resetExecution: true,
+    });
+  }, [resultAskTargetText]);
 
   const suggestions = useMemo(() => getSuggestions(appName, categories), [appName, categories]);
   const primaryCategory = useMemo(() => getPrimaryCategory(appName, categories), [appName, categories]);
@@ -562,6 +623,42 @@ const AppMcpChat = ({ appName, appIcon, appId, categories, globalUrl }: AppMcpCh
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  {result && resultAskPreview && (
+                    <Chip
+                      label={`Ask about "${resultAskPreview}"`}
+                      size="small"
+                      data-doc-selection-keep="true"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onMouseUp={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onClick={handleAskAboutResult}
+                      sx={{
+                        height: 26,
+                        maxWidth: 240,
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        backgroundColor: 'hsl(var(--primary) / 0.08)',
+                        color: 'hsl(var(--primary))',
+                        border: '1px solid hsl(var(--primary) / 0.25)',
+                        transition: 'all 0.15s ease',
+                        '& .MuiChip-label': {
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        },
+                        '&:hover': {
+                          backgroundColor: 'hsl(var(--primary) / 0.15)',
+                          borderColor: 'hsl(var(--primary) / 0.45)',
+                        },
+                      }}
+                    />
+                  )}
                   {executionId && (
                     <Chip
                       icon={<BugIcon size={14} />}
@@ -624,6 +721,9 @@ const AppMcpChat = ({ appName, appIcon, appId, categories, globalUrl }: AppMcpCh
 
               {/* Output */}
               <Box
+                ref={resultOutputRef}
+                onMouseUp={updateResultSelection}
+                onKeyUp={updateResultSelection}
                 sx={{
                   p: 2,
                   borderRadius: 2,

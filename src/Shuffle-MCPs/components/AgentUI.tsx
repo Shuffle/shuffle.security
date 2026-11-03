@@ -28,6 +28,7 @@ import {
   Paperclip as AttachFileIcon,
   CheckCircle2 as CheckCircleIcon,
   Check as CheckIcon,
+  Copy as CopyIcon,
   X as CloseIcon,
   AlertCircle as ErrorIcon,
   TimerOff as HourglassDisabledIcon,
@@ -5918,6 +5919,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
     });
   }, [shownExecutionId, shownStatus, shownRunning, shownWaiting]);
 
+  const [copiedRunLink, setCopiedRunLink] = useState(false);
+
   const tabBar = (
     <Box
       ref={tabBarRef}
@@ -5949,34 +5952,39 @@ const AgentUI: React.FC<AgentUIProps> = ({
             disabled: disableStartTab,
             title: disableStartTab
               ? 'Open a new agent run from the /agents page to start a new prompt'
-              : 'Write a new prompt and pick the tools to run it with',
+              : 'Start: Write a new prompt and pick the tools to run it with',
           },
-          { value: 'chat', label: 'Chat', title: 'The run as a conversation: ask questions, answer the agent and continue' },
+          {
+            value: 'chat',
+            label: 'Chat',
+            title: 'Chat: View the run as a conversation, answer the agent, and continue',
+          },
           {
             value: 'detailed',
-            label: runIsActive ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                Timeline
-                <Loader2Icon
-                  size={12}
-                  className="animate-spin"
-                  style={{ color: 'hsl(var(--primary))' }}
-                />
-              </span>
-            ) : (
-              'Timeline'
-            ),
+            label: 'Timeline',
             disabled: !hasExecution,
-            title: runIsActive
-              ? 'Current agent run is in progress — view the live timeline'
-              : 'Every step the agent took, in order',
+            title: !hasExecution
+              ? 'Timeline: Start or select an agent run to inspect its step-by-step timeline'
+              : 'Timeline: Every step the agent took, in order',
           },
           { type: 'divider', key: 'div' },
           {
             type: 'action',
             key: 'reload',
-            label: <RefreshIcon size={14} />,
-            title: 'Reload execution data',
+            label: runIsActive ? (
+              <Loader2Icon
+                size={14}
+                className="animate-spin"
+                style={{ color: 'hsl(var(--primary))' }}
+              />
+            ) : (
+              <RefreshIcon size={14} />
+            ),
+            title: !hasExecution
+              ? 'Refresh: Start or select an agent run to reload execution data'
+              : runIsActive
+                ? 'Agent run is currently in progress — click to refresh execution data'
+                : 'Refresh: Reload execution data',
             disabled: !hasExecution,
             onClick: () => {
               if (execution?.execution_id && execution?.authorization) {
@@ -5986,11 +5994,39 @@ const AgentUI: React.FC<AgentUIProps> = ({
           },
           {
             type: 'action',
+            key: 'copy',
+            label: copiedRunLink ? <CheckIcon size={14} /> : <CopyIcon size={14} />,
+            title: !hasExecution
+              ? 'Copy: Start or select an agent run to copy a link to this chat'
+              : copiedRunLink
+                ? 'Copied chat link to clipboard'
+                : 'Copy: Copy raw link to this chat',
+            disabled: !hasExecution,
+            onClick: () => {
+              if (!execution?.execution_id) return;
+              const execId = execution.execution_id;
+              const authId = execution.authorization || execution.execution_id;
+              const origin = typeof window !== 'undefined' ? window.location.origin : '';
+              const url = `${origin}/agents?execution_id=${encodeURIComponent(execId)}&authorization=${encodeURIComponent(authId)}`;
+              if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                  setCopiedRunLink(true);
+                  toast.success('Copied chat link to clipboard');
+                  setTimeout(() => setCopiedRunLink(false), 2000);
+                }).catch(() => {
+                  toast.error('Failed to copy link to clipboard');
+                });
+              }
+            },
+          },
+          {
+            type: 'action',
             key: 'schedule',
             label: <ScheduleIcon size={14} />,
             title: scheduleDisabledReason
               ? `Cannot schedule: ${scheduleDisabledReason}`
-              : 'Schedule this prompt to run repeatedly on a cron schedule',
+              : 'Schedule: Schedule this prompt to run repeatedly on a cron schedule',
+            tooltip: scheduleDisabledTooltip || 'Schedule: Schedule this prompt to run repeatedly on a cron schedule',
             disabled: Boolean(scheduleDisabledReason),
             onClick: () => {
               if (!scheduleDisabledReason && tabBarRef.current) {
@@ -5998,7 +6034,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
               }
             },
           },
-          // The live run indicator is rendered in the Timeline tab label above.
+          // The live run indicator is rendered in place of the Refresh icon above while running.
         ]}
       />
     </Box>

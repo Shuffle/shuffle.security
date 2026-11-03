@@ -372,6 +372,29 @@ export function checkAppNameMatch(
   return { isMatch: false, isCloseMatch: false, mismatch: true };
 }
 
+const APP_INFO_CACHE_TTL_MS = 5 * 60 * 1000;
+const appInfoMemoryCache = new Map<string, { info: AppInfo; algoliaId: string | null; ts: number }>();
+
+function getAppInfoCacheKey(appName?: string | null, appId?: string | null): string {
+  const norm = (appName || '').toLowerCase().trim().replace(/[\s_\-]+/g, '_');
+  return `${norm}::${appId || ''}`;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        resolve(fallback);
+      });
+  });
+}
+
 export default function AppDetailContent({
   mode = 'drawer',
   open = true,
@@ -399,12 +422,19 @@ export default function AppDetailContent({
   theme,
   colorMode,
 }: AppDetailContentProps) {
-  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
-  const [appLoading, setAppLoading] = useState(true);
+  const initialCacheHit = useMemo(() => {
+    if (!appName) return null;
+    const hit = appInfoMemoryCache.get(getAppInfoCacheKey(appName, appId));
+    if (hit && Date.now() - hit.ts < APP_INFO_CACHE_TTL_MS) return hit;
+    return null;
+  }, [appName, appId]);
+
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(() => initialCacheHit?.info ?? null);
+  const [appLoading, setAppLoading] = useState<boolean>(() => !initialCacheHit);
   const [isActivated, setIsActivated] = useState<boolean | null>(null);
   const [activatedAppId, setActivatedAppId] = useState<string | null>(null);
   const [activateLoading, setActivateLoading] = useState(false);
-  const [resolvedAlgoliaId, setResolvedAlgoliaId] = useState<string | null>(appId || null);
+  const [resolvedAlgoliaId, setResolvedAlgoliaId] = useState<string | null>(() => initialCacheHit?.algoliaId || appId || null);
   const [authExpanded, setAuthExpanded] = useState(() => Boolean(focusAuthentication));
   const [guestAuthExpanded, setGuestAuthExpanded] = useState(() => Boolean(focusAuthentication));
   const [guestMcpExpanded, setGuestMcpExpanded] = useState(false);
@@ -451,27 +481,38 @@ export default function AppDetailContent({
   // Fetch app info and refresh auth when opened with a new app
   useEffect(() => {
     if (!open || !appName) return;
-    setAppLoading(true);
-    setAppInfo(null);
+    const cacheKey = getAppInfoCacheKey(appName, appId);
+    const cachedHit = appInfoMemoryCache.get(cacheKey);
+    const hasFreshCache = Boolean(cachedHit && Date.now() - cachedHit.ts < APP_INFO_CACHE_TTL_MS);
+
+    if (hasFreshCache && cachedHit) {
+      setAppInfo(cachedHit.info);
+      setResolvedAlgoliaId(cachedHit.algoliaId || appId || null);
+      setAppLoading(false);
+    } else {
+      setAppLoading(true);
+      setAppInfo(null);
+      setResolvedAlgoliaId(appId || null);
+    }
     setIsActivated(null);
     setAppNotFound(false);
     setConfigError(null);
-    setResolvedAlgoliaId(appId || null);
     if (isAuthenticated) {
       refreshAuth();
     }
 
     const normalizedName = appName.toLowerCase().replace(/[\s_\-]+/g, '_');
     const searchName = appName.replace(/_/g, ' ');
+    const canCallBackend = isAuthenticated || Boolean(API_CONFIG.apiKey);
 
     let cancelled = false;
 
     // Fast path: pre-resolved Algolia ID
-    const configPromise = (API_CONFIG.apiKey && appId)
-      ? fetchAppConfig(appId)
+    const configPromise = (canCallBackend && appId)
+      ? withTimeout(fetchAppConfig(appId), 4000, null)
       : Promise.resolve(null);
 
-    const algoliaPromise = (async () => {
+    const algoliaPromise = withTimeout((async () => {
       try {
         const { algoliasearch } = await import('algoliasearch');
         const client = algoliasearch('JNSS5CFDZZ', '33e4e3564f4f060e96e0531957bed552');
@@ -515,10 +556,10 @@ export default function AppDetailContent({
       } catch {
         return null;
       }
-    })();
+    })(), 4000, null);
 
-    const appsListPromise = API_CONFIG.apiKey
-      ? fetchAppsViaApiConfig().catch(() => null)
+    const appsListPromise = canCallBackend
+      ? withTimeout(fetchAppsViaApiConfig().catch(() => null), 4500, null)
       : Promise.resolve(null);
 
     (async () => {
@@ -550,11 +591,15 @@ export default function AppDetailContent({
         if (!isBuiltIn && matchCheck.mismatch) {
           setIsNameMismatch(true);
         }
-        setAppInfo(prev => ({
-          ...(prev || {}),
-          ...configData,
-          large_image: configData.large_image || prev?.large_image || '',
-        }));
+        setAppInfo(prev => {
+          const next = {
+            ...(prev || {}),
+            ...configData,
+            large_image: configData.large_image || prev?.large_image || '',
+          };
+          appInfoMemoryCache.set(cacheKey, { info: next, algoliaId, ts: Date.now() });
+          return next;
+        });
         setAppLoading(false);
       }
 
@@ -572,17 +617,21 @@ export default function AppDetailContent({
         if (!isBuiltIn && (isFallback || matchCheck.mismatch)) {
           setIsNameMismatch(true);
         }
-        setAppInfo(prev => ({
-          name: prev?.name || match.name || searchName,
-          description: prev?.description || match.description || '',
-          large_image: prev?.large_image || match.image_url || '',
-          categories: prev?.categories?.length ? prev.categories : (match.categories || []),
-          actions: prev?.actions,
-          authentication: prev?.authentication,
-          algoliaId: algoliaId || match.objectID,
-          generated: typeof prev?.generated === 'boolean' ? prev.generated : (typeof match.generated === 'boolean' ? match.generated : undefined),
-          app_version: prev?.app_version || match.app_version || match.version,
-        }));
+        setAppInfo(prev => {
+          const next: AppInfo = {
+            name: prev?.name || match.name || searchName,
+            description: prev?.description || match.description || '',
+            large_image: prev?.large_image || match.image_url || '',
+            categories: prev?.categories?.length ? prev.categories : (match.categories || []),
+            actions: prev?.actions,
+            authentication: prev?.authentication,
+            algoliaId: algoliaId || match.objectID,
+            generated: typeof prev?.generated === 'boolean' ? prev.generated : (typeof match.generated === 'boolean' ? match.generated : undefined),
+            app_version: prev?.app_version || match.app_version || match.version,
+          };
+          appInfoMemoryCache.set(cacheKey, { info: next, algoliaId: algoliaId || match.objectID, ts: Date.now() });
+          return next;
+        });
         setAppLoading(false);
       }
 
@@ -597,30 +646,39 @@ export default function AppDetailContent({
           foundMatch = true;
           algoliaId = localMatch.id;
           setResolvedAlgoliaId(localMatch.id);
-          setAppInfo(prev => prev ?? {
-            name: localMatch.name || searchName,
-            description: localMatch.description || '',
-            large_image: localMatch.large_image || '',
-            categories: localMatch.categories || [],
-            authentication: localMatch.authentication,
-            algoliaId: localMatch.id,
-            generated: typeof localMatch.generated === 'boolean' ? localMatch.generated : undefined,
-            app_version: localMatch.app_version || localMatch.version,
+          setAppInfo(prev => {
+            const next: AppInfo = prev ?? {
+              name: localMatch.name || searchName,
+              description: localMatch.description || '',
+              large_image: localMatch.large_image || '',
+              categories: localMatch.categories || [],
+              authentication: localMatch.authentication,
+              algoliaId: localMatch.id,
+              generated: typeof localMatch.generated === 'boolean' ? localMatch.generated : undefined,
+              app_version: localMatch.app_version || localMatch.version,
+            };
+            appInfoMemoryCache.set(cacheKey, { info: next, algoliaId: localMatch.id, ts: Date.now() });
+            return next;
           });
+          setAppLoading(false);
         }
       }
 
-      if (API_CONFIG.apiKey && algoliaId && !configData) {
-        const late = await fetchAppConfig(algoliaId);
+      if (canCallBackend && algoliaId && !configData) {
+        const late = await withTimeout(fetchAppConfig(algoliaId), 4000, null);
         if (cancelled) return;
-        if (late.ok && late.data?.name) {
-          setAppInfo(prev => ({
-            ...prev,
-            ...late.data,
-            large_image: late.data.large_image || prev?.large_image || '',
-            algoliaId: algoliaId || prev?.algoliaId,
-          }));
-        } else if (!late.ok && !configError) {
+        if (late?.ok && late.data?.name) {
+          setAppInfo(prev => {
+            const next: AppInfo = {
+              ...prev,
+              ...late.data,
+              large_image: late.data.large_image || prev?.large_image || '',
+              algoliaId: algoliaId || prev?.algoliaId,
+            };
+            appInfoMemoryCache.set(cacheKey, { info: next, algoliaId: algoliaId || prev?.algoliaId || null, ts: Date.now() });
+            return next;
+          });
+        } else if (late && !late.ok && !configError) {
           const status = late.status;
           const message =
             status === 401 ? 'You are not authorized to load this app configuration. Please sign in again.'
@@ -660,13 +718,15 @@ export default function AppDetailContent({
             setIsNameMismatch(true);
           }
         }
-        return {
+        const resolvedNext: AppInfo = {
           ...next,
           name: next.name || builtInMeta?.displayName || searchName,
           description: next.description || builtInMeta?.description || '',
           large_image: next.large_image || builtInMeta?.image || appImage || '',
           categories: next.categories?.length ? next.categories : (builtInMeta?.categories || ['Built-in']),
         };
+        appInfoMemoryCache.set(cacheKey, { info: resolvedNext, algoliaId, ts: Date.now() });
+        return resolvedNext;
       });
 
       if (isBuiltIn) {
@@ -1052,7 +1112,7 @@ export default function AppDetailContent({
     return handleSaveAuth(canonicalAppId, creds, canonicalAppName);
   }, [handleSaveAuth, resolvedAlgoliaId, appInfo, appName]);
 
-  const isLoadingAll = appLoading || (isAuthenticated && appAuthLoading) || !appInfo?.name;
+  const isLoadingAll = appLoading || !appInfo?.name;
 
   // Resolved values for MCP and individual action execution
   const canonicalExecutionAppName = isNameMismatch ? displayName : (appInfo?.name || appName || '');
@@ -1187,7 +1247,17 @@ export default function AppDetailContent({
   return (
     <Box
       data-entity-title={mode === 'page' && displayName ? displayName : undefined}
-      sx={{ display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'clip', boxSizing: 'border-box', height: mode === 'drawer' ? '100%' : 'auto' }}
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        minWidth: 0,
+        maxWidth: '100%',
+        overflowX: 'clip',
+        boxSizing: 'border-box',
+        height: mode === 'drawer' ? '100%' : 'auto',
+        '& .MuiSkeleton-root': { bgcolor: 'hsl(var(--muted))' },
+      }}
     >
       {/* Drawer Header Bar (only rendered in drawer mode) */}
       {mode === 'drawer' && (
@@ -1272,36 +1342,118 @@ export default function AppDetailContent({
       {/* Main Content Area */}
       <Box sx={{ flex: 1, width: '100%', minWidth: 0, boxSizing: 'border-box', ...(mode === 'drawer' ? { overflowY: 'auto', overflowX: 'hidden', p: { xs: 2, sm: 3 } } : { p: 0 }) }}>
         {isLoadingAll ? (
-          <Box>
-            <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'center' }}>
-              <Skeleton variant="rounded" width={56} height={56} sx={{ borderRadius: 2 }} />
-              <Box sx={{ flex: 1 }}>
-                <Skeleton width="60%" height={24} />
-                <Box sx={{ display: 'flex', gap: 0.75, mt: 0.75 }}>
-                  <Skeleton variant="rounded" width={64} height={18} />
-                  <Skeleton variant="rounded" width={48} height={18} />
+          <Box sx={{ '& .MuiSkeleton-root': { bgcolor: 'hsl(var(--muted))' } }}>
+            {/* Title Header Card Skeleton */}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                p: 2.5,
+                mb: 4,
+                borderRadius: 3,
+                bgcolor: 'hsl(var(--card))',
+                border: '1px solid hsl(var(--border))',
+              }}
+            >
+              <Skeleton variant="rounded" width={56} height={56} sx={{ borderRadius: '14px', flexShrink: 0 }} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Skeleton width="45%" height={24} sx={{ mb: 0.75 }} />
+                <Box sx={{ display: 'flex', gap: 0.75 }}>
+                  <Skeleton variant="rounded" width={72} height={18} sx={{ borderRadius: 999 }} />
+                  <Skeleton variant="rounded" width={56} height={18} sx={{ borderRadius: 999 }} />
                 </Box>
               </Box>
-              <Skeleton variant="rounded" width={90} height={32} sx={{ borderRadius: 1 }} />
+              <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                <Skeleton variant="rounded" width={78} height={28} sx={{ borderRadius: 1.5 }} />
+                <Skeleton variant="rounded" width={72} height={28} sx={{ borderRadius: 1.5 }} />
+              </Box>
             </Box>
 
-            <Skeleton width="100%" height={14} sx={{ mb: 0.5 }} />
-            <Skeleton width="90%" height={14} sx={{ mb: 0.5 }} />
-            <Skeleton width="70%" height={14} sx={{ mb: 3 }} />
-
-            <Skeleton variant="rectangular" height={64} sx={{ borderRadius: 2, mb: 2 }} />
-
-            <Skeleton width={160} height={20} sx={{ mb: 1.5 }} />
-            <Box sx={{ display: 'flex', gap: 0.75, mb: 2, flexWrap: 'wrap' }}>
-              {[92, 76, 108, 84, 96].map((w, i) => (
-                <Skeleton key={i} variant="rounded" width={w} height={28} sx={{ borderRadius: 999 }} />
-              ))}
+            {/* Description Skeleton */}
+            <Box sx={{ mb: 4 }}>
+              <Skeleton width="100%" height={16} sx={{ mb: 0.75 }} />
+              <Skeleton width="92%" height={16} sx={{ mb: 0.75 }} />
+              <Skeleton width="68%" height={16} />
             </Box>
-            <Skeleton variant="rectangular" height={180} sx={{ borderRadius: 2, mb: 3 }} />
 
-            {appDoc?.markdown && (
-              <AppDocumentationSection key={`loading:${appDoc.location}`} doc={appDoc} />
-            )}
+            {/* Documentation Card Skeleton */}
+            <Box
+              sx={{
+                px: { xs: 2, sm: 2.5 },
+                py: 1.75,
+                mb: 4.5,
+                borderRadius: 2,
+                border: '1px solid hsl(var(--border))',
+                bgcolor: 'hsl(var(--card))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Skeleton width={110} height={20} />
+                <Skeleton width={64} height={16} />
+              </Box>
+              <Skeleton width={68} height={18} />
+            </Box>
+
+            {/* Related Usecases Skeleton */}
+            <Box sx={{ mb: 5 }}>
+              <Skeleton width={140} height={22} sx={{ mb: 0.75 }} />
+              <Skeleton width="75%" height={16} sx={{ mb: 2.5 }} />
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: mode === 'page'
+                    ? { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }
+                    : '1fr',
+                  gap: 2,
+                }}
+              >
+                {(mode === 'page' ? [0, 1, 2] : [0, 1]).map((idx) => (
+                  <Box
+                    key={idx}
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      border: '1px solid hsl(var(--border))',
+                      bgcolor: 'hsl(var(--card))',
+                    }}
+                  >
+                    <Skeleton width="65%" height={20} sx={{ mb: 1 }} />
+                    <Skeleton width="100%" height={14} sx={{ mb: 0.5 }} />
+                    <Skeleton width="85%" height={14} sx={{ mb: 2 }} />
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <Skeleton variant="rounded" width={28} height={28} sx={{ borderRadius: 1 }} />
+                      <Skeleton variant="rounded" width={28} height={28} sx={{ borderRadius: 1 }} />
+                      <Skeleton variant="rounded" width={64} height={24} sx={{ borderRadius: 1, ml: 'auto' }} />
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+
+            {/* Authentication / Try MCP / Try Individual Actions Section Skeletons */}
+            {[140, 96, 180].map((w, idx) => (
+              <Box
+                key={idx}
+                sx={{
+                  px: { xs: 2, sm: 2.5 },
+                  py: 1.75,
+                  mb: 4.5,
+                  borderRadius: 2,
+                  border: '1px solid hsl(var(--border))',
+                  bgcolor: 'hsl(var(--card))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <Skeleton width={w} height={20} />
+                <Skeleton width={56} height={18} />
+              </Box>
+            ))}
           </Box>
         ) : (
           <>

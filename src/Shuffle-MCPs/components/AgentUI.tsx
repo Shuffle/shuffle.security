@@ -3172,6 +3172,22 @@ const AgentUI: React.FC<AgentUIProps> = ({
   }, [actionInput]);
 
   const suggestionsOpen = promptSuggestions.length > 0 && !suggestionsDismissed;
+  const BUILTIN_DEFAULT_APPS: AgentUIApp[] = [
+    { name: 'http' },
+    { name: 'shuffle_tools' },
+  ];
+  const [chosenApps, setChosenAppsRaw] = useState<AgentUIApp[]>(() => {
+    if (apps) return dedupeAgentApps(apps);
+    if (defaultApps !== undefined) return dedupeAgentApps(defaultApps).slice(0, MAX_AUTO_ASSIGNED_TOOLS);
+    const saved = readPresetAppsOverride(NO_PRESET_KEY);
+    if (saved) return dedupeAgentApps(saved);
+    return BUILTIN_DEFAULT_APPS;
+  });
+  // Every write goes through dedupe so the same app can never be attached twice,
+  // whichever path (preset, picker, execution restore, override) adds it.
+  const setChosenApps = useCallback((next: AgentUIApp[] | ((prev: AgentUIApp[]) => AgentUIApp[])) => {
+    setChosenAppsRaw((prev) => dedupeAgentApps(typeof next === 'function' ? next(prev) : next));
+  }, []);
   /** Category requirements pending a concrete app pick, shown in the Tools bar. */
   const [pendingCategories, setPendingCategories] = useState<SuggestionAppRequirement[]>([]);
   const acceptSuggestion = useCallback((s: string) => {
@@ -3206,22 +3222,6 @@ const AgentUI: React.FC<AgentUIProps> = ({
   }, [contextStorageKey, onSelectPreset, setChosenApps]);
 
 
-  const BUILTIN_DEFAULT_APPS: AgentUIApp[] = [
-    { name: 'http' },
-    { name: 'shuffle_tools' },
-  ];
-  const [chosenApps, setChosenAppsRaw] = useState<AgentUIApp[]>(() => {
-    if (apps) return dedupeAgentApps(apps);
-    if (defaultApps !== undefined) return dedupeAgentApps(defaultApps).slice(0, MAX_AUTO_ASSIGNED_TOOLS);
-    const saved = readPresetAppsOverride(NO_PRESET_KEY);
-    if (saved) return dedupeAgentApps(saved);
-    return BUILTIN_DEFAULT_APPS;
-  });
-  // Every write goes through dedupe so the same app can never be attached twice,
-  // whichever path (preset, picker, execution restore, override) adds it.
-  const setChosenApps = useCallback((next: AgentUIApp[] | ((prev: AgentUIApp[]) => AgentUIApp[])) => {
-    setChosenAppsRaw((prev) => dedupeAgentApps(typeof next === 'function' ? next(prev) : next));
-  }, []);
   const isInitialMountChosenAppsRef = useRef(true);
   const isInitialMountPresetOverrideRef = useRef(true);
 

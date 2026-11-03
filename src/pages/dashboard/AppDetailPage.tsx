@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLoaderData } from '@tanstack/react-router';
 import { ArrowLeft as ArrowBackIcon } from 'lucide-react';
 import { useParams, useSearchParams, Link } from '@/lib/router-compat';
 import { usePageMeta } from '@/hooks/usePageMeta';
@@ -6,12 +7,14 @@ import { Box, Button } from '@mui/material';
 import { useAuth } from '@/context/AuthContext';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 import { AppDetailContent, type AppInfo } from '@/Shuffle-Core';
+import type { AppDocResult } from '@/Shuffle-Core/appDocsFetch';
 
 const AppDetailPage = () => {
   const { appname } = useParams<{ appname: string }>();
   const [searchParams] = useSearchParams();
   const autoActivateRequested = searchParams.get('autoActivate') === '1';
   const { isAuthenticated, userInfo } = useAuth();
+  const loaderData = useLoaderData({ strict: false }) as { doc?: AppDocResult | null } | undefined;
   const [loadedAppInfo, setLoadedAppInfo] = useState<AppInfo | null>(null);
 
   const displayName = (loadedAppInfo?.name || appname || '').replace(/_/g, ' ');
@@ -83,6 +86,7 @@ const AppDetailPage = () => {
           showQuickInfo={true}
           showApiCallViewer={true}
           onAppInfoLoaded={setLoadedAppInfo}
+          initialDoc={loaderData?.doc ?? null}
         />
       </Box>
     </Box>

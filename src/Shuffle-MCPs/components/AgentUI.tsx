@@ -8168,6 +8168,12 @@ const AgentUI: React.FC<AgentUIProps> = ({
             workflowId={resolvedWorkflowId}
             placeholder={placeholder}
             composerContainer={sidebarLayout ? chatComposerEl : null}
+            // The sidebar chat is cramped at the shared 12px inset, so the
+            // conversation gets 15px more on each side. The pinned footer that
+            // holds the composer (see setChatComposerEl below) is widened by
+            // the same amount so the two stay lined up.
+            contentPaddingX={sidebarLayout ? 15 : 0}
+
             onStart={(text) => submitInput(text)}
             onSubmit={submitQuestions}
             onStop={safeHandler('Stop', abortAgent)}
@@ -8898,7 +8904,10 @@ const AgentUI: React.FC<AgentUIProps> = ({
           sx={{
             flexShrink: 0,
             width: '100%',
-            px: 1.5,
+            // 12px shared inset + the 15px the chat conversation gets (see
+            // contentPaddingX on AgentChatView) so the composer lines up with
+            // the messages above it.
+            px: '27px',
             pt: 1,
             pb: 1.5,
             borderTop: '1px solid hsl(var(--border) / 0.5)',
@@ -8906,6 +8915,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
             zIndex: 10,
           }}
         />
+
       )}
       {sidebarLayout && continuationElement && !(viewMode === 'chat' && !showStarter) && (
         <Box

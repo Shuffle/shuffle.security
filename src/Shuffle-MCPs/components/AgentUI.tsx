@@ -824,6 +824,12 @@ export interface AgentUIProps {
   defaultInput?: string;
   /** Submit immediately on mount when `defaultInput` is provided. */
   autoSubmit?: boolean;
+  /**
+   * Focus the prompt as soon as the component mounts. Defaults to true.
+   * Set to false where the agent is injected into page content (e.g. docs
+   * articles) so the browser never scrolls the reader down to the prompt.
+   */
+  autoFocusPrompt?: boolean;
   /** Hide the centered hero icon (compact mode). */
   hideHeroIcon?: boolean;
   /** Replace the default AgentIcon with a custom node (e.g. brand logo). */
@@ -2378,6 +2384,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   placeholder,
   defaultInput = '',
   autoSubmit = false,
+  autoFocusPrompt = true,
   hideHeroIcon = false,
   heroIcon,
   heroIconSize = 84,
@@ -6736,7 +6743,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
 
               <InputBase
                 inputRef={inputRef}
-                autoFocus
+                autoFocus={autoFocusPrompt}
                 multiline
                 // Once expanded, immediately reserve the second line so the
                 // first line does not jump when the text actually wraps.

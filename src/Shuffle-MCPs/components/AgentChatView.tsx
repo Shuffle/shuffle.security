@@ -103,6 +103,14 @@ export interface AgentChatViewProps {
   onOpenRun?: (executionId: string, authorization?: string, status?: string) => void;
   /** Clears the current run so the next message starts a new one. */
   onNewChat?: () => void;
+  /** Switches to the Timeline tab and highlights the exact decision (and operation, if any) that produced a change. */
+  onFocusDecision?: (target: {
+    decisionId?: string;
+    decisionIndex?: number;
+    operationIndex?: number;
+    changeText?: string;
+    nodeId?: string;
+  }) => void;
 }
 
 const readMode = (): 'auto' | 'ask' => {
@@ -274,6 +282,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   apiBaseUrl,
   onOpenRun,
   onNewChat,
+  onFocusDecision,
 }) => {
   const executionId = execution?.execution_id || '';
   const decisions = useMemo<ChatDecision[]>(
@@ -535,8 +544,43 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
         {failure && <Typography sx={{ ...mutedSx, color: 'hsl(var(--destructive))', mt: 0.25 }}>{failure}</Typography>}
         {open && (
           <Box sx={{ mt: 0.75, pl: 1.5, borderLeft: '2px solid hsl(var(--border))' }}>
-            {details.map((detail, index) => <Typography key={index} sx={mutedSx}>{detail}</Typography>)}
+            {details.map((detail, index) => {
+              const isUpdateStep = isAction(decision, 'put_agent_update');
+              const clickableDetail = Boolean(onFocusDecision && isUpdateStep);
+              return (
+                <Typography
+                  key={index}
+                  role={clickableDetail ? 'button' : undefined}
+                  tabIndex={clickableDetail ? 0 : undefined}
+                  onClick={clickableDetail ? () => onFocusDecision?.({
+                    decisionId: id,
+                    operationIndex: index,
+                    changeText: detail,
+                  }) : undefined}
+                  onKeyDown={clickableDetail ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onFocusDecision?.({
+                        decisionId: id,
+                        operationIndex: index,
+                        changeText: detail,
+                      });
+                    }
+                  } : undefined}
+                  sx={{
+                    ...mutedSx,
+                    cursor: clickableDetail ? 'pointer' : 'default',
+                    '&:hover': clickableDetail ? { color: 'hsl(var(--foreground))', textDecoration: 'underline' } : undefined,
+                  }}
+                >
+                  {detail}
+                </Typography>
+              );
+            })}
             <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
+              {onFocusDecision && (
+                <Button size="small" disableRipple onClick={() => onFocusDecision({ decisionId: id })} sx={linkButtonSx}>Show in timeline</Button>
+              )}
               {nodeIds.length > 0 && workflowId && (
                 <Button size="small" disableRipple onClick={() => focusNode(nodeIds[0])} sx={linkButtonSx}>Show on canvas</Button>
               )}
@@ -681,7 +725,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   const renderSummary = () => {
     if (!finished) return null;
     const changes = getLatestChanges(decisions, labels);
-    const problems = [
+    const problems: { text: string; nodeId?: string; decisionId?: string; decisionIndex?: number }[] = [
       ...appsNeedingAuth.filter((app) => !isAppAuthenticated(app.name, app.id)).map((app) => ({ text: `${app.name} needs credentials before it can run`, nodeId: undefined as string | undefined })),
       ...getWorkflowProblems(decisions),
     ];
@@ -706,12 +750,39 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
               <Typography sx={mutedSx}>{changesOpen ? 'Hide' : 'Show'}</Typography>
             </Box>
             {changesOpen && changes.map((change, index) => {
-              const linked = !!change.nodeId && !!workflowId;
+              const linked = Boolean(onFocusDecision || (change.nodeId && workflowId));
+              const handleSelectChange = () => {
+                focusNode(change.nodeId);
+                onFocusDecision?.({
+                  decisionId: change.decisionId,
+                  decisionIndex: change.decisionIndex,
+                  operationIndex: change.operationIndex,
+                  changeText: change.text,
+                  nodeId: change.nodeId,
+                });
+              };
               return (
                 <Typography
                   key={index}
-                  onClick={linked ? () => focusNode(change.nodeId) : undefined}
-                  sx={{ ...textSx, cursor: linked ? 'pointer' : 'default', '&:hover': linked ? { color: 'hsl(var(--foreground))', textDecoration: 'underline' } : undefined }}
+                  role={linked ? 'button' : undefined}
+                  tabIndex={linked ? 0 : undefined}
+                  onClick={linked ? handleSelectChange : undefined}
+                  onKeyDown={linked ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSelectChange();
+                    }
+                  } : undefined}
+                  sx={{
+                    ...textSx,
+                    cursor: linked ? 'pointer' : 'default',
+                    borderRadius: 1,
+                    px: 0.5,
+                    mx: -0.5,
+                    py: 0.15,
+                    transition: 'color 0.15s ease, background-color 0.15s ease',
+                    '&:hover': linked ? { color: 'hsl(var(--foreground))', bgcolor: 'hsl(var(--muted) / 0.5)', textDecoration: 'underline' } : undefined,
+                  }}
                 >
                   {change.text}
                 </Typography>
@@ -722,15 +793,43 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
         {problems.length > 0 && (
           <>
             <Typography sx={{ ...mutedSx, mt: changes.length ? 1.25 : 0, mb: 0.5 }}>Needs attention before running</Typography>
-            {problems.map((problem, index) => (
-              <Typography
-                key={index}
-                onClick={() => focusNode(problem.nodeId)}
-                sx={{ ...textSx, cursor: problem.nodeId && workflowId ? 'pointer' : 'default' }}
-              >
-                {problem.text}
-              </Typography>
-            ))}
+            {problems.map((problem, index) => {
+              const linkedProblem = Boolean(
+                (onFocusDecision && (problem.decisionId !== undefined || problem.decisionIndex !== undefined)) ||
+                (problem.nodeId && workflowId),
+              );
+              const handleSelectProblem = () => {
+                focusNode(problem.nodeId);
+                if (problem.decisionId !== undefined || problem.decisionIndex !== undefined) {
+                  onFocusDecision?.({
+                    decisionId: problem.decisionId,
+                    decisionIndex: problem.decisionIndex,
+                    nodeId: problem.nodeId,
+                  });
+                }
+              };
+              return (
+                <Typography
+                  key={index}
+                  role={linkedProblem ? 'button' : undefined}
+                  tabIndex={linkedProblem ? 0 : undefined}
+                  onClick={linkedProblem ? handleSelectProblem : undefined}
+                  onKeyDown={linkedProblem ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSelectProblem();
+                    }
+                  } : undefined}
+                  sx={{
+                    ...textSx,
+                    cursor: linkedProblem ? 'pointer' : 'default',
+                    '&:hover': linkedProblem ? { color: 'hsl(var(--foreground))', textDecoration: 'underline' } : undefined,
+                  }}
+                >
+                  {problem.text}
+                </Typography>
+              );
+            })}
           </>
         )}
         {canRevert && (

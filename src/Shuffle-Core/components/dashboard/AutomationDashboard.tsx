@@ -101,15 +101,45 @@ const greeting = () => {
   return 'Good evening';
 };
 
-/** Strip leading `total_`, replace underscores with spaces, sentence-case. */
+const STAT_ACRONYMS: Record<string, string> = {
+  ioc: 'IOC',
+  iocs: 'IOCs',
+  api: 'API',
+  apis: 'APIs',
+  sla: 'SLA',
+  mfa: 'MFA',
+  edr: 'EDR',
+  siem: 'SIEM',
+  soc: 'SOC',
+  cve: 'CVE',
+  cves: 'CVEs',
+  ai: 'AI',
+  llm: 'LLM',
+  url: 'URL',
+  urls: 'URLs',
+  ip: 'IP',
+  ips: 'IPs',
+  dns: 'DNS',
+  vpn: 'VPN',
+  iam: 'IAM',
+  onprem: 'On-Prem',
+};
+
+/** Strip leading `total_`, replace underscores with spaces, and normalize to readable Title Case. */
 const prettyStatLabel = (key: string): string => {
   if (!key || typeof key !== 'string') return '';
-  let bare = key;
-  if (bare.startsWith('total_')) bare = bare.slice(6);
+  let bare = key.trim();
+  if (bare.toLowerCase().startsWith('total_')) bare = bare.slice(6);
   if (bare.toLowerCase().startsWith('categorylabel_')) bare = bare.slice('categorylabel_'.length);
-  const spaced = bare.replace(/_/g, ' ').trim();
-  if (!spaced) return key;
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+  const words = bare.replace(/[_-]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return key;
+  return words
+    .map((w) => {
+      const lower = w.toLowerCase();
+      if (STAT_ACRONYMS[lower]) return STAT_ACRONYMS[lower];
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(' ');
 };
 
 /** Compact number formatter (1.2k, 3.4M). */
@@ -648,11 +678,17 @@ export const AutomationDashboard = ({
                 size="small"
                 options={statKeys}
                 value={effectiveSelectedStat || ''}
-                onChange={(_, v) => { if (typeof v === 'string' && v.trim()) pickSelectedStat(v.trim()); }}
-                onInputChange={(_, v, reason) => {
-                  if (reason === 'input' && v.trim()) pickSelectedStat(v.trim());
+                onChange={(_, v) => {
+                  if (typeof v === 'string' && v.trim()) {
+                    const trimmed = v.trim();
+                    const lower = trimmed.toLowerCase();
+                    const matched = statKeys.find(
+                      (k) => k.toLowerCase() === lower || prettyStatLabel(k).toLowerCase() === lower,
+                    );
+                    pickSelectedStat(matched || trimmed.toLowerCase().replace(/\s+/g, '_'));
+                  }
                 }}
-                getOptionLabel={(k) => (typeof k === 'string' ? k : String(k))}
+                getOptionLabel={(k) => (typeof k === 'string' ? prettyStatLabel(k) : String(k))}
                 filterOptions={(options, state) => {
                   const q = state.inputValue.trim().toLowerCase();
                   if (!q) return options;
@@ -662,12 +698,12 @@ export const AutomationDashboard = ({
                       prettyStatLabel(opt).toLowerCase().includes(q),
                   );
                 }}
-                noOptionsText={statKeys.length === 0 ? 'Type any custom stat key...' : 'No matches — press Enter to use typed key'}
+                noOptionsText={statKeys.length === 0 ? 'Type any custom stat...' : 'No matches — press Enter to use typed stat'}
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Select or type any stat key"
-                    placeholder="e.g. phishing_blocked, total_workflow_executions..."
+                    label="Select or type any stat"
+                    placeholder="e.g. Phishing Blocked, Workflow Executions..."
                     InputLabelProps={{ sx: { color: NEON.violet } }}
                   />
                 )}
@@ -698,20 +734,9 @@ export const AutomationDashboard = ({
                           >
                             {formatCompact(total)}
                           </Typography>
-                          <Box sx={{ minWidth: 0 }}>
-                            <Typography sx={{ fontSize: 13, color: 'hsl(var(--foreground))', lineHeight: 1.2 }}>
-                              {prettyStatLabel(k)}
-                            </Typography>
-                            <Typography
-                              sx={{
-                                fontSize: 11,
-                                color: 'hsl(var(--muted-foreground))',
-                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                              }}
-                            >
-                              {k}
-                            </Typography>
-                          </Box>
+                          <Typography sx={{ fontSize: 13, color: 'hsl(var(--foreground))', lineHeight: 1.25 }}>
+                            {prettyStatLabel(k)}
+                          </Typography>
                         </Box>
                       </Box>
                     </li>
@@ -719,11 +744,12 @@ export const AutomationDashboard = ({
                 }}
               />
             </FormControl>
-            <MuiTooltip title="Learn how to push any custom stat or JSON field into the dashboard from a Shuffle workflow or the API.">
+            <MuiTooltip title="Open the Organization Stats & Timelines API documentation">
               <Box
-                component="button"
-                type="button"
-                onClick={() => setDataGuideOpen(true)}
+                component="a"
+                href="/docs/API#stats-and-timelines"
+                target="_blank"
+                rel="noopener noreferrer"
                 sx={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -737,6 +763,7 @@ export const AutomationDashboard = ({
                   color: NEON.violet,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
+                  textDecoration: 'none',
                   '&:hover': { bgcolor: 'hsl(var(--muted) / 0.35)' },
                 }}
               >
@@ -750,15 +777,23 @@ export const AutomationDashboard = ({
         <Box sx={{ height: 260 }}>
           {statKeys.length === 0 && !effectiveSelectedStat ? (
             <EmptyState
-              text="No custom stats yet. Any counter you increment from a workflow (via the Organization Stats API or Shuffle Tools) appears here automatically — for example agent_executions, tickets_closed, or phishing_blocked."
-              ctaLabel="How to input data"
-              onCta={() => setDataGuideOpen(true)}
+              text="No custom stats yet. Any counter you increment from a workflow (via the Organization Stats API or Shuffle Tools) appears here automatically."
+              ctaLabel="Stats API docs"
+              onCta={() => {
+                if (typeof window !== 'undefined') {
+                  window.open('/docs/API#stats-and-timelines', '_blank', 'noopener,noreferrer');
+                }
+              }}
             />
           ) : statSeries.every(p => p.value === 0) ? (
             <EmptyState
-              text={`No values for "${prettyStatLabel(effectiveSelectedStat)}" (${effectiveSelectedStat}) in the last ${rangeDays} days. Push values to this key from a workflow or API call and it will start charting here.`}
-              ctaLabel="How to input data"
-              onCta={() => setDataGuideOpen(true)}
+              text={`No values for "${prettyStatLabel(effectiveSelectedStat)}" in the last ${rangeDays} days. Push values to this stat from a workflow or API call and it will start charting here.`}
+              ctaLabel="Stats API docs"
+              onCta={() => {
+                if (typeof window !== 'undefined') {
+                  window.open('/docs/API#stats-and-timelines', '_blank', 'noopener,noreferrer');
+                }
+              }}
             />
           ) : (
             <ResponsiveContainer width="100%" height="100%">

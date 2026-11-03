@@ -58,6 +58,7 @@ export const AGENT_OPEN_EXECUTION_EVENT = 'shuffle:agent_open_execution';
 export type AgentOpenExecutionDetail = { workflowId: string; executionId: string; authorization: string };
 
 import { extractCleanDisplayPrompt } from '@/lib/docsPromptContext';
+import { isNoAuthApp } from '@/Shuffle-Core/noAuthApps';
 
 /** Prepended to the user's message in "Ask before changing" mode. */
 export const ASK_FIRST_PREFIX =
@@ -234,7 +235,7 @@ export const describeStep = (decision: ChatDecision, labels: Record<string, stri
     return {
       label: `Looked up ${names.join(', ') || 'apps'}`,
       details: getLookupApps(decision).map((app) =>
-        `${humanize(app.app_name)}: ${app.actions?.length || 0} actions, ${app.setup_url ? 'needs credentials' : 'ready to use'}`),
+        `${humanize(app.app_name)}: ${app.actions?.length || 0} actions, ${app.setup_url && !app.authenticated && !isNoAuthApp(app.app_name) ? 'needs credentials' : 'ready to use'}`),
     };
   }
   if (isAction(decision, 'put_agent_update')) {
@@ -263,20 +264,187 @@ export const getChangedNodeIds = (decision: ChatDecision): string[] => {
   return ids.filter(Boolean);
 };
 
-/** Apps the agent found that need credentials and haven't been set up since. */
+const DISCOVERY_OR_META_ACTIONS = new Set([
+  'getminimalworkflow',
+  'postgetappactionssummary',
+  'getappactionssummary',
+  'getappssummary',
+  'putagentupdate',
+  'postcreateworkflow',
+  'postrunworkflow',
+  'runworkflow',
+  'executeworkflow',
+  'getworkflowexecution',
+  'postcheckexecutionresults',
+  'ask',
+  'finish',
+  'finalise',
+]);
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const isAppRequestedInWaitingQuestion = (
+  questionText: string,
+  appName: string,
+  rawAppName?: string,
+): boolean => {
+  const text = (questionText || '').trim();
+  if (!text) return false;
+
+  const candidates = Array.from(
+    new Set([appName, humanize(rawAppName), rawAppName].map((s) => (s || '').trim()).filter((s) => s.length >= 2)),
+  );
+  if (candidates.length === 0) return false;
+
+  const containsCandidate = (line: string) =>
+    candidates.some((candidate) => new RegExp(`\\b${escapeRegExp(candidate)}\\b`, 'i').test(line));
+  const isRejectedInLine = (line: string) =>
+    /\b(instead\s+of|rather\s+than|without|skip|skipping|not\s+using|won't\s+use|will\s+not\s+use|don't\s+need|do\s+not\s+need|so\s+i\s+will\s+use|so\s+i'll\s+use)\b/i.test(
+      line,
+    );
+
+  // If the question contains a numbered plan, only include apps that are part of the plan steps.
+  const planLines = text
+    .split('\n')
+    .map((line) => line.match(/^\s*\d+[.)]\s+(.+)$/))
+    .filter((match): match is RegExpMatchArray => !!match)
+    .map((match) => match[1]);
+
+  if (planLines.length >= 2) {
+    return planLines.some((line) => containsCandidate(line) && !isRejectedInLine(line));
+  }
+
+  // Otherwise, only include the app if the question is asking for credentials/setup and mentions the app positively.
+  if (!/\b(connect|credential|authenticat|api\s*key|log\s*in|sign\s*in|set\s*up|configure)\b/i.test(text)) {
+    return false;
+  }
+
+  const sentences = text.split(/(?<=[.!?])\s+|\n+/).filter(Boolean);
+  return sentences.some((sentence) => containsCandidate(sentence) && !isRejectedInLine(sentence));
+};
+
+const getUsedWorkflowAndDecisionApps = (decisions: ChatDecision[]): { ids: Set<string>; names: Set<string> } => {
+  const workflowNodes = new Map<string, { appId?: string; appName?: string }>();
+  const directIds = new Set<string>();
+  const directNames = new Set<string>();
+
+  for (const decision of decisions) {
+    if (isAction(decision, 'get_minimal_workflow')) {
+      const wf = getResult(decision)?.body || getResult(decision);
+      for (const node of [...(wf?.actions || []), ...(wf?.triggers || [])]) {
+        if (node?.id) {
+          workflowNodes.set(String(node.id), {
+            appId: node.app_id ? String(node.app_id) : undefined,
+            appName: node.app_name ? String(node.app_name) : undefined,
+          });
+        }
+      }
+      continue;
+    }
+
+    if (isAction(decision, 'put_agent_update')) {
+      const response = getOpsResponse(decision);
+      for (const op of getOperations(decision)) {
+        const data = parseJson(op?.data) || {};
+        if (op?.op === 'add_node') {
+          const id = response?.id_mapping?.[op.temp_id] || op.temp_id || data.id;
+          if (id) {
+            workflowNodes.set(String(id), {
+              appId: data.app_id ? String(data.app_id) : undefined,
+              appName: data.app_name ? String(data.app_name) : undefined,
+            });
+          }
+        } else if (op?.op === 'edit_node' && op.id) {
+          const prev = workflowNodes.get(String(op.id)) || {};
+          workflowNodes.set(String(op.id), {
+            appId: data.app_id ? String(data.app_id) : prev.appId,
+            appName: data.app_name ? String(data.app_name) : prev.appName,
+          });
+        } else if ((op?.op === 'delete_node' || op?.op === 'remove_node') && op.id) {
+          workflowNodes.delete(String(op.id));
+        }
+      }
+
+      const wf = response?.workflow;
+      if (wf && (Array.isArray(wf.actions) || Array.isArray(wf.triggers))) {
+        const surviving = new Map<string, { appId?: string; appName?: string }>();
+        for (const node of [...(wf.actions || []), ...(wf?.triggers || [])]) {
+          if (!node?.id) continue;
+          const id = String(node.id);
+          const prev = workflowNodes.get(id);
+          surviving.set(id, {
+            appId: (node.app_id ? String(node.app_id) : undefined) || prev?.appId,
+            appName: (node.app_name ? String(node.app_name) : undefined) || prev?.appName,
+          });
+        }
+        workflowNodes.clear();
+        surviving.forEach((val, key) => workflowNodes.set(key, val));
+      }
+      continue;
+    }
+
+    const actionNorm = normalize(decision.action);
+    if (actionNorm === 'appauthentication' || (actionNorm && !DISCOVERY_OR_META_ACTIONS.has(actionNorm))) {
+      const fieldAppId = getField(decision, 'app_id')?.value;
+      const fieldAppName = getField(decision, 'app_name')?.value;
+      if (fieldAppId) directIds.add(String(fieldAppId));
+      if (fieldAppName && !isNoAuthApp(fieldAppName)) directNames.add(normalize(fieldAppName));
+      if (decision.tool && !isNoAuthApp(decision.tool) && normalize(decision.tool) !== 'subflow') {
+        directNames.add(normalize(decision.tool));
+      }
+    }
+  }
+
+  const ids = new Set<string>(directIds);
+  const names = new Set<string>(directNames);
+  workflowNodes.forEach(({ appId, appName }) => {
+    if (appId) ids.add(appId);
+    if (appName && !isNoAuthApp(appName) && normalize(appName) !== 'subflow') {
+      names.add(normalize(appName));
+    }
+  });
+
+  return { ids, names };
+};
+
+/** Apps the agent actually used (or is currently asking to connect) that need credentials and haven't been set up since. */
 export const getAppsNeedingAuth = (decisions: ChatDecision[]): { id: string; name: string; url?: string }[] => {
-  const byId: Record<string, { id: string; name: string; url?: string }> = {};
+  const byId: Record<string, { id: string; name: string; rawName: string; url?: string }> = {};
   for (const decision of decisions) {
     for (const app of getLookupApps(decision)) {
       if (!app?.app_id) continue;
+      if (isNoAuthApp(app.app_name) || isNoAuthApp(app.app_id) || normalize(app.app_name) === 'subflow') {
+        delete byId[app.app_id];
+        continue;
+      }
       if (app.setup_url && !app.authenticated) {
-        byId[app.app_id] = { id: app.app_id, name: humanize(app.app_name), url: app.setup_url };
+        byId[app.app_id] = {
+          id: app.app_id,
+          name: humanize(app.app_name),
+          rawName: app.app_name || '',
+          url: app.setup_url,
+        };
       } else {
         delete byId[app.app_id];
       }
     }
   }
-  return Object.values(byId);
+
+  const candidates = Object.values(byId);
+  if (candidates.length === 0) return [];
+
+  const { ids: usedAppIds, names: usedAppNames } = getUsedWorkflowAndDecisionApps(decisions);
+  const waitingQuestion = decisions.find((d) => isAsk(d) && (d.run_details?.status || '').toUpperCase() === 'WAITING');
+  const waitingQuestionText = waitingQuestion ? getField(waitingQuestion, 'question')?.value || '' : '';
+
+  return candidates
+    .filter((app) => {
+      const normName = normalize(app.rawName || app.name);
+      if (usedAppIds.has(app.id) || (normName && usedAppNames.has(normName))) return true;
+      if (waitingQuestionText && isAppRequestedInWaitingQuestion(waitingQuestionText, app.name, app.rawName)) return true;
+      return false;
+    })
+    .map(({ id, name, url }) => ({ id, name, url }));
 };
 
 /** The newest saved version of the workflow from before a chat started, from its
@@ -294,23 +462,41 @@ export const pickRevisionBefore = (revisions: BackendJson[], startedAt: number):
 
 const NODE_OPS = new Set(['add_node', 'edit_node', 'move_node', 'set_start_node']);
 
+export type ChatWorkflowChange = {
+  text: string;
+  nodeId?: string;
+  decisionId?: string;
+  decisionIndex?: number;
+  operationIndex?: number;
+};
+
 /** What the agent changed since the user's latest message. Only changes to nodes that
- *  are still in the workflow carry a nodeId; removals and branches have nothing to show. */
-export const getLatestChanges = (decisions: ChatDecision[], labels: Record<string, string>): { text: string; nodeId?: string }[] => {
+ *  are still in the workflow carry a nodeId; every change carries the originating
+ *  decision and operation index so clicking it can jump to and highlight the step in Timeline. */
+export const getLatestChanges = (
+  decisions: ChatDecision[],
+  labels: Record<string, string>,
+): ChatWorkflowChange[] => {
   const lastContinue = decisions.map(isContinue).lastIndexOf(true);
-  const list: { text: string; nodeId?: string }[] = [];
+  const list: ChatWorkflowChange[] = [];
   const lastUpdate = [...decisions].reverse().find((decision) => isAction(decision, 'put_agent_update') && getOpsResponse(decision)?.workflow);
   const workflow = getOpsResponse(lastUpdate)?.workflow;
   const existing = workflow ? new Set([...(workflow.actions || []), ...(workflow.triggers || [])].map((node: BackendJson) => node?.id)) : null;
-  for (const decision of decisions.slice(lastContinue + 1)) {
+  for (let idx = lastContinue + 1; idx < decisions.length; idx += 1) {
+    const decision = decisions[idx];
     if (!isAction(decision, 'put_agent_update') || getStepStatus(decision) !== 'done') continue;
     const response = getOpsResponse(decision);
-    for (const op of getOperations(decision)) {
-      if (op?.op === 'save_workflow') continue;
+    const decisionId = decision.run_details?.id || (decision.i !== undefined ? String(decision.i) : undefined);
+    const nonSaveOps = getOperations(decision).filter((op) => op?.op !== 'save_workflow');
+    for (let opIdx = 0; opIdx < nonSaveOps.length; opIdx += 1) {
+      const op = nonSaveOps[opIdx];
       const nodeId = !NODE_OPS.has(op?.op) ? undefined : op.op === 'add_node' ? response?.id_mapping?.[op.temp_id] : op.id;
       list.push({
         text: describeOperation(op, labels),
         nodeId: nodeId && (!existing || existing.has(nodeId)) ? nodeId : undefined,
+        decisionId,
+        decisionIndex: idx,
+        operationIndex: opIdx,
       });
     }
   }
@@ -318,12 +504,29 @@ export const getLatestChanges = (decisions: ChatDecision[], labels: Record<strin
 };
 
 /** Problems the last workflow edit reported (node errors), for a "before you run" list. */
-export const getWorkflowProblems = (decisions: ChatDecision[]): { text: string; nodeId?: string }[] => {
-  const lastUpdate = [...decisions].reverse().find((decision) => isAction(decision, 'put_agent_update') && getOpsResponse(decision)?.workflow);
+export const getWorkflowProblems = (
+  decisions: ChatDecision[],
+): { text: string; nodeId?: string; decisionId?: string; decisionIndex?: number }[] => {
+  let lastUpdateIdx = -1;
+  for (let i = decisions.length - 1; i >= 0; i -= 1) {
+    if (isAction(decisions[i], 'put_agent_update') && getOpsResponse(decisions[i])?.workflow) {
+      lastUpdateIdx = i;
+      break;
+    }
+  }
+  const lastUpdate = lastUpdateIdx >= 0 ? decisions[lastUpdateIdx] : undefined;
+  const decisionId = lastUpdate?.run_details?.id || (lastUpdate?.i !== undefined ? String(lastUpdate.i) : undefined);
+  const decisionIndex = lastUpdateIdx >= 0 ? lastUpdateIdx : undefined;
   const workflow = getOpsResponse(lastUpdate)?.workflow;
-  const list: { text: string; nodeId?: string }[] = (workflow?.errors || []).map((error: string) => ({ text: error }));
+  const list: { text: string; nodeId?: string; decisionId?: string; decisionIndex?: number }[] = (workflow?.errors || []).map((error: string) => ({
+    text: error,
+    decisionId,
+    decisionIndex,
+  }));
   for (const node of [...(workflow?.actions || []), ...(workflow?.triggers || [])]) {
-    for (const error of node.errors || []) list.push({ text: `${node.label}: ${error}`, nodeId: node.id });
+    for (const error of node.errors || []) {
+      list.push({ text: `${node.label}: ${error}`, nodeId: node.id, decisionId, decisionIndex });
+    }
   }
   return list;
 };

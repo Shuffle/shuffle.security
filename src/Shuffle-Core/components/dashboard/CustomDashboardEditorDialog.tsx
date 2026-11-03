@@ -102,13 +102,44 @@ const ACCENT_OPTIONS: { value: keyof typeof NEON; label: string; hex: string }[]
   { value: 'pink', label: 'Pink', hex: NEON.pink },
 ];
 
+const STAT_ACRONYMS: Record<string, string> = {
+  ioc: 'IOC',
+  iocs: 'IOCs',
+  api: 'API',
+  apis: 'APIs',
+  sla: 'SLA',
+  mfa: 'MFA',
+  edr: 'EDR',
+  siem: 'SIEM',
+  soc: 'SOC',
+  cve: 'CVE',
+  cves: 'CVEs',
+  ai: 'AI',
+  llm: 'LLM',
+  url: 'URL',
+  urls: 'URLs',
+  ip: 'IP',
+  ips: 'IPs',
+  dns: 'DNS',
+  vpn: 'VPN',
+  iam: 'IAM',
+  onprem: 'On-Prem',
+};
+
 const prettyStatKey = (key: string): string => {
-  let bare = key;
-  if (bare.startsWith('total_')) bare = bare.slice(6);
+  if (!key || typeof key !== 'string') return '';
+  let bare = key.trim();
+  if (bare.toLowerCase().startsWith('total_')) bare = bare.slice(6);
   if (bare.toLowerCase().startsWith('categorylabel_')) bare = bare.slice('categorylabel_'.length);
-  const spaced = bare.replace(/_/g, ' ').trim();
-  if (!spaced) return key;
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+  const words = bare.replace(/[_-]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return key;
+  return words
+    .map((w) => {
+      const lower = w.toLowerCase();
+      if (STAT_ACRONYMS[lower]) return STAT_ACRONYMS[lower];
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(' ');
 };
 
 // ── Create / Rename Dashboard Dialog ────────────────────────────────────────
@@ -593,25 +624,25 @@ export const WidgetEditorDialog = ({
           }}
         >
           <span>{initialWidget ? 'Configure Widget' : 'Add Dashboard Widget'}</span>
-          {onOpenDataGuide && (
-            <Button
-              type="button"
-              size="small"
-              variant="outlined"
-              onClick={onOpenDataGuide}
-              sx={{
-                height: 28,
-                px: 1.25,
-                textTransform: 'none',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                borderColor: 'hsl(var(--border))',
-                color: NEON.cyan,
-              }}
-            >
-              How to input data
-            </Button>
-          )}
+          <Button
+            component="a"
+            href="/docs/API#stats-and-timelines"
+            target="_blank"
+            rel="noopener noreferrer"
+            size="small"
+            variant="outlined"
+            sx={{
+              height: 28,
+              px: 1.25,
+              textTransform: 'none',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              borderColor: 'hsl(var(--border))',
+              color: NEON.cyan,
+            }}
+          >
+            Stats API docs
+          </Button>
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
           {/* Data Source Kind */}
@@ -657,26 +688,36 @@ export const WidgetEditorDialog = ({
                 size="small"
                 options={mergedStatKeys}
                 value={statKey}
-                onChange={(_e, val) => handleStatKeyChange(typeof val === 'string' ? val : '')}
-                onInputChange={(_e, val, reason) => {
-                  if (reason === 'input' || reason === 'clear') {
-                    handleStatKeyChange(val || '');
+                onChange={(_e, val) => {
+                  const raw = typeof val === 'string' ? val.trim() : '';
+                  if (!raw) {
+                    handleStatKeyChange('');
+                    return;
                   }
+                  const lower = raw.toLowerCase();
+                  const matched = mergedStatKeys.find(
+                    (k) => k.toLowerCase() === lower || prettyStatKey(k).toLowerCase() === lower,
+                  );
+                  handleStatKeyChange(matched || raw.toLowerCase().replace(/\s+/g, '_'));
                 }}
-                getOptionLabel={(opt) => (typeof opt === 'string' ? opt : String(opt))}
+                getOptionLabel={(opt) => (typeof opt === 'string' ? prettyStatKey(opt) : String(opt))}
+                filterOptions={(options, state) => {
+                  const q = state.inputValue.trim().toLowerCase();
+                  if (!q) return options;
+                  return options.filter(
+                    (opt) =>
+                      opt.toLowerCase().includes(q) ||
+                      prettyStatKey(opt).toLowerCase().includes(q),
+                  );
+                }}
                 renderOption={(props, opt) => {
                   const total = statTotals[opt];
                   return (
                     <li {...props} key={opt}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, width: '100%' }}>
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 500, color: 'hsl(var(--foreground))' }}>
-                            {prettyStatKey(opt)}
-                          </Typography>
-                          <Typography sx={{ fontSize: '0.7rem', fontFamily: 'ui-monospace, monospace', color: 'hsl(var(--muted-foreground))' }}>
-                            {opt}
-                          </Typography>
-                        </Box>
+                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 500, color: 'hsl(var(--foreground))' }}>
+                          {prettyStatKey(opt)}
+                        </Typography>
                         {total !== undefined && (
                           <Typography
                             sx={{
@@ -697,9 +738,9 @@ export const WidgetEditorDialog = ({
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Primary Stat Key"
-                    placeholder="e.g. tickets_created, alerts_triaged, or total_workflow_executions"
-                    helperText="Pick any discovered stat key or type any new custom key name you send from workflows."
+                    label="Primary Stat"
+                    placeholder="e.g. Tickets Created, Alerts Triaged, Workflow Executions"
+                    helperText="Pick any stat or type a new custom stat name."
                     required
                   />
                 )}
@@ -712,24 +753,33 @@ export const WidgetEditorDialog = ({
                   options={mergedStatKeys.filter((k) => k !== statKey)}
                   value={additionalStatKeys}
                   onChange={(_e, val) =>
-                    setAdditionalStatKeys(val.map((v) => String(v).trim()).filter(Boolean))
+                    setAdditionalStatKeys(
+                      val
+                        .map((v) => {
+                          const raw = String(v).trim();
+                          if (!raw) return '';
+                          const lower = raw.toLowerCase();
+                          const matched = mergedStatKeys.find(
+                            (k) => k.toLowerCase() === lower || prettyStatKey(k).toLowerCase() === lower,
+                          );
+                          return matched || raw.toLowerCase().replace(/\s+/g, '_');
+                        })
+                        .filter(Boolean),
+                    )
                   }
-                  getOptionLabel={(opt) => (typeof opt === 'string' ? opt : String(opt))}
+                  getOptionLabel={(opt) => (typeof opt === 'string' ? prettyStatKey(opt) : String(opt))}
                   renderOption={(props, opt) => (
                     <li {...props} key={opt}>
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 1 }}>
                         <span>{prettyStatKey(opt)}</span>
-                        <Typography sx={{ fontSize: '0.7rem', fontFamily: 'ui-monospace, monospace', color: 'hsl(var(--muted-foreground))' }}>
-                          {opt}
-                        </Typography>
                       </Box>
                     </li>
                   )}
                   renderInput={(params) => (
                     <TextField
                       {...params}
-                      label="Additional Stat Keys (optional)"
-                      placeholder="Type or select more keys to compare on the same chart"
+                      label="Additional Stats (optional)"
+                      placeholder="Select or type more stats to compare on the same chart"
                     />
                   )}
                 />
@@ -894,56 +944,47 @@ export const WidgetEditorDialog = ({
             </>
           )}
 
-          {/* Contextual inline guide for feeding data into the selected source */}
+          {/* Concise link to API documentation */}
           {(sourceKind === 'custom_stat' || sourceKind === 'datastore_category') && (
             <Box
               sx={{
-                p: 1.25,
+                px: 1.25,
+                py: 1,
                 borderRadius: 1.5,
                 border: '1px solid hsl(var(--border))',
-                bgcolor: 'hsl(var(--muted) / 0.25)',
+                bgcolor: 'hsl(var(--muted) / 0.2)',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: 0.75,
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 1.5,
+                flexWrap: 'wrap',
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                <Typography sx={{ fontSize: '0.74rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
-                  {sourceKind === 'custom_stat'
-                    ? `How to push values to "${(statKey || 'custom_key').replace(/^total_/, '')}"`
-                    : `How to write records to "${category || 'custom_category'}"`}
-                </Typography>
+              <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
+                {sourceKind === 'custom_stat'
+                  ? `Push values via POST /api/v1/orgs/${orgId || '{org_id}'}/stats.`
+                  : 'Push JSON records via POST /api/v2/datastore.'}
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Button
                   type="button"
                   size="small"
                   variant="outlined"
                   onClick={handleCopyInlineSnippet}
-                  sx={{ height: 24, px: 1, textTransform: 'none', fontSize: '0.68rem' }}
+                  sx={{ height: 24, px: 1, textTransform: 'none', fontSize: '0.7rem' }}
                 >
-                  {copiedSnippet ? 'Copied' : 'Copy API example'}
+                  {copiedSnippet ? 'Copied' : 'Copy payload'}
                 </Button>
-              </Box>
-              <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))', lineHeight: 1.45 }}>
-                {sourceKind === 'custom_stat'
-                  ? 'You can type any custom key name above. Increment it from a Shuffle workflow (Shuffle Tools stats action or HTTP request to /api/v1/orgs/{org_id}/stats) and it will automatically aggregate and chart here.'
-                  : 'You can type any custom Datastore category and any JSON field path (including nested dot paths like assignee.name or metrics.score). Write JSON objects from a workflow using Shuffle Tools (Set Cache / Datastore) or POST /api/v2/datastore.'}
-              </Typography>
-              <Box
-                component="pre"
-                sx={{
-                  m: 0,
-                  p: 1,
-                  borderRadius: 1,
-                  bgcolor: 'hsl(var(--background))',
-                  border: '1px solid hsl(var(--border))',
-                  fontSize: '0.68rem',
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  color: 'hsl(var(--foreground))',
-                  overflowX: 'auto',
-                  lineHeight: 1.4,
-                }}
-              >
-                {inlineSnippet}
+                <Button
+                  component="a"
+                  href="/docs/API#stats-and-timelines"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="small"
+                  sx={{ height: 24, px: 1, textTransform: 'none', fontSize: '0.72rem', fontWeight: 600, color: NEON.violet }}
+                >
+                  Stats API docs
+                </Button>
               </Box>
             </Box>
           )}
@@ -1199,183 +1240,36 @@ export const DashboardDataGuideDialog = ({
   onClose,
   orgId,
 }: DashboardDataGuideDialogProps) => {
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const resolvedOrg = orgId || '{org_id}';
 
-  const statsCurlExample = `curl -X POST "https://shuffler.io/api/v1/orgs/${resolvedOrg}/stats" \\
-  -H "Authorization: Bearer $SHUFFLE_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "key": "phishing_emails_blocked",
-    "value": 1
-  }'`;
-
-  const datastoreCurlExample = `curl -X POST "https://shuffler.io/api/v2/datastore" \\
-  -H "Authorization: Bearer $SHUFFLE_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "category": "soc_triage_metrics",
-    "key": "alert_1042",
-    "value": "{\\"severity\\":\\"critical\\",\\"status\\":\\"resolved\\",\\"triage_seconds\\":45,\\"created_at\\":1730000000}"
-  }'`;
-
-  const handleCopy = async (id: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 1800);
-    } catch {
-      /* ignore */
-    }
-  };
-
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ pb: 1 }}>
-        <Typography sx={{ fontSize: '1rem', fontWeight: 600 }}>
-          How to Input Any Data into Dashboards & Custom Stats
-        </Typography>
-        <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--muted-foreground))', mt: 0.25 }}>
-          Every widget and Custom Stats chart can display any counter, workflow metric, or structured JSON object you send from Shuffle Workflows or the REST API.
-        </Typography>
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ pb: 1, fontSize: '1rem', fontWeight: 600 }}>
+        Custom Stats & Dashboard API
       </DialogTitle>
 
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
-        {/* Section 1: Organization Custom Stats */}
-        <Box
-          sx={{
-            p: 1.75,
-            borderRadius: 2,
-            border: '1px solid hsl(var(--border))',
-            bgcolor: 'hsl(var(--card) / 0.5)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
-            <Box>
-              <Typography sx={{ fontSize: '0.86rem', fontWeight: 600, color: NEON.violet }}>
-                1. Organization Custom Stats (Counters & Time-Series Trends)
-              </Typography>
-              <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
-                Best for tracking numerical counters over time (e.g. <code>tickets_closed</code>, <code>phishing_emails_blocked</code>, <code>alerts_triaged</code>).
-              </Typography>
-            </Box>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => handleCopy('stats', statsCurlExample)}
-              sx={{ height: 28, px: 1.25, textTransform: 'none', fontSize: '0.72rem' }}
-            >
-              {copiedId === 'stats' ? 'Copied' : 'Copy cURL'}
-            </Button>
-          </Box>
-
-          <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--foreground))', lineHeight: 1.5 }}>
-            <strong>In a Workflow:</strong> Add a <strong>Shuffle Tools</strong> action or HTTP request that posts <code>{"{ \"key\": \"your_stat_name\", \"value\": 1 }"}</code> to <code>/api/v1/orgs/{resolvedOrg}/stats</code>. Shuffle automatically buckets each increment by day and updates the organization total.
-          </Typography>
-          <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--foreground))', lineHeight: 1.5 }}>
-            <strong>In the Dashboard:</strong> Open <strong>Add Widget</strong>, choose <strong>Organization Custom Stat</strong>, and either select your key from the list or type any key name directly. You can also chart any key in the <strong>Automation &rarr; Custom Stats</strong> panel.
-          </Typography>
-
-          <HighlightedFileEditor
-            code={statsCurlExample}
-            language="curl"
-            editable={false}
-            runnable={false}
-            showHeader={false}
-            minHeight={96}
-            maxHeight={180}
-          />
-        </Box>
-
-        {/* Section 2: Datastore Categories */}
-        <Box
-          sx={{
-            p: 1.75,
-            borderRadius: 2,
-            border: '1px solid hsl(var(--border))',
-            bgcolor: 'hsl(var(--card) / 0.5)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
-            <Box>
-              <Typography sx={{ fontSize: '0.86rem', fontWeight: 600, color: NEON.cyan }}>
-                2. Datastore Categories (Any Structured JSON Field, Breakdown, or Numeric Metric)
-              </Typography>
-              <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
-                Best for grouping records by field (e.g. <code>severity</code>, <code>status</code>, <code>assignee.name</code>) or computing <strong>Sum / Average / Max / Min</strong> on numeric fields.
-              </Typography>
-            </Box>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => handleCopy('datastore', datastoreCurlExample)}
-              sx={{ height: 28, px: 1.25, textTransform: 'none', fontSize: '0.72rem' }}
-            >
-              {copiedId === 'datastore' ? 'Copied' : 'Copy cURL'}
-            </Button>
-          </Box>
-
-          <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--foreground))', lineHeight: 1.5 }}>
-            <strong>In a Workflow:</strong> Use <strong>Shuffle Tools &rarr; Set Cache / Datastore</strong> or <code>POST /api/v2/datastore</code> with any <code>category</code> name and a JSON object in <code>value</code>. Include a timestamp field (<code>created_at</code>, <code>timestamp</code>, or <code>created_time</code>) to enable automatic time-series bucketing.
-          </Typography>
-          <Typography sx={{ fontSize: '0.76rem', color: 'hsl(var(--foreground))', lineHeight: 1.5 }}>
-            <strong>In the Dashboard:</strong> Open <strong>Add Widget</strong>, choose <strong>Datastore Category</strong>, type or select your category name, and pick an aggregation: <strong>Total Item Count</strong>, <strong>Group by JSON Field</strong>, or <strong>Sum / Average / Max / Min</strong> of any numeric JSON field.
-          </Typography>
-
-          <HighlightedFileEditor
-            code={datastoreCurlExample}
-            language="curl"
-            editable={false}
-            runnable={false}
-            showHeader={false}
-            minHeight={140}
-            maxHeight={220}
-          />
-        </Box>
-
-        {/* Section 3: Built-in Categories Reference */}
-        <Box
-          sx={{
-            p: 1.5,
-            borderRadius: 1.5,
-            border: '1px solid hsl(var(--border))',
-            bgcolor: 'hsl(var(--muted) / 0.2)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 0.5,
-          }}
-        >
-          <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
-            Standard Shuffle Security Datastore Categories
-          </Typography>
-          <Typography sx={{ fontSize: '0.73rem', color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>
-            Incidents: <code>{DATASTORE_CATEGORIES.INCIDENTS}</code> &middot; Vulnerabilities: <code>{DATASTORE_CATEGORIES.VULNERABILITIES}</code> &middot; Assets: <code>{DATASTORE_CATEGORIES.ASSETS}</code> &middot; Events: <code>{DATASTORE_CATEGORIES.EVENTS}</code> &middot; IOCs: <code>{DATASTORE_CATEGORIES.IOCS}</code> &middot; Infrastructure: <code>{DATASTORE_CATEGORIES.INFRASTRUCTURE}</code>
-          </Typography>
-        </Box>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pt: '8px !important' }}>
+        <Typography sx={{ fontSize: '0.82rem', color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>
+          Send custom counters via <code>POST /api/v1/orgs/{resolvedOrg}/stats</code> or structured JSON records via <code>POST /api/v2/datastore</code>.
+        </Typography>
       </DialogContent>
 
       <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
         <Button
           component="a"
-          href="https://shuffler.io/docs/API#stats-and-timelines"
+          href="/docs/API#stats-and-timelines"
           target="_blank"
           rel="noopener noreferrer"
+          variant="contained"
           size="small"
-          sx={{ height: 32, textTransform: 'none', fontSize: '0.76rem', color: NEON.violet }}
+          sx={{ height: 32, textTransform: 'none', fontWeight: 600 }}
         >
           Open Stats & Timelines API Docs
         </Button>
         <Button
           onClick={onClose}
-          variant="contained"
           size="small"
-          sx={{ height: 32, textTransform: 'none', fontWeight: 600 }}
+          sx={{ height: 32, textTransform: 'none' }}
         >
           Close
         </Button>

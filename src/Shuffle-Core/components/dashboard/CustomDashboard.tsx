@@ -168,14 +168,44 @@ const formatCompact = (n: number): string => {
   return String(Math.round(n));
 };
 
+const STAT_ACRONYMS: Record<string, string> = {
+  ioc: 'IOC',
+  iocs: 'IOCs',
+  api: 'API',
+  apis: 'APIs',
+  sla: 'SLA',
+  mfa: 'MFA',
+  edr: 'EDR',
+  siem: 'SIEM',
+  soc: 'SOC',
+  cve: 'CVE',
+  cves: 'CVEs',
+  ai: 'AI',
+  llm: 'LLM',
+  url: 'URL',
+  urls: 'URLs',
+  ip: 'IP',
+  ips: 'IPs',
+  dns: 'DNS',
+  vpn: 'VPN',
+  iam: 'IAM',
+  onprem: 'On-Prem',
+};
+
 const prettyStatLabel = (key: string): string => {
   if (!key || typeof key !== 'string') return '';
-  let bare = key;
-  if (bare.startsWith('total_')) bare = bare.slice(6);
+  let bare = key.trim();
+  if (bare.toLowerCase().startsWith('total_')) bare = bare.slice(6);
   if (bare.toLowerCase().startsWith('categorylabel_')) bare = bare.slice('categorylabel_'.length);
-  const spaced = bare.replace(/_/g, ' ').trim();
-  if (!spaced) return key;
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+  const words = bare.replace(/[_-]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return key;
+  return words
+    .map((w) => {
+      const lower = w.toLowerCase();
+      if (STAT_ACRONYMS[lower]) return STAT_ACRONYMS[lower];
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(' ');
 };
 
 const valueForStat = (d: DailyStat, key: string): number => {
@@ -1848,8 +1878,15 @@ export const CustomDashboard = ({
             >
               {isEditing ? 'Done editing' : 'Edit layout'}
             </Button>
-            <Button size="small" onClick={() => setDataGuideOpen(true)} sx={controlButtonSx}>
-              Data guide
+            <Button
+              size="small"
+              component="a"
+              href="/docs/API#stats-and-timelines"
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={controlButtonSx}
+            >
+              Stats API
             </Button>
             <Button size="small" onClick={() => setJsonDialogOpen(true)} sx={controlButtonSx}>
               JSON config

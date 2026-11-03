@@ -123,6 +123,13 @@ import { getToolsForSkill, AGENT_TOOLS_CHANGED_EVENT } from '@/lib/agentTools';
 import { useAgentPromptPrefix } from '@/Shuffle-MCPs/useAgentPromptPrefix';
 import { runAgent, resolveAgentNodeId } from '@/Shuffle-MCPs/agentRun';
 import AgentChatView from '@/Shuffle-MCPs/components/AgentChatView';
+import {
+  describeOperation as describeChatOperation,
+  getNodeLabels as getChatNodeLabels,
+  getOperations as getChatOperations,
+  isAction as isChatAction,
+  parseJson as parseChatJson,
+} from '@/Shuffle-MCPs/agentChat';
 import { toast } from '@/Shuffle-Core/toast';
 import { getPopupZIndex } from '@/Shuffle-Core/drawerLayer';
 import { useShuffleMcpTheme } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider';
@@ -1485,6 +1492,12 @@ interface TimelineRowProps {
    *  finalise row is re-presented as the new "Continue" step with the user's
    *  input, instead of a stale spinning "Finalise". */
   optimisticContinueText?: string;
+  /** Node id -> label map for rendering human-readable workflow operations in put_agent_update steps. */
+  nodeLabels?: Record<string, string>;
+  /** Index of a specific workflow operation inside a put_agent_update decision to highlight and expand. */
+  highlightedOperationIndex?: number | null;
+  /** Fallback operation description text to match and highlight when operationIndex is omitted. */
+  highlightedChangeText?: string | null;
 }
 
 /** Compact relative time, e.g. "44m ago". Input is Unix seconds. */
@@ -1558,8 +1571,10 @@ const TimelineRow: React.FC<TimelineRowProps> = ({
   onRerunAgent, onRerunDecision, agentRequestLoading, getFormUrl, runFinished,
   onAuthenticateApp, onRefreshAuthenticatedApps, isAppAuthenticated, authAppsLoading = false, highlight = false,
   rerunningDecisionId = null, dimmedByRerun = false, optimisticContinueText,
+  nodeLabels, highlightedOperationIndex = null, highlightedChangeText = null,
 }) => {
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [openOpIndexes, setOpenOpIndexes] = useState<Set<number>>(new Set());
   const validate = validateJson(item.details);
   const screenshotPayloads = useMemo(
     () => extractScreenshotPayloads(validate.valid ? validate.result : item.details),
@@ -2355,6 +2370,137 @@ const TimelineRow: React.FC<TimelineRowProps> = ({
           ))}
         </Box>
       )}
+
+      {/* Workflow operations breakdown for put_agent_update steps */}
+      {open && !isProcessing && isChatAction(details as any, 'put_agent_update') && (() => {
+        const ops = getChatOperations(details as any).filter((op) => op?.op !== 'save_workflow');
+        if (ops.length === 0) return null;
+        return (
+          <Box sx={{ px: 4, pb: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+            <Typography sx={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'hsl(var(--muted-foreground))' }}>
+              Workflow actions ({ops.length})
+            </Typography>
+            {ops.map((op, opIdx) => {
+              const opDescription = describeChatOperation(op, nodeLabels || {});
+              const isOpHighlighted =
+                highlightedOperationIndex === opIdx ||
+                (highlightedOperationIndex == null && !!highlightedChangeText && opDescription === highlightedChangeText);
+              const isOpExpanded = isOpHighlighted || openOpIndexes.has(opIdx);
+              const parsedData = parseChatJson(op?.data) ?? op?.data;
+              const opPayload: Record<string, any> = {
+                op: op?.op,
+                ...(op?.id ? { id: op.id } : {}),
+                ...(op?.temp_id ? { temp_id: op.temp_id } : {}),
+                ...(parsedData !== undefined ? { data: parsedData } : {}),
+              };
+              const toggleOp = () => {
+                setOpenOpIndexes((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(opIdx)) next.delete(opIdx);
+                  else next.add(opIdx);
+                  return next;
+                });
+              };
+              return (
+                <Box
+                  key={opIdx}
+                  data-timeline-op-index={opIdx}
+                  sx={{
+                    borderRadius: 1.5,
+                    border: isOpHighlighted
+                      ? '1px solid hsl(var(--severity-medium))'
+                      : '1px solid hsl(var(--border))',
+                    bgcolor: isOpHighlighted
+                      ? 'hsla(var(--severity-medium) / 0.12)'
+                      : 'hsl(var(--background))',
+                    boxShadow: isOpHighlighted
+                      ? '0 0 0 2px hsla(var(--severity-medium) / 0.22)'
+                      : 'none',
+                    transition: 'border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease',
+                    scrollMarginTop: 120,
+                  }}
+                >
+                  <Box
+                    role="button"
+                    tabIndex={0}
+                    onClick={toggleOp}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleOp();
+                      }
+                    }}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      px: 1.25,
+                      py: 0.75,
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: '0.68rem',
+                        fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                        px: 0.75,
+                        py: 0.15,
+                        borderRadius: 0.75,
+                        bgcolor: 'hsl(var(--muted))',
+                        color: 'hsl(var(--muted-foreground))',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {String(op?.op || 'op')}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontSize: '0.8rem',
+                        fontWeight: isOpHighlighted ? 600 : 400,
+                        color: 'hsl(var(--foreground))',
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      {opDescription}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))', flexShrink: 0 }}>
+                      {isOpExpanded ? 'Hide' : 'Show'}
+                    </Typography>
+                  </Box>
+                  {isOpExpanded && (
+                    <Box
+                      sx={{
+                        px: 1.5,
+                        pb: 1.25,
+                        pt: 0.75,
+                        borderTop: '1px solid hsl(var(--border))',
+                        fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                        '& .json-view': {
+                          fontSize: '0.72rem !important',
+                          fontFamily: 'inherit !important',
+                          bgcolor: 'transparent !important',
+                        },
+                      }}
+                    >
+                      <JsonView
+                        src={deepParseJsonStrings(opPayload)}
+                        dark
+                        collapsed={false}
+                        collapseStringMode="word"
+                        collapseStringsAfterLength={120}
+                        enableClipboard
+                        displaySize
+                      />
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+        );
+      })()}
 
       {/* Raw JSON */}
       {open && !isProcessing && item.details != null && item.details !== '' && (
@@ -3219,6 +3365,15 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // Briefly pulses a row + its output box after the diagnosis banner's
   // "Where this was found" jump. Cleared on a timer.
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
+  const [highlightedOperation, setHighlightedOperation] = useState<{
+    rowIndex: number;
+    operationIndex?: number;
+    changeText?: string;
+  } | null>(null);
+  const timelineNodeLabels = useMemo(
+    () => getChatNodeLabels(((agentData?.decisions as any[]) || []) as any),
+    [agentData?.decisions],
+  );
   // Briefly pulses the continuation form after the diagnosis banner's
   // "continue in the area below" CTA. Cleared on a timer.
   const [continueHighlighted, setContinueHighlighted] = useState(false);
@@ -3628,10 +3783,28 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // built-in/default chips like "http" and "shuffle_tools" or page-selected tools
   // show their logo and canonical ID even when the caller didn't pass one in.
   useEffect(() => {
-    const missing = chosenApps.filter((a) => (!a.icon || !a.id) && a.name);
+    const VIRTUAL_TOOL_NAMES = new Set([
+      'shuffle_apps',
+      'shuffle_workflows_builder',
+      'shuffle_workflow_builder',
+      'osctrl',
+      'subflow:osctrl',
+      'computer_use',
+      'computer-use',
+      'shuffle_incidents',
+      'shuffle_vulnerabilities',
+      'shuffle_host_monitors',
+      'shuffle_datastore',
+      'shuffle_files',
+      'shuffle_workflows',
+      'shuffle_detection',
+      'shuffle_monitors',
+      'shuffle_sensors',
+    ]);
+    const norm = (n: string) => n.toLowerCase().replace(/[\s_\-]+/g, '_');
+    const missing = chosenApps.filter((a) => (!a.icon || !a.id) && a.name && !VIRTUAL_TOOL_NAMES.has(norm(a.name)));
     if (missing.length === 0) return;
     let cancelled = false;
-    const norm = (n: string) => n.toLowerCase().replace(/[\s_\-]+/g, '_');
 
     (async () => {
       // Pass 1 — try Algolia (public, works without an API key).
@@ -3650,10 +3823,10 @@ const AgentUI: React.FC<AgentUIProps> = ({
               indexName: 'appsearch',
               searchParams: { query: a.name.replace(/_/g, ' '), hitsPerPage: 3 },
             });
-            const match = (res.hits as any[]).find((h) => norm(h.name || '') === norm(a.name))
-              || (res.hits as any[])[0];
-            if (match?.image_url && !resolvedIcon[a.name]) resolvedIcon[a.name] = match.image_url;
-            if (match?.objectID && !resolvedId[a.name]) resolvedId[a.name] = String(match.objectID);
+            const exactMatch = (res.hits as any[]).find((h) => norm(h.name || '') === norm(a.name));
+            const iconMatch = exactMatch || (res.hits as any[])[0];
+            if (iconMatch?.image_url && !resolvedIcon[a.name]) resolvedIcon[a.name] = iconMatch.image_url;
+            if (exactMatch?.objectID && !resolvedId[a.name]) resolvedId[a.name] = String(exactMatch.objectID);
           } catch { /* fall through to /api/v1/apps */ }
         }));
       } catch { /* fall through to /api/v1/apps */ }
@@ -4698,23 +4871,25 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // but runs loaded by execution_id rarely have that — fall back to the AI
   // Agent action's `input` parameter and the execution_argument.
   const resolveRunInput = useCallback((): string => {
+    const cleanResolved = (val: string) =>
+      val.replace(/\n*\s*\[System note:[\s\S]*?\]\s*$/gi, '').replace(/\[System note:[\s\S]*?\]/gi, '').trim();
     const fromData = agentData?.original_input;
-    if (fromData && typeof fromData === 'string') return fromData;
-    if (actionInput && typeof actionInput === 'string' && actionInput.trim()) return actionInput;
+    if (fromData && typeof fromData === 'string') return cleanResolved(fromData);
+    if (actionInput && typeof actionInput === 'string' && actionInput.trim()) return cleanResolved(actionInput);
     const params: any[] = (agentActionResult as any)?.action?.parameters || [];
     const inputParam = params.find((p) => p?.name === 'input');
-    if (inputParam?.value && typeof inputParam.value === 'string') return inputParam.value;
+    if (inputParam?.value && typeof inputParam.value === 'string') return cleanResolved(inputParam.value);
     const msgs = (agentData as any)?.input?.messages || [];
     const userMsg = msgs.find((mm: any) => mm?.role === 'user');
-    if (userMsg?.content && typeof userMsg.content === 'string') return userMsg.content;
+    if (userMsg?.content && typeof userMsg.content === 'string') return cleanResolved(userMsg.content);
     const execArg = (execution as any)?.execution_argument;
     if (execArg && typeof execArg === 'string') {
       try {
         const parsed = JSON.parse(execArg);
-        if (parsed?.input && typeof parsed.input === 'string') return parsed.input;
-        if (parsed?.prompt && typeof parsed.prompt === 'string') return parsed.prompt;
+        if (parsed?.input && typeof parsed.input === 'string') return cleanResolved(parsed.input);
+        if (parsed?.prompt && typeof parsed.prompt === 'string') return cleanResolved(parsed.prompt);
       } catch {
-        if (execArg.length < 4000) return execArg;
+        if (execArg.length < 4000) return cleanResolved(execArg);
       }
     }
     // Last resort: deep-scan the loaded run for anything that looks like the
@@ -4759,7 +4934,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       }
       return '';
     };
-    return deepFind(agentData) || deepFind(agentActionResult) || deepFind(execution) || '';
+    return cleanResolved(deepFind(agentData) || deepFind(agentActionResult) || deepFind(execution) || '');
   }, [agentData, actionInput, agentActionResult, execution]);
 
 
@@ -8004,6 +8179,73 @@ const AgentUI: React.FC<AgentUIProps> = ({
             apiBaseUrl={apiBaseUrl}
             onOpenRun={openChatRun}
             onNewChat={startNewChat}
+            onFocusDecision={(target) => {
+              let rowIndex = -1;
+              if (target.decisionId) {
+                rowIndex = timeline.findIndex(
+                  (it) =>
+                    it.type === 'decision' &&
+                    ((it.details as any)?.run_details?.id === target.decisionId ||
+                      String((it.details as any)?.i) === String(target.decisionId)),
+                );
+              }
+              if (rowIndex < 0 && target.decisionIndex !== undefined) {
+                const sortedDecisions = [...((agentData?.decisions as any[]) || [])].sort(
+                  (a, b) => (a?.i || 0) - (b?.i || 0),
+                );
+                const dec = sortedDecisions[target.decisionIndex] || (agentData?.decisions || [])[target.decisionIndex];
+                if (dec) {
+                  rowIndex = timeline.findIndex((it) => it.details === dec);
+                  if (rowIndex < 0 && dec.run_details?.id) {
+                    rowIndex = timeline.findIndex(
+                      (it) => (it.details as any)?.run_details?.id === dec.run_details?.id,
+                    );
+                  }
+                }
+              }
+              if (rowIndex < 0) {
+                for (let idx = timeline.length - 1; idx >= 0; idx -= 1) {
+                  if (timeline[idx].type === 'decision' && isChatAction(timeline[idx].details as any, 'put_agent_update')) {
+                    rowIndex = idx;
+                    break;
+                  }
+                }
+              }
+              const targetIndex = rowIndex >= 0 ? rowIndex : 0;
+              setOpenIndexes((prev) => {
+                const next = new Set(prev);
+                next.add(targetIndex);
+                return next;
+              });
+              setHighlightedIndex(targetIndex);
+              setHighlightedOperation({
+                rowIndex: targetIndex,
+                operationIndex: target.operationIndex,
+                changeText: target.changeText,
+              });
+              goToTab('detailed');
+              window.setTimeout(() => {
+                setHighlightedIndex((curr) => (curr === targetIndex ? null : curr));
+              }, 3500);
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  try {
+                    const opSelector =
+                      target.operationIndex !== undefined
+                        ? `[data-timeline-index="${targetIndex}"] [data-timeline-op-index="${target.operationIndex}"]`
+                        : null;
+                    const opEl = opSelector ? (document.querySelector(opSelector) as HTMLElement | null) : null;
+                    const rowEl = document.querySelector(`[data-timeline-index="${targetIndex}"]`) as HTMLElement | null;
+                    const scrollTarget = opEl || rowEl;
+                    if (scrollTarget) {
+                      scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                  } catch {
+                    /* ignore */
+                  }
+                });
+              });
+            }}
           />
         ) : (
           <Box sx={{ pb: sidebarLayout ? 1.5 : '200px' }}>
@@ -8380,6 +8622,13 @@ const AgentUI: React.FC<AgentUIProps> = ({
                         rerunningDecisionId={rerunningDecisionId}
                         dimmedByRerun={rerunIdx >= 0 && i > rerunIdx}
                         optimisticContinueText={optimisticContinueText}
+                        nodeLabels={timelineNodeLabels}
+                        highlightedOperationIndex={
+                          highlightedOperation?.rowIndex === i ? (highlightedOperation.operationIndex ?? null) : null
+                        }
+                        highlightedChangeText={
+                          highlightedOperation?.rowIndex === i ? (highlightedOperation.changeText ?? null) : null
+                        }
                       />
                     ));
                   })()}

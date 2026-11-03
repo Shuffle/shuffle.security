@@ -215,34 +215,43 @@ import { extractCleanUsecasePrompt, isUsecaseInjectedPrompt } from './usecasePro
 import { extractCleanAppPrompt, isAppInjectedPrompt } from './appPromptContext';
 
 /**
+ * Removes internal backend `[System note: ...]` annotations that may have been
+ * appended to the prompt for the LLM so they are never rendered to the user.
+ */
+export const stripSystemNotes = (text?: string | null): string => {
+  if (!text || typeof text !== 'string') return '';
+  return text.replace(/\n*\s*\[System note:[\s\S]*?\]\s*$/gi, '').replace(/\[System note:[\s\S]*?\]/gi, '').trim();
+};
+
+/**
  * Extracts the user's actual question from a doc-injected, incident-injected,
  * usecase-injected, or app-injected prompt, so the UI header, chat thread,
  * and rerun forms stay completely clean.
  */
 export const extractCleanDisplayPrompt = (prompt?: string | null): string => {
   if (!prompt || typeof prompt !== 'string') return '';
-  let trimmed = prompt.trim();
+  let trimmed = stripSystemNotes(prompt);
 
   if (isAppInjectedPrompt(trimmed)) {
-    trimmed = extractCleanAppPrompt(trimmed);
+    trimmed = stripSystemNotes(extractCleanAppPrompt(trimmed));
   }
 
   if (isUsecaseInjectedPrompt(trimmed)) {
-    trimmed = extractCleanUsecasePrompt(trimmed);
+    trimmed = stripSystemNotes(extractCleanUsecasePrompt(trimmed));
   }
 
   // If this is an incident-injected prompt or task assignment, clean it cleanly
   if (isIncidentInjectedPrompt(trimmed)) {
-    trimmed = extractCleanIncidentPrompt(trimmed);
+    trimmed = stripSystemNotes(extractCleanIncidentPrompt(trimmed));
   }
 
-  if (!isDocInjectedPrompt(trimmed)) return trimmed;
+  if (!isDocInjectedPrompt(trimmed)) return stripSystemNotes(trimmed);
 
   // 1. If delimited by --- END DOCUMENTATION ---
   if (trimmed.includes(DOC_PROMPT_DELIMITER_END)) {
     const parts = trimmed.split(DOC_PROMPT_DELIMITER_END);
     const after = parts[parts.length - 1]?.trim() || '';
-    const cleaned = after.replace(/^(?:User\s+Question:\s*|Question:\s*)/i, '').trim();
+    const cleaned = stripSystemNotes(after.replace(/^(?:User\s+Question:\s*|Question:\s*)/i, '').trim());
     if (cleaned) return cleaned;
   }
 
@@ -251,12 +260,12 @@ export const extractCleanDisplayPrompt = (prompt?: string | null): string => {
     const paragraphs = trimmed.split(/\n\s*\n/).filter(Boolean);
     if (paragraphs.length > 1) {
       const last = paragraphs[paragraphs.length - 1].trim();
-      const cleaned = last.replace(/^(?:User\s+Question:\s*|Question:\s*)/i, '').trim();
+      const cleaned = stripSystemNotes(last.replace(/^(?:User\s+Question:\s*|Question:\s*)/i, '').trim());
       if (cleaned) return cleaned;
     }
   }
 
-  return trimmed;
+  return stripSystemNotes(trimmed);
 };
 
 /**

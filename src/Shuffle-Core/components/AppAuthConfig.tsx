@@ -162,6 +162,8 @@ interface AuthParameter {
 export interface AppAuthentication {
   type: string;
   description?: string;
+  /** Whether the app requires authentication before use. */
+  required?: boolean;
   redirect_uri?: string;
   token_uri?: string;
   refresh_uri?: string;

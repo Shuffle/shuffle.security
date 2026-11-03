@@ -33,7 +33,15 @@ export const getPublicAppDoc = createServerFn({ method: 'GET' })
           const markdown = json.reason.replace(/<img[^>]*?\bsrc=["']([^"']+)["'][^>]*>/gi, '![]($1)').trim();
           return {
             markdown,
-            meta: json.meta && typeof json.meta === 'object' ? (json.meta as Record<string, unknown>) : undefined,
+            meta: json.meta && typeof json.meta === 'object'
+              ? (() => {
+                  const m = json.meta as { read_time?: unknown; link?: unknown };
+                  return {
+                    read_time: typeof m.read_time === 'number' ? m.read_time : undefined,
+                    link: typeof m.link === 'string' ? m.link : undefined,
+                  };
+                })()
+              : undefined,
             location: a.location,
             version: a.location === 'python' ? '1.0.0' : undefined,
             updatedAt: Date.now(),

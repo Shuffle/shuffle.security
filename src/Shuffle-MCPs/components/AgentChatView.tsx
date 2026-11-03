@@ -84,6 +84,9 @@ export interface AgentChatViewProps {
   placeholder?: string;
   /** Where to render the composer (AgentUI's pinned footer in sidebar layout). Inline when omitted. */
   composerContainer?: HTMLElement | null;
+  /** Extra horizontal space on both sides of the conversation. Defaults to none. */
+  contentPaddingX?: number;
+
   onStart: (text: string) => void | Promise<void>;
   /** Answers a question, approval or continuation, using AgentUI's submitQuestions shape. */
   onSubmit: (decisionId: string, answers: Record<string, BackendJson>, isContinuation?: boolean) => void | Promise<void>;
@@ -269,7 +272,9 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   workflowId: propWorkflowId,
   placeholder,
   composerContainer,
+  contentPaddingX = 0,
   onStart,
+
   onSubmit,
   onStop,
   stopping = false,
@@ -936,7 +941,10 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   const stalled = stalledFor > STALL_MS;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', minHeight: 0 }}>
+    // contentPaddingX is plain pixels: MUI multiplies numeric spacing values by
+    // the theme's 8px unit, so 15 would become 120px.
+    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', minHeight: 0, pl: contentPaddingX ? `${contentPaddingX}px` : 0, pr: contentPaddingX ? `${contentPaddingX}px` : 0 }}>
+
       {!executionId && !busy && thread.length === 0 && (
         <Box sx={{ py: 3, textAlign: 'center' }}>
           <Typography sx={{ ...textSx, fontWeight: 600 }}>Chat with the agent</Typography>

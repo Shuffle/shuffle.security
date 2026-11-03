@@ -4048,18 +4048,31 @@ const AgentUI: React.FC<AgentUIProps> = ({
     setAgentData({});
     setError(null);
     setPollWarning(null);
+    // "New chat" hands the user back to the Start tab: the run is cleared and
+    // the prompt form is ready for the next question. Hosts that hide the
+    // Start tab keep the previous behaviour and stay in Chat.
+    if (!disableStartTab) {
+      setShowStarter(true);
+      userPickedStartRef.current = true;
+    }
     if (contextStorageKey) {
-      setPageContextChoice(contextStorageKey, { executionId: null, authorization: null, executionStatus: null, viewMode: 'chat' });
+      setPageContextChoice(contextStorageKey, {
+        executionId: null,
+        authorization: null,
+        executionStatus: null,
+        viewMode: disableStartTab ? 'chat' : 'start',
+      });
     }
     if (readUrlParams) {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete('execution_id');
         next.delete('authorization');
+        next.delete('agentView');
         return next;
       }, { replace: true });
     }
-  }, [contextStorageKey, readUrlParams, setSearchParams]);
+  }, [contextStorageKey, readUrlParams, setSearchParams, disableStartTab]);
 
   // ── Probe whether the execution sidebar can load this run ──
   // Uses the explorer's own fetch so the answer matches exactly what the
@@ -4303,13 +4316,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
     
     setError(null);
     setLocalRunStart(null);
-    // A new run opens in Chat, unless the user's last choice was Timeline.
-    try {
-      const stored = typeof window !== 'undefined' ? window.localStorage.getItem('shuffle-agents-view-mode') : null;
-      setViewMode(stored === 'detailed' ? 'detailed' : 'chat');
-    } catch {
-      setViewMode('chat');
-    }
+    // A new run opens in Chat, unless the user manually pinned Timeline.
+    setViewMode(isTimelinePinned() ? 'detailed' : 'chat');
     setShowStarter(false);
     // The user is starting a new run — drop any sticky "manual Start" pin so
     // future polls/effects can populate Chat/Timeline normally.
@@ -5544,6 +5552,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
       setShowStarter(false);
       userPickedStartRef.current = false;
       setViewMode(nextView);
+      // Only a real tab click decides the default run view: Timeline stays
+      // pinned until the user picks Chat again.
+      setTimelinePinned(nextView === 'detailed');
       if (contextStorageKey) {
         setPageContextChoice(contextStorageKey, {
           viewMode: nextView,

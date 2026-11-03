@@ -787,6 +787,32 @@ export type AgentUIView = 'start' | 'simple' | 'detailed' | 'chat';
  */
 type RunViewMode = 'chat' | 'detailed';
 
+/**
+ * Whether the user has manually picked the Timeline tab at least once.
+ *
+ * This is the ONLY thing that makes Timeline the default run view. It is
+ * written from the tab click handler alone, so a shared run link, a jump to
+ * evidence from Chat, or another surface's last view can never pin it.
+ */
+const TIMELINE_PIN_STORAGE_KEY = 'shuffle-agents-timeline-pinned';
+
+function isTimelinePinned(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem(TIMELINE_PIN_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** Remember a manual Timeline/Chat tab choice. Only tab clicks call this. */
+function setTimelinePinned(pinned: boolean): void {
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(TIMELINE_PIN_STORAGE_KEY, pinned ? 'true' : 'false');
+    }
+  } catch { /* localStorage unavailable — ignore */ }
+}
+
 export interface AgentUIProps {
   /** Optional React key to force re-mounting when context changes */
   key?: React.Key;
@@ -3137,9 +3163,11 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const [searchParams, setSearchParams] = useSearchParams();
   const initialViewParam = searchParams.get('agentView');
 
-  // Chat is the default run view; Timeline only wins when the user last chose
-  // it. The retired 'simple' view (from older saved choices or host props)
-  // maps onto Chat.
+  // Chat is the default run view. Timeline only wins when the user has
+  // manually clicked the Timeline tab before (see setTimelinePinned): a
+  // shared link, a programmatic jump or another surface's last view never
+  // pins it. The retired 'simple' view (from older saved choices or host
+  // props) maps onto Chat.
   const readStoredViewMode = (): RunViewMode => {
     if (initialViewParam === 'detailed') return 'detailed';
     if (initialViewParam === 'chat' || initialViewParam === 'simple') return 'chat';
@@ -3150,24 +3178,13 @@ const AgentUI: React.FC<AgentUIProps> = ({
     }
     if (initialView === 'detailed') return 'detailed';
     if (initialView === 'chat' || initialView === 'simple') return 'chat';
-    try {
-      const stored = typeof window === 'undefined' ? null : window.localStorage.getItem('shuffle-agents-view-mode');
-      if (stored === 'detailed') return 'detailed';
-    } catch { /* localStorage unavailable — ignore */ }
-    return 'chat';
+    return isTimelinePinned() ? 'detailed' : 'chat';
   };
 
   const [viewMode, setViewMode] = useState<RunViewMode>(readStoredViewMode);
   // Footer element the Chat view renders its composer into (sidebar layout)
   const [chatComposerEl, setChatComposerEl] = useState<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('shuffle-agents-view-mode', viewMode);
-      }
-    } catch { /* localStorage unavailable — ignore */ }
-  }, [viewMode]);
 
   const [attachedImages, setAttachedImages] = useState<{ dataUrl: string; name: string }[]>([]);
   const [previewImage, setPreviewImage] = useState<{ dataUrl: string; name: string } | null>(null);
@@ -4031,18 +4048,31 @@ const AgentUI: React.FC<AgentUIProps> = ({
     setAgentData({});
     setError(null);
     setPollWarning(null);
+    // "New chat" hands the user back to the Start tab: the run is cleared and
+    // the prompt form is ready for the next question. Hosts that hide the
+    // Start tab keep the previous behaviour and stay in Chat.
+    if (!disableStartTab) {
+      setShowStarter(true);
+      userPickedStartRef.current = true;
+    }
     if (contextStorageKey) {
-      setPageContextChoice(contextStorageKey, { executionId: null, authorization: null, executionStatus: null, viewMode: 'chat' });
+      setPageContextChoice(contextStorageKey, {
+        executionId: null,
+        authorization: null,
+        executionStatus: null,
+        viewMode: disableStartTab ? 'chat' : 'start',
+      });
     }
     if (readUrlParams) {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete('execution_id');
         next.delete('authorization');
+        next.delete('agentView');
         return next;
       }, { replace: true });
     }
-  }, [contextStorageKey, readUrlParams, setSearchParams]);
+  }, [contextStorageKey, readUrlParams, setSearchParams, disableStartTab]);
 
   // ── Probe whether the execution sidebar can load this run ──
   // Uses the explorer's own fetch so the answer matches exactly what the
@@ -4286,13 +4316,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
     
     setError(null);
     setLocalRunStart(null);
-    // A new run opens in Chat, unless the user's last choice was Timeline.
-    try {
-      const stored = typeof window !== 'undefined' ? window.localStorage.getItem('shuffle-agents-view-mode') : null;
-      setViewMode(stored === 'detailed' ? 'detailed' : 'chat');
-    } catch {
-      setViewMode('chat');
-    }
+    // A new run opens in Chat, unless the user manually pinned Timeline.
+    setViewMode(isTimelinePinned() ? 'detailed' : 'chat');
     setShowStarter(false);
     // The user is starting a new run — drop any sticky "manual Start" pin so
     // future polls/effects can populate Chat/Timeline normally.
@@ -5527,6 +5552,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
       setShowStarter(false);
       userPickedStartRef.current = false;
       setViewMode(nextView);
+      // Only a real tab click decides the default run view: Timeline stays
+      // pinned until the user picks Chat again.
+      setTimelinePinned(nextView === 'detailed');
       if (contextStorageKey) {
         setPageContextChoice(contextStorageKey, {
           viewMode: nextView,

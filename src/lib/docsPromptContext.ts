@@ -153,7 +153,9 @@ export const isDocsRoute = (pathname?: string): boolean => {
 
 export const DOC_PROMPT_DELIMITER_START = '--- BEGIN DOCUMENTATION ---';
 export const DOC_PROMPT_DELIMITER_END = '--- END DOCUMENTATION ---';
-const DOC_PROMPT_PREFIX_REGEX = /^Answer the users? question about (?:["']?)(.*?)(?:["']?) based on(?: on)? the following (?:documentation )?content:/i;
+// Matches every doc-prompt header, including the short form used while a
+// page is still loading ("Answer the users question about Shuffle X:").
+const DOC_PROMPT_PREFIX_REGEX = /^Answer the users? question about [^\n]*?(?: based on(?: on)? the following [^\n]*?)?:\s*(?:\n|$)/i;
 
 /**
  * Sanitizes markdown content for inclusion in an LLM prompt:
@@ -339,6 +341,8 @@ export const composeDocPromptInput = (
 
   const groupDef = currentSlug ? getDocGroup(currentSlug) : null;
   const categoryName = groupLabel || groupDef?.label || title;
+  // Avoid "Shuffle Shuffle documentation" when the name already starts with Shuffle.
+  const subject = /^shuffle\b/i.test(categoryName) ? categoryName : `Shuffle ${categoryName}`;
 
   // 2. Build list of all documents in the category
   const rawMarkdown = activeDoc?.content || '';
@@ -384,7 +388,7 @@ export const composeDocPromptInput = (
     : '';
 
   if (docSection) {
-    return `Answer the users question about Shuffle ${categoryName} based on the following complete documentation for the ${categoryName} category:
+    return `Answer the users question about ${subject} based on the following complete documentation for the ${categoryName} category:
 ${DOC_PROMPT_DELIMITER_START}
 ${docSection}${excerptBlock}
 ${DOC_PROMPT_DELIMITER_END}
@@ -394,7 +398,7 @@ ${trimmedQuestion}`;
   }
 
   if (markedExcerpt) {
-    return `Answer the users question about Shuffle ${categoryName} based on the following content:
+    return `Answer the users question about ${subject} based on the following content:
 ${DOC_PROMPT_DELIMITER_START}
 ${excerptBlock.trim()}
 ${DOC_PROMPT_DELIMITER_END}
@@ -403,9 +407,11 @@ User Question:
 ${trimmedQuestion}`;
   }
 
-  // Fallback when markdown is empty or still loading
-  return `Answer the users question about Shuffle ${categoryName}:
+  // Fallback when markdown is empty or still loading. Uses the same
+  // "User Question:" marker so the display cleaner always strips it.
+  return `Answer the users question about ${subject}:
 
+User Question:
 ${trimmedQuestion}`;
 };
 

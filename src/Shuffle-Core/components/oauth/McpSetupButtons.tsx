@@ -22,6 +22,10 @@ export interface McpSetupButtonsProps {
   size?: 'compact' | 'default';
   /** Label for the ChatGPT button (default "ChatGPT"). */
   chatgptLabel?: string;
+  /** Optional host theme hint. Accepted for host compatibility; the buttons follow CSS variables. */
+  theme?: 'dark' | 'light' | 'system';
+  /** Optional host color-mode hint. Accepted for host compatibility. */
+  colorMode?: 'auto' | 'dark' | 'light';
   /** Optional wrapper sx styles. */
   sx?: SxProps<Theme>;
 }

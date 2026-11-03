@@ -7197,14 +7197,24 @@ const AgentUI: React.FC<AgentUIProps> = ({
                     // prompt is a single line. Once it wraps, the chip drops to
                     // its own bottom row so the indent is removed.
                     textIndent: (!hidePresets && !promptMultiline && !isPhone) ? `${(presetsChipWidth || 96) + 6}px` : 0,
-                    transition: 'text-indent 180ms cubic-bezier(0.4, 0, 0.2, 1)',
+                     transition: 'text-indent 180ms cubic-bezier(0.4, 0, 0.2, 1)',
+                     // One line: the textarea must be exactly the row height so
+                     // the text sits on the row's middle line. MUI's own
+                     // .MuiInputBase-input rule can win over this one on CSS
+                     // insertion order and leave box-sizing at content-box,
+                     // which turns the 33px height into 44px (33 + 5 + 6) and
+                     // pushes the text ~7px above the box centre. Hence the
+                     // !important, and padding split evenly around the line.
                      ...(promptSingleLineLocked ? {
                        height: '33px !important',
                        minHeight: '33px !important',
                        maxHeight: '33px !important',
-                       boxSizing: 'border-box',
+                       boxSizing: 'border-box !important',
+                       pt: '5.7px',
+                       pb: '5.7px',
                        overflowY: 'hidden !important',
                      } : {}),
+
                   },
                   '& textarea::placeholder': { color: 'hsl(var(--muted-foreground))', opacity: 0.7, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
                 }}

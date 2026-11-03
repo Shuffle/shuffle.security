@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { AgentUI } from '@/Shuffle-MCPs/components/AgentUI'
+import AgentUI from '@/Shuffle-MCPs/components/AgentUI'
+import { API_CONFIG } from '@/Shuffle-MCPs'
 import { ShuffleMcpThemeProvider } from '@/Shuffle-MCPs/ShuffleMcpThemeProvider'
-import { API_CONFIG } from '@/config'
 
 export const Route = createFileRoute('/tmp-askabout-check')({
   component: Page,

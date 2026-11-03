@@ -128,6 +128,8 @@ export interface AppDetailContentProps extends ShuffleHostProps {
   allowGuestLocked?: boolean;
   /** Notifies parent when app info is resolved (useful for page SEO / usePageMeta) */
   onAppInfoLoaded?: (info: AppInfo | null) => void;
+  /** Documentation resolved ahead of time (e.g. during server rendering) so it is present in the first HTML. */
+  initialDoc?: AppDocResult | null;
 }
 
 /** Collapsible markdown description */
@@ -180,9 +182,6 @@ export const AppDocumentationSection = ({
   const [expanded, setExpanded] = useState(defaultExpanded);
   const readTime = doc.meta?.read_time;
   const sourceLink = doc.meta?.link;
-  const locationLabel = doc.location === 'python'
-    ? `Python${doc.version ? ` v${doc.version}` : ''}`
-    : 'OpenAPI';
 
   return (
     <Box
@@ -216,21 +215,6 @@ export const AppDocumentationSection = ({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', minWidth: 0 }}>
           <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
             Documentation
-          </Typography>
-          <Typography
-            component="span"
-            sx={{
-              fontSize: '0.68rem',
-              fontWeight: 500,
-              px: 0.75,
-              py: 0.15,
-              borderRadius: 1,
-              border: '1px solid hsl(var(--border))',
-              bgcolor: 'hsl(var(--background))',
-              color: 'hsl(var(--muted-foreground))',
-            }}
-          >
-            {locationLabel}
           </Typography>
           {typeof readTime === 'number' && readTime > 0 && (
             <Typography sx={{ fontSize: '0.72rem', color: 'hsl(var(--muted-foreground))' }}>
@@ -271,9 +255,11 @@ export const AppDocumentationSection = ({
         </Box>
       </Box>
 
-      {expanded && (
-        <Box
+      {/* Always rendered so crawlers can read it; hidden visually when collapsed. */}
+      <Box
+          aria-hidden={!expanded}
           sx={{
+            display: expanded ? 'block' : 'none',
             p: { xs: 1.5, sm: 2 },
             width: '100%',
             maxWidth: '100%',
@@ -304,7 +290,6 @@ export const AppDocumentationSection = ({
         >
           <ShuffleMarkdown disableBreaks>{doc.markdown}</ShuffleMarkdown>
         </Box>
-      )}
     </Box>
   );
 };
@@ -398,6 +383,7 @@ export default function AppDetailContent({
   showApiCallViewer = mode === 'page',
   allowGuestLocked = false,
   onAppInfoLoaded,
+  initialDoc = null,
   globalUrl,
   userdata,
   isLoaded,
@@ -743,12 +729,12 @@ export default function AppDetailContent({
 
   // App documentation (cached in localStorage across 'openapi' and 'python')
   const [appDoc, setAppDoc] = useState<AppDocResult | null>(() =>
-    getCachedAppDoc(appName)
+    initialDoc ?? getCachedAppDoc(appName)
   );
 
   useEffect(() => {
     if (!open || !appName || isBuiltIn) {
-      setAppDoc(null);
+      setAppDoc(initialDoc);
       return;
     }
 
@@ -760,7 +746,7 @@ export default function AppDetailContent({
     const cached =
       getCachedAppDoc(targetDocName, { generated, version }) ??
       (targetDocName !== appName ? getCachedAppDoc(appName, { generated, version }) : null);
-    setAppDoc(cached);
+    setAppDoc(cached ?? initialDoc);
 
     // Wait until app metadata has settled (or generated is explicitly known) before firing network requests
     if (appLoading && generated === undefined) return;
@@ -1193,7 +1179,11 @@ export default function AppDetailContent({
                 <Skeleton key={i} variant="rounded" width={w} height={28} sx={{ borderRadius: 999 }} />
               ))}
             </Box>
-            <Skeleton variant="rectangular" height={180} sx={{ borderRadius: 2 }} />
+            <Skeleton variant="rectangular" height={180} sx={{ borderRadius: 2, mb: 3 }} />
+
+            {appDoc?.markdown && (
+              <AppDocumentationSection key={`loading:${appDoc.location}`} doc={appDoc} />
+            )}
           </Box>
         ) : (
           <>
@@ -1282,12 +1272,24 @@ export default function AppDetailContent({
               </Box>
             )}
 
+            {/* Use this app from external AI clients (MCP) */}
+            {mode === 'page' && !isBuiltIn && (
+              <Box sx={{ mb: 3 }}>
+                <McpSetupButtons
+                  appName={canonicalExecutionAppName}
+                  appTitle={displayName}
+                  globalUrl={globalUrl}
+                  label="Use this app in ChatGPT"
+                  chatgptLabel="OpenAI"
+                />
+              </Box>
+            )}
+
             {/* App Documentation (OpenAPI / Python README from /api/v1/docs/{appname}) */}
             {appDoc?.markdown && appDoc.markdown.trim() !== (appInfo?.description || '').trim() && (
               <AppDocumentationSection
                 key={`${appDoc.location}:${appInfo?.name || appName || ''}`}
                 doc={appDoc}
-                defaultExpanded={mode === 'page'}
               />
             )}
 
@@ -1549,37 +1551,6 @@ export default function AppDetailContent({
                     </Box>
                   )}
 
-                  <Box
-                    sx={{
-                      flex: 1,
-                      minWidth: 200,
-                      p: 2.5,
-                      borderRadius: 2,
-                      backgroundColor: hasValidAuth
-                        ? 'hsla(142, 76%, 36%, 0.08)'
-                        : 'hsl(var(--muted) / 0.5)',
-                      border: '1px solid',
-                      borderColor: hasValidAuth
-                        ? 'hsla(142, 76%, 36%, 0.2)'
-                        : 'hsl(var(--border))',
-                    }}
-                  >
-                    <Typography variant="overline" sx={{ color: 'hsl(var(--muted-foreground))', fontWeight: 600, letterSpacing: 1 }}>
-                      Status
-                    </Typography>
-                    <Typography
-                      variant="body1"
-                      sx={{
-                        color: hasValidAuth ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground))',
-                        fontWeight: 500,
-                        mt: 0.5,
-                      }}
-                    >
-                      {isAuthenticated
-                        ? hasValidAuth ? 'Connected' : hasAnyAuth ? 'Pending Validation' : 'Not Configured'
-                        : 'Sign up to connect'}
-                    </Typography>
-                  </Box>
                 </Box>
               </motion.div>
             )}

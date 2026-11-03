@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { routeMeta } from '@/lib/routeMeta';
-import { getPublicAppMeta } from '@/lib/appCatalog.functions';
+import { getPublicAppMeta, getPublicAppDoc } from '@/lib/appCatalog.functions';
 import { appSlug } from '@/lib/appSlug';
 import AppDetailPage from '@/pages/dashboard/AppDetailPage';
 
@@ -14,11 +14,15 @@ const trimDescription = (text: string, max = 155): string => {
 export const Route = createFileRoute("/_cond/apps/$appname")({
   loader: async ({ params }) => {
     // Client navigations never block on the catalog lookup; SSR (crawlers) does.
-    if (typeof window !== 'undefined') return { app: null, ssr: false };
+    if (typeof window !== 'undefined') return { app: null, doc: null, ssr: false };
     try {
-      return { app: await getPublicAppMeta({ data: { slug: params.appname } }), ssr: true };
+      const app = await getPublicAppMeta({ data: { slug: params.appname } });
+      const doc = app?.name
+        ? await getPublicAppDoc({ data: { name: app.name } }).catch(() => null)
+        : null;
+      return { app, doc, ssr: true };
     } catch {
-      return { app: null, ssr: true };
+      return { app: null, doc: null, ssr: true };
     }
   },
   head: ({ params, loaderData }) => {

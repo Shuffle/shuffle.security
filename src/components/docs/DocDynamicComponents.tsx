@@ -197,7 +197,6 @@ export const DocAgentUI: React.FC<DocAgentUIProps> = ({
       <AgentUI
         compact={isCompact}
         hideHeroIcon={true}
-        autoFocusPrompt={false}
         title={effectiveTitle}
         subtitle={subtitle}
         placeholder={

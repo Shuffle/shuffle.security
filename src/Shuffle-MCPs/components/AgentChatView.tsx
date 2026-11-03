@@ -941,7 +941,10 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   const stalled = stalledFor > STALL_MS;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', minHeight: 0, pl: contentPaddingX, pr: contentPaddingX }}>
+    // contentPaddingX is plain pixels: MUI multiplies numeric spacing values by
+    // the theme's 8px unit, so 15 would become 120px.
+    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', minHeight: 0, pl: contentPaddingX ? `${contentPaddingX}px` : 0, pr: contentPaddingX ? `${contentPaddingX}px` : 0 }}>
+
       {!executionId && !busy && thread.length === 0 && (
         <Box sx={{ py: 3, textAlign: 'center' }}>
           <Typography sx={{ ...textSx, fontWeight: 600 }}>Chat with the agent</Typography>

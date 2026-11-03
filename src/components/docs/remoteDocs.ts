@@ -104,7 +104,7 @@ export const removeStoredDocMarkdown = (cacheKey: string) => {
   }
 };
 
-const getFallbackDocs = (folder?: string): RemoteDocEntry[] => {
+export const getFallbackDocs = (folder?: string): RemoteDocEntry[] => {
   if (!folder || folder === 'docs') return KNOWN_DOCS;
   if (folder === 'legal') return KNOWN_LEGAL_DOCS;
   return [];

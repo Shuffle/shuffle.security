@@ -14,7 +14,7 @@ import {
   ListItemText,
   Typography,
 } from '@mui/material';
-import { fetchDocsList, getInitialDocsList, docSlug } from '@/components/docs/remoteDocs';
+import { fetchDocsList, getInitialDocsList, getFallbackDocs, docSlug } from '@/components/docs/remoteDocs';
 import { fetchRemoteDoc } from '@/components/docs/useDocContent';
 import {
   groupRemoteDocs,
@@ -85,7 +85,7 @@ export const DocsSidebar = ({
   const slug = params.slug || params.name || 'index';
   const navigate = useNavigate();
   const [remoteDocs, setRemoteDocs] = useState<RemoteDoc[]>(() =>
-    toVisibleDocs(getInitialDocsList(folder), folder),
+    toVisibleDocs(getFallbackDocs(folder), folder),
   );
   const [searchOpen, setSearchOpen] = useState(false);
 

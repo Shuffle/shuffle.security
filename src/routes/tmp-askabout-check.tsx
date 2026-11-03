@@ -16,7 +16,6 @@ function Page() {
           theme="dark"
           sidebarLayout
           compact
-          initialView="chat"
           contextStorageKey="page__tmp-askabout-check"
         />
       </div>

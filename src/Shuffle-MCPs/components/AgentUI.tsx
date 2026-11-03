@@ -3137,9 +3137,11 @@ const AgentUI: React.FC<AgentUIProps> = ({
   const [searchParams, setSearchParams] = useSearchParams();
   const initialViewParam = searchParams.get('agentView');
 
-  // Chat is the default run view; Timeline only wins when the user last chose
-  // it. The retired 'simple' view (from older saved choices or host props)
-  // maps onto Chat.
+  // Chat is the default run view. Timeline only wins when the user has
+  // manually clicked the Timeline tab before (see setTimelinePinned): a
+  // shared link, a programmatic jump or another surface's last view never
+  // pins it. The retired 'simple' view (from older saved choices or host
+  // props) maps onto Chat.
   const readStoredViewMode = (): RunViewMode => {
     if (initialViewParam === 'detailed') return 'detailed';
     if (initialViewParam === 'chat' || initialViewParam === 'simple') return 'chat';
@@ -3150,24 +3152,13 @@ const AgentUI: React.FC<AgentUIProps> = ({
     }
     if (initialView === 'detailed') return 'detailed';
     if (initialView === 'chat' || initialView === 'simple') return 'chat';
-    try {
-      const stored = typeof window === 'undefined' ? null : window.localStorage.getItem('shuffle-agents-view-mode');
-      if (stored === 'detailed') return 'detailed';
-    } catch { /* localStorage unavailable — ignore */ }
-    return 'chat';
+    return isTimelinePinned() ? 'detailed' : 'chat';
   };
 
   const [viewMode, setViewMode] = useState<RunViewMode>(readStoredViewMode);
   // Footer element the Chat view renders its composer into (sidebar layout)
   const [chatComposerEl, setChatComposerEl] = useState<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('shuffle-agents-view-mode', viewMode);
-      }
-    } catch { /* localStorage unavailable — ignore */ }
-  }, [viewMode]);
 
   const [attachedImages, setAttachedImages] = useState<{ dataUrl: string; name: string }[]>([]);
   const [previewImage, setPreviewImage] = useState<{ dataUrl: string; name: string } | null>(null);

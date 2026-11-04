@@ -306,6 +306,11 @@ export const WidgetEditorDialog = ({
 
   // Source-specific fields
   const [statKey, setStatKey] = useState('total_workflow_executions');
+  // What the user has typed in the Primary Stat field, or null when they have
+  // not touched it. Kept apart from statKey because MUI rewrites the field's
+  // text from the controlled value on every value change, which would eat
+  // characters (underscores, capitalisation) while typing.
+  const [typedStatText, setTypedStatText] = useState<string | null>(null);
   const [additionalStatKeys, setAdditionalStatKeys] = useState<string[]>([]);
   const [category, setCategory] = useState<string>(DATASTORE_CATEGORIES.INCIDENTS);
   const [aggregation, setAggregation] = useState<DatastoreAggregation>('group_by');
@@ -398,6 +403,7 @@ export const WidgetEditorDialog = ({
   useEffect(() => {
     if (!open) return;
     setCopiedSnippet(false);
+    setTypedStatText(null);
     if (initialWidget && initialWidget.dataSource) {
       setTitle(initialWidget.title || '');
       setTitleTouched(true);
@@ -496,6 +502,26 @@ export const WidgetEditorDialog = ({
     }
   };
 
+  // Turns whatever the user typed into a stat key: an existing key when it
+  // matches one (exact or pretty name), otherwise the text snake_cased.
+  const normalizeStatKey = (raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) return '';
+    const lower = trimmed.toLowerCase();
+    const matched = mergedStatKeys.find(
+      (k) => k.toLowerCase() === lower || prettyStatKey(k).toLowerCase() === lower,
+    );
+    return matched || lower.replace(/\s+/g, '_');
+  };
+
+  // The stat name that gets saved: whatever is typed in the field, falling back
+  // to the committed key while the field has not been touched.
+  const committedStatKey = useMemo(
+    () => (typedStatText === null ? statKey.trim() : normalizeStatKey(typedStatText)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [typedStatText, statKey],
+  );
+
   const handleCategoryChange = (nextCat: string) => {
     setCategory(nextCat);
     if (!titleTouched && nextCat.trim()) {
@@ -514,17 +540,17 @@ export const WidgetEditorDialog = ({
 
   const canSave = useMemo(() => {
     if (!title.trim()) return false;
-    if (sourceKind === 'custom_stat') return Boolean(statKey.trim());
+    if (sourceKind === 'custom_stat') return Boolean(committedStatKey);
     if (sourceKind === 'datastore_category') {
       if (!category.trim()) return false;
       if (aggregation !== 'count' && !groupByField.trim()) return false;
       return true;
     }
     return Boolean(builtinId);
-  }, [title, sourceKind, statKey, category, aggregation, groupByField, builtinId]);
+  }, [title, sourceKind, committedStatKey, category, aggregation, groupByField, builtinId]);
 
   const inlineSnippet = useMemo(() => {
-    const cleanStatKey = (statKey || 'tickets_created').trim().replace(/^total_/, '');
+    const cleanStatKey = (committedStatKey || 'tickets_created').replace(/^total_/, '');
     const cleanCat = (category || 'custom_metrics').trim();
     const cleanField = (groupByField || 'severity').trim();
     const isNumericAgg = aggregation === 'sum' || aggregation === 'avg' || aggregation === 'max' || aggregation === 'min';
@@ -572,7 +598,7 @@ export const WidgetEditorDialog = ({
     if (sourceKind === 'custom_stat') {
       dataSource = {
         kind: 'custom_stat',
-        statKey: statKey.trim(),
+        statKey: committedStatKey,
         ...(additionalStatKeys.length > 0 ? { additionalStatKeys } : {}),
       };
     } else if (sourceKind === 'datastore_category') {
@@ -689,16 +715,21 @@ export const WidgetEditorDialog = ({
                 options={mergedStatKeys}
                 value={statKey}
                 onChange={(_e, val) => {
-                  const raw = typeof val === 'string' ? val.trim() : '';
-                  if (!raw) {
-                    handleStatKeyChange('');
-                    return;
+                  setTypedStatText(null);
+                  handleStatKeyChange(normalizeStatKey(typeof val === 'string' ? val : ''));
+                }}
+                // freeSolo only commits typed text on Enter or when an option is
+                // picked, so track keystrokes: typing a brand-new stat name must
+                // enable Save, and must replace the old stat when editing. The
+                // typed text is held on its own because MUI rewrites the field
+                // from the controlled value whenever that value changes.
+                onInputChange={(_e, val, reason) => {
+                  if (reason !== 'input' && reason !== 'clear') return;
+                  setTypedStatText(val);
+                  const normalized = normalizeStatKey(val);
+                  if (!titleTouched && normalized) {
+                    setTitle(prettyStatKey(normalized));
                   }
-                  const lower = raw.toLowerCase();
-                  const matched = mergedStatKeys.find(
-                    (k) => k.toLowerCase() === lower || prettyStatKey(k).toLowerCase() === lower,
-                  );
-                  handleStatKeyChange(matched || raw.toLowerCase().replace(/\s+/g, '_'));
                 }}
                 getOptionLabel={(opt) => (typeof opt === 'string' ? prettyStatKey(opt) : String(opt))}
                 filterOptions={(options, state) => {

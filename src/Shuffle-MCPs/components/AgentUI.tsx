@@ -1036,7 +1036,7 @@ export interface AgentUIProps {
    * - Provides independent scroll container for middle content without top clipping
    */
   sidebarLayout?: boolean;
-  /** Element in the host's header (the sidebar's) that the chat renders its bookmark, history and new chat buttons into. */
+  /** Sidebar header slot for the chat's bookmark, history and new chat buttons. */
   headerActionsContainer?: HTMLElement | null;
   /**
    * Optional callback to transform/compose raw prompt input before submitting to the backend

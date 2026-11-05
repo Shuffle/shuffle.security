@@ -68,8 +68,7 @@ import {
   stripModePrefix,
 } from '@/Shuffle-MCPs/agentChat';
 
-// Colored alerts and status badges for the agent's replies only. Passed to ShuffleMarkdown
-// where agent text renders, so the shared renderer and its other callers stay unchanged.
+// Agent replies only, so the shared renderer and its other callers stay unchanged
 // --warning isn't defined in every host theme, hence the fallback.
 const AGENT_TONES: Record<AgentTone, { color: string; background: string; label: string }> = {
   error: { color: 'hsl(var(--destructive))', background: 'hsl(var(--destructive) / 0.1)', label: 'Error' },
@@ -81,7 +80,6 @@ const AGENT_TONES: Record<AgentTone, { color: string; background: string; label:
 const isLineBreak = (node: React.ReactNode) => React.isValidElement(node) && node.type === 'br';
 const isBlank = (node: React.ReactNode) => typeof node === 'string' && !node.trim();
 
-/** "> [!ERROR] ..." becomes a colored callout; any other quote renders as before. */
 const AgentCallout = ({ children, node: _node, ...props }: { children?: React.ReactNode; node?: unknown }) => {
   const items = React.Children.toArray(children);
   const firstIndex = items.findIndex((item) => React.isValidElement(item));
@@ -90,7 +88,6 @@ const AgentCallout = ({ children, node: _node, ...props }: { children?: React.Re
   const callout = typeof parts[0] === 'string' ? getCalloutTone(parts[0]) : null;
   if (!first || !callout) return <blockquote {...props}>{children}</blockquote>;
 
-  // Drop the marker, and the line break the agent usually puts after it
   let rest = callout.rest ? [callout.rest, ...parts.slice(1)] : parts.slice(1);
   while (rest.length && (isLineBreak(rest[0]) || isBlank(rest[0]))) rest = rest.slice(1);
   const tone = AGENT_TONES[callout.tone];
@@ -106,7 +103,6 @@ const AgentCallout = ({ children, node: _node, ...props }: { children?: React.Re
   );
 };
 
-/** Inline `FAILED`, `HTTP 400`, `SUCCESS` ... get their color; other inline code is untouched. */
 const AgentStatusCode = ({ children, node: _node, ...props }: { children?: React.ReactNode; node?: unknown; className?: string }) => {
   const tone = !props.className && typeof children === 'string' ? getStatusTone(children) : null;
   if (!tone) return <code {...props}>{children}</code>;
@@ -143,7 +139,7 @@ export interface AgentChatViewProps {
   /** Extra horizontal space on both sides of the conversation. Defaults to none. */
   contentPaddingX?: number;
 
-  /** Where to render the bookmark, history and new chat buttons (the sidebar header). Above the chat when omitted. */
+  /** Where the bookmark, history and new chat buttons render. Above the chat when omitted. */
   headerActionsContainer?: HTMLElement | null;
   onStart: (text: string) => void | Promise<void>;
   /** Answers a question, approval or continuation, using AgentUI's submitQuestions shape. */
@@ -174,8 +170,7 @@ export interface AgentChatViewProps {
   }) => void;
 }
 
-// Bookmarks are kept in this browser: there is nothing for them on the backend yet. Each keeps
-// its title, so the list works for chats older than the history fetches.
+// Kept in this browser: the backend has no bookmarks yet
 const BOOKMARKS_STORAGE_KEY = 'shuffle:agent_chat_bookmarks';
 type ChatBookmark = { execution_id: string; authorization?: string; title: string; started_at: string; workflow_id?: string };
 
@@ -575,8 +570,6 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   // The workflow as it was before this chat comes from its saved revisions, not from
   // memory, so revert still works after closing the panel or reloading the page.
   const chatStartedAt = Number((execution as { started_at?: unknown } | undefined)?.started_at) || 0;
-  // Reverting asks first in a popover listing what it undoes. `until` (unix seconds) picks
-  // the newest version saved by then: the chat start, or when one of the user's messages was sent.
   const [revertTarget, setRevertTarget] = useState<{ anchor: HTMLElement; until: number } | null>(null);
   const revert = async (until: number) => {
     if (!workflowId || !until || reverting) return;
@@ -716,9 +709,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   const lastItem = thread[thread.length - 1];
   const liveGroupKey = working && lastItem?.type === 'steps' ? lastItem.key : undefined;
 
-  // When each user message was sent, as a point to revert the workflow to: the chat start for
-  // the first, else when the agent began on it (the editor saves right before). Only messages
-  // the agent edited the workflow after get one.
+  // A later message counts as sent when the agent began on it: the editor saves right before
   const revertPoints: Record<string, number> = {};
   thread.forEach((item, index) => {
     if (item.type !== 'user') return;
@@ -733,7 +724,6 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
       if (!cleanUserText) return null;
       const until = workflowId && !working ? revertPoints[item.key] : 0;
       return (
-        // Right padding leaves room for the revert button on the bubble's corner
         <Box key={item.key} sx={{ display: 'flex', justifyContent: 'flex-end', my: 1.25, pr: 1, '&:hover .revert-to-here': { opacity: 1 } }}>
           <Box sx={{
             ...textSx, position: 'relative', maxWidth: '85%', px: 1.5, py: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
@@ -862,8 +852,6 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     );
   };
 
-  // What the agent changed since the last message and what still needs doing before the workflow can run.
-  // Reverting is on each message: reverting to the first one undoes the whole chat.
   const renderSummary = () => {
     if (!finished) return null;
     const changes = getLatestChanges(decisions, labels);
@@ -1088,7 +1076,6 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     );
   };
 
-  // Header: bookmark this chat, chat history, new chat
   const bookmarked = !!executionId && bookmarks.some((bookmark) => bookmark.execution_id === executionId);
   const toggleBookmark = () => {
     if (!executionId) return;
@@ -1105,8 +1092,6 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     writeBookmarks(next);
   };
 
-  // The light list (no conversations) loads in the background when the chat opens, and again on
-  // each open of history; the last list shows meanwhile, so it opens instantly
   const loadHistory = useCallback(() => {
     setHistoryError('');
     searchAgentActivity({ limit: 50, apiBaseUrl, workflowId: 'AGENT', light: true })

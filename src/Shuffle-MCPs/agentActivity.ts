@@ -83,7 +83,7 @@ export interface AgentActivityParams {
   orgId?: string;
   /** Workflow ID to search. Defaults to the synthetic 'AGENT' grouping. */
   workflowId?: string;
-  /** Only what a run list shows (ids, status, times, argument, first message). Much faster for agent chats. */
+  /** Only what a run list shows. Much faster for agent chats. */
   light?: boolean;
 }
 

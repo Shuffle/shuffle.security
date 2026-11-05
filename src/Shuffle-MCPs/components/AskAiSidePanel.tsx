@@ -676,6 +676,8 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   });
 
   const [isResizing, setIsResizing] = useState(false);
+  // The chat renders its bookmark, history and new chat buttons into this header slot
+  const [headerActionsEl, setHeaderActionsEl] = useState<HTMLDivElement | null>(null);
 
   // Sync prop changes if caller passes an explicit width prop different from current default
   const prevWidthPropRef = useRef(width);
@@ -1055,6 +1057,10 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
 
           {/* Header Action Controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+            <Box
+              ref={setHeaderActionsEl}
+              sx={{ display: safeActiveTab === 'permissions' || safeActiveTab === 'localLLM' ? 'none' : 'flex', alignItems: 'center', gap: 0.25 }}
+            />
             <Tooltip
               title="Talk to support"
               arrow
@@ -1412,6 +1418,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                 {...agentUIProps}
                 key={agentUiKey}
                 sidebarLayout={true}
+                headerActionsContainer={headerActionsEl}
                 compact={true}
                 mobileView={true}
                 hideHeroIcon={true}

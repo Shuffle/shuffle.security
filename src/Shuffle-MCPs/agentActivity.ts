@@ -83,6 +83,8 @@ export interface AgentActivityParams {
   orgId?: string;
   /** Workflow ID to search. Defaults to the synthetic 'AGENT' grouping. */
   workflowId?: string;
+  /** Only what a run list shows (ids, status, times, argument, first message). Much faster for agent chats. */
+  light?: boolean;
 }
 
 const resolveUrl = (path: string, baseUrl?: string): string =>
@@ -150,6 +152,7 @@ export const searchAgentActivity = async (
     apiBaseUrl,
     orgId,
     workflowId = 'AGENT',
+    light = false,
   } = params;
 
   const payload = {
@@ -160,6 +163,7 @@ export const searchAgentActivity = async (
     start_time: startTime,
     end_time: endTime,
     suborg_runs: suborgRuns,
+    ...(light ? { light: true } : {}),
   };
 
   const query = typeof top === 'number' && top > 0 ? `?top=${top}` : '';

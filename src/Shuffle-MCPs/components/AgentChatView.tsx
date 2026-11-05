@@ -16,9 +16,11 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Box, Button, CircularProgress, MenuItem, Select, Tooltip, Typography } from '@mui/material';
+import { Box, Button, ButtonBase, CircularProgress, IconButton, InputBase, MenuItem, Popover, Select, Tooltip, Typography } from '@mui/material';
+import { Bookmark, History, MessageCirclePlus, Undo2 } from 'lucide-react';
 import ShuffleMarkdown from '@/Shuffle-Core/components/Markdown';
-import AgentActivityList from '@/Shuffle-MCPs/components/AgentActivityList';
+import { getRunTitle, getTimeAgo } from '@/Shuffle-MCPs/components/AgentActivityList';
+import { searchAgentActivity, type AgentRun } from '@/Shuffle-MCPs/agentActivity';
 import { toast } from '@/Shuffle-Core/toast';
 import {
   AGENT_FOCUS_NODE_EVENT,
@@ -31,21 +33,25 @@ import {
   formatDuration,
   getAnswersFromModelReplies,
   getAppsNeedingAuth,
+  getCalloutTone,
   getChangedNodeIds,
+  getChangesAfter,
+  getLatestChanges,
   getDecisionOutput,
   getFailureReason,
-  getLatestChanges,
   getNodeLabels,
   getField,
   getQuickReplies,
   getResult,
   getRunIdleSeconds,
   getRunNodes,
+  getStatusTone,
   getStepDuration,
   getStepStatus,
   getWorkflowProblems,
   getWorkflowRuns,
   isAction,
+  isAppliedRevert,
   isAsk,
   isFinish,
   pickRevisionBefore,
@@ -55,11 +61,61 @@ import {
   type AgentOpenExecutionDetail,
   type BackendJson,
   type AgentWorkflowChangedDetail,
+  type AgentTone,
   type ChatDecision,
   type ChatThreadItem,
   type ChatWorkflowRun,
   stripModePrefix,
 } from '@/Shuffle-MCPs/agentChat';
+
+// Colored alerts and status badges for the agent's replies only. Passed to ShuffleMarkdown
+// where agent text renders, so the shared renderer and its other callers stay unchanged.
+// --warning isn't defined in every host theme, hence the fallback.
+const AGENT_TONES: Record<AgentTone, { color: string; background: string; label: string }> = {
+  error: { color: 'hsl(var(--destructive))', background: 'hsl(var(--destructive) / 0.1)', label: 'Error' },
+  warning: { color: 'hsl(var(--warning, 38 92% 50%))', background: 'hsl(var(--warning, 38 92% 50%) / 0.12)', label: 'Warning' },
+  success: { color: 'hsl(142 71% 45%)', background: 'hsl(142 71% 45% / 0.12)', label: 'Success' },
+  note: { color: 'hsl(var(--primary))', background: 'hsl(var(--primary) / 0.08)', label: 'Note' },
+};
+
+const isLineBreak = (node: React.ReactNode) => React.isValidElement(node) && node.type === 'br';
+const isBlank = (node: React.ReactNode) => typeof node === 'string' && !node.trim();
+
+/** "> [!ERROR] ..." becomes a colored callout; any other quote renders as before. */
+const AgentCallout = ({ children, node: _node, ...props }: { children?: React.ReactNode; node?: unknown }) => {
+  const items = React.Children.toArray(children);
+  const firstIndex = items.findIndex((item) => React.isValidElement(item));
+  const first = items[firstIndex] as React.ReactElement<{ children?: React.ReactNode }> | undefined;
+  const parts = first ? React.Children.toArray(first.props.children) : [];
+  const callout = typeof parts[0] === 'string' ? getCalloutTone(parts[0]) : null;
+  if (!first || !callout) return <blockquote {...props}>{children}</blockquote>;
+
+  // Drop the marker, and the line break the agent usually puts after it
+  let rest = callout.rest ? [callout.rest, ...parts.slice(1)] : parts.slice(1);
+  while (rest.length && (isLineBreak(rest[0]) || isBlank(rest[0]))) rest = rest.slice(1);
+  const tone = AGENT_TONES[callout.tone];
+  return (
+    <Box
+      role="note"
+      sx={{ my: 1, px: 1.5, py: 1, borderRadius: 1, borderLeft: `3px solid ${tone.color}`, backgroundColor: tone.background, '& > *:last-child': { mb: 0 } }}
+    >
+      <Box sx={{ color: tone.color, fontWeight: 600, fontSize: '0.85em', mb: 0.25 }}>{tone.label}</Box>
+      {rest.length > 0 && React.cloneElement(first, {}, ...rest)}
+      {items.slice(firstIndex + 1)}
+    </Box>
+  );
+};
+
+/** Inline `FAILED`, `HTTP 400`, `SUCCESS` ... get their color; other inline code is untouched. */
+const AgentStatusCode = ({ children, node: _node, ...props }: { children?: React.ReactNode; node?: unknown; className?: string }) => {
+  const tone = !props.className && typeof children === 'string' ? getStatusTone(children) : null;
+  if (!tone) return <code {...props}>{children}</code>;
+  const { color, background } = AGENT_TONES[tone];
+  // Inline style, as the renderer's own `& code` rule is more specific than a class
+  return <code {...props} style={{ color, backgroundColor: background, fontWeight: 600 }}>{children}</code>;
+};
+
+const agentMarkdownComponents = { blockquote: AgentCallout, code: AgentStatusCode };
 
 const STALL_MS = 90 * 1000;
 const RUN_POLL_MS = 3000;
@@ -87,6 +143,8 @@ export interface AgentChatViewProps {
   /** Extra horizontal space on both sides of the conversation. Defaults to none. */
   contentPaddingX?: number;
 
+  /** Where to render the bookmark, history and new chat buttons (the sidebar header). Above the chat when omitted. */
+  headerActionsContainer?: HTMLElement | null;
   onStart: (text: string) => void | Promise<void>;
   /** Answers a question, approval or continuation, using AgentUI's submitQuestions shape. */
   onSubmit: (decisionId: string, answers: Record<string, BackendJson>, isContinuation?: boolean) => void | Promise<void>;
@@ -116,7 +174,39 @@ export interface AgentChatViewProps {
   }) => void;
 }
 
-const readMode = (): 'auto' | 'ask' => {
+// Bookmarks are kept in this browser: there is nothing for them on the backend yet. Each keeps
+// its title, so the list works for chats older than the history fetches.
+const BOOKMARKS_STORAGE_KEY = 'shuffle:agent_chat_bookmarks';
+type ChatBookmark = { execution_id: string; authorization?: string; title: string; started_at: string; workflow_id?: string };
+
+const readBookmarks = (): ChatBookmark[] => {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(BOOKMARKS_STORAGE_KEY) || '[]');
+    return Array.isArray(stored) ? stored : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeBookmarks = (bookmarks: ChatBookmark[]) => {
+  try {
+    window.localStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify(bookmarks));
+  } catch {
+    // Storage blocked: the bookmark lasts until the page reloads
+  }
+};
+
+const shortTimeAgo = (startedAt: string) => (startedAt ? getTimeAgo(startedAt).replace(' ago', '') : '');
+
+const headerIconButtonSx = {
+  color: 'hsl(var(--muted-foreground))',
+  p: 0.75,
+  borderRadius: '8px',
+  '&:hover': { color: 'hsl(var(--foreground))', bgcolor: 'hsl(var(--muted))' },
+  '&.Mui-disabled': { color: 'hsl(var(--muted-foreground) / 0.4)' },
+};
+
+export const readMode = (): 'auto' | 'ask' => {
   try {
     return window.localStorage.getItem(MODE_STORAGE_KEY) === 'ask' ? 'ask' : 'auto';
   } catch {
@@ -273,6 +363,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   placeholder,
   composerContainer,
   contentPaddingX = 0,
+  headerActionsContainer,
   onStart,
 
   onSubmit,
@@ -305,7 +396,12 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   const [rawSteps, setRawSteps] = useState<Record<string, boolean>>({});
   const [watchingAuth, setWatchingAuth] = useState(false);
   const [reverting, setReverting] = useState(false);
-  const [showPastChats, setShowPastChats] = useState(false);
+  const [bookmarks, setBookmarks] = useState<ChatBookmark[]>(readBookmarks);
+  const [historyAnchor, setHistoryAnchor] = useState<HTMLElement | null>(null);
+  const [historyTab, setHistoryTab] = useState<'all' | 'bookmarked'>('all');
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [historyRuns, setHistoryRuns] = useState<AgentRun[] | null>(null);
+  const [historyError, setHistoryError] = useState('');
   // A reply or follow-up the backend hasn't recorded yet, shown so it doesn't vanish until it has
   const [pendingMessage, setPendingMessage] = useState('');
   const [now, setNow] = useState(() => Date.now());
@@ -377,10 +473,11 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   const stalledFor = isRunning && !waitingQuestion && !waitingApproval ? now - progressRef.current.at : 0;
 
   // Tell the host about workflow edits it hasn't seen. Edits already in a run
-  // when it is first shown are old news.
+  // when it is first shown are old news. An agent revert reloads the canvas
+  // like the chat's own revert does.
   useEffect(() => {
     if (!executionId) return;
-    const edits = decisions.filter((d) => isAction(d, 'put_agent_update') && getStepStatus(d) === 'done' && d.run_details?.id);
+    const edits = decisions.filter((d) => (isAction(d, 'put_agent_update') || isAppliedRevert(d)) && getStepStatus(d) === 'done' && d.run_details?.id);
     if (announcedEditsRef.current?.executionId !== executionId) {
       announcedEditsRef.current = { executionId, ids: new Set(edits.map((d) => d.run_details!.id!)) };
       return;
@@ -388,7 +485,9 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     const fresh = edits.filter((d) => !announcedEditsRef.current!.ids.has(d.run_details!.id!));
     if (fresh.length === 0 || !workflowId) return;
     fresh.forEach((d) => announcedEditsRef.current!.ids.add(d.run_details!.id!));
-    const detail: AgentWorkflowChangedDetail = { workflowId, nodeIds: fresh.flatMap(getChangedNodeIds) };
+    const detail: AgentWorkflowChangedDetail = fresh.some(isAppliedRevert)
+      ? { workflowId, nodeIds: [], reverted: true }
+      : { workflowId, nodeIds: fresh.flatMap(getChangedNodeIds) };
     window.dispatchEvent(new CustomEvent(AGENT_WORKFLOW_CHANGED_EVENT, { detail }));
   }, [decisions, executionId, workflowId]);
 
@@ -476,9 +575,12 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   // The workflow as it was before this chat comes from its saved revisions, not from
   // memory, so revert still works after closing the panel or reloading the page.
   const chatStartedAt = Number((execution as { started_at?: unknown } | undefined)?.started_at) || 0;
-  const revert = async () => {
-    if (!workflowId || !chatStartedAt || reverting) return;
-    if (!window.confirm('Revert the workflow to how it was before this chat changed it? Edits made since then, also by others, are replaced.')) return;
+  // Reverting asks first in a popover listing what it undoes. `until` (unix seconds) picks
+  // the newest version saved by then: the chat start, or when one of the user's messages was sent.
+  const [revertTarget, setRevertTarget] = useState<{ anchor: HTMLElement; until: number } | null>(null);
+  const revert = async (until: number) => {
+    if (!workflowId || !until || reverting) return;
+    const toTurn = until !== chatStartedAt;
     setReverting(true);
     try {
       const listResp = await fetch(resolveUrl(`/api/v1/workflows/${workflowId}/revisions?count=100`), {
@@ -487,8 +589,8 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
       });
       if (!listResp.ok) throw new Error(`loading saved versions failed with status ${listResp.status}`);
       const revisions = await listResp.json();
-      const before = pickRevisionBefore(Array.isArray(revisions) ? revisions : [], chatStartedAt);
-      if (!before) throw new Error('there is no saved version from before this chat');
+      const before = pickRevisionBefore(Array.isArray(revisions) ? revisions : [], until);
+      if (!before) throw new Error(`there is no saved version from ${toTurn ? 'that point' : 'before this chat'}`);
       const { revision_id: _revisionId, ...workflow } = before;
       const resp = await fetch(resolveUrl(`/api/v1/workflows/${workflowId}`), {
         method: 'PUT',
@@ -497,13 +599,14 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
         body: JSON.stringify(workflow),
       });
       if (!resp.ok) throw new Error(`status ${resp.status}`);
-      toast.success('Reverted the changes from this chat');
+      toast.success(toTurn ? 'Reverted the workflow to that point in the chat' : 'Reverted the changes from this chat');
       const detail: AgentWorkflowChangedDetail = { workflowId, nodeIds: [], reverted: true };
       window.dispatchEvent(new CustomEvent(AGENT_WORKFLOW_CHANGED_EVENT, { detail }));
     } catch (err) {
       toast.error(`Failed to revert: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setReverting(false);
+      setRevertTarget(null);
     }
   };
 
@@ -613,17 +716,49 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   const lastItem = thread[thread.length - 1];
   const liveGroupKey = working && lastItem?.type === 'steps' ? lastItem.key : undefined;
 
+  // When each user message was sent, as a point to revert the workflow to: the chat start for
+  // the first, else when the agent began on it (the editor saves right before). Only messages
+  // the agent edited the workflow after get one.
+  const revertPoints: Record<string, number> = {};
+  thread.forEach((item, index) => {
+    if (item.type !== 'user') return;
+    const next = thread.slice(index + 1).find((later) => later.type === 'steps');
+    const until = item.key === 'prompt' ? chatStartedAt : toSeconds(next?.type === 'steps' ? next.steps[0]?.run_details?.started_at : 0);
+    if (until && getChangesAfter(decisions, labels, until).length > 0) revertPoints[item.key] = until;
+  });
+
   const renderItem = (item: ChatThreadItem) => {
     if (item.type === 'user') {
       const cleanUserText = stripModePrefix(item.text);
       if (!cleanUserText) return null;
+      const until = workflowId && !working ? revertPoints[item.key] : 0;
       return (
-        <Box key={item.key} sx={{ display: 'flex', justifyContent: 'flex-end', my: 1.25 }}>
+        // Right padding leaves room for the revert button on the bubble's corner
+        <Box key={item.key} sx={{ display: 'flex', justifyContent: 'flex-end', my: 1.25, pr: 1, '&:hover .revert-to-here': { opacity: 1 } }}>
           <Box sx={{
-            ...textSx, maxWidth: '85%', px: 1.5, py: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            ...textSx, position: 'relative', maxWidth: '85%', px: 1.5, py: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
             bgcolor: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', borderRadius: '12px 12px 2px 12px',
           }}>
             {cleanUserText}
+            {!!until && (
+              <Tooltip title="Revert Workflow to this point">
+                <IconButton
+                  className="revert-to-here"
+                  aria-label="Revert Workflow to this point"
+                  onClick={(event) => setRevertTarget({ anchor: event.currentTarget, until })}
+                  sx={{
+                    position: 'absolute', top: -10, right: -10, width: 22, height: 22, p: 0,
+                    opacity: revertTarget?.until === until ? 1 : 0, transition: 'opacity 120ms',
+                    bgcolor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))',
+                    '&:hover': { bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' },
+                    '&:focus-visible': { opacity: 1 },
+                    '@media (hover: none)': { opacity: 1 },
+                  }}
+                >
+                  <Undo2 size={13} />
+                </IconButton>
+              </Tooltip>
+            )}
           </Box>
         </Box>
       );
@@ -632,7 +767,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     if (item.type === 'agent') {
       return (
         <Box key={item.key} sx={{ ...textSx, my: 1.25, '& p': { my: 0.5 } }}>
-          <ShuffleMarkdown>{item.text}</ShuffleMarkdown>
+          <ShuffleMarkdown components={agentMarkdownComponents}>{item.text}</ShuffleMarkdown>
         </Box>
       );
     }
@@ -727,6 +862,8 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     );
   };
 
+  // What the agent changed since the last message and what still needs doing before the workflow can run.
+  // Reverting is on each message: reverting to the first one undoes the whole chat.
   const renderSummary = () => {
     if (!finished) return null;
     const changes = getLatestChanges(decisions, labels);
@@ -734,7 +871,6 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
       ...appsNeedingAuth.filter((app) => !isAppAuthenticated(app.name, app.id)).map((app) => ({ text: `${app.name} needs credentials before it can run`, nodeId: undefined as string | undefined })),
       ...getWorkflowProblems(decisions),
     ];
-    const canRevert = !!workflowId && !!chatStartedAt && changes.length > 0;
     if (changes.length === 0 && problems.length === 0) return null;
     // The change list is folded by default, like finished steps
     const changesOpen = !!openGroups['summary-changes'];
@@ -837,11 +973,6 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
             })}
           </>
         )}
-        {canRevert && (
-          <Button size="small" disableRipple disabled={reverting} onClick={revert} sx={{ ...linkButtonSx, mt: 1 }}>
-            {reverting ? 'Reverting...' : 'Revert all changes from this chat'}
-          </Button>
-        )}
       </Box>
     );
   };
@@ -856,21 +987,6 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
 
   const composer = (
     <>
-    {/* Past chats sits with the composer, so it stays visible however far the chat is scrolled */}
-    {showPastChats && onOpenRun && (
-      <Box sx={{ mb: 1, maxHeight: '45vh', overflow: 'auto', border: '1px solid hsl(var(--border))', borderRadius: 2, bgcolor: 'hsl(var(--background))' }}>
-        <AgentActivityList
-          apiBaseUrl={apiBaseUrl}
-          showStatusChips={false}
-          top={25}
-          limit={25}
-          onRunClick={(run) => {
-            setShowPastChats(false);
-            onOpenRun(run.execution_id, run.authorization, run.status);
-          }}
-        />
-      </Box>
-    )}
     <Box
       component="form"
       onSubmit={(e) => { e.preventDefault(); send(); }}
@@ -917,14 +1033,6 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
             </Select>
           </Tooltip>
         )}
-        {onOpenRun && (
-          <Button size="small" disableRipple onClick={() => setShowPastChats((open) => !open)} sx={{ ...linkButtonSx, whiteSpace: 'nowrap' }}>
-            {showPastChats ? 'Hide past chats' : 'Past chats'}
-          </Button>
-        )}
-        {onNewChat && executionId && !busy && (
-          <Button size="small" disableRipple onClick={() => { setShowPastChats(false); onNewChat(); }} sx={{ ...linkButtonSx, whiteSpace: 'nowrap' }}>New chat</Button>
-        )}
         <Box sx={{ flex: 1 }} />
         {isRunning && !waitingQuestion ? (
           <Button size="small" variant="outlined" disabled={stopping} onClick={onStop} sx={outlinedActionButtonSx}>{stopping ? 'Stopping...' : 'Stop'}</Button>
@@ -938,13 +1046,242 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
     </>
   );
 
+  const renderRevertConfirm = () => {
+    if (!revertTarget) return null;
+    const undone = getChangesAfter(decisions, labels, revertTarget.until);
+    const whole = revertTarget.until === chatStartedAt;
+    const close = () => { if (!reverting) setRevertTarget(null); };
+    return (
+      <Popover
+        open
+        anchorEl={revertTarget.anchor}
+        onClose={close}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{
+          paper: {
+            sx: {
+              mt: 1, p: 1.5, width: 320,
+              bgcolor: 'hsl(var(--card))', color: 'hsl(var(--foreground))',
+              border: '1px solid hsl(var(--border))', backgroundImage: 'none',
+            },
+          },
+        }}
+      >
+        <Typography sx={{ ...textSx, fontWeight: 600 }}>{whole ? 'Revert all changes from this chat?' : 'Revert workflow to this point?'}</Typography>
+        <Typography sx={{ ...mutedSx, mt: 0.5, mb: 0.75 }}>
+          Undoes {undone.length} change{undone.length === 1 ? '' : 's'} the agent made {whole ? 'in this chat' : 'after this message'}:
+        </Typography>
+        <Box component="ul" sx={{ m: 0, pl: 2.25, maxHeight: 180, overflowY: 'auto' }}>
+          {undone.map((text, index) => (
+            <Typography component="li" key={index} sx={{ ...textSx, fontSize: '0.75rem' }}>{text}</Typography>
+          ))}
+        </Box>
+        <Typography sx={{ ...mutedSx, mt: 1 }}>Anything saved since then is replaced too, including your own edits and other people's.</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1.5 }}>
+          <Button size="small" variant="outlined" disabled={reverting} onClick={close} sx={outlinedActionButtonSx}>Cancel</Button>
+          <Button size="small" variant="contained" disabled={reverting} onClick={() => revert(revertTarget.until)} sx={primaryActionButtonSx}>
+            {reverting ? 'Reverting...' : 'Revert'}
+          </Button>
+        </Box>
+      </Popover>
+    );
+  };
+
+  // Header: bookmark this chat, chat history, new chat
+  const bookmarked = !!executionId && bookmarks.some((bookmark) => bookmark.execution_id === executionId);
+  const toggleBookmark = () => {
+    if (!executionId) return;
+    const next = bookmarked
+      ? bookmarks.filter((bookmark) => bookmark.execution_id !== executionId)
+      : [{
+        execution_id: executionId,
+        authorization: execution?.authorization,
+        title: getRunTitle(execution as unknown as AgentRun),
+        started_at: String((execution as { started_at?: unknown } | undefined)?.started_at || ''),
+        workflow_id: workflowId || undefined,
+      }, ...bookmarks];
+    setBookmarks(next);
+    writeBookmarks(next);
+  };
+
+  // The light list (no conversations) loads in the background when the chat opens, and again on
+  // each open of history; the last list shows meanwhile, so it opens instantly
+  const loadHistory = useCallback(() => {
+    setHistoryError('');
+    searchAgentActivity({ limit: 50, apiBaseUrl, workflowId: 'AGENT', light: true })
+      .then((result) => {
+        if (result.success) setHistoryRuns(result.runs || []);
+        else setHistoryError('Could not load your chats');
+      })
+      .catch(() => setHistoryError('Could not load your chats'));
+  }, [apiBaseUrl]);
+
+  useEffect(() => {
+    if (onOpenRun) loadHistory();
+  }, [loadHistory, onOpenRun]);
+
+  const openHistory = (anchor: HTMLElement) => {
+    setHistoryAnchor(anchor);
+    setHistoryQuery('');
+    loadHistory();
+  };
+
+  const openChat = (chatId: string, authorization?: string, runStatus?: string) => {
+    setHistoryAnchor(null);
+    if (chatId !== executionId) onOpenRun?.(chatId, authorization, runStatus);
+  };
+
+  const headerActions = (
+    <>
+      <Tooltip title={!executionId ? 'Send a message first to bookmark this chat' : bookmarked ? 'Remove bookmark' : 'Bookmark this chat'}>
+        <span>
+          <IconButton size="small" aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark this chat'} aria-pressed={bookmarked} disabled={!executionId} onClick={toggleBookmark} sx={headerIconButtonSx}>
+            <Bookmark size={16} fill={bookmarked ? 'currentColor' : 'none'} />
+          </IconButton>
+        </span>
+      </Tooltip>
+      {onOpenRun && (
+        <Tooltip title="Chat history">
+          <IconButton size="small" aria-label="Chat history" aria-haspopup="dialog" onClick={(event) => openHistory(event.currentTarget)} sx={headerIconButtonSx}>
+            <History size={16} />
+          </IconButton>
+        </Tooltip>
+      )}
+      {onNewChat && (
+        <Tooltip title="New chat">
+          <span>
+            <IconButton size="small" aria-label="New chat" disabled={!executionId || busy} onClick={onNewChat} sx={headerIconButtonSx}>
+              <MessageCirclePlus size={16} />
+            </IconButton>
+          </span>
+        </Tooltip>
+      )}
+    </>
+  );
+
+  const renderHistory = () => {
+    const query = historyQuery.trim().toLowerCase();
+    const items = historyTab === 'bookmarked'
+      ? bookmarks.map((bookmark) => ({ id: bookmark.execution_id, authorization: bookmark.authorization, status: undefined as string | undefined, title: bookmark.title, startedAt: bookmark.started_at, workflowId: bookmark.workflow_id }))
+      : (historyRuns || []).map((run) => ({ id: run.execution_id, authorization: run.authorization, status: run.status as string | undefined, title: getRunTitle(run), startedAt: run.started_at, workflowId: run.execution_argument }));
+    const shown = items
+      .filter((item) => !query || item.title.toLowerCase().includes(query))
+      .sort((a, b) => Number(b.startedAt || 0) - Number(a.startedAt || 0));
+    // A chat on a workflow keeps that workflow's ID as its argument
+    const sections = workflowId
+      ? [
+        { label: 'This workflow', items: shown.filter((item) => item.workflowId === workflowId) },
+        { label: 'Other chats', items: shown.filter((item) => item.workflowId !== workflowId) },
+      ]
+      : [{ label: '', items: shown }];
+    const loading = historyTab === 'all' && historyRuns === null && !historyError;
+    const emptyText = historyTab === 'all' && historyError
+      ? historyError
+      : query ? 'No chats match your search'
+        : historyTab === 'bookmarked' ? 'No bookmarked chats yet. Bookmark one from the top of a chat.' : 'No chats yet';
+
+    return (
+      <Popover
+        open={!!historyAnchor}
+        anchorEl={historyAnchor}
+        onClose={() => setHistoryAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{
+          paper: {
+            sx: {
+              mt: 1, p: 1, width: 360, maxWidth: 'calc(100vw - 32px)',
+              bgcolor: 'hsl(var(--card))', color: 'hsl(var(--foreground))', backgroundImage: 'none',
+              border: '1px solid hsl(var(--border))', borderRadius: '12px', boxShadow: '0 12px 32px rgba(0, 0, 0, 0.28)',
+            },
+          },
+        }}
+      >
+        <Box role="tablist" aria-label="Chats" sx={{ display: 'flex', p: 0.375, gap: 0.375, borderRadius: '10px', bgcolor: 'hsl(var(--muted) / 0.6)' }}>
+          {(['all', 'bookmarked'] as const).map((tab) => {
+            const active = historyTab === tab;
+            return (
+              <ButtonBase
+                key={tab}
+                role="tab"
+                aria-selected={active}
+                onClick={() => setHistoryTab(tab)}
+                sx={{
+                  flex: 1, py: 0.75, borderRadius: '8px', fontSize: '0.8125rem', fontWeight: active ? 600 : 500,
+                  color: active ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
+                  bgcolor: active ? 'hsl(var(--background))' : 'transparent',
+                  boxShadow: active ? '0 1px 2px rgba(0, 0, 0, 0.2)' : 'none',
+                  transition: 'background-color 0.15s ease, color 0.15s ease',
+                  '&:hover': { color: 'hsl(var(--foreground))' },
+                }}
+              >
+                {tab === 'all' ? 'All chats' : `Bookmarked${bookmarks.length ? ` (${bookmarks.length})` : ''}`}
+              </ButtonBase>
+            );
+          })}
+        </Box>
+        <InputBase
+          autoFocus
+          fullWidth
+          value={historyQuery}
+          onChange={(event) => setHistoryQuery(event.target.value)}
+          placeholder="Search chats..."
+          inputProps={{ 'aria-label': 'Search chats' }}
+          sx={{ mt: 1, px: 1.25, py: 0.5, fontSize: '0.8125rem', color: 'hsl(var(--foreground))', borderBottom: '1px solid hsl(var(--border) / 0.6)' }}
+        />
+        <Box sx={{ mt: 0.75, maxHeight: 380, overflowY: 'auto' }}>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={16} sx={{ color: 'hsl(var(--muted-foreground))' }} /></Box>
+          ) : shown.length === 0 ? (
+            <Typography sx={{ ...mutedSx, px: 1.25, py: 2.5, textAlign: 'center' }}>{emptyText}</Typography>
+          ) : sections.map((section, sectionIndex) => (section.items.length === 0 && !section.label ? null : (
+            <Box key={section.label || 'all'} role="group" aria-label={section.label || undefined} sx={{ mt: sectionIndex > 0 ? 1 : 0 }}>
+              {section.label && (
+                <Typography sx={{ ...mutedSx, fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', px: 1.25, pt: 0.5, pb: 0.5 }}>
+                  {section.label}
+                </Typography>
+              )}
+              {section.items.length === 0 && (
+                <Typography sx={{ ...mutedSx, px: 1.25, pb: 0.75 }}>
+                  {query ? 'No matching chats' : historyTab === 'bookmarked' ? 'No bookmarked chats here' : 'No chats yet'}
+                </Typography>
+              )}
+              {section.items.map((item) => {
+            const current = item.id === executionId;
+            return (
+              <ButtonBase
+                key={item.id}
+                onClick={() => openChat(item.id, item.authorization, item.status)}
+                aria-current={current ? 'true' : undefined}
+                sx={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 1.5, px: 1.25, py: 0.875, borderRadius: '8px', textAlign: 'left',
+                  bgcolor: current ? 'hsl(var(--muted))' : 'transparent',
+                  '&:hover, &.Mui-focusVisible': { bgcolor: 'hsl(var(--muted) / 0.7)' },
+                }}
+              >
+                <Typography noWrap sx={{ ...textSx, flex: 1, minWidth: 0, fontWeight: current ? 600 : 400 }}>{item.title}</Typography>
+                <Typography sx={{ ...mutedSx, flexShrink: 0 }}>{shortTimeAgo(item.startedAt)}</Typography>
+              </ButtonBase>
+            );
+              })}
+            </Box>
+          )))}
+        </Box>
+      </Popover>
+    );
+  };
+
   const stalled = stalledFor > STALL_MS;
 
   return (
     // contentPaddingX is plain pixels: MUI multiplies numeric spacing values by
     // the theme's 8px unit, so 15 would become 120px.
     <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', minHeight: 0, pl: contentPaddingX ? `${contentPaddingX}px` : 0, pr: contentPaddingX ? `${contentPaddingX}px` : 0 }}>
-
+      {headerActionsContainer
+        ? createPortal(headerActions, headerActionsContainer)
+        : <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.25 }}>{headerActions}</Box>}
+      {renderHistory()}
       {!executionId && !busy && thread.length === 0 && (
         <Box sx={{ py: 3, textAlign: 'center' }}>
           <Typography sx={{ ...textSx, fontWeight: 600 }}>Chat with the agent</Typography>
@@ -965,6 +1302,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
       )}
       {renderWaiting()}
       {renderSummary()}
+      {renderRevertConfirm()}
 
       {stopped && (
         <Box sx={{ my: 1, p: 1.25, border: '1px solid hsl(var(--destructive) / 0.4)', borderRadius: 2 }}>

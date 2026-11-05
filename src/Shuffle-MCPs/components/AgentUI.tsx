@@ -122,8 +122,9 @@ import { getToolsForSkill, AGENT_TOOLS_CHANGED_EVENT } from '@/lib/agentTools';
 
 import { useAgentPromptPrefix } from '@/Shuffle-MCPs/useAgentPromptPrefix';
 import { runAgent, resolveAgentNodeId } from '@/Shuffle-MCPs/agentRun';
-import AgentChatView from '@/Shuffle-MCPs/components/AgentChatView';
+import AgentChatView, { readMode as readChatMode } from '@/Shuffle-MCPs/components/AgentChatView';
 import {
+  ASK_FIRST_PREFIX,
   describeOperation as describeChatOperation,
   getNodeLabels as getChatNodeLabels,
   getOperations as getChatOperations,
@@ -1035,6 +1036,8 @@ export interface AgentUIProps {
    * - Provides independent scroll container for middle content without top clipping
    */
   sidebarLayout?: boolean;
+  /** Element in the host's header (the sidebar's) that the chat renders its bookmark, history and new chat buttons into. */
+  headerActionsContainer?: HTMLElement | null;
   /**
    * Optional callback to transform/compose raw prompt input before submitting to the backend
    * (e.g. pre-injecting dynamic documentation markdown).
@@ -2614,6 +2617,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
   isSupport,
   presetCtas,
   sidebarLayout = false,
+  headerActionsContainer = null,
   composeSubmitInput: propComposeSubmitInput,
   contextParams,
   incidentId: propIncidentId,
@@ -3292,11 +3296,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
         return false;
       }
     }
-    // Chat has its own composer, so it opens without the Start form unless the
-    // user last chose Start here. 'simple' is the retired name for Chat.
-    if (initialView === 'chat' || initialView === 'simple') {
-      return !!contextStorageKey && getPageContextChoice(contextStorageKey)?.viewMode === 'start';
-    }
+    // No run yet: the Start form is the empty state, also for hosts that open in Chat.
     return true;
   });
 
@@ -4324,6 +4324,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // Chat sessions: open an earlier run, or clear the current one so the next message starts a new run.
   // Either way the choice is remembered for this page, like any other run.
   const openChatRun = useCallback((eid: string, auth?: string, status?: string) => {
+    userPickedStartRef.current = false;
+    setShowStarter(false);
     activeExecutionIdRef.current = eid;
     setAgentData({});
     setError(null);
@@ -4338,6 +4340,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
     setAgentData({});
     setError(null);
     setPollWarning(null);
+    setActionInput('');
     // "New chat" hands the user back to the Start tab: the run is cleared and
     // the prompt form is ready for the next question. Hosts that hide the
     // Start tab keep the previous behaviour and stay in Chat.
@@ -5727,13 +5730,14 @@ const AgentUI: React.FC<AgentUIProps> = ({
 
 
   const handlePrimarySubmit = useCallback(() => {
-    const composed = composeSubmitInput(actionInput);
+    let composed = composeSubmitInput(actionInput);
+    if (resolvedWorkflowId && readChatMode() === 'ask') composed = ASK_FIRST_PREFIX + composed;
     if (submitOverride) {
       submitOverride({ input: composed, apps: chosenApps });
     } else {
       submitInput(composed);
     }
-  }, [submitOverride, actionInput, chosenApps, submitInput, composeSubmitInput]);
+  }, [submitOverride, actionInput, chosenApps, submitInput, composeSubmitInput, resolvedWorkflowId]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     // Autocomplete navigation takes priority over the normal submit shortcut
@@ -8158,6 +8162,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
             )}
           </Box>
         ) : viewMode === 'chat' ? (
+          <Box sx={{ display: 'contents', '& > *': { animation: 'agentChatIn 280ms ease-out' }, '@keyframes agentChatIn': { from: { opacity: 0, transform: 'translateY(12px)' }, to: { opacity: 1, transform: 'none' } } }}>
           <AgentChatView
             execution={execution}
             agentData={agentData}
@@ -8173,7 +8178,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
             // holds the composer (see setChatComposerEl below) is widened by
             // the same amount so the two stay lined up.
             contentPaddingX={sidebarLayout ? 15 : 0}
-
+            headerActionsContainer={headerActionsContainer}
             onStart={(text) => submitInput(text)}
             onSubmit={submitQuestions}
             onStop={safeHandler('Stop', abortAgent)}
@@ -8263,6 +8268,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
               });
             }}
           />
+          </Box>
         ) : (
           <Box sx={{ pb: sidebarLayout ? 1.5 : '200px' }}>
             {/* Status row */}

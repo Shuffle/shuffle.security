@@ -161,7 +161,7 @@ export const getStatusTone = (text: string): Exclude<AgentTone, 'note'> | null =
 
 /** Dry runs and no-ops have no reverted_to. */
 export const isAppliedRevert = (decision?: ChatDecision | null): boolean =>
-  isAction(decision, 'revert_workflow') && !!findInResult(getResult(decision), (v) => !Array.isArray(v) && 'reverted_to' in v);
+  isAction(decision, 'post_revert_workflow', 'revert_workflow') && !!findInResult(getResult(decision), (v) => !Array.isArray(v) && 'reverted_to' in v);
 
 export const getFailureReason = (decision?: ChatDecision | null): string => {
   const result = getResult(decision);
@@ -276,7 +276,12 @@ export const describeStep = (decision: ChatDecision, labels: Record<string, stri
   }
   if (isAction(decision, 'post_create_workflow')) return { label: 'Created a new workflow', details: [] };
   if (isAction(decision, 'post_run_workflow')) return { label: 'Ran the workflow', details: [] };
-  if (isAction(decision, 'get_workflow_execution', 'post_check_execution_results')) return { label: 'Checked the run results', details: [] };
+  if (isAction(decision, 'get_workflow_run', 'get_workflow_execution', 'post_check_execution_results')) return { label: 'Checked the run results', details: [] };
+  if (isAction(decision, 'get_workflow_runs')) return { label: 'Looked through the recent runs', details: [] };
+  if (isAction(decision, 'get_workflow_revisions')) return { label: 'Listed the saved versions', details: [] };
+  if (isAction(decision, 'post_compare_workflow')) return { label: 'Compared two versions', details: [] };
+  if (isAction(decision, 'post_revert_workflow')) return { label: 'Reverted the workflow', details: [] };
+  if (isAction(decision, 'get_workflow_issues')) return { label: 'Checked the workflow for issues', details: [] };
   if (isAction(decision, 'get_apps_summary')) return { label: "Listed the org's apps", details: [] };
   return { label: [humanize(decision.tool), humanize(decision.action)].filter(Boolean).join(': ') || 'Step', details: [] };
 };
@@ -533,8 +538,10 @@ export const getLatestChanges = (
 
 export const getChangesAfter = (decisions: ChatDecision[], labels: Record<string, string>, until: number): string[] =>
   decisions
-    .filter((decision) => isAction(decision, 'put_agent_update') && getStepStatus(decision) === 'done' && toSeconds(decision.run_details?.completed_at) > until)
-    .flatMap((decision) => getOperations(decision).filter((op) => op?.op !== 'save_workflow').map((op) => describeOperation(op, labels)));
+    .filter((decision) => (isAction(decision, 'put_agent_update') || isAppliedRevert(decision)) && getStepStatus(decision) === 'done' && toSeconds(decision.run_details?.completed_at) > until)
+    .flatMap((decision) => isAppliedRevert(decision)
+      ? [`Reverted to ${findInResult(getResult(decision), (v) => !Array.isArray(v) && 'reverted_to' in v)?.reverted_to || 'an earlier version'}`]
+      : getOperations(decision).filter((op) => op?.op !== 'save_workflow').map((op) => describeOperation(op, labels)));
 
 /** Problems the last workflow edit reported (node errors), for a "before you run" list. */
 export const getWorkflowProblems = (

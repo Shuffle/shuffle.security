@@ -36,7 +36,8 @@ import {
   getCalloutTone,
   getChangedNodeIds,
   getChangesAfter,
-  getLatestChanges,
+  getChatResources,
+  getRunResources,
   getDecisionOutput,
   getFailureReason,
   getNodeLabels,
@@ -67,6 +68,8 @@ import {
   type ChatWorkflowRun,
   stripModePrefix,
 } from '@/Shuffle-MCPs/agentChat';
+import type { ChatResource } from '@/Shuffle-MCPs/agentChat';
+import { resolveAgentContext, setPageContextChoice } from '@/Shuffle-MCPs/agentContextRegistry';
 
 // Agent replies only, so the shared renderer and its other callers stay unchanged
 // --warning isn't defined in every host theme, hence the fallback.
@@ -160,6 +163,8 @@ export interface AgentChatViewProps {
   onOpenRun?: (executionId: string, authorization?: string, status?: string) => void;
   /** Clears the current run so the next message starts a new one. */
   onNewChat?: () => void;
+  /** Opens a page of the host app (path with search). A full page load when omitted. */
+  onOpenPage?: (path: string) => void;
   /** Switches to the Timeline tab and highlights the exact decision (and operation, if any) that produced a change. */
   onFocusDecision?: (target: {
     decisionId?: string;
@@ -373,6 +378,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   apiBaseUrl,
   onOpenRun,
   onNewChat,
+  onOpenPage,
   onFocusDecision,
 }) => {
   const executionId = execution?.execution_id || '';
@@ -854,74 +860,17 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
 
   const renderSummary = () => {
     if (!finished) return null;
-    const changes = getLatestChanges(decisions, labels);
     const problems: { text: string; nodeId?: string; decisionId?: string; decisionIndex?: number }[] = [
       ...appsNeedingAuth.filter((app) => !isAppAuthenticated(app.name, app.id)).map((app) => ({ text: `${app.name} needs credentials before it can run`, nodeId: undefined as string | undefined })),
       ...getWorkflowProblems(decisions),
     ];
-    if (changes.length === 0 && problems.length === 0) return null;
-    // The change list is folded by default, like finished steps
-    const changesOpen = !!openGroups['summary-changes'];
-    const toggleChanges = () => setOpenGroups((prev) => ({ ...prev, 'summary-changes': !changesOpen }));
+    if (problems.length === 0) return null;
 
     return (
       <Box sx={{ my: 1.25, p: 1.5, border: '1px solid hsl(var(--border))', borderRadius: 2 }}>
-        {changes.length > 0 && (
-          <>
-            <Box
-              role="button"
-              tabIndex={0}
-              onClick={toggleChanges}
-              onKeyDown={(e) => { if (e.key === 'Enter') toggleChanges(); }}
-              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', mb: changesOpen ? 0.5 : 0 }}
-            >
-              <Typography sx={{ ...mutedSx, flex: 1 }}>Changed · {changes.length} change{changes.length === 1 ? '' : 's'}</Typography>
-              <Typography sx={mutedSx}>{changesOpen ? 'Hide' : 'Show'}</Typography>
-            </Box>
-            {changesOpen && changes.map((change, index) => {
-              const linked = Boolean(onFocusDecision || (change.nodeId && workflowId));
-              const handleSelectChange = () => {
-                focusNode(change.nodeId);
-                onFocusDecision?.({
-                  decisionId: change.decisionId,
-                  decisionIndex: change.decisionIndex,
-                  operationIndex: change.operationIndex,
-                  changeText: change.text,
-                  nodeId: change.nodeId,
-                });
-              };
-              return (
-                <Typography
-                  key={index}
-                  role={linked ? 'button' : undefined}
-                  tabIndex={linked ? 0 : undefined}
-                  onClick={linked ? handleSelectChange : undefined}
-                  onKeyDown={linked ? (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handleSelectChange();
-                    }
-                  } : undefined}
-                  sx={{
-                    ...textSx,
-                    cursor: linked ? 'pointer' : 'default',
-                    borderRadius: 1,
-                    px: 0.5,
-                    mx: -0.5,
-                    py: 0.15,
-                    transition: 'color 0.15s ease, background-color 0.15s ease',
-                    '&:hover': linked ? { color: 'hsl(var(--foreground))', bgcolor: 'hsl(var(--muted) / 0.5)', textDecoration: 'underline' } : undefined,
-                  }}
-                >
-                  {change.text}
-                </Typography>
-              );
-            })}
-          </>
-        )}
         {problems.length > 0 && (
           <>
-            <Typography sx={{ ...mutedSx, mt: changes.length ? 1.25 : 0, mb: 0.5 }}>Needs attention before running</Typography>
+            <Typography sx={{ ...mutedSx, mb: 0.5 }}>Needs attention before running</Typography>
             {problems.map((problem, index) => {
               const linkedProblem = Boolean(
                 (onFocusDecision && (problem.decisionId !== undefined || problem.decisionIndex !== undefined)) ||
@@ -961,6 +910,40 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
             })}
           </>
         )}
+      </Box>
+    );
+  };
+
+  // The pages of what the agent created or changed elsewhere, e.g. the workflow it built from the docs.
+  // Opening one makes this chat that page's chat, so it is there when the user comes back.
+  const openResource = (resource: ChatResource) => {
+    if (!resource.url || !executionId) return;
+    const authorization = execution?.authorization || '';
+    setPageContextChoice(resolveAgentContext(resource.url).storageKey, {
+      executionId,
+      authorization: authorization || null,
+      executionStatus: status || null,
+      viewMode: 'chat',
+    });
+    const search = new URLSearchParams({ execution_id: executionId, ...(authorization ? { authorization } : {}), agentView: 'chat' });
+    const target = `${resource.url}?${search.toString()}`;
+    if (onOpenPage) onOpenPage(target);
+    else window.location.assign(target);
+  };
+
+  const renderResourceLinks = () => {
+    if (!finished || !executionId || typeof window === 'undefined') return null;
+    const here = window.location.pathname.replace(/\/+$/, '');
+    const elsewhere = getChatResources(decisions).filter((resource) => resource.url && resource.url.replace(/\/+$/, '') !== here);
+    if (elsewhere.length === 0) return null;
+
+    return (
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, my: 1.25 }}>
+        {elsewhere.map((resource) => (
+          <Button key={`${resource.kind}:${resource.id}`} size="small" variant="outlined" onClick={() => openResource(resource)} sx={replySx}>
+            {resource.name ? `Open ${resource.name}` : `Open the ${resource.kind}`}
+          </Button>
+        ))}
       </Box>
     );
   };
@@ -1148,16 +1131,18 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
   const renderHistory = () => {
     const query = historyQuery.trim().toLowerCase();
     const items = historyTab === 'bookmarked'
-      ? bookmarks.map((bookmark) => ({ id: bookmark.execution_id, authorization: bookmark.authorization, status: undefined as string | undefined, title: bookmark.title, startedAt: bookmark.started_at, workflowId: bookmark.workflow_id }))
-      : (historyRuns || []).map((run) => ({ id: run.execution_id, authorization: run.authorization, status: run.status as string | undefined, title: getRunTitle(run), startedAt: run.started_at, workflowId: run.execution_argument }));
+      ? bookmarks.map((bookmark) => ({ id: bookmark.execution_id, authorization: bookmark.authorization, status: undefined as string | undefined, title: bookmark.title, startedAt: bookmark.started_at, workflowIds: [bookmark.workflow_id] }))
+      : (historyRuns || []).map((run) => ({ id: run.execution_id, authorization: run.authorization, status: run.status as string | undefined, title: getRunTitle(run), startedAt: run.started_at,
+        // A chat belongs to the workflow it started on and to every workflow it created or changed
+        workflowIds: [run.execution_argument, ...getRunResources(run).filter((resource) => resource.kind === 'workflow').map((resource) => resource.id)] }));
     const shown = items
       .filter((item) => !query || item.title.toLowerCase().includes(query))
       .sort((a, b) => Number(b.startedAt || 0) - Number(a.startedAt || 0));
     // A chat on a workflow keeps that workflow's ID as its argument
     const sections = workflowId
       ? [
-        { label: 'This workflow', items: shown.filter((item) => item.workflowId === workflowId) },
-        { label: 'Other chats', items: shown.filter((item) => item.workflowId !== workflowId) },
+        { label: 'This workflow', items: shown.filter((item) => item.workflowIds.includes(workflowId)) },
+        { label: 'Other chats', items: shown.filter((item) => !item.workflowIds.includes(workflowId)) },
       ]
       : [{ label: '', items: shown }];
     const loading = historyTab === 'all' && historyRuns === null && !historyError;
@@ -1287,6 +1272,7 @@ export const AgentChatView: React.FC<AgentChatViewProps> = ({
       )}
       {renderWaiting()}
       {renderSummary()}
+      {renderResourceLinks()}
       {renderRevertConfirm()}
 
       {stopped && (

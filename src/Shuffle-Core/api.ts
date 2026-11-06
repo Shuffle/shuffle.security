@@ -163,10 +163,16 @@ const getEnvVar = (key: string): string | undefined => {
     const meta = (new Function('try { return import.meta } catch { return undefined }')()) as
       | { env?: Record<string, string | undefined> }
       | undefined;
-    return meta?.env?.[key];
+    if (meta?.env?.[key]) return meta.env[key];
   } catch {
-    return undefined;
+    /* not an ES module: fall through to the runtime config */
   }
+
+  // Runtime config: injected by Docker images, and by the host app with its build-time env
+  const runtime = globalThis as typeof globalThis & Record<'__SHUFFLE_CONFIG__' | '_env_' | '__ENV__', Record<string, unknown> | undefined>;
+  const config = runtime.__SHUFFLE_CONFIG__ || runtime._env_ || runtime.__ENV__;
+  const value = config?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 };
 
 // Determine if we're in Lovable preview (dev) or published (prod)

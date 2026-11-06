@@ -287,6 +287,31 @@ export const describeStep = (decision: ChatDecision, labels: Record<string, stri
 };
 
 /** Node ids a finished workflow edit touched, for highlighting on a canvas. */
+/** Something the agent created or changed (a workflow, an incident ...), declared by the app's
+ *  spec (x-shuffle-resource) and added to the step result by the backend. `url` is its page. */
+export type ChatResource = { kind: string; id: string; name?: string; url?: string };
+
+/** Every item the chat created or changed, once each; later steps know the latest name. */
+export const getChatResources = (decisions: ChatDecision[]): ChatResource[] => {
+  const byKey = new Map<string, ChatResource>();
+  for (const decision of decisions) {
+    const resource = getStepStatus(decision) === 'done' ? getResult(decision)?.resource : null;
+    if (!resource?.kind || !resource?.id) continue;
+    const key = `${resource.kind}:${resource.id}`;
+    byKey.set(key, { ...resource, name: resource.name || byKey.get(key)?.name });
+  }
+  return [...byKey.values()];
+};
+
+/** The same for a chat in the history list: light runs carry `resources` in their summary. */
+export const getRunResources = (run: BackendJson): ChatResource[] => {
+  for (const result of Array.isArray(run?.results) ? run.results : []) {
+    const resources = parseJson(result?.result)?.resources;
+    if (Array.isArray(resources)) return resources;
+  }
+  return [];
+};
+
 export const getChangedNodeIds = (decision: ChatDecision): string[] => {
   const response = getOpsResponse(decision);
   const ids: string[] = [];

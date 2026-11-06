@@ -3419,6 +3419,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
    */
   const [runExplorerAvailable, setRunExplorerAvailable] = useState<'checking' | 'yes' | 'no'>('checking');
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const initialViewParam = searchParams.get('agentView');
 
   // Chat is the default run view. Timeline only wins when the user has
@@ -4200,6 +4201,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // ── Fetch execution result (poll-friendly) ──
   // Last polled payload, so an unchanged poll doesn't rebuild every piece of state
   const lastPollTextRef = useRef('');
+  // Set below: getExecution runs before startNewChat is defined
+  const startNewChatRef = useRef<(keepInput?: boolean) => void>(() => {});
   const getExecution = useCallback(async (executionId: string, authorization?: string, skipIfUnchanged = false) => {
     const pollGeneration = executionPollGenerationRef.current;
     if (loadedExecutionIdRef.current !== executionId) hasExecutionDataRef.current = false;
@@ -4237,6 +4240,12 @@ const AgentUI: React.FC<AgentUIProps> = ({
             const text = (await resp.clone().text())?.trim();
             if (text && text.length < 300 && !text.startsWith('<')) reason = text;
           } catch { /* ignore */ }
+        }
+        // A remembered run that doesn't exist on this backend (deleted, or saved while using
+        // another one): forget it and show Start, keeping whatever the user has typed
+        if (resp.status === 404 && !hasExecutionDataRef.current) {
+          startNewChatRef.current(true);
+          return;
         }
         // A single failed poll must not hide a timeline we already rendered.
         if (!hasExecutionDataRef.current) {
@@ -4334,13 +4343,13 @@ const AgentUI: React.FC<AgentUIProps> = ({
     getExecution(eid, auth);
   }, [getExecution]);
 
-  const startNewChat = useCallback(() => {
+  const startNewChat = useCallback((keepInput = false) => {
     activeExecutionIdRef.current = null;
     setExecution(null);
     setAgentData({});
     setError(null);
     setPollWarning(null);
-    setActionInput('');
+    if (!keepInput) setActionInput('');
     // "New chat" hands the user back to the Start tab: the run is cleared and
     // the prompt form is ready for the next question. Hosts that hide the
     // Start tab keep the previous behaviour and stay in Chat.
@@ -4366,6 +4375,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
       }, { replace: true });
     }
   }, [contextStorageKey, readUrlParams, setSearchParams, disableStartTab]);
+  startNewChatRef.current = startNewChat;
 
   // ── Probe whether the execution sidebar can load this run ──
   // Uses the explorer's own fetch so the answer matches exactly what the
@@ -5783,7 +5793,9 @@ const AgentUI: React.FC<AgentUIProps> = ({
   // Timeline are available once an execution exists, so the user can flip back
   // and forth without losing the run.
   type TabKey = AgentUIView;
-  const activeTab: TabKey = showStarter ? 'start' : viewMode;
+  // The sidebar has no Start tab: its start page is the empty Chat, reached with New chat
+  const activeTab: TabKey = showStarter ? (sidebarLayout ? 'chat' : 'start') : viewMode;
+  const chatVisible = !showStarter && viewMode === 'chat';
   const hasExecution = !!execution?.execution_id;
   // Hosts that open in Chat keep the tabs visible, so Start stays reachable
   // before the first run.
@@ -6125,14 +6137,14 @@ const AgentUI: React.FC<AgentUIProps> = ({
         value={activeTab}
         onChange={(v) => goToTab(v as TabKey)}
         options={[
-          {
+          ...(sidebarLayout ? [] : [{
             value: 'start',
             label: 'Start',
             disabled: disableStartTab,
             title: disableStartTab
               ? 'Open a new agent run from the /agents page to start a new prompt'
               : 'Start: Write a new prompt and pick the tools to run it with',
-          },
+          }]),
           {
             value: 'chat',
             label: 'Chat',
@@ -6998,7 +7010,7 @@ const AgentUI: React.FC<AgentUIProps> = ({
         {!sidebarLayout && showRunSwitcher && tabBar}
         {schedulePopover}
         {mobilePlusMenu}
-        {showStarter ? (
+        {showStarter && (
           <Box
             component="form"
             onSubmit={(e) => { e.preventDefault(); handlePrimarySubmit(); }}
@@ -8161,8 +8173,11 @@ const AgentUI: React.FC<AgentUIProps> = ({
               </Box>
             )}
           </Box>
-        ) : viewMode === 'chat' ? (
-          <Box sx={{ display: 'contents', '& > *': { animation: 'agentChatIn 280ms ease-out' }, '@keyframes agentChatIn': { from: { opacity: 0, transform: 'translateY(12px)' }, to: { opacity: 1, transform: 'none' } } }}>
+        )}
+        {/* The sidebar keeps the chat mounted (hidden) on Start and Timeline so
+            its New chat / History / Bookmark buttons stay in the panel header */}
+        {(chatVisible || headerActionsContainer) && (
+          <Box sx={{ display: chatVisible ? 'contents' : 'none', '& > *': { animation: 'agentChatIn 280ms ease-out' }, '@keyframes agentChatIn': { from: { opacity: 0, transform: 'translateY(12px)' }, to: { opacity: 1, transform: 'none' } } }}>
           <AgentChatView
             execution={execution}
             agentData={agentData}
@@ -8199,7 +8214,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
             resolveHeaders={resolveHeaders}
             apiBaseUrl={apiBaseUrl}
             onOpenRun={openChatRun}
-            onNewChat={startNewChat}
+            onNewChat={() => startNewChat()}
+            onOpenPage={(path) => navigate(path)}
             onFocusDecision={(target) => {
               let rowIndex = -1;
               if (target.decisionId) {
@@ -8269,7 +8285,8 @@ const AgentUI: React.FC<AgentUIProps> = ({
             }}
           />
           </Box>
-        ) : (
+        )}
+        {!showStarter && viewMode !== 'chat' && (
           <Box sx={{ pb: sidebarLayout ? 1.5 : '200px' }}>
             {/* Status row */}
             <Box sx={{

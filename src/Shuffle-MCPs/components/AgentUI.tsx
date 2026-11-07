@@ -4810,6 +4810,14 @@ const AgentUI: React.FC<AgentUIProps> = ({
   ) => {
     if (!execution?.execution_id || !execution?.authorization) return;
 
+    if (isContinuation) {
+      try {
+        await onBeforeRunRef.current?.();
+      } catch (err) {
+        console.warn('[AgentUI] onBeforeRun failed, continuing anyway:', err);
+      }
+    }
+
     let newArgument: Record<string, string> = {};
     if (isContinuation) {
       newArgument = { ...answers };

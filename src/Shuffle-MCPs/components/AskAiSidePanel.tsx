@@ -122,6 +122,12 @@ export interface AskAiSidePanelProps extends ShuffleHostProps {
   rightOffset?: number;
   /** Keep the agent mounted while the panel is closed, e.g. so a run in progress is still followed. Default false. */
   keepMounted?: boolean;
+  /**
+   * The host docks the panel as one of its own side panels and owns the edge: it sizes the panel (`width`),
+   * draws the resize handle and switches panels without animating. The panel then has no resize handle,
+   * no slide and no shadow of its own. Default false.
+   */
+  docked?: boolean;
   /** Panel width in pixels. Default: 380 */
   width?: number;
   /** Theme override forwarded to AgentUI */
@@ -179,6 +185,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   isSupport,
   rightOffset = 0,
   keepMounted = false,
+  docked = false,
   width = 380,
   theme,
   globalUrl,
@@ -676,6 +683,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   });
 
   const [isResizing, setIsResizing] = useState(false);
+  const [headerActionsEl, setHeaderActionsEl] = useState<HTMLDivElement | null>(null);
 
   // Sync prop changes if caller passes an explicit width prop different from current default
   const prevWidthPropRef = useRef(width);
@@ -817,9 +825,11 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
   }, [panelWidth, rightOffset]);
 
   const effectiveWidth =
-    safeActiveTab === 'localLLM'
-      ? Math.max(panelWidth, 520)
-      : panelWidth;
+    docked
+      ? width
+      : safeActiveTab === 'localLLM'
+        ? Math.max(panelWidth, 520)
+        : panelWidth;
 
   const effectiveSideshift =
     layout !== undefined
@@ -925,12 +935,12 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
             pb: { xs: 'env(safe-area-inset-bottom, 0px)', sm: 0 },
             bgcolor: 'hsl(var(--card))',
             borderLeft: { xs: 'none', sm: '1px solid hsl(var(--border))' },
-            boxShadow: isVisible ? '-6px 0 24px rgba(0, 0, 0, 0.16)' : 'none',
+            boxShadow: isVisible && !docked ? '-6px 0 24px rgba(0, 0, 0, 0.16)' : 'none',
             zIndex: { xs: Math.max(panelZIndex, 1400), sm: panelZIndex },
             display: 'flex',
             flexDirection: 'column',
             transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
-            transition: isResizing
+            transition: isResizing || docked
               ? 'none'
               : `transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), right 0.2s ease, width 0.2s ease, box-shadow 0.3s ease, visibility 0s linear ${isVisible ? '0s' : '0.3s'}`,
             pointerEvents: isVisible ? 'auto' : 'none',
@@ -942,7 +952,8 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
           ...(Array.isArray(sx) ? sx : [sx]),
         ]}
       >
-        {/* Left-edge Resize Handle */}
+        {/* Left-edge Resize Handle (a docking host draws its own) */}
+        {!docked && (
         <Box
           onMouseDown={handleResizeStart}
           onTouchStart={handleTouchResizeStart}
@@ -991,6 +1002,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
             }}
           />
         </Box>
+        )}
 
         {/* Top Header Bar */}
         <Box
@@ -1055,6 +1067,10 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
 
           {/* Header Action Controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+            <Box
+              ref={setHeaderActionsEl}
+              sx={{ display: safeActiveTab === 'permissions' || safeActiveTab === 'localLLM' ? 'none' : 'flex', alignItems: 'center', gap: 0.25 }}
+            />
             <Tooltip
               title="Talk to support"
               arrow
@@ -1412,6 +1428,7 @@ export const AskAiSidePanel: React.FC<AskAiSidePanelProps> = ({
                 {...agentUIProps}
                 key={agentUiKey}
                 sidebarLayout={true}
+                headerActionsContainer={headerActionsEl}
                 compact={true}
                 mobileView={true}
                 hideHeroIcon={true}

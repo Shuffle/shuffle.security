@@ -785,8 +785,11 @@ const openInShuffle = async () => {
         fullWidth
         sx={{
           zIndex: debugModalZIndex,
+          // Keep the backdrop behind the paper: the paper keeps z-index auto,
+          // so a positive z-index here paints the dimmed layer over the dialog
+          // and swallows every click meant for its content.
           '& .MuiBackdrop-root': {
-            zIndex: debugModalZIndex,
+            zIndex: -1,
           },
         }}
         PaperProps={{

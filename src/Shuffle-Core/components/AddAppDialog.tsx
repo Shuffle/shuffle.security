@@ -389,8 +389,12 @@ export const AddAppDialog = ({
       maxWidth="sm"
       sx={{
         zIndex: dialogZIndex,
+        // The backdrop has to stay BEHIND the dialog paper inside this modal's
+        // stacking context: the paper keeps z-index auto, so any positive
+        // z-index on the backdrop paints it over the dialog and every click
+        // lands on the dimmed layer instead of the content.
         '& .MuiBackdrop-root': {
-          zIndex: dialogZIndex,
+          zIndex: -1,
         },
       }}
       PaperProps={{

@@ -135,6 +135,34 @@ export const getLookupApps = (decision?: ChatDecision | null): ChatLookupApp[] =
 export const getOpsResponse = (decision?: ChatDecision | null): BackendJson =>
   findInResult(getResult(decision), (v) => !Array.isArray(v) && ('operations_applied' in v || 'id_mapping' in v || 'failed_at_op' in v));
 
+export type AgentTone = 'error' | 'warning' | 'success' | 'note';
+
+const CALLOUT_TONES: Record<string, AgentTone> = {
+  ERROR: 'error', CAUTION: 'error', DANGER: 'error', FAILED: 'error', FAILURE: 'error',
+  WARNING: 'warning', WARN: 'warning', IMPORTANT: 'warning',
+  SUCCESS: 'success', SUCCEEDED: 'success', DONE: 'success', FIXED: 'success',
+  NOTE: 'note', INFO: 'note', TIP: 'note',
+};
+
+export const getCalloutTone = (text: string): { tone: AgentTone; rest: string } | null => {
+  const match = /^\s*\[!([A-Za-z]+)\][ \t]*/.exec(text || '');
+  const tone = match ? CALLOUT_TONES[match[1].toUpperCase()] : undefined;
+  return match && tone ? { tone, rest: text.slice(match[0].length) } : null;
+};
+
+/** Exact status words only, so ordinary inline code is never colored. */
+export const getStatusTone = (text: string): Exclude<AgentTone, 'note'> | null => {
+  const status = (text || '').trim().toUpperCase();
+  if (/^HTTP [45]\d\d$/.test(status) || ['FAILED', 'FAILURE', 'ERROR', 'ABORTED'].includes(status)) return 'error';
+  if (/^HTTP 2\d\d$/.test(status) || ['SUCCESS', 'OK', 'FINISHED', 'PASSED'].includes(status)) return 'success';
+  if (['WARNING', 'SKIPPED', 'STUCK', 'NOT_STARTED', 'NOT_RUN', 'PENDING'].includes(status)) return 'warning';
+  return null;
+};
+
+/** Dry runs and no-ops have no reverted_to. */
+export const isAppliedRevert = (decision?: ChatDecision | null): boolean =>
+  isAction(decision, 'post_revert_workflow', 'revert_workflow') && !!findInResult(getResult(decision), (v) => !Array.isArray(v) && 'reverted_to' in v);
+
 export const getFailureReason = (decision?: ChatDecision | null): string => {
   const result = getResult(decision);
   if (!result) {
@@ -248,12 +276,42 @@ export const describeStep = (decision: ChatDecision, labels: Record<string, stri
   }
   if (isAction(decision, 'post_create_workflow')) return { label: 'Created a new workflow', details: [] };
   if (isAction(decision, 'post_run_workflow')) return { label: 'Ran the workflow', details: [] };
-  if (isAction(decision, 'get_workflow_execution', 'post_check_execution_results')) return { label: 'Checked the run results', details: [] };
+  if (isAction(decision, 'get_workflow_run', 'get_workflow_execution', 'post_check_execution_results')) return { label: 'Checked the run results', details: [] };
+  if (isAction(decision, 'get_workflow_runs')) return { label: 'Looked through the recent runs', details: [] };
+  if (isAction(decision, 'get_workflow_revisions')) return { label: 'Listed the saved versions', details: [] };
+  if (isAction(decision, 'post_compare_workflow')) return { label: 'Compared two versions', details: [] };
+  if (isAction(decision, 'post_revert_workflow')) return { label: 'Reverted the workflow', details: [] };
+  if (isAction(decision, 'get_workflow_issues')) return { label: 'Checked the workflow for issues', details: [] };
   if (isAction(decision, 'get_apps_summary')) return { label: "Listed the org's apps", details: [] };
   return { label: [humanize(decision.tool), humanize(decision.action)].filter(Boolean).join(': ') || 'Step', details: [] };
 };
 
 /** Node ids a finished workflow edit touched, for highlighting on a canvas. */
+/** Something the agent created or changed (a workflow, an incident ...), declared by the app's
+ *  spec (x-shuffle-resource) and added to the step result by the backend. `url` is its page. */
+export type ChatResource = { kind: string; id: string; name?: string; url?: string };
+
+/** Every item the chat created or changed, once each; later steps know the latest name. */
+export const getChatResources = (decisions: ChatDecision[]): ChatResource[] => {
+  const byKey = new Map<string, ChatResource>();
+  for (const decision of decisions) {
+    const resource = getStepStatus(decision) === 'done' ? getResult(decision)?.resource : null;
+    if (!resource?.kind || !resource?.id) continue;
+    const key = `${resource.kind}:${resource.id}`;
+    byKey.set(key, { ...resource, name: resource.name || byKey.get(key)?.name });
+  }
+  return [...byKey.values()];
+};
+
+/** The same for a chat in the history list: light runs carry `resources` in their summary. */
+export const getRunResources = (run: BackendJson): ChatResource[] => {
+  for (const result of Array.isArray(run?.results) ? run.results : []) {
+    const resources = parseJson(result?.result)?.resources;
+    if (Array.isArray(resources)) return resources;
+  }
+  return [];
+};
+
 export const getChangedNodeIds = (decision: ChatDecision): string[] => {
   const response = getOpsResponse(decision);
   const ids: string[] = [];
@@ -502,6 +560,13 @@ export const getLatestChanges = (
   }
   return list;
 };
+
+export const getChangesAfter = (decisions: ChatDecision[], labels: Record<string, string>, until: number): string[] =>
+  decisions
+    .filter((decision) => (isAction(decision, 'put_agent_update') || isAppliedRevert(decision)) && getStepStatus(decision) === 'done' && toSeconds(decision.run_details?.completed_at) > until)
+    .flatMap((decision) => isAppliedRevert(decision)
+      ? [`Reverted to ${findInResult(getResult(decision), (v) => !Array.isArray(v) && 'reverted_to' in v)?.reverted_to || 'an earlier version'}`]
+      : getOperations(decision).filter((op) => op?.op !== 'save_workflow').map((op) => describeOperation(op, labels)));
 
 /** Problems the last workflow edit reported (node errors), for a "before you run" list. */
 export const getWorkflowProblems = (

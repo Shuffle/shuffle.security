@@ -282,3 +282,12 @@ export function installAllBrowserShims(): void {
 
 // Automatically install upon import
 installAllBrowserShims();
+
+// ==========================================
+// Build-time env for Shuffle-Core
+// ==========================================
+// Shuffle-Core can't read import.meta.env itself: it is also built as CJS, so its getEnvVar
+// only sees the runtime config object Docker images inject. Hand it this build's VITE_* vars
+// the same way; values the image injected at runtime still win.
+const runtimeConfigHost = globalThis as typeof globalThis & { __SHUFFLE_CONFIG__?: Record<string, unknown> };
+runtimeConfigHost.__SHUFFLE_CONFIG__ = { ...import.meta.env, ...(runtimeConfigHost.__SHUFFLE_CONFIG__ || {}) };

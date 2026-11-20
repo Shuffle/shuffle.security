@@ -60,6 +60,9 @@ export default defineConfig({
     'sonner',
     'html2canvas-pro',
     'jspdf',
+    /^@codemirror\//,
+    /^@lezer\//,
+    '@uiw/react-codemirror',
   ],
   loader: {
     '.css': 'copy',

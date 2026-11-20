@@ -72,6 +72,9 @@ export default defineConfig({
     'jspdf',
     /^@tanstack\//,
     /^@shuffleio\//,
+    /^@codemirror\//,
+    /^@lezer\//,
+    '@uiw/react-codemirror',
   ],
   esbuildPlugins: [
     // Redirect the host-specific router shim to react-router-dom and keep it

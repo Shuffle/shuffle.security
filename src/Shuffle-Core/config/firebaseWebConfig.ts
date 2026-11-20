@@ -14,11 +14,14 @@ export interface FirebaseWebCredentials {
 
 const STORAGE_VAPID_KEY = 'shuffle_firebase_vapid_key';
 
+const viteEnv: Record<string, string | undefined> =
+  (import.meta as { env?: Record<string, string | undefined> }).env ?? {};
+
 export const getStoredVapidKey = (): string => {
   if (typeof window === 'undefined') return '';
   const stored = localStorage.getItem(STORAGE_VAPID_KEY);
   if (stored) return stored.trim();
-  return (import.meta.env.VITE_FIREBASE_VAPID_KEY || '').trim();
+  return (viteEnv.VITE_FIREBASE_VAPID_KEY || '').trim();
 };
 
 export const saveStoredVapidKey = (key: string) => {
@@ -31,15 +34,15 @@ export const saveStoredVapidKey = (key: string) => {
 };
 
 const getFirebaseConfig = () => {
-  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'shuffle-security';
-  const senderId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1035252817088';
+  const projectId = viteEnv.VITE_FIREBASE_PROJECT_ID || 'shuffle-security';
+  const senderId = viteEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || '1035252817088';
   return {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDummyKeyForWebPushInit000000',
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${projectId}.firebaseapp.com`,
+    apiKey: viteEnv.VITE_FIREBASE_API_KEY || 'AIzaSyDummyKeyForWebPushInit000000',
+    authDomain: viteEnv.VITE_FIREBASE_AUTH_DOMAIN || `${projectId}.firebaseapp.com`,
     projectId,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${projectId}.appspot.com`,
+    storageBucket: viteEnv.VITE_FIREBASE_STORAGE_BUCKET || `${projectId}.appspot.com`,
     messagingSenderId: senderId,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || `1:${senderId}:web:00000000000000`,
+    appId: viteEnv.VITE_FIREBASE_APP_ID || `1:${senderId}:web:00000000000000`,
   };
 };
 

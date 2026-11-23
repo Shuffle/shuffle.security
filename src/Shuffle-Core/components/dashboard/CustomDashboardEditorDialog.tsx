@@ -7,6 +7,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -193,8 +194,9 @@ export const CreateDashboardDialog = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <form onSubmit={handleSave}>
-        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 600, pb: 1 }}>
+        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 600, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
           {mode === 'rename' ? 'Edit Dashboard Details' : 'New Custom Dashboard'}
+          <Chip label="Beta" size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 600 }} />
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
           <TextField

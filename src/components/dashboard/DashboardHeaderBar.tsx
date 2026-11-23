@@ -192,13 +192,13 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
           </IconButton>
         </Tooltip>
         {onExport && (
-          <Tooltip title={exporting ? (exportStatus || 'Generating PDF...') : 'Export report as PDF'}>
+          <Tooltip title={exporting ? (exportStatus || 'Generating PDF...') : 'Export Tenant Report'}>
             <span style={{ alignSelf: 'flex-end' }}>
               <IconButton
                 size="small"
                 onClick={() => onExport()}
                 disabled={exporting}
-                aria-label="Export report as PDF"
+                aria-label="Export Tenant Report"
                 sx={{ color: 'hsl(var(--muted-foreground))', width: 36, height: 36, borderRadius: '8px' }}
               >
                 {exporting ? <Loader2 size={16} className="animate-spin" /> : <DownloadIcon size={16} />}

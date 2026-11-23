@@ -79,6 +79,7 @@ import {
 	MenuItem,
     Autocomplete,
   Box,
+  useMediaQuery,
 } from '@mui/material';
 
 const hrefStyle = {
@@ -115,6 +116,9 @@ const FormInput = (defaultprops: any) => {
   const [forms, setForms] = React.useState([])
   const [workflows, setWorkflows] = React.useState([])
   const [boxWidth, setBoxWidth] = React.useState(560)
+  // Narrow screens (phones, small windows): based on real width, not user agent,
+  // so content never overflows and makes mobile browsers zoom out.
+  const narrow = useMediaQuery("(max-width: 700px)")
   const [inputQuestions, setInputQuestions] = React.useState([])
   const [agentic, setAgentic] = React.useState(false)
   // Dropdown questions where the user picked "Other…" (only offered when question.allow_other is set)
@@ -160,7 +164,7 @@ const FormInput = (defaultprops: any) => {
 		propsCopy.width = 400 
 		propsCopy.height = 225 
 
-		return <iframe {...propsCopy} style={{width: propsCopy.width, height: propsCopy.height, }} />
+		return <iframe {...propsCopy} style={{width: propsCopy.width, height: propsCopy.height, maxWidth: "100%", border: 0, }} />
 	}
 
 	const ImgWrapper = (props) => {
@@ -171,17 +175,21 @@ const FormInput = (defaultprops: any) => {
 
 			propsCopy.margin = "auto"
 		}
+		propsCopy.style = { ...(propsCopy.style || {}), maxWidth: "100%", height: "auto" }
 
 		return Img(propsCopy)
 	}
 
 	const bodyDivStyle = {
 		margin: "auto",
-		width: isMobile? "100%" : boxWidth,
-		minWidth: isMobile ? "100%" : boxWidth,
+		width: "100%",
+		maxWidth: boxWidth,
+		minWidth: 0,
+		boxSizing: "border-box",
 		position: "relative",
 		overflow: "hidden",
-		paddingBottom: 250,
+		overflowWrap: "anywhere",
+		paddingBottom: narrow ? 120 : 250,
 	}
 
 	// Transparent card surface — matches the rest of the dashboard (see
@@ -192,9 +200,11 @@ const FormInput = (defaultprops: any) => {
 		backgroundColor: "hsl(var(--card) / 0.4)",
 		backgroundImage: "none",
 		border: "1px solid hsl(var(--border))",
-		padding: "40px 44px 36px 44px",
-		borderRadius: 16,
-		minHeight: 360,
+		padding: narrow ? "24px 16px 20px 16px" : "40px 44px 36px 44px",
+		borderRadius: narrow ? 12 : 16,
+		minHeight: narrow ? 0 : 360,
+		boxSizing: "border-box",
+		maxWidth: "100%",
 		position: "relative",
 		boxShadow: "0 1px 0 hsl(var(--border) / 0.4)",
 		backdropFilter: "blur(6px)",
@@ -1420,8 +1430,6 @@ const FormInput = (defaultprops: any) => {
 
 	}, [executionData, foundSourcenode])
 
-	const buttonBackground = "linear-gradient(to right, #f86a3e, #f34079)"
-	const buttonStyle = {borderRadius: 25, height: 50, fontSize: 18, backgroundImage: handleValidateForm(executionArgument) || executionLoading ? buttonBackground : "grey", color: "white"}
 	
 	// Check if all fields are filled in?
 	var disabledButtons = executionLoading || executionRunning || message.length > 0 || disableButtons || buttonClicked.length > 0
@@ -1645,7 +1653,7 @@ const FormInput = (defaultprops: any) => {
 	var validResults = 0
 	const basedata = 
 		<div style={bodyDivStyle}>
-			<Paper style={boxStyle}>
+			<Paper style={boxStyle} sx={{ "& img, & video, & iframe": { maxWidth: "100%" }, "& pre, & table": { maxWidth: "100%", overflowX: "auto" } }}>
 				<div style={{position: "absolute", top: 20, right: 10,}}>
 					{executionData?.status === "" ? null :
 					executionData?.status === "FINISHED" ? 
@@ -2386,7 +2394,7 @@ const FormInput = (defaultprops: any) => {
 
     // const isCorrectOrg = userdata.active_org.id === undefined || userdata.active_org.id === null || workflow.org_id === null || workflow.org_id === undefined || workflow.org_id.length === 0 || userdata.active_org.id === workflow.org_id 
 	const loadedCheck = isLoaded ? 
-		<div style={{paddingTop: 60, }}>
+		<div style={{paddingTop: narrow ? 0 : 60, }}>
 			{editWorkflowModalOpen === true ?
 			  <EditWorkflow
 				saveWorkflow={saveWorkflow}
@@ -2498,7 +2506,14 @@ const FormInput = (defaultprops: any) => {
 			</Dialog>
 
 			{isLoggedIn && userdata?.active_org?.id === workflow?.org_id || userdata?.support === true ?
-				<div style={{
+				<div style={narrow ? {
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "flex-end",
+					flexWrap: "wrap",
+					gap: 8,
+					marginBottom: 12,
+				} : {
 					position: "fixed",
 					top: 16,
 					right: 20,

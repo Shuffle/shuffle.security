@@ -24,7 +24,7 @@ import {
   Collapse,
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle, Loader2, HelpCircle, Clock, MessageSquare, ChevronRight, Plug, KeyRound, ArrowDownToLine, Send, Radar, Monitor, Shield, Sparkles, Check, ArrowRight, ExternalLink, EyeOff, Undo2, ExternalLink as OpenInNewIcon, RefreshCw as RefreshIcon } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Loader2, HelpCircle, Clock, MessageSquare, ChevronRight, Plug, KeyRound, ArrowDownToLine, Send, Radar, Monitor, Shield, Sparkles, Check, ArrowRight, ExternalLink, EyeOff, Undo2, ExternalLink as OpenInNewIcon, RefreshCw as RefreshIcon, Download as DownloadIcon } from 'lucide-react';
 import { Link, useNavigate } from '@/lib/router-compat';
 import AgentQuestionDialog from '@/components/agent/AgentQuestionDialog';
 import AgentQuickViewDrawer, { type QuickViewItem } from '@/components/agent/AgentQuickViewDrawer';
@@ -63,6 +63,12 @@ import {
   isCustomDashboardTab,
   toCustomDashboardTab,
   type DashboardTab,
+  ExportReportDialog,
+  REPORT_SECTIONS,
+  buildSectionTable,
+  buildReportPdf,
+  type ReportSectionId,
+  type ReportTable,
 } from '@/Shuffle-Core';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useAuth } from '@/context/AuthContext';
@@ -654,6 +660,11 @@ const DashboardPage = () => {
   // Bumped by the shared refresh button — Automation watches this, Security re-fetches via handleDashboardRefresh.
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
 
+  // Tenant report (PDF) export — same section picker as the shared dashboards.
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState('');
+
   // Incidents + vulnerabilities for the overview charts
   const currentOrgId = userInfo?.active_org?.id;
 
@@ -870,6 +881,53 @@ const DashboardPage = () => {
     setIsRefreshing(true);
     await refreshNotifications();
     setTimeout(() => setIsRefreshing(false), 600);
+  };
+
+  const exportRangeLabel = dashboardCustomRange
+    ? `${new Date(dashboardCustomRange.fromMs).toLocaleDateString()} – ${new Date(dashboardCustomRange.toMs).toLocaleDateString()}`
+    : `Last ${dashboardDays} days`;
+
+  const handleExportReport = async (sections: ReportSectionId[]) => {
+    if (exporting) return;
+    setExportDialogOpen(false);
+    setExporting(true);
+    try {
+      const rangeTo = dashboardCustomRange ? dashboardCustomRange.toMs : Date.now();
+      const rangeFrom = dashboardCustomRange
+        ? dashboardCustomRange.fromMs
+        : rangeTo - (parseInt(dashboardDays, 10) || 30) * 86_400_000;
+      const tables: ReportTable[] = [];
+      for (const def of REPORT_SECTIONS) {
+        if (def.id === 'dashboards' || !sections.includes(def.id)) continue;
+        setExportStatus(`Loading ${def.label.toLowerCase()}…`);
+        try {
+          const table = await buildSectionTable(def.id, {
+            fromMs: rangeFrom,
+            toMs: rangeTo,
+            orgId: effectiveOrgId ?? undefined,
+            userdata: userInfo,
+            incidentsCategory: DATASTORE_CATEGORIES.INCIDENTS,
+          });
+          if (table) tables.push(table);
+        } catch (err) {
+          tables.push({
+            title: def.label,
+            note: `This section could not be loaded: ${err instanceof Error ? err.message : 'unknown error'}.`,
+            columns: [{ header: 'Status', width: 1 }],
+            rows: [],
+          });
+        }
+      }
+      setExportStatus('Generating PDF…');
+      await buildReportPdf({
+        orgName: userInfo?.active_org?.name || '',
+        rangeLabel: exportRangeLabel,
+        tables,
+      });
+    } finally {
+      setExporting(false);
+      setExportStatus('');
+    }
   };
 
   const handleApprove = async (notification: AgentNotification) => {
@@ -1141,6 +1199,18 @@ const DashboardPage = () => {
                   style={{ transition: 'transform 0.6s ease' }}
                 />
               </IconButton>
+            </Tooltip>
+            <Tooltip title={exporting ? (exportStatus || 'Generating PDF…') : 'Export report as PDF'}>
+              <span>
+                <IconButton
+                  onClick={() => setExportDialogOpen(true)}
+                  size="small"
+                  disabled={exporting}
+                  sx={{ color: 'hsl(var(--muted-foreground))' }}
+                >
+                  {exporting ? <Loader2 size={20} className="animate-spin" /> : <DownloadIcon size={20} />}
+                </IconButton>
+              </span>
             </Tooltip>
           </Box>
         </Box>
@@ -1567,6 +1637,14 @@ const DashboardPage = () => {
         onDeny={handleDeny}
         onConfigureApprove={handleConfigureApprove}
         onSubmitAnswers={handleSubmitAnswers}
+      />
+
+      <ExportReportDialog
+        open={exportDialogOpen}
+        rangeLabel={exportRangeLabel}
+        hasChildTenants={isParentOrg && subOrgs.length > 0}
+        onClose={() => setExportDialogOpen(false)}
+        onExport={(sections) => { void handleExportReport(sections); }}
       />
 
       {isAdmin && (

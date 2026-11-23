@@ -967,6 +967,15 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
         }
         return;
       }
+      // The native app registers its own push token, so web push support does
+      // not matter there. If this device already has a token, it worked.
+      const freshDevices = await fetchNotificationDevices();
+      setDevices(freshDevices);
+      const nativeApp = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+      if (freshDevices.some((d) => d.id === localDeviceId && d.token) || (nativeApp && settings.pushToken)) {
+        setPermissionMsg('This device is registered for push notifications.');
+        return;
+      }
       if (typeof window !== 'undefined' && window.top !== window.self) {
         setPermissionMsg(
           'Push token registration is blocked inside the preview iframe. Open this page in its own browser tab and click Register this device.',

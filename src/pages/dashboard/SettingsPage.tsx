@@ -46,6 +46,8 @@ const SettingsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentPw, setCurrentPw] = useState('');
+  // Read-only until the user clicks in, so the browser does not autofill or focus it on load.
+  const [currentPwUnlocked, setCurrentPwUnlocked] = useState(false);
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
@@ -341,10 +343,12 @@ const SettingsPage = () => {
                   autoComplete="off"
                   autoFocus={false}
                   name="settings-currentPw"
+                  onFocus={() => setCurrentPwUnlocked(true)}
                   onChange={(e) => setCurrentPw(e.target.value)}
                   fullWidth
                   slotProps={{
                     input: {
+                      readOnly: !currentPwUnlocked,
                       endAdornment: (
                         <InputAdornment position="end">
                           <IconButton

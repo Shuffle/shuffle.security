@@ -398,6 +398,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const [isPlayingTestSiren, setIsPlayingTestSiren] = useState(false);
   const [sendingType, setSendingType] = useState<NotificationType | null>(null);
   const [permissionMsg, setPermissionMsg] = useState<string | null>(null);
+  const [showAllowAction, setShowAllowAction] = useState(false);
   const [copiedPath, setCopiedPath] = useState(false);
   const [expanded, setExpanded] = useState<NotificationType | null>(null);
   const [webhookBusy, setWebhookBusy] = useState(false);
@@ -935,8 +936,14 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
 
   const handleRegisterLocalPush = async () => {
     setPermissionMsg(null);
+    setShowAllowAction(false);
     setSavingDevice(true);
     try {
+      const pushSupported =
+        typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+      if (pushSupported && Notification.permission === 'default') {
+        await requestNotificationPermissions();
+      }
       const token = await registerFirebaseWebPush();
       if (token) {
         const next = savePagerSettings({ pushToken: token });
@@ -962,10 +969,21 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
         setPermissionMsg(
           'Push token registration is blocked inside the preview iframe. Open this page in its own browser tab and click Register this device.',
         );
-      } else {
+      } else if (!pushSupported) {
+        const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
         setPermissionMsg(
-          'Could not register a push token for this device. Make sure notification permissions are granted and that the browser supports push notifications.',
+          /iPad|iPhone|iPod/.test(ua)
+            ? 'On iPhone, push only works from the Home Screen. Tap Share, then Add to Home Screen, and open Shuffle from there.'
+            : 'This browser does not support push notifications. Try Chrome, Edge or Safari.',
         );
+      } else if (Notification.permission === 'denied') {
+        setPermissionMsg('Notifications are denied for this site.');
+      } else if (Notification.permission === 'default') {
+        setPermissionMsg('Notifications are not allowed yet.');
+        setShowAllowAction(true);
+      } else {
+        setPermissionMsg('Could not register this device. Try again.');
+        setShowAllowAction(true);
       }
     } catch (err) {
       setPermissionMsg(`Registration error: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -1465,10 +1483,25 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               ? 'error'
               : 'info'
           }
-          onClose={() => setPermissionMsg(null)}
+          onClose={() => { setPermissionMsg(null); setShowAllowAction(false); }}
           sx={{ fontSize: '0.85rem' }}
         >
           {permissionMsg}
+
+          {showAllowAction && (
+            <Box sx={{ mt: 1.5 }}>
+              <Button
+                variant="contained"
+                size="small"
+                disableElevation
+                disabled={savingDevice}
+                onClick={() => void handleRegisterLocalPush()}
+                sx={{ height: 32, width: { xs: '100%', sm: 'auto' }, textTransform: 'none', bgcolor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+              >
+                {Notification.permission === 'default' ? 'Allow notifications' : 'Try again'}
+              </Button>
+            </Box>
+          )}
 
           {permissionMsg.toLowerCase().includes('denied') && (
             <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>

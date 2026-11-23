@@ -398,6 +398,8 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const [copiedPath, setCopiedPath] = useState(false);
   const [expanded, setExpanded] = useState<NotificationType | null>(null);
   const [webhookBusy, setWebhookBusy] = useState(false);
+  const [webhookExampleOpen, setWebhookExampleOpen] = useState(false);
+  const [webhookTesting, setWebhookTesting] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
   const [devices, setDevices] = useState<NotificationDevice[]>([]);
   const [localDeviceId, setLocalDeviceId] = useState('');
@@ -708,6 +710,25 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       toast.success('Webhook URL copied.');
     } catch {
       toast.error('Could not copy the webhook URL.');
+    }
+  };
+
+  const testWebhook = async () => {
+    const url = selectedDevice?.webhook_url;
+    if (!url) return;
+    setWebhookTesting(true);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Test notification', body: 'Webhook test from Shuffle Security', type: 'general', source: 'webhook-test' }),
+      });
+      if (res.ok) toast.success('Test sent.');
+      else toast.error(`Test failed (${res.status}).`);
+    } catch (e) {
+      toast.error(`Test failed: ${e instanceof Error ? e.message : 'network error'}`);
+    } finally {
+      setWebhookTesting(false);
     }
   };
 
@@ -1731,6 +1752,23 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                         </IconButton>
                       </span>
                     </Tooltip>
+                    <Tooltip title="Send a test notification" arrow>
+                      <span>
+                        <Button size="small" variant="outlined" onClick={testWebhook}
+                          disabled={!selectedDevice?.webhook_url || !selectedDevice?.webhook_enabled || webhookTesting}
+                          sx={{ height: 26, minWidth: 0, px: 1.25, fontSize: '0.72rem', textTransform: 'none', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
+                          {webhookTesting ? 'Sending' : 'Test'}
+                        </Button>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="How to send to this webhook" arrow>
+                      <span>
+                        <Button size="small" variant="outlined" onClick={() => setWebhookExampleOpen(true)}
+                          sx={{ height: 26, minWidth: 0, px: 1.25, fontSize: '0.72rem', textTransform: 'none', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
+                          Example
+                        </Button>
+                      </span>
+                    </Tooltip>
                     <Tooltip
                       title={
                         !webhookAvailable
@@ -1771,6 +1809,29 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       </Box>
 
 
+
+      <Dialog open={webhookExampleOpen} onClose={() => setWebhookExampleOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Webhook example</DialogTitle>
+        <DialogContent>
+          <Box component="pre" sx={{ m: 0, p: 2, borderRadius: 2, bgcolor: 'hsl(var(--muted) / 0.3)', fontFamily: 'monospace', fontSize: '0.78rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+{`curl -X POST '${selectedDevice?.webhook_url || '<webhook_url>'}' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "title": "Disk almost full",
+    "body": "server-01 is at 95%",
+    "type": "general",
+    "severity": "high",
+    "source": "monitoring"
+  }'`}
+          </Box>
+          <Typography sx={{ mt: 1.5, fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))' }}>
+            type: general | critical | agent_request
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button size="small" onClick={() => setWebhookExampleOpen(false)} sx={outlinedButtonSx}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={confirmRotate} onClose={() => setConfirmRotate(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Rotate webhook URL?</DialogTitle>

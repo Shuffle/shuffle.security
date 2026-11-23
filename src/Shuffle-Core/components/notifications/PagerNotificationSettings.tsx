@@ -400,7 +400,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const [expanded, setExpanded] = useState<NotificationType | null>(null);
   const [webhookBusy, setWebhookBusy] = useState(false);
   const [webhookExampleOpen, setWebhookExampleOpen] = useState(false);
-  const [webhookTesting, setWebhookTesting] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
   const [devices, setDevices] = useState<NotificationDevice[]>([]);
   const [localDeviceId, setLocalDeviceId] = useState('');
@@ -711,25 +710,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       toast.success('Webhook URL copied.');
     } catch {
       toast.error('Could not copy the webhook URL.');
-    }
-  };
-
-  const testWebhook = async () => {
-    const url = selectedDevice?.webhook_url;
-    if (!url) return;
-    setWebhookTesting(true);
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Test notification', body: 'Webhook test from Shuffle Security', type: 'general', source: 'webhook-test' }),
-      });
-      if (res.ok) toast.success('Test sent.');
-      else toast.error(`Test failed (${res.status}).`);
-    } catch (e) {
-      toast.error(`Test failed: ${e instanceof Error ? e.message : 'network error'}`);
-    } finally {
-      setWebhookTesting(false);
     }
   };
 
@@ -1753,18 +1733,13 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                         </IconButton>
                       </span>
                     </Tooltip>
-                    <Tooltip title="Send a test notification" arrow>
-                      <span>
-                        <Button size="small" variant="outlined" onClick={testWebhook}
-                          disabled={!selectedDevice?.webhook_url || !selectedDevice?.webhook_enabled || webhookTesting}
-                          sx={{ height: 26, minWidth: 0, px: 1.25, fontSize: '0.72rem', textTransform: 'none', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
-                          {webhookTesting ? 'Sending' : 'Test'}
-                        </Button>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title="How to send to this webhook" arrow>
+                    <Tooltip
+                      title={selectedDevice?.webhook_url ? 'How to send to this webhook' : 'A webhook URL is needed first.'}
+                      arrow
+                    >
                       <span>
                         <Button size="small" variant="outlined" onClick={() => setWebhookExampleOpen(true)}
+                          disabled={!selectedDevice?.webhook_url}
                           sx={{ height: 26, minWidth: 0, px: 1.25, fontSize: '0.72rem', textTransform: 'none', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
                           Example
                         </Button>
@@ -1811,7 +1786,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
 
 
 
-      <Dialog open={webhookExampleOpen} onClose={() => setWebhookExampleOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={webhookExampleOpen} onClose={() => setWebhookExampleOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Webhook example</DialogTitle>
         <DialogContent>
           <ApiCallViewer

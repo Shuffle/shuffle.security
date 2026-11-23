@@ -1656,132 +1656,91 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           )}
         </NotificationSection>
 
-        {/* Webhook notifications: always visible, URL + enable/disable like the Ingest area */}
+        {/* Webhook notifications: just the URL field and an enable/disable switch */}
         <Box
           sx={{
             border: '1px solid hsl(var(--border))',
             borderRadius: 2,
             bgcolor: 'hsl(var(--muted) / 0.15)',
+            ...rowSx,
+            p: 2,
+            alignItems: 'center',
           }}
         >
-          <Box sx={{ ...rowSx, p: 2 }}>
-            <Box sx={{ minWidth: 0 }}>
-              <Tooltip
-                title={
-                  !webhookAvailable
-                    ? isMobileDevice
-                      ? 'Register this device before enabling webhook notifications.'
-                      : 'Webhook notifications are only available for devices running the mobile app.'
-                    : ''
-                }
-                placement="top"
-                arrow
-              >
-                <span>
-                  <Typography
-                    sx={{
-                      fontWeight: 600,
-                      fontSize: '0.92rem',
-                      color: !webhookAvailable ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))',
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    Webhook Notifications
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      display: 'block',
-                      color: 'hsl(var(--muted-foreground))',
-                      opacity: !webhookAvailable ? 0.7 : 1,
-                      lineHeight: 1.35,
-                    }}
-                  >
-                    {isMobileDevice
-                      ? 'Send notifications to this device from any tool with a private webhook URL.'
-                      : 'Only available in the mobile app.'}
-                  </Typography>
-                </span>
-              </Tooltip>
-            </Box>
-            <Switch
-              checked={webhookAvailable && Boolean(selectedDevice?.webhook_enabled)}
-              disabled={!webhookAvailable || webhookBusy}
-              onChange={(e) => updateWebhook(e.target.checked)}
-              color="primary"
-              size="small"
-            />
-          </Box>
-
-          <Divider sx={{ borderColor: 'hsl(var(--border))' }} />
-          <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            {!isMobileDevice && (
-              <>
-                <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', lineHeight: 1.4 }}>
-                  Webhook notifications require the Shuffle mobile app. Install it on your phone to get a
-                  private URL that other tools can send notifications to.
-                </Typography>
-                <AppStoreBadges height={36} iosComingSoon />
-              </>
-            )}
-            {isMobileDevice && !selectedDevice?.webhook_enabled && (
-              <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', lineHeight: 1.4 }}>
-                Turn this on to get a private URL. Anyone with the URL can send a notification to this
-                device, so treat it like a password.
-              </Typography>
-            )}
-            {isMobileDevice && selectedDevice?.webhook_enabled && (
-              <>
-                <TextField
-                  value={selectedDevice.webhook_url || ''}
-                  placeholder="The webhook URL is hidden. Rotate it to get a new one."
-                  size="small"
-                  fullWidth
-                  InputProps={{
-                    readOnly: true,
-                    sx: { fontFamily: 'monospace', fontSize: '0.8rem' },
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip title="Copy the webhook URL" arrow>
-                          <span>
-                            <IconButton
-                              size="small"
-                              onClick={copyWebhookUrl}
-                              disabled={!selectedDevice.webhook_url}
-                              aria-label="Copy webhook URL"
-                            >
-                              <Copy size={16} />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Tooltip title="Creates a new URL. The current URL stops working immediately." arrow>
-                    <span>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => updateWebhook(true, true)}
-                        disabled={webhookBusy}
-                        startIcon={<RotateCw size={14} />}
-                        sx={outlinedButtonSx}
-                      >
-                        {webhookBusy ? 'Rotating' : 'Rotate URL'}
-                      </Button>
-                    </span>
-                  </Tooltip>
-                </Box>
-                <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>
-                  Send a POST request with JSON (title, message, type as general, critical or
-                  agent_request, severity, source, reference_url) or plain text. No sign-in is needed,
-                  so keep the URL private.
-                </Typography>
-              </>
-            )}
-          </Box>
+          <TextField
+            value={selectedDevice?.webhook_url || ''}
+            placeholder={
+              !isMobileDevice
+                ? 'Only available in the mobile app'
+                : !webhookAvailable
+                  ? 'Register this device to get a webhook URL'
+                  : selectedDevice?.webhook_enabled
+                    ? 'The webhook URL is hidden. Rotate it to get a new one.'
+                    : 'Enable to get a private webhook URL'
+            }
+            size="small"
+            fullWidth
+            disabled={!webhookAvailable || !selectedDevice?.webhook_enabled}
+            aria-label="Webhook URL"
+            InputProps={{
+              readOnly: true,
+              sx: { fontFamily: 'monospace', fontSize: '0.8rem' },
+              endAdornment: (
+                <InputAdornment position="end">
+                  <Box sx={{ display: 'flex', gap: 0.25 }}>
+                    <Tooltip title="Copy the webhook URL" arrow>
+                      <span>
+                        <IconButton
+                          size="small"
+                          onClick={copyWebhookUrl}
+                          disabled={!selectedDevice?.webhook_url}
+                          aria-label="Copy webhook URL"
+                        >
+                          <Copy size={16} />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Creates a new URL. The current URL stops working immediately." arrow>
+                      <span>
+                        <IconButton
+                          size="small"
+                          onClick={() => updateWebhook(true, true)}
+                          disabled={!webhookAvailable || !selectedDevice?.webhook_enabled || webhookBusy}
+                          aria-label="Rotate webhook URL"
+                        >
+                          <RotateCw size={16} />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Box>
+                </InputAdornment>
+              ),
+            }}
+          />
+          <Tooltip
+            title={
+              !webhookAvailable
+                ? isMobileDevice
+                  ? 'Register this device before enabling webhook notifications.'
+                  : 'Webhook notifications are only available for devices running the mobile app.'
+                : selectedDevice?.webhook_enabled
+                  ? 'Webhook notifications are enabled for this device.'
+                  : 'Send notifications to this device from any tool with its private webhook URL.'
+            }
+            placement="top"
+            arrow
+          >
+            <span>
+              <Switch
+                checked={webhookAvailable && Boolean(selectedDevice?.webhook_enabled)}
+                disabled={!webhookAvailable || webhookBusy}
+                onChange={(e) => updateWebhook(e.target.checked)}
+                color="primary"
+                size="small"
+                aria-label="Enable webhook notifications"
+              />
+            </span>
+          </Tooltip>
         </Box>
 
       </Box>

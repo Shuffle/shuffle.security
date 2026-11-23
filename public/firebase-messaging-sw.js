@@ -37,12 +37,30 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const data = event.notification.data || {};
-  let targetUrl = '/';
+  let targetUrl = '';
 
   if (data.incidentId) {
     targetUrl = `/incidents/${data.incidentId}`;
   } else if (data.referenceUrl) {
     targetUrl = data.referenceUrl;
+  }
+
+  // No clear target: open the app on personal notifications and highlight this one.
+  const notificationId = data.notificationId || data.notification_id || '';
+  if (!targetUrl) {
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+        const client = windowClients.find((c) => 'focus' in c);
+        if (client) {
+          client.postMessage({ type: 'shuffle-open-notification', notificationId });
+          return client.focus();
+        }
+        if (clients.openWindow) {
+          return clients.openWindow('/dashboard?open_notification=' + encodeURIComponent(notificationId || 'personal'));
+        }
+      })
+    );
+    return;
   }
 
   event.waitUntil(

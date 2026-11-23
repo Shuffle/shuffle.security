@@ -313,6 +313,29 @@ export const requestNotificationPermissions = async (): Promise<boolean> => {
   }
 };
 
+/**
+ * Opens what a clicked notification points to: its incident, its URL, or else
+ * the personal notifications list with that notification highlighted.
+ */
+export const openNotificationTarget = (data: Record<string, any> = {}) => {
+  if (typeof window === 'undefined') return;
+  window.focus?.();
+  if (data.incidentId) {
+    window.location.href = `/incidents/${data.incidentId}`;
+    return;
+  }
+  const url = data.referenceUrl || data.reference_url;
+  if (url) {
+    window.location.href = url;
+    return;
+  }
+  window.dispatchEvent(
+    new CustomEvent('notifications:open', {
+      detail: { scope: 'personal', notificationId: data.notificationId || data.notification_id || data.id },
+    }),
+  );
+};
+
 export const setupPushNotificationListeners = () => {
   if (!isCapacitorNative()) {
     // Web browser foreground listener
@@ -337,6 +360,7 @@ export const setupPushNotificationListeners = () => {
           executionId: data.executionId,
           workflowId: data.workflowId,
           action: data.action,
+          notificationId: data.notificationId,
         });
       } else if (data.type === 'general_notification') {
         triggerGeneralLocalAlert({
@@ -344,6 +368,7 @@ export const setupPushNotificationListeners = () => {
           body: payload.body || data.body,
           description: data.description,
           referenceUrl: data.referenceUrl,
+          notificationId: data.notificationId,
         });
       }
     });
@@ -380,6 +405,7 @@ export const setupPushNotificationListeners = () => {
           executionId: data.executionId,
           workflowId: data.workflowId,
           action: data.action,
+          notificationId: data.notificationId,
         });
       } else if (data.type === 'general_notification') {
         triggerGeneralLocalAlert({
@@ -387,15 +413,18 @@ export const setupPushNotificationListeners = () => {
           body: notification.body || data.body,
           description: data.description,
           referenceUrl: data.referenceUrl,
+          notificationId: data.notificationId,
         });
       }
     });
 
     PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-      const data = action.notification.data || {};
-      if (data.incidentId && typeof window !== 'undefined') {
-        window.location.href = `/incidents/${data.incidentId}`;
-      }
+      openNotificationTarget(action.notification.data || {});
+    });
+    LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+      const extra = action.notification.extra || {};
+      if (action.actionId && action.actionId !== 'tap') return;
+      openNotificationTarget(extra);
     });
   } catch {
     // Ignore listener setup errors
@@ -525,6 +554,7 @@ export const triggerAgentRequestLocalAlert = (params: {
   executionId?: string;
   workflowId?: string;
   action?: string;
+  notificationId?: string;
 }) => {
   const settings = getPagerSettings();
   if (!settings.agentRequestEnabled) return;
@@ -539,7 +569,7 @@ export const triggerAgentRequestLocalAlert = (params: {
           body: params.body || 'AI Agent requires your review or input to proceed.',
           id: Math.floor(Math.random() * 100000),
           channelId: 'agent_notifications',
-          extra: { executionId: params.executionId, workflowId: params.workflowId },
+          extra: { executionId: params.executionId, workflowId: params.workflowId, notificationId: params.notificationId },
         },
       ],
     }).catch(() => {});
@@ -550,8 +580,8 @@ export const triggerAgentRequestLocalAlert = (params: {
         icon: '/favicon.ico',
       });
       notif.onclick = () => {
-        if (typeof window !== 'undefined') window.focus();
         notif.close();
+        openNotificationTarget({ notificationId: params.notificationId });
       };
     } catch {
       // Ignore
@@ -572,6 +602,7 @@ export const triggerGeneralLocalAlert = (params: {
   body?: string;
   description?: string;
   referenceUrl?: string;
+  notificationId?: string;
 }) => {
   const settings = getPagerSettings();
   if (!settings.generalNotificationsEnabled) return;
@@ -588,7 +619,7 @@ export const triggerGeneralLocalAlert = (params: {
           body: bodyText,
           id: Math.floor(Math.random() * 100000),
           channelId: 'general_notifications',
-          extra: { referenceUrl: params.referenceUrl },
+          extra: { referenceUrl: params.referenceUrl, notificationId: params.notificationId },
         },
       ],
     }).catch(() => {});
@@ -599,8 +630,8 @@ export const triggerGeneralLocalAlert = (params: {
         icon: '/favicon.ico',
       });
       notif.onclick = () => {
-        if (typeof window !== 'undefined') window.focus();
         notif.close();
+        openNotificationTarget({ referenceUrl: params.referenceUrl, notificationId: params.notificationId });
       };
     } catch {
       // Ignore

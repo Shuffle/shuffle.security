@@ -85,6 +85,10 @@ export interface NotificationsDrawerProps {
   /** Optional execution context — pre-fills the search field. */
   executionId?: string;
   workflowId?: string;
+  /** Tab to open on. Defaults to workflows. */
+  initialScope?: 'workflows' | 'agents' | 'personal';
+  /** Notification to scroll to and highlight once the list loads. */
+  highlightId?: string;
   /** Drawer width in px. Defaults to 620. */
   width?: number;
   minWidth?: number;
@@ -220,6 +224,8 @@ const NotificationsDrawer = ({
   onClose,
   executionId,
   workflowId,
+  initialScope,
+  highlightId,
   width = 600,
   minWidth = 420,
   maxWidth = 900,
@@ -331,11 +337,11 @@ const NotificationsDrawer = ({
     if (!open) return;
     const initialQuery = executionId ? String(executionId) : '';
     setQuery(initialQuery);
-    setScope('workflows');
+    setScope(initialScope || 'workflows');
     // Hide read notifications by default — unless we are already searching
     // for something specific (e.g. an execution id), in which case show all.
-    setShowRead(initialQuery.length > 0);
-  }, [open, executionId]);
+    setShowRead(initialQuery.length > 0 || Boolean(highlightId));
+  }, [open, executionId, initialScope, highlightId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -835,10 +841,17 @@ const NotificationsDrawer = ({
             {visible.map((n, i) => (
               <Box
                 key={n.id || `${i}`}
+                ref={highlightId && String(n.id) === highlightId ? (el: HTMLElement | null) => {
+                  if (el && el.dataset.scrolled !== '1') {
+                    el.dataset.scrolled = '1';
+                    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                  }
+                } : undefined}
                 sx={{
                   borderRadius: '14px',
                   p: 2,
-                  bgcolor: 'hsl(var(--muted) / 0.25)',
+                  bgcolor: highlightId && String(n.id) === highlightId ? 'hsl(var(--primary) / 0.12)' : 'hsl(var(--muted) / 0.25)',
+                  outline: highlightId && String(n.id) === highlightId ? '1px solid hsl(var(--primary))' : 'none',
                   transition: 'background-color 0.15s ease',
                   '&:hover': { bgcolor: 'hsl(var(--muted) / 0.45)' },
                 }}

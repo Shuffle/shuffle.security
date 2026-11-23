@@ -34,6 +34,9 @@ export const MobilePageTitleHider = () => {
       // description right after it on small screens.
       const heading = main.querySelector<HTMLElement>('h1, .MuiTypography-h4');
       if (!heading || !(heading.textContent || '').trim()) return;
+      // A heading inside a form belongs to the prompt area (for example the
+      // agent page's "What do you want to do?"), not a repeated page title.
+      if (heading.closest('form')) return;
       const hide = (el: HTMLElement) => {
         el.style.display = 'none';
         el.setAttribute(HIDDEN_ATTR, 'true');

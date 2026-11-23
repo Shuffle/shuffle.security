@@ -159,6 +159,7 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
   const [connections, setConnections] = useState<OAuthConnectionItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [openApps, setOpenApps] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string>('');
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<OAuthConnectionItem | null>(null);
@@ -550,13 +551,7 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                         </Typography>
                       )}
 
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
-                        <Typography
-                          variant="caption"
-                          sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.73rem', mr: 0.25 }}
-                        >
-                          Permissions:
-                        </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'nowrap', overflow: 'hidden', alignItems: 'center', gap: 0.75, minWidth: 0, '& > *': { flexShrink: 0, whiteSpace: 'nowrap' } }}>
                         {scopes.map((sc) => (
                           <Box
                             key={sc}
@@ -591,8 +586,11 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                                 border: '1px solid rgba(255, 102, 0, 0.28)',
                               }}
                             >
-                              {ap.name}
-                              {toolLen > 0 ? ` (${toolLen} ${toolLen === 1 ? 'tool' : 'tools'})` : ''}
+                              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                                <AppFallbackIcon name={ap.name} size={14} alt={ap.name} style={{ borderRadius: 3 }} />
+                                {ap.name}
+                                {toolLen > 0 ? ` (${toolLen} ${toolLen === 1 ? 'tool' : 'tools'})` : ''}
+                              </Box>
                             </Box>
                           );
                         })}
@@ -901,6 +899,8 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                             const readCount = tools.filter((t) => t.read_only).length;
                             const writeCount = tools.filter((t) => !t.read_only && !t.destructive).length;
                             const destructiveCount = tools.filter((t) => t.destructive).length;
+                            const appKey = `${conn.id}:${ap.id || ap.name}`;
+                            const appOpen = !!openApps[appKey];
 
                             return (
                               <Box
@@ -917,15 +917,18 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                                     px: 1.5,
                                     py: 1,
                                     bgcolor: 'hsl(var(--muted) / 0.25)',
-                                    borderBottom: tools.length > 0 ? '1px solid hsl(var(--border))' : 'none',
+                                    borderBottom: appOpen && tools.length > 0 ? '1px solid hsl(var(--border))' : 'none',
+                                    cursor: tools.length > 0 ? 'pointer' : 'default',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'space-between',
                                     flexWrap: 'wrap',
                                     gap: 1,
                                   }}
+                                  onClick={() => setOpenApps((prev) => ({ ...prev, [appKey]: !prev[appKey] }))}
                                 >
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                    <AppFallbackIcon name={ap.name} size={20} alt={ap.name} style={{ borderRadius: 4 }} />
                                     <Typography
                                       variant="body2"
                                       sx={{ fontWeight: 700, color: 'hsl(var(--foreground))', fontSize: '0.82rem' }}
@@ -998,17 +1001,18 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                                           border: '1px solid rgba(245, 158, 11, 0.3)',
                                         }}
                                       >
-                                        {destructiveCount} Destructive
+                                        {destructiveCount} Delete
                                       </Box>
                                     )}
                                   </Box>
                                 </Box>
 
                                 {tools.length > 0 && (
+                                  <Collapse in={appOpen} unmountOnExit>
                                   <Box sx={{ maxHeight: 220, overflowY: 'auto' }}>
                                     {tools.map((tool, tIdx) => {
                                       const modeLabel = tool.destructive
-                                        ? 'Destructive'
+                                        ? 'Delete'
                                         : tool.read_only
                                           ? 'Read'
                                           : 'Write';
@@ -1099,6 +1103,7 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                                       );
                                     })}
                                   </Box>
+                                  </Collapse>
                                 )}
                               </Box>
                             );

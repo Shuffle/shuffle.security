@@ -272,6 +272,7 @@ const AgentPermissionsPage = () => {
                   size="small"
                   fullWidth
                   type="password"
+                  autoComplete="off"
                   value={agentApiKey}
                   onChange={(e) => setAgentApiKey(e.target.value)}
                   sx={{

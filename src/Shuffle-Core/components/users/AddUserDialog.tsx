@@ -343,6 +343,7 @@ export const AddUserDialog = ({ open, onClose, onUserAdded }: AddUserDialogProps
                     fullWidth
                     size="small"
                     type="password"
+                    autoComplete="new-password"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -374,6 +375,7 @@ export const AddUserDialog = ({ open, onClose, onUserAdded }: AddUserDialogProps
                     fullWidth
                     size="small"
                     type="password"
+                    autoComplete="new-password"
                     placeholder="••••••••"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}

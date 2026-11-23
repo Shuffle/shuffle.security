@@ -392,22 +392,34 @@ const NotificationsDrawer = ({
 
   // Mark a single notification as read (Close) or disabled.
   const actOnNotification = useCallback(
-    async (id: string, disabled?: boolean) => {
+    async (id: string, disabled?: boolean, personal?: boolean) => {
       if (!id) return;
-      const qs = disabled === undefined ? '' : `?disabled=${disabled ? 'true' : 'false'}`;
+      const params = new URLSearchParams();
+      if (disabled !== undefined) params.set('disabled', disabled ? 'true' : 'false');
+      if (personal) params.set('personal', 'true');
+      const qs = params.toString() ? `?${params.toString()}` : '';
       // Optimistically update local state so the UI feels instant.
       const patch = (n: ExecutionNotification) =>
         n.id === id
           ? { ...n, read: disabled === undefined ? true : n.read, ...(disabled === undefined ? {} : { ignored: disabled }) }
           : n;
-      setItems((prev) => prev.map(patch));
-      setAgentItems((prev) => prev.map(patch));
-      setPersonalApiItems((prev) => prev.map(patch));
+      let snapshot: [ExecutionNotification[], ExecutionNotification[], ExecutionNotification[]] = [[], [], []];
+      setItems((prev) => { snapshot[0] = prev; return prev.map(patch); });
+      setAgentItems((prev) => { snapshot[1] = prev; return prev.map(patch); });
+      setPersonalApiItems((prev) => { snapshot[2] = prev; return prev.map(patch); });
       try {
-        await fetch(getApiUrl(`/api/v1/notifications/${id}/markasread${qs}`), {
+        const resp = await fetch(getApiUrl(`/api/v1/notifications/${id}/markasread${qs}`), {
           credentials: 'include',
           headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         });
+        const body = await resp.json().catch(() => ({}));
+        if (!resp.ok || body?.success === false) {
+          setItems(snapshot[0]);
+          setAgentItems(snapshot[1]);
+          setPersonalApiItems(snapshot[2]);
+          toast.error(`Could not update the notification: ${body?.reason || `HTTP ${resp.status}`}`);
+          return;
+        }
         if (disabled === undefined) {
           toast.success('Notification marked as read');
         } else if (disabled) {
@@ -573,14 +585,16 @@ const NotificationsDrawer = ({
         }}
       >
         {/* Header */}
-        <Box sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 3 }, pb: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 'calc(env(safe-area-inset-top, 0px) + 20px)', sm: 3 }, pb: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-            <Typography sx={{ flex: '1 1 auto', minWidth: 110, fontSize: '1.125rem', fontWeight: 600 }}>
+            <Typography sx={{ flex: '1 1 auto', minWidth: 0, fontSize: '1.125rem', fontWeight: 600 }}>
               Notifications
             </Typography>
             {workflowConfigLoading ? (
               <Box
                 sx={{
+                  order: { xs: 10, sm: 0 },
+                  flexBasis: { xs: '100%', sm: 'auto' },
                   minWidth: { xs: 0, sm: 200 },
                   maxWidth: '100%',
                   height: 32,
@@ -623,9 +637,10 @@ const NotificationsDrawer = ({
                     },
                   }}
                   sx={{
-                    minWidth: { xs: 140, sm: 200 },
-                    maxWidth: { xs: 190, sm: 260 },
-                    flex: { xs: '1 1 140px', sm: '0 0 auto' },
+                    order: { xs: 10, sm: 0 },
+                    minWidth: { xs: 0, sm: 200 },
+                    maxWidth: { xs: '100%', sm: 260 },
+                    flex: { xs: '1 1 100%', sm: '0 0 auto' },
                     '& .MuiOutlinedInput-root': {
                       height: 32,
                       borderRadius: '999px',
@@ -671,7 +686,7 @@ const NotificationsDrawer = ({
               </span>
             </Tooltip>
 
-            <IconButton size="small" onClick={onClose} sx={{ color: 'hsl(var(--muted-foreground))' }}>
+            <IconButton size="small" aria-label="Close" onClick={onClose} sx={{ color: 'hsl(var(--muted-foreground))' }}>
               <CloseIcon fontSize="small" />
             </IconButton>
           </Box>
@@ -720,7 +735,7 @@ const NotificationsDrawer = ({
               ]}
             />
             <Tooltip title={showRead ? 'Hiding read notifications' : 'Showing all notifications'} arrow>
-              <span>
+              <Box component="span" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
                 <Button
                   size="small"
                   onClick={() => setShowRead((v) => !v)}
@@ -739,7 +754,7 @@ const NotificationsDrawer = ({
                 >
                   {showRead ? 'Hide read' : 'Show read'}
                 </Button>
-              </span>
+              </Box>
             </Tooltip>
             <Tooltip title="Clear every notification" arrow>
               <span>
@@ -1070,7 +1085,7 @@ const NotificationsDrawer = ({
                         <IconButton
                           size="small"
                           disabled={n.read === true}
-                          onClick={() => actOnNotification(n.id!)}
+                          onClick={() => actOnNotification(n.id!, undefined, scope === 'personal' || n.personal === true)}
                           sx={{
                             color: 'hsl(var(--muted-foreground))',
                             '&:hover': { color: 'hsl(var(--primary))', bgcolor: 'hsl(var(--muted) / 0.6)' },
@@ -1086,7 +1101,7 @@ const NotificationsDrawer = ({
                     <Tooltip title={n.ignored === true ? 'Enable notification' : 'Disable notification'} arrow>
                       <IconButton
                         size="small"
-                        onClick={() => actOnNotification(n.id!, n.ignored !== true)}
+                        onClick={() => actOnNotification(n.id!, n.ignored !== true, scope === 'personal' || n.personal === true)}
                         sx={{
                           color: n.ignored === true ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))',
                           '&:hover': { color: 'hsl(var(--destructive))', bgcolor: 'hsl(var(--muted) / 0.6)' },

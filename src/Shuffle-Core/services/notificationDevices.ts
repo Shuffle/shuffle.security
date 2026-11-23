@@ -186,6 +186,31 @@ export const saveNotificationDevice = async (
   }
 };
 
+/** Removes a device from the current user. */
+export const deleteNotificationDevice = async (
+  userId: string,
+  deviceId: string,
+): Promise<SaveDeviceResult> => {
+  try {
+    const response = await fetch(getApiUrl('/api/v1/updateuser'), {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ user_id: userId, device: { id: deviceId }, remove_device: true }),
+    });
+    if (response.ok) {
+      return { success: true };
+    }
+    const data = await response.json().catch(() => ({}));
+    return { success: false, reason: data?.reason || `HTTP ${response.status}` };
+  } catch (error) {
+    return { success: false, reason: error instanceof Error ? error.message : 'Network error' };
+  }
+};
+
 export const resolveDevicePreferences = (device?: NotificationDevice | null): DevicePreferences => ({
   ...DEFAULT_DEVICE_PREFERENCES,
   ...(device?.preferences || {}),

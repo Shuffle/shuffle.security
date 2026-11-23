@@ -22,7 +22,7 @@ import {
   Tooltip,
   Chip,
 } from '@mui/material';
-import { ChevronDown, Smartphone, Monitor, MoreVertical, Bell, BellOff, CalendarClock, PhoneCall } from 'lucide-react';
+import { ChevronDown, Smartphone, Monitor, MoreVertical, Bell, BellOff, CalendarClock, PhoneCall, Trash2 } from 'lucide-react';
 import { toast } from '@/Shuffle-Core/lib/toast';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@shuffleio/shuffle-mcps';
@@ -56,6 +56,7 @@ import {
   DevicePreferences,
   fetchNotificationDevices,
   saveNotificationDevice,
+  deleteNotificationDevice,
   resolveDevicePreferences,
   getSelectedOrgIdsForDeviceType,
   buildUpdatedOrgPreferences,
@@ -372,6 +373,8 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const [localDeviceId, setLocalDeviceId] = useState('');
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [savingDevice, setSavingDevice] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<NotificationDevice | null>(null);
+  const [deletingDevice, setDeletingDevice] = useState(false);
   const [inIframe, setInIframe] = useState(false);
   const [confirmCritical, setConfirmCritical] = useState(false);
   const [pendingCriticalTest, setPendingCriticalTest] = useState<'push' | 'simulate' | null>(null);
@@ -630,6 +633,26 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
     }
   };
 
+
+  /** True when the selected device exists on the server and can be deleted. */
+  const selectedDeviceSaved = Boolean(selectedDevice && devices.some((d) => d.id === selectedDevice.id));
+
+  const handleDeleteDevice = async () => {
+    if (!deleteTarget) return;
+    setDeletingDevice(true);
+    const result = await deleteNotificationDevice(userInfo?.id || '', deleteTarget.id);
+    setDeletingDevice(false);
+    if (!result.success) {
+      setPermissionMsg(`Failed to delete the device: ${result.reason || 'unknown error'}`);
+      return;
+    }
+    setDevices((current) => current.filter((d) => d.id !== deleteTarget.id));
+    if (selectedDeviceId === deleteTarget.id) {
+      setSelectedDeviceId(localDeviceId);
+    }
+    setDeleteTarget(null);
+    toast.success(`${deleteTarget.device_name || 'The device'} was removed from notifications.`);
+  };
 
   const setSectionEnabled = (type: NotificationType, value: boolean) => {
     if (isLocalSelected) {
@@ -1161,6 +1184,22 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           </FormControl>
         )}
 
+        {deviceList.length > 0 && selectedDeviceSaved && (
+          <Tooltip title={`Delete ${selectedDevice?.device_name || 'this device'} from notifications`}>
+            <span>
+              <IconButton
+                size="small"
+                onClick={() => setDeleteTarget(selectedDevice)}
+                disabled={savingDevice || deletingDevice}
+                aria-label="Delete device"
+                sx={{ color: 'hsl(var(--muted-foreground))' }}
+              >
+                <Trash2 size={16} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        )}
+
         <IconButton
           size="small"
           onClick={(e) => setMenuAnchor(e.currentTarget)}
@@ -1624,6 +1663,31 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
             sx={{ height: 36, textTransform: 'none' }}
           >
             {pendingCriticalTest === 'push' ? 'Send push' : 'Simulate'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteTarget)} onClose={() => !deletingDevice && setDeleteTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Delete device?</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: '0.88rem' }}>
+            <strong>{deleteTarget?.device_name || 'This device'}</strong> will no longer receive
+            notifications. You can register it again later from that device.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button size="small" onClick={() => setDeleteTarget(null)} disabled={deletingDevice} sx={outlinedButtonSx}>
+            Cancel
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            color="error"
+            onClick={() => void handleDeleteDevice()}
+            disabled={deletingDevice}
+            sx={{ height: 36, textTransform: 'none' }}
+          >
+            {deletingDevice ? <CircularProgress size={16} color="inherit" /> : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

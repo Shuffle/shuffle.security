@@ -56,6 +56,8 @@ import {
   getLocalDevicePlatform,
   resolveDevicePreferences,
   NotificationDevice,
+  findLocalDevice,
+  adoptLocalDeviceId,
 } from '@/Shuffle-Core/services/notificationDevices';
 import {
   testPagerCall,
@@ -154,11 +156,17 @@ export const PhoneNotificationSetupWizard: React.FC<PhoneNotificationSetupWizard
         });
         return;
       }
+      // Reuse this browser's existing registration (matched by id or push token)
+      // so registering again never creates a duplicate device.
+      const pushToken = getPagerSettings().pushToken || '';
+      const registered = await fetchNotificationDevices();
+      const existing = findLocalDevice(registered, getLocalDeviceId(), pushToken || undefined);
+      if (existing?.id) adoptLocalDeviceId(existing.id);
       const localDev: NotificationDevice = {
-        id: getLocalDeviceId(),
+        id: existing?.id || getLocalDeviceId(),
         device_name: getLocalDeviceName(),
         platform: getLocalDevicePlatform(),
-        token: getPagerSettings().pushToken || '',
+        token: pushToken,
         preferences: resolveDevicePreferences(),
       };
       const currentUserId = userInfo?.id || (users && users[0]?.id);

@@ -972,7 +972,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       const freshDevices = await fetchNotificationDevices();
       setDevices(freshDevices);
       const nativeApp = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
-      if (freshDevices.some((d) => d.id === localDeviceId && d.token) || (nativeApp && settings.pushToken)) {
+      if (findLocalDevice(freshDevices, localDeviceId, settings.pushToken || undefined)?.token || (nativeApp && settings.pushToken)) {
         setPermissionMsg('This device is registered for push notifications.');
         return;
       }

@@ -151,6 +151,13 @@ export const PhoneNotificationSetupWizard: React.FC<PhoneNotificationSetupWizard
     try {
       const granted = await requestNotificationPermissions();
       if (!granted) {
+        // The native app registers push itself; if this device already has a token, it worked.
+        const already = findLocalDevice(await fetchNotificationDevices(), getLocalDeviceId(), getPagerSettings().pushToken || undefined);
+        if (already?.token) {
+          toast.success('This device is registered for push notifications.');
+          await loadDevices();
+          return;
+        }
         const blocked = typeof Notification !== 'undefined' && Notification.permission === 'denied';
         toast.error(blocked ? 'Notifications are blocked' : 'Notifications are not allowed yet', {
           description: blocked

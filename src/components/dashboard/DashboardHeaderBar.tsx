@@ -5,7 +5,7 @@
  */
 import { forwardRef } from 'react';
 import { Box, FormControl, IconButton, InputLabel, ListSubheader, MenuItem, Select, Tooltip } from '@mui/material';
-import { RefreshCw as RefreshIcon, X as CloseIcon } from 'lucide-react';
+import { RefreshCw as RefreshIcon, X as CloseIcon, Download as DownloadIcon, Loader2 } from 'lucide-react';
 import {
   AUTOMATION_RANGE_OPTIONS,
   TAB_LABELS,
@@ -28,6 +28,10 @@ export interface DashboardHeaderBarProps {
   gran: 'daily' | 'monthly';
   onGranChange: (gran: 'daily' | 'monthly') => void;
   onRefresh: () => void;
+  /** When set, shows the Export report (PDF) button next to Refresh. */
+  onExport?: () => void;
+  exporting?: boolean;
+  exportStatus?: string;
   customDashboards?: CustomDashboardConfig[];
   onCreateDashboard?: () => void;
 }
@@ -60,6 +64,9 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
     gran,
     onGranChange,
     onRefresh,
+    onExport,
+    exporting = false,
+    exportStatus,
     customDashboards = [],
     onCreateDashboard,
   },
@@ -184,6 +191,21 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
             <RefreshIcon size={16} />
           </IconButton>
         </Tooltip>
+        {onExport && (
+          <Tooltip title={exporting ? (exportStatus || 'Generating PDF...') : 'Export report as PDF'}>
+            <span style={{ alignSelf: 'flex-end' }}>
+              <IconButton
+                size="small"
+                onClick={() => onExport()}
+                disabled={exporting}
+                aria-label="Export report as PDF"
+                sx={{ color: 'hsl(var(--muted-foreground))', width: 36, height: 36, borderRadius: '8px' }}
+              >
+                {exporting ? <Loader2 size={16} className="animate-spin" /> : <DownloadIcon size={16} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        )}
       </Box>
     </Box>
   );

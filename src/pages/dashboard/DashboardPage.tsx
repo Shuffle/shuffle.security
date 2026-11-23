@@ -24,7 +24,7 @@ import {
   Collapse,
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle, Loader2, HelpCircle, Clock, MessageSquare, ChevronRight, Plug, KeyRound, ArrowDownToLine, Send, Radar, Monitor, Shield, Sparkles, Check, ArrowRight, ExternalLink, EyeOff, Undo2, ExternalLink as OpenInNewIcon, RefreshCw as RefreshIcon, Download as DownloadIcon } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Loader2, HelpCircle, Clock, MessageSquare, ChevronRight, Plug, KeyRound, ArrowDownToLine, Send, Radar, Monitor, Shield, Sparkles, Check, ArrowRight, ExternalLink, EyeOff, Undo2, ExternalLink as OpenInNewIcon, RefreshCw as RefreshIcon } from 'lucide-react';
 import { Link, useNavigate } from '@/lib/router-compat';
 import AgentQuestionDialog from '@/components/agent/AgentQuestionDialog';
 import AgentQuickViewDrawer, { type QuickViewItem } from '@/components/agent/AgentQuickViewDrawer';
@@ -1200,18 +1200,6 @@ const DashboardPage = () => {
                 />
               </IconButton>
             </Tooltip>
-            <Tooltip title={exporting ? (exportStatus || 'Generating PDF…') : 'Export report as PDF'}>
-              <span>
-                <IconButton
-                  onClick={() => setExportDialogOpen(true)}
-                  size="small"
-                  disabled={exporting}
-                  sx={{ color: 'hsl(var(--muted-foreground))' }}
-                >
-                  {exporting ? <Loader2 size={20} className="animate-spin" /> : <DownloadIcon size={20} />}
-                </IconButton>
-              </span>
-            </Tooltip>
           </Box>
         </Box>
         <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.875rem', mb: 2 }}>
@@ -1250,6 +1238,9 @@ const DashboardPage = () => {
                     gran={dashboardGran}
                     onGranChange={setDashboardGran}
                     onRefresh={handleDashboardRefresh}
+                    onExport={() => setExportDialogOpen(true)}
+                    exporting={exporting}
+                    exportStatus={exportStatus}
                     customDashboards={customDashboards}
                     onCreateDashboard={isAdmin ? () => setCreateDashboardOpen(true) : undefined}
                   />

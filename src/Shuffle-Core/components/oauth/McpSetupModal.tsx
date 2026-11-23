@@ -137,7 +137,6 @@ export const McpSetupModal: React.FC<McpSetupModalProps> = ({
           justifyContent: 'space-between',
           gap: 1.5,
           pb: 1.5,
-          borderBottom: '1px solid hsl(var(--border))',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>

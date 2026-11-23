@@ -1241,7 +1241,7 @@ const NotificationsDrawer = ({
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <DialogContent dividers sx={{ borderColor: 'hsl(var(--border))' }}>
+        <DialogContent>
           {mobileSetupOpen && <PagerNotificationSettings />}
         </DialogContent>
       </Dialog>

@@ -1537,6 +1537,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               <Switch
                 checked={settings.generalSoundEnabled}
                 onChange={(e) => update({ generalSoundEnabled: e.target.checked })}
+                disabled={!controlsAvailable}
                 color="primary"
                 size="small"
               />
@@ -1624,7 +1625,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               <>
                 <Tooltip title="Play the siren audio in this browser tab only. No notification is sent." placement="left" arrow>
                   <span>
-                    <Button variant="outlined" size="small" onClick={handleTestAudio} disabled={isPlayingTestSiren} sx={outlinedButtonSx}>
+                    <Button variant="outlined" size="small" onClick={handleTestAudio} disabled={isPlayingTestSiren || !criticalAvailable} sx={outlinedButtonSx}>
                       {isPlayingTestSiren ? 'Playing' : 'Test'}
                     </Button>
                   </span>
@@ -1632,6 +1633,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                 <Switch
                   checked={settings.sirenSoundEnabled}
                   onChange={(e) => update({ sirenSoundEnabled: e.target.checked })}
+                  disabled={!criticalAvailable}
                   color="primary"
                   size="small"
                 />
@@ -1646,6 +1648,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               <Switch
                 checked={settings.vibrationEnabled}
                 onChange={(e) => update({ vibrationEnabled: e.target.checked })}
+                disabled={!criticalAvailable}
                 color="primary"
                 size="small"
               />
@@ -1660,6 +1663,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                 <Select
                   value={settings.autoEscalateTimeoutSeconds || 60}
                   onChange={(e) => update({ autoEscalateTimeoutSeconds: Number(e.target.value) })}
+                  disabled={!criticalAvailable}
                   sx={{
                     height: 36,
                     fontSize: '0.85rem',

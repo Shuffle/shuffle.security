@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -216,6 +216,33 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
     fetchConnections(false);
   }, [fetchConnections]);
 
+  const isCurrentTenant = useCallback(
+    (conn: OAuthConnectionItem) => Boolean(orgId) && conn.org_id === orgId,
+    [orgId]
+  );
+
+  const sortedConnections = useMemo(() => {
+    if (!orgId) return connections;
+    const current: OAuthConnectionItem[] = [];
+    const others: OAuthConnectionItem[] = [];
+    for (const conn of connections) {
+      if (isCurrentTenant(conn)) {
+        current.push(conn);
+      } else {
+        others.push(conn);
+      }
+    }
+    return [...current, ...others];
+  }, [connections, orgId, isCurrentTenant]);
+
+  const hasMixedTenants = useMemo(
+    () =>
+      Boolean(orgId) &&
+      connections.some((conn) => isCurrentTenant(conn)) &&
+      connections.some((conn) => !isCurrentTenant(conn)),
+    [connections, orgId, isCurrentTenant]
+  );
+
   const handleRevoke = async (conn: OAuthConnectionItem) => {
     const targetToken = conn.id || conn.token_masked;
     if (!targetToken) return;
@@ -353,8 +380,9 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {connections.map((conn, idx) => {
+          {sortedConnections.map((conn, idx) => {
             const connKey = conn.id || conn.token_masked || `conn-${idx}`;
+            const currentTenant = isCurrentTenant(conn);
             const profile = resolveConnectionProfile(conn);
             const verificationMeta = getVerificationStatusMeta(
               profile.verificationStatus,
@@ -397,6 +425,7 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                   borderRadius: 2,
                   border: '1px solid hsl(var(--border))',
                   bgcolor: isExpanded ? 'hsl(var(--muted) / 0.2)' : 'hsl(var(--muted) / 0.12)',
+                  opacity: hasMixedTenants && !currentTenant ? 0.72 : 1,
                   cursor: 'pointer',
                   transition: 'background-color 0.15s ease, border-color 0.15s ease',
                   '&:hover': {
@@ -485,6 +514,33 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                         >
                           Active
                         </Box>
+                        {hasMixedTenants && (
+                          <Box
+                            component="span"
+                            sx={{
+                              px: 0.85,
+                              py: 0.15,
+                              fontSize: '0.68rem',
+                              fontWeight: 600,
+                              borderRadius: 1,
+                              ...(currentTenant
+                                ? {
+                                    bgcolor: 'rgba(255, 102, 0, 0.1)',
+                                    color: 'hsl(var(--primary))',
+                                    border: '1px solid rgba(255, 102, 0, 0.28)',
+                                  }
+                                : {
+                                    bgcolor: 'hsl(var(--muted) / 0.4)',
+                                    color: 'hsl(var(--muted-foreground))',
+                                    border: '1px solid hsl(var(--border))',
+                                  }),
+                            }}
+                          >
+                            {currentTenant
+                              ? `This tenant${orgName ? `: ${orgName}` : ''}`
+                              : 'Other tenant'}
+                          </Box>
+                        )}
                         <Box
                           component="span"
                           sx={{

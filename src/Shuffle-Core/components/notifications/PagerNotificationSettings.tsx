@@ -598,11 +598,17 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   useEffect(() => {
     if (defaultPickedRef.current || devices.length === 0 || !localDeviceId) return;
     defaultPickedRef.current = true;
+    const isConnected = (d: NotificationDevice) => Boolean(d.token || d.has_token || d.push_registered);
+    const isOn = (d: NotificationDevice) => Object.values(resolveDevicePreferences(d)).some(Boolean);
     const localRow = devices.find((d) => d.id === localDeviceId);
-    const localEnabled = localRow && Object.values(resolveDevicePreferences(localRow)).some(Boolean);
-    if (localEnabled) return;
-    const enabled = devices.find((d) => Object.values(resolveDevicePreferences(d)).some(Boolean));
-    if (enabled) setSelectedDeviceId((current) => (current === localDeviceId || !current ? enabled.id : current));
+    if (localRow && isConnected(localRow) && isOn(localRow)) return;
+    const others = devices.filter((d) => d.id !== localDeviceId);
+    const pick =
+      others.find((d) => isConnected(d) && isOn(d)) ||
+      others.find(isOn) ||
+      others.find(isConnected) ||
+      (localRow && isConnected(localRow) ? undefined : others[0]);
+    if (pick) setSelectedDeviceId((current) => (current === localDeviceId || !current ? pick.id : current));
   }, [devices, localDeviceId]);
 
   const deviceList: NotificationDevice[] = localDeviceId

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from '@/lib/router-compat';
 import { Box, Typography, Chip, IconButton, Avatar, Tooltip as MuiTooltip } from '@mui/material';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
@@ -30,7 +30,7 @@ import { CategoryAutomationsDialog } from '@shuffleio/shuffle-core';
 import { useDatastore } from '@/hooks/useDatastore';
 import { DATASTORE_CATEGORIES, CategoryAutomation } from '@/Shuffle-Core/datastore';
 import { ListPaginationBar, ListLoadMoreButton } from '@/components/common/ListPagination';
-import { getListPage } from '@/components/common/listPaginationState';
+import { usePersistentListPage } from '@/components/common/usePersistentListPage';
 import { IconActionButton } from '@/components/common/IconActionButton';
 import { useHostMonitorCount } from '@/hooks/useHostMonitorCount';
 
@@ -365,6 +365,7 @@ const AuthenticatedVulnerabilitiesView = () => {
             <VulnTable
               vulnerabilities={filtered}
               isLoading={isLoading}
+              isRefreshing={isRefreshing}
               hasMore={hasMore}
               onLoadMore={fetchNextPage}
               onRemediate={handleRemediate}
@@ -444,6 +445,7 @@ const AuthenticatedVulnerabilitiesView = () => {
 interface VulnTableProps {
   vulnerabilities: Vulnerability[];
   isLoading: boolean;
+  isRefreshing?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => Promise<unknown> | void;
   onRemediate: () => void;
@@ -476,6 +478,7 @@ type SortKey = 'severity' | 'title' | 'category' | 'source' | 'status' | 'first_
 const VulnTable = ({
   vulnerabilities,
   isLoading,
+  isRefreshing = false,
   hasMore = false,
   onLoadMore,
   onRemediate,
@@ -499,11 +502,18 @@ const VulnTable = ({
   onSourceChange,
 }: VulnTableProps) => {
   const navigate = useNavigate();
-  const [requestedPage, setCurrentPage] = useState(1);
-  const currentPage = getListPage(requestedPage, vulnerabilities.length, VULNS_PER_PAGE);
-  // Every filter resets navigation; clamping also covers refreshed/deleted rows.
-  useEffect(() => { setCurrentPage(1); }, [severityFilter, categoryFilter, statusFilter, sourceFilter, searchQuery, dateFrom, dateTo, sortKey, sortDir]);
-  useEffect(() => { setCurrentPage(currentPage); }, [currentPage]);
+  const { userInfo } = useAuth();
+  const pageSignature = useMemo(() => JSON.stringify({ severityFilter, categoryFilter, statusFilter, sourceFilter, q: searchQuery, dateFrom: dateFrom ?? null, dateTo: dateTo ?? null, sortKey, sortDir }), [severityFilter, categoryFilter, statusFilter, sourceFilter, searchQuery, dateFrom, dateTo, sortKey, sortDir]);
+  // Same remembered, settle-before-showing pagination as /incidents.
+  const { visiblePage: currentPage, barProps: paginationBarProps } = usePersistentListPage({
+    storageKey: `shuffle-vulnerabilities-page:${userInfo?.active_org?.id || 'none'}`,
+    signature: pageSignature,
+    totalItems: vulnerabilities.length,
+    itemsPerPage: VULNS_PER_PAGE,
+    isRefreshing: isRefreshing || isLoading,
+    hasFetched: !isLoading,
+    hasMore,
+  });
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -678,10 +688,7 @@ const VulnTable = ({
     </div>
     {/* Outside the blurred table box: backdrop-filter would otherwise pin the fixed bar to the table. */}
       <ListPaginationBar
-        currentPage={currentPage}
-        totalItems={sorted.length}
-        itemsPerPage={VULNS_PER_PAGE}
-        onPageChange={setCurrentPage}
+        {...paginationBarProps}
         hasMore={hasMore}
         isLoading={isLoading}
         onLoadMore={onLoadMore}

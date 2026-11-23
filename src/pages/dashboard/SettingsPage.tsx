@@ -338,6 +338,9 @@ const SettingsPage = () => {
                   type={showCurrentPw ? 'text' : 'password'}
                   size="small"
                   value={currentPw}
+                  autoComplete="off"
+                  autoFocus={false}
+                  name="settings-currentPw"
                   onChange={(e) => setCurrentPw(e.target.value)}
                   fullWidth
                   slotProps={{
@@ -367,6 +370,9 @@ const SettingsPage = () => {
                   type={showNewPw ? 'text' : 'password'}
                   size="small"
                   value={newPw}
+                  autoComplete="new-password"
+                  autoFocus={false}
+                  name="settings-newPw"
                   onChange={(e) => setNewPw(e.target.value)}
                   fullWidth
                   helperText="More than 10 characters"
@@ -397,6 +403,9 @@ const SettingsPage = () => {
                   type={showConfirmPw ? 'text' : 'password'}
                   size="small"
                   value={confirmPw}
+                  autoComplete="new-password"
+                  autoFocus={false}
+                  name="settings-confirmPw"
                   onChange={(e) => setConfirmPw(e.target.value)}
                   fullWidth
                   error={confirmPw.length > 0 && newPw !== confirmPw}

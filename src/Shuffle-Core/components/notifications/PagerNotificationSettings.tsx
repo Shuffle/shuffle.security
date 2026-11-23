@@ -1146,7 +1146,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
             display: 'flex',
             alignItems: 'center',
             gap: 0.75,
-            flexWrap: 'nowrap',
+            flexWrap: { xs: 'wrap', sm: 'nowrap' },
             minWidth: 0,
             width: { xs: '100%', sm: 'auto' },
             justifyContent: { xs: 'flex-start', sm: 'flex-end' },
@@ -1166,7 +1166,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                 : 'Notifications are not registered on this device yet.'
             }
           >
-            <span>
+            <Box component="span" sx={{ flexBasis: { xs: '100%', sm: 'auto' } }}>
               <Button
                 variant="contained"
                 size="small"
@@ -1210,12 +1210,12 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
 
                 )}
               </Button>
-            </span>
+            </Box>
           </Tooltip>
         )}
 
         {deviceList.length > 0 && (
-          <FormControl size="small" sx={{ flex: '1 1 auto', minWidth: 0, maxWidth: 160 }}>
+          <FormControl size="small" sx={{ flex: '1 1 auto', minWidth: 0, maxWidth: { xs: 'none', sm: 160 } }}>
             <Select
               value={selectedDeviceId}
               onChange={(e) => setSelectedDeviceId(String(e.target.value))}
@@ -1314,7 +1314,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
             size="small"
             onClick={() => setStatsOpen(true)}
             aria-label="Notification statistics"
-            sx={{ color: 'hsl(var(--muted-foreground))' }}
+            sx={{ color: 'hsl(var(--muted-foreground))', display: { xs: 'none', sm: 'inline-flex' } }}
           >
             <BarChart3 size={16} />
           </IconButton>

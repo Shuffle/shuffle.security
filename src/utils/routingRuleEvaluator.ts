@@ -222,6 +222,18 @@ const withBase64Decodes = (haystacks: string[]): string[] => {
   return out;
 };
 
+// Routing-rule regexes are user-authored and run on incident page load, so
+// bound both the pattern and the input to prevent catastrophic backtracking.
+const MAX_REGEX_PATTERN_LENGTH = 200;
+const MAX_REGEX_INPUT_LENGTH = 10000;
+export const isSafeRoutingRegex = (pattern: string): boolean => {
+  if (pattern.length > MAX_REGEX_PATTERN_LENGTH) return false;
+  // Reject backreferences and nested quantifiers such as (a+)+, (a*)*, (a|b+){2,}
+  if (/\\[1-9]|\\k</.test(pattern)) return false;
+  if (/\((?:[^()\\]|\\.)*[+*}](?:[^()\\]|\\.)*\)\s*[+*{?]/.test(pattern)) return false;
+  return true;
+};
+
 const evaluateCondition = (ctx: IncidentEvaluationContext, c: RoutingCondition): boolean => {
   const raw = resolveField(ctx, c.field);
   const rawStrings = asStringArray(raw);
@@ -243,10 +255,10 @@ const evaluateCondition = (ctx: IncidentEvaluationContext, c: RoutingCondition):
     case 'endsWith':
       return needle.length > 0 && haystacks.some((s) => s.endsWith(needle));
     case 'regex': {
-      if (!c.value) return false;
+      if (!c.value || !isSafeRoutingRegex(c.value)) return false;
       try {
         const re = new RegExp(c.value, 'i');
-        return haystacks.some((s) => re.test(s));
+        return haystacks.some((s) => re.test(s.slice(0, MAX_REGEX_INPUT_LENGTH)));
       } catch {
         return false;
       }

@@ -347,6 +347,26 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
     }
   };
 
+  const rawMessage = error instanceof Error ? error.message : String(error ?? "");
+  const isLoadFailure = /failed to fetch|networkerror|load failed|dynamically imported module|importing a module script|loading chunk|network request failed/i.test(rawMessage);
+
+  if (isLoadFailure) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="w-full max-w-sm p-8 text-center rounded-2xl border border-border bg-card">
+          <h1 className="mb-2 text-xl font-bold text-foreground">Page could not load</h1>
+          <p className="mb-6 text-sm text-muted-foreground">Check your connection and try again.</p>
+          <button
+            className="w-full h-9 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            onClick={() => window.location.reload()}
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
       <div className="w-full max-w-md p-8 text-center rounded-2xl border border-border bg-card shadow-lg">

@@ -1265,6 +1265,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                     ) : (
                       <Monitor size={14} color="hsl(var(--muted-foreground))" />
                     )}
+                    {device?.region && <RegionFlagImage code={getRegionFlag(device.region).code} />}
                     <Typography
                       sx={{
                         fontSize: '0.75rem',
@@ -1279,7 +1280,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                     >
                       {label}
                     </Typography>
-                    {device?.region && <RegionFlagImage code={getRegionFlag(device.region).code} />}
                   </Box>
                 );
               }}
@@ -1315,9 +1315,9 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                     ) : (
                       <Monitor size={14} color="hsl(var(--muted-foreground))" />
                     )}
+                    {device.region && <RegionFlagImage code={getRegionFlag(device.region).code} />}
                     {(device.device_name || device.id) +
                       (device.id === localDeviceId ? ' (this device)' : '')}
-                    {device.region && <RegionFlagImage code={getRegionFlag(device.region).code} />}
                   </MenuItem>
                 );
               })}

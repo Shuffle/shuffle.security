@@ -272,7 +272,8 @@ const AgentPermissionsPage = () => {
                   size="small"
                   fullWidth
                   type="password"
-                  autoComplete="off"
+                  autoComplete="new-password"
+                  inputProps={{ 'data-1p-ignore': 'true', 'data-lpignore': 'true', 'data-bwignore': 'true', 'data-form-type': 'other' }}
                   value={agentApiKey}
                   onChange={(e) => setAgentApiKey(e.target.value)}
                   sx={{

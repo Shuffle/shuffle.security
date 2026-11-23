@@ -1037,6 +1037,8 @@ export const AppAuthCard = ({
           <TextField
             label="Client Secret"
             type="password"
+            autoComplete="new-password"
+            inputProps={{ 'data-1p-ignore': 'true', 'data-lpignore': 'true', 'data-bwignore': 'true', 'data-form-type': 'other' }}
             placeholder="Enter your Client Secret"
             value={localCredentials['client_secret'] || ''}
             onChange={(e) => handleCredentialChange('client_secret', e.target.value)}

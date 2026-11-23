@@ -95,6 +95,7 @@ interface SectionProps {
   description: string;
   enabled: boolean;
   disabled?: boolean;
+  disabledTooltip?: string;
   onToggle: (value: boolean) => void;
   expanded: boolean;
   onExpandToggle: () => void;
@@ -111,6 +112,7 @@ const NotificationSection = ({
   description,
   enabled,
   disabled,
+  disabledTooltip,
   onToggle,
   expanded,
   onExpandToggle,
@@ -151,15 +153,35 @@ const NotificationSection = ({
           <ChevronDown size={16} />
         </IconButton>
         <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 600, fontSize: '0.92rem', color: 'hsl(var(--foreground))', lineHeight: 1.3 }}>
-            {title}
-          </Typography>
-          <Typography
-            variant="caption"
-            sx={{ display: 'block', color: 'hsl(var(--muted-foreground))', lineHeight: 1.35 }}
+          <Tooltip
+            title={disabled && disabledTooltip ? disabledTooltip : ''}
+            placement="top"
+            arrow
           >
-            {description}
-          </Typography>
+            <span>
+              <Typography
+                sx={{
+                  fontWeight: 600,
+                  fontSize: '0.92rem',
+                  color: disabled ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))',
+                  lineHeight: 1.3,
+                }}
+              >
+                {title}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: 'block',
+                  color: 'hsl(var(--muted-foreground))',
+                  opacity: disabled ? 0.7 : 1,
+                  lineHeight: 1.35,
+                }}
+              >
+                {description}
+              </Typography>
+            </span>
+          </Tooltip>
         </Box>
       </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5, flexShrink: 0 }}>
@@ -1360,6 +1382,66 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       )}
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {/* General Notifications */}
+        <NotificationSection
+          title="General Notifications"
+          description="Completed workflows, rotations, and reports."
+          enabled={sectionEnabled('general')}
+          disabled={!controlsAvailable}
+          onToggle={(value) => setSectionEnabled('general', value)}
+          expanded={expanded === 'general'}
+          onExpandToggle={() => toggleExpanded('general')}
+          expandDisabled={!isGranted}
+          onTest={testToken ? () => handleTestRemotePush('general') : undefined}
+          testing={sendingType === 'general'}
+          testTooltip={`Send a real general push to ${testTargetName} right now, exactly as a routine update would arrive.`}
+        >
+          {renderTenantRoutingRow('general')}
+
+          <SettingRow
+            label="Sound"
+            hint="Plays a short chime for informational updates."
+            control={
+              <Switch
+                checked={settings.generalSoundEnabled}
+                onChange={(e) => update({ generalSoundEnabled: e.target.checked })}
+                color="primary"
+                size="small"
+              />
+            }
+          />
+
+          <SettingRow
+            label="Test delivery"
+            control={
+              <>
+                <Tooltip title="Show a general notification locally in this tab. Nothing is sent to any device." placement="left" arrow>
+                  <span>
+                    <Button variant="outlined" size="small" onClick={handleSimulateGeneral} disabled={!testToken} sx={outlinedButtonSx}>
+                      Simulate
+                    </Button>
+                  </span>
+                </Tooltip>
+                {Boolean(testToken) && (
+                  <Tooltip title={`Send a real general push through the Shuffle API to ${testTargetName}.`} placement="left" arrow>
+                    <span>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleTestRemotePush('general')}
+                        disabled={sendingType === 'general'}
+                        sx={outlinedButtonSx}
+                      >
+                        {sendingType === 'general' ? 'Sending' : 'Send push'}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
+              </>
+            }
+          />
+        </NotificationSection>
+
         {/* Critical Pager */}
         <NotificationSection
           title="Critical Pager"
@@ -1370,6 +1452,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           }
           enabled={sectionEnabled('critical')}
           disabled={!criticalAvailable}
+          disabledTooltip="Critical Pager is only available in the mobile app. Browsers cannot deliver critical alerts."
           onToggle={(value) => {
             if (value) {
               setConfirmCritical(true);
@@ -1532,66 +1615,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                         sx={outlinedButtonSx}
                       >
                         {sendingType === 'agent_request' ? 'Sending' : 'Send push'}
-                      </Button>
-                    </span>
-                  </Tooltip>
-                )}
-              </>
-            }
-          />
-        </NotificationSection>
-
-        {/* General Notifications */}
-        <NotificationSection
-          title="General Notifications"
-          description="Completed workflows, rotations, and reports."
-          enabled={sectionEnabled('general')}
-          disabled={!controlsAvailable}
-          onToggle={(value) => setSectionEnabled('general', value)}
-          expanded={expanded === 'general'}
-          onExpandToggle={() => toggleExpanded('general')}
-          expandDisabled={!isGranted}
-          onTest={testToken ? () => handleTestRemotePush('general') : undefined}
-          testing={sendingType === 'general'}
-          testTooltip={`Send a real general push to ${testTargetName} right now, exactly as a routine update would arrive.`}
-        >
-          {renderTenantRoutingRow('general')}
-
-          <SettingRow
-            label="Sound"
-            hint="Plays a short chime for informational updates."
-            control={
-              <Switch
-                checked={settings.generalSoundEnabled}
-                onChange={(e) => update({ generalSoundEnabled: e.target.checked })}
-                color="primary"
-                size="small"
-              />
-            }
-          />
-
-          <SettingRow
-            label="Test delivery"
-            control={
-              <>
-                <Tooltip title="Show a general notification locally in this tab. Nothing is sent to any device." placement="left" arrow>
-                  <span>
-                    <Button variant="outlined" size="small" onClick={handleSimulateGeneral} disabled={!testToken} sx={outlinedButtonSx}>
-                      Simulate
-                    </Button>
-                  </span>
-                </Tooltip>
-                {Boolean(testToken) && (
-                  <Tooltip title={`Send a real general push through the Shuffle API to ${testTargetName}.`} placement="left" arrow>
-                    <span>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => handleTestRemotePush('general')}
-                        disabled={sendingType === 'general'}
-                        sx={outlinedButtonSx}
-                      >
-                        {sendingType === 'general' ? 'Sending' : 'Send push'}
                       </Button>
                     </span>
                   </Tooltip>

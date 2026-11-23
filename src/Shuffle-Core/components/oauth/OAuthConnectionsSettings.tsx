@@ -1263,7 +1263,7 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
         series={[
           { key: 'oauth_api_usage', label: 'All applications' },
           ...sortedConnections.map((c) => ({
-            key: `oauth_api_usage_${String(c.id).toLowerCase().replace(/ /g, '_')}`,
+            key: `oauth_session_${String(c.id).toLowerCase().replace(/ /g, '_')}`,
             label: `${c.client_name || c.client_id} (${c.usage_count || 0} total)`,
           })),
         ]}

@@ -340,7 +340,9 @@ const SettingsPage = () => {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2.5 }}>
                 <TextField
                   label="Current password"
-                  type={showCurrentPw ? 'text' : 'password'}
+                  // Plain text field masked with CSS, so password managers do not
+                  // detect, autofill or focus it.
+                  type="text"
                   size="small"
                   value={currentPw}
                   autoComplete="off"
@@ -350,6 +352,15 @@ const SettingsPage = () => {
                   onChange={(e) => setCurrentPw(e.target.value)}
                   fullWidth
                   slotProps={{
+                    htmlInput: {
+                      'data-1p-ignore': 'true',
+                      'data-lpignore': 'true',
+                      'data-bwignore': 'true',
+                      'data-form-type': 'other',
+                      autoCorrect: 'off',
+                      autoCapitalize: 'off',
+                      spellCheck: false,
+                    },
                     input: {
                       readOnly: !currentPwUnlocked,
                       endAdornment: (
@@ -368,7 +379,7 @@ const SettingsPage = () => {
                     },
                   }}
                   sx={{
-                    '& .MuiInputBase-input': { fontSize: '0.85rem' },
+                    '& .MuiInputBase-input': { fontSize: '0.85rem', WebkitTextSecurity: showCurrentPw ? 'none' : 'disc' },
                     '& .MuiInputLabel-root': { fontSize: '0.85rem' },
                   }}
                 />

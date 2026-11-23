@@ -1462,7 +1462,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           }}
           expanded={expanded === 'critical'}
           onExpandToggle={() => toggleExpanded('critical')}
-          expandDisabled={!isGranted}
+          expandDisabled={!isGranted && criticalAvailable}
           onTest={testToken ? () => requestCriticalTest('push') : undefined}
           testing={sendingType === 'critical'}
           testDisabled={!criticalAvailable}
@@ -1472,6 +1472,32 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               : `Critical Pager is not available on ${testTargetName}, so it cannot be tested. It requires the mobile app.`
           }
         >
+          {!criticalAvailable && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', lineHeight: 1.4 }}>
+                Critical Pager requires the Shuffle mobile app. Install it on your phone to receive
+                full-screen critical alerts that override silent mode.
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Chip
+                  label="iOS App Store"
+                  component="a"
+                  href="https://apps.apple.com"
+                  target="_blank"
+                  clickable
+                  sx={{ fontSize: '0.75rem', bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}
+                />
+                <Chip
+                  label="Google Play"
+                  component="a"
+                  href="https://play.google.com"
+                  target="_blank"
+                  clickable
+                  sx={{ fontSize: '0.75rem', bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}
+                />
+              </Box>
+            </Box>
+          )}
           {renderTenantRoutingRow('critical')}
 
           <SettingRow

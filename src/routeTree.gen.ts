@@ -18,6 +18,7 @@ import { Route as AppsRouteImport } from './routes/apps'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as Login_openidRouteImport } from './routes/login_openid'
 import { Route as Login_ssoRouteImport } from './routes/login_sso'
+import { Route as MobileRouteImport } from './routes/mobile'
 import { Route as MobileLoginRouteImport } from './routes/mobile-login'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterRouteImport } from './routes/register'
@@ -151,6 +152,11 @@ const Login_openidRoute = Login_openidRouteImport.update({
 const Login_ssoRoute = Login_ssoRouteImport.update({
   id: '/login_sso',
   path: '/login_sso',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MobileRoute = MobileRouteImport.update({
+  id: '/mobile',
+  path: '/mobile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MobileLoginRoute = MobileLoginRouteImport.update({
@@ -638,6 +644,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRouteWithChildren
   '/login_openid': typeof Login_openidRoute
   '/login_sso': typeof Login_ssoRoute
+  '/mobile': typeof MobileRoute
   '/mobile-login': typeof MobileLoginRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -738,6 +745,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRouteWithChildren
   '/login_openid': typeof Login_openidRoute
   '/login_sso': typeof Login_ssoRoute
+  '/mobile': typeof MobileRoute
   '/mobile-login': typeof MobileLoginRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -842,6 +850,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRouteWithChildren
   '/login_openid': typeof Login_openidRoute
   '/login_sso': typeof Login_ssoRoute
+  '/mobile': typeof MobileRoute
   '/mobile-login': typeof MobileLoginRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
@@ -944,6 +953,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/login_openid'
     | '/login_sso'
+    | '/mobile'
     | '/mobile-login'
     | '/pricing'
     | '/register'
@@ -1044,6 +1054,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/login_openid'
     | '/login_sso'
+    | '/mobile'
     | '/mobile-login'
     | '/pricing'
     | '/register'
@@ -1147,6 +1158,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/login_openid'
     | '/login_sso'
+    | '/mobile'
     | '/mobile-login'
     | '/pricing'
     | '/register'
@@ -1251,6 +1263,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRouteWithChildren
   Login_openidRoute: typeof Login_openidRoute
   Login_ssoRoute: typeof Login_ssoRoute
+  MobileRoute: typeof MobileRoute
   MobileLoginRoute: typeof MobileLoginRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
@@ -1335,6 +1348,13 @@ declare module '@tanstack/react-router' {
       path: '/login_sso'
       fullPath: '/login_sso'
       preLoaderRoute: typeof Login_ssoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mobile': {
+      id: '/mobile'
+      path: '/mobile'
+      fullPath: '/mobile'
+      preLoaderRoute: typeof MobileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mobile-login': {
@@ -2174,6 +2194,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRouteWithChildren,
   Login_openidRoute: Login_openidRoute,
   Login_ssoRoute: Login_ssoRoute,
+  MobileRoute: MobileRoute,
   MobileLoginRoute: MobileLoginRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,

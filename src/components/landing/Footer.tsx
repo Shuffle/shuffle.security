@@ -19,6 +19,7 @@ const footerLinks = {
   Resources: [
     { label: 'Documentation', href: '/docs' },
     { label: 'Getting Started', href: '/docs/getting_started' },
+    { label: 'Mobile App', href: '/mobile' },
     { label: 'API Reference', href: 'https://shuffler.io/docs/API' },
     { label: 'Community', href: 'https://discord.com/invite/B2CBzUm' },
     { label: 'Contact', href: 'https://shuffler.io/contact' },

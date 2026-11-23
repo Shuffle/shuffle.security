@@ -5,7 +5,7 @@ import { appSlug } from "@/lib/appSlug";
 const BASE_URL = "https://shuffle.security";
 
 /** Public, indexable static pages. Pages marked noindex are deliberately left out. */
-const STATIC_PATHS = ["/", "/apps", "/pricing", "/docs", "/login", "/register"];
+const STATIC_PATHS = ["/", "/apps", "/pricing", "/mobile", "/docs", "/login", "/register"];
 
 const escapeXml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!);

@@ -2420,8 +2420,8 @@ const FormInput = (defaultprops: any) => {
 			  onClose={() => { setSharingOpen(false); }}
 			  PaperProps={{
 				sx: {
-				  minWidth: isMobile ? "90%" : 520,
-				  maxWidth: isMobile ? "90%" : 520,
+				  minWidth: narrow ? "90%" : 520,
+				  maxWidth: narrow ? "90%" : 520,
 				  bgcolor: "hsl(var(--card))",
 				  color: "hsl(var(--foreground))",
 				  border: "1px solid hsl(var(--border))",

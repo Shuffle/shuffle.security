@@ -1403,7 +1403,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
             Team scheduling
           </MenuItem>
           <MenuItem
-            disabled={!testToken}
+            disabled={!testToken || !controlsAvailable}
             onClick={() => {
               testPagerCall();
               setMenuAnchor(null);
@@ -1549,7 +1549,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               <>
                 <Tooltip title="Show a general notification locally in this tab. Nothing is sent to any device." placement="left" arrow>
                   <span>
-                    <Button variant="outlined" size="small" onClick={handleSimulateGeneral} disabled={!testToken} sx={outlinedButtonSx}>
+                    <Button variant="outlined" size="small" onClick={handleSimulateGeneral} disabled={!testToken || !controlsAvailable} sx={outlinedButtonSx}>
                       Simulate
                     </Button>
                   </span>
@@ -1561,7 +1561,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                         variant="outlined"
                         size="small"
                         onClick={() => handleTestRemotePush('general')}
-                        disabled={sendingType === 'general'}
+                        disabled={sendingType === 'general' || !controlsAvailable}
                         sx={outlinedButtonSx}
                       >
                         {sendingType === 'general' ? 'Sending' : 'Send push'}
@@ -1682,7 +1682,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               <>
                 <Tooltip title="Preview the incoming pager call screen locally in this tab. Nothing is sent to any device." placement="left" arrow>
                   <span>
-                    <Button variant="outlined" size="small" onClick={() => requestCriticalTest('simulate')} disabled={!criticalAvailable} sx={outlinedButtonSx}>
+                    <Button variant="outlined" size="small" onClick={() => requestCriticalTest('simulate')} disabled={!criticalAvailable || !controlsAvailable} sx={outlinedButtonSx}>
                       Simulate call
                     </Button>
                   </span>
@@ -1694,7 +1694,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                         variant="outlined"
                         size="small"
                         onClick={() => requestCriticalTest('push')}
-                        disabled={sendingType === 'critical' || !criticalAvailable}
+                        disabled={sendingType === 'critical' || !criticalAvailable || !controlsAvailable}
                         sx={outlinedButtonSx}
                       >
                         {sendingType === 'critical' ? 'Sending' : 'Send push'}

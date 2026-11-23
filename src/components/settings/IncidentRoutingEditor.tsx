@@ -226,7 +226,7 @@ const emptyRule = (defaults: Partial<RoutingRule> = {}): RoutingRule => ({
   conditionTree: emptyGroup('and', [
     emptyLeaf({ field: 'rawOCSF.unmapped_original.to', op: 'contains', value: '' }),
   ]),
-  actions: [defaultActionFor('suggest_move')],
+  actions: [defaultActionFor('set_severity')],
   createdTs: Date.now(),
   updatedTs: Date.now(),
   matchCount: 0,
@@ -1056,11 +1056,16 @@ const IncidentRoutingEditorInner = ({
     setExpanded((prev) => ({ ...prev, [copy.id]: true }));
   };
 
+  const unsavedDraftId = Array.from(localOnlyIds).find((id) => drafts[id]);
+
   const handleAdd = () => {
-    const defaultTargetOrgId = subOrgs[0]?.id || '';
-    const regionPatch = defaultTargetOrgId ? resolveTenantRegionPatch(defaultTargetOrgId, orgOptions) : {};
+    // Only one unsaved rule at a time: reopen the unfinished one instead.
+    if (unsavedDraftId) {
+      setExpanded((prev) => ({ ...prev, [unsavedDraftId]: true }));
+      return;
+    }
     const fresh = emptyRule({
-      actions: [{ type: 'suggest_move', targetOrgId: defaultTargetOrgId, reason: '', ...regionPatch }],
+      actions: [defaultActionFor('set_severity')],
       entityCategory,
     });
     setDrafts((prev) => ({ ...prev, [fresh.id]: fresh }));
@@ -1145,11 +1150,14 @@ const IncidentRoutingEditorInner = ({
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {categorySelect}
+          <Tooltip title={unsavedDraftId ? 'Save or delete the unfinished rule before adding another.' : ''}>
+          <span>
           <Button
             variant="outlined"
             size="small"
             startIcon={<AddIcon size={16} />}
             onClick={handleAdd}
+            disabled={Boolean(unsavedDraftId)}
             sx={{
               height: 36,
               borderColor: 'hsl(var(--border))',
@@ -1161,6 +1169,8 @@ const IncidentRoutingEditorInner = ({
           >
             Add {entityLabel.singular} rule
           </Button>
+          </span>
+          </Tooltip>
         </Box>
       </Box>
 

@@ -25,7 +25,7 @@ import {
   TextField,
   InputAdornment,
 } from '@mui/material';
-import { ChevronDown, Smartphone, Monitor, MoreVertical, Bell, BellOff, CalendarClock, PhoneCall, Trash2, Copy, RotateCw } from 'lucide-react';
+import { ChevronDown, Smartphone, Monitor, MoreVertical, Bell, BellOff, CalendarClock, PhoneCall, Trash2, Copy } from 'lucide-react';
 import { toast } from '@/Shuffle-Core/lib/toast';
 import { AppStoreBadges } from '@/Shuffle-Core/components/AppStoreBadges';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
@@ -673,6 +673,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   };
 
 
+  const webhookAvailable = isMobileDevice && Boolean(selectedDevice && devices.some((d) => d.id === selectedDevice.id));
   const updateWebhook = async (enabled: boolean, regenerate = false) => {
     if (!selectedDevice) return;
     setWebhookBusy(true);
@@ -1653,19 +1654,17 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           )}
         </NotificationSection>
 
-        {/* Webhook notifications: the URL field plus a note that it is set up in the mobile app */}
+        {/* Webhook notifications: URL field with copy and enable/disable inside it */}
         <Box
           sx={{
             borderRadius: 2,
             bgcolor: 'hsl(var(--muted) / 0.15)',
-            ...rowSx,
             p: 2,
-            alignItems: 'center',
           }}
         >
           <TextField
             value={selectedDevice?.webhook_url || ''}
-            placeholder="No webhook URL yet. Turn the webhook on in the mobile app to get one."
+            placeholder="No webhook URL yet"
             size="small"
             fullWidth
             disabled={!selectedDevice?.webhook_url}
@@ -1674,8 +1673,8 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               readOnly: true,
               sx: { fontFamily: 'monospace', fontSize: '0.8rem' },
               endAdornment: (
-                <InputAdornment position="end">
-                  <Box sx={{ display: 'flex', gap: 0.25 }}>
+                <InputAdornment position="end" sx={{ pointerEvents: 'auto' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Tooltip title="Copy the webhook URL" arrow>
                       <span>
                         <IconButton
@@ -1688,16 +1687,34 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                         </IconButton>
                       </span>
                     </Tooltip>
-                    <Tooltip title="Creates a new URL. The current URL stops working immediately." arrow>
+                    <Tooltip
+                      title={
+                        !webhookAvailable
+                          ? 'Only devices running the mobile app can use a webhook.'
+                          : selectedDevice?.webhook_enabled
+                            ? 'Turns the webhook URL off.'
+                            : 'Turns the webhook URL on.'
+                      }
+                      arrow
+                    >
                       <span>
-                        <IconButton
+                        <Button
                           size="small"
-                          onClick={() => updateWebhook(true, true)}
-                          disabled={!selectedDevice?.webhook_url || webhookBusy}
-                          aria-label="Rotate webhook URL"
+                          variant="outlined"
+                          onClick={() => updateWebhook(!selectedDevice?.webhook_enabled)}
+                          disabled={!webhookAvailable || webhookBusy}
+                          sx={{
+                            height: 26,
+                            minWidth: 0,
+                            px: 1.25,
+                            fontSize: '0.72rem',
+                            textTransform: 'none',
+                            borderColor: 'hsl(var(--border))',
+                            color: 'hsl(var(--foreground))',
+                          }}
                         >
-                          <RotateCw size={16} />
-                        </IconButton>
+                          {webhookBusy ? 'Saving' : selectedDevice?.webhook_enabled ? 'Disable' : 'Enable'}
+                        </Button>
                       </span>
                     </Tooltip>
                   </Box>
@@ -1705,12 +1722,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               ),
             }}
           />
-          <Typography
-            variant="caption"
-            sx={{ color: 'hsl(var(--muted-foreground))', textAlign: 'right', lineHeight: 1.35 }}
-          >
-            Webhook available in mobile app
-          </Typography>
         </Box>
 
       </Box>

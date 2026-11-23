@@ -151,8 +151,12 @@ export const PhoneNotificationSetupWizard: React.FC<PhoneNotificationSetupWizard
     try {
       const granted = await requestNotificationPermissions();
       if (!granted) {
-        toast.error('Notification permission denied', {
-          description: 'Please enable notifications in your browser or mobile OS settings.',
+        const blocked = typeof Notification !== 'undefined' && Notification.permission === 'denied';
+        toast.error(blocked ? 'Notifications are blocked' : 'Notifications are not allowed yet', {
+          description: blocked
+            ? 'Allow notifications for this site in your browser or phone settings, then try again.'
+            : undefined,
+          action: { label: blocked ? 'Try again' : 'Allow', onClick: () => void handleRegisterCurrentDevice() },
         });
         return;
       }

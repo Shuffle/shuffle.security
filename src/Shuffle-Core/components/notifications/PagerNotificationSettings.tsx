@@ -658,9 +658,10 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       setSavingDevice(false);
       setPermissionMsg(
         isLocalSelected
-          ? 'This device has no push token yet, so the preferences cannot be saved. Notification permission must be granted and the page opened in its own browser tab (not the preview iframe) for a token to be issued.'
+          ? 'This device is not registered for notifications yet.'
           : `${selectedDevice.device_name || 'This device'} has no push token registered, so its preferences cannot be saved.`,
       );
+      if (isLocalSelected) setShowAllowAction(true);
       return;
     }
     const next: NotificationDevice = {
@@ -914,8 +915,9 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       const token = next.pushToken || existing?.token || (await ensureLocalPushToken());
       if (!token) {
         setPermissionMsg(
-          'Notification permission is granted, but no push token could be issued for this device. Open the app in its own browser tab (not the preview iframe) and reload to register it.',
+          'Could not register this device. Try again.',
         );
+        setShowAllowAction(true);
         return;
       }
       void saveNotificationDevice(userInfo.id, {
@@ -1038,16 +1040,18 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
     if (!testToken) {
       if (settings.permissionStatus !== 'granted') {
         setPermissionMsg(
-          `Cannot send a test to ${selectedDevice?.device_name || 'this device'}: notification permission has not been granted yet. Use "Request permissions" below first.`,
+          `Notifications are not allowed yet on ${selectedDevice?.device_name || 'this device'}.`,
         );
+        if (isLocalSelected) setShowAllowAction(true);
       } else if (typeof window !== 'undefined' && window.top !== window.self) {
         setPermissionMsg(
           'Notification permission is granted, but push registration does not work inside the preview iframe. Open the app in its own browser tab and reload to register a push token.',
         );
       } else {
         setPermissionMsg(
-          `Notification permission is granted, but ${selectedDevice?.device_name || 'this device'} has no push token registered yet. Reload the page to register it, or select a device that has push enabled.`,
+          `${selectedDevice?.device_name || 'This device'} is not registered for push yet.`,
         );
+        if (isLocalSelected) setShowAllowAction(true);
       }
       return;
     }
@@ -1498,7 +1502,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                 onClick={() => void handleRegisterLocalPush()}
                 sx={{ height: 32, width: { xs: '100%', sm: 'auto' }, textTransform: 'none', bgcolor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
               >
-                {Notification.permission === 'default' ? 'Allow notifications' : 'Try again'}
+                {typeof Notification !== 'undefined' && Notification.permission === 'default' ? 'Allow notifications' : 'Try again'}
               </Button>
             </Box>
           )}

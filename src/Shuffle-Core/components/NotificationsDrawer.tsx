@@ -31,6 +31,7 @@ import {
   Block as BlockIcon,
   CheckCircleOutline as CheckCircleIcon,
   Close as CloseIcon,
+  PhoneIphone as MobileIcon,
   OpenInNew as ExploreIcon,
   Search as SearchIcon,
   Refresh as RefreshIcon,
@@ -40,7 +41,8 @@ import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { navigateToShuffleCore, isShuffleCoreUrl } from '@/lib/authHandoff';
 import { fetchWorkflowsCached, fetchOrgCached } from '../views/appsFetchCache';
 import { SegmentedControl } from './ui/segmented-control';
-import { useDrawerLayer } from '@/Shuffle-Core/drawerLayer';
+import { useDrawerLayer, useOverlayLayer } from '@/Shuffle-Core/drawerLayer';
+import { PagerNotificationSettings } from './notifications/PagerNotificationSettings';
 import { getDatastoreByCategory, DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 import { useNavigate } from '@/lib/router-compat';
 import { normalizeStatus, statusConfig } from '@/config/incidentConfig';
@@ -519,6 +521,8 @@ const NotificationsDrawer = ({
   const drawerMinWidth = `min(${minWidth}px, 100vw)`;
   const drawerMaxWidth = `min(${maxWidth}px, 100vw)`;
   const drawerZIndex = useDrawerLayer(open);
+  const [mobileSetupOpen, setMobileSetupOpen] = useState(false);
+  const mobileDialogZIndex = useOverlayLayer(mobileSetupOpen);
 
   return (
     <Drawer
@@ -636,6 +640,17 @@ const NotificationsDrawer = ({
                 </TextField>
               </Tooltip>
             )}
+
+            <Tooltip title="Set up mobile devices" arrow>
+              <IconButton
+                size="small"
+                aria-label="Set up mobile devices"
+                onClick={() => setMobileSetupOpen(true)}
+                sx={{ color: 'hsl(var(--muted-foreground))' }}
+              >
+                <MobileIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
 
             <Tooltip title="Refresh" arrow>
               <span>
@@ -1205,6 +1220,31 @@ const NotificationsDrawer = ({
             Clear all
           </Button>
         </DialogActions>
+      </Dialog>
+      <Dialog
+        open={mobileSetupOpen}
+        onClose={() => setMobileSetupOpen(false)}
+        fullWidth
+        maxWidth="md"
+        sx={{ zIndex: mobileDialogZIndex, '& .MuiBackdrop-root': { zIndex: -1 } }}
+        PaperProps={{
+          sx: {
+            background: 'hsl(var(--card))',
+            color: 'hsl(var(--foreground))',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: 2,
+          },
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+          Mobile devices
+          <IconButton size="small" aria-label="Close" onClick={() => setMobileSetupOpen(false)} sx={{ color: 'hsl(var(--muted-foreground))' }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ borderColor: 'hsl(var(--border))' }}>
+          {mobileSetupOpen && <PagerNotificationSettings />}
+        </DialogContent>
       </Dialog>
     </Drawer>
   );

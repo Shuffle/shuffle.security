@@ -47,6 +47,7 @@ import {
   OnCallUser,
 } from '@/Shuffle-Core/components/users/OnCallScheduleManager';
 import { AddUserDialog } from '@/Shuffle-Core/components/users/AddUserDialog';
+import { SHUFFLE_PLAY_STORE_URL } from '@/Shuffle-Core/components/AppStoreBadges';
 import {
   fetchNotificationDevices,
   saveNotificationDevice,
@@ -959,19 +960,15 @@ export const PhoneNotificationSetupWizard: React.FC<PhoneNotificationSetupWizard
               </Box>
             </Box>
 
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={1} alignItems="center">
               <Chip
-                label="iOS App Store"
-                component="a"
-                href="https://apps.apple.com"
-                target="_blank"
-                clickable
-                sx={{ fontSize: '0.75rem', bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}
+                label="iOS App Store — coming soon"
+                sx={{ fontSize: '0.75rem', bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}
               />
               <Chip
                 label="Google Play"
                 component="a"
-                href="https://play.google.com"
+                href={SHUFFLE_PLAY_STORE_URL}
                 target="_blank"
                 clickable
                 sx={{ fontSize: '0.75rem', bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}

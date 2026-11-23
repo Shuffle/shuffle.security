@@ -1479,7 +1479,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                 Critical Pager requires the Shuffle mobile app. Install it on your phone to receive
                 full-screen critical alerts that override silent mode.
               </Typography>
-              <AppStoreBadges height={36} />
+              <AppStoreBadges height={36} iosComingSoon />
             </Box>
           )}
           {criticalAvailable && (

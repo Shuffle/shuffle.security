@@ -71,6 +71,7 @@ import {
   type ReportTable,
 } from '@/Shuffle-Core';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/context/AuthContext';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useSubOrgs } from '@/hooks/useSubOrgs';
@@ -541,6 +542,7 @@ const ITEMS_PER_PAGE = 10;
 
 const DashboardPage = () => {
   const { resolvedTheme } = useTheme();
+  const isMobile = useIsMobile();
 
   usePageMeta({
     title: 'Dashboard',
@@ -1134,7 +1136,7 @@ const DashboardPage = () => {
             )}
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {isParentOrg && subOrgs.length > 0 && (() => {
+            {!isMobile && isParentOrg && subOrgs.length > 0 && (() => {
               const currentOrgImage = userInfo?.active_org?.image;
               const currentOrgName = userInfo?.active_org?.name || 'Current Tenant';
               const sortedChildren = [...subOrgs]
@@ -1187,19 +1189,21 @@ const DashboardPage = () => {
                 />
               );
             })()}
-            <Tooltip title="Refresh">
-              <IconButton
-                onClick={handleRefresh}
-                size="small"
-                sx={{ color: 'hsl(var(--muted-foreground))' }}
-              >
-                <RefreshIcon
-                  size={20}
-                  className={isRefreshing ? 'animate-spin' : ''}
-                  style={{ transition: 'transform 0.6s ease' }}
+            {!isMobile && (
+              <Tooltip title="Refresh">
+                <IconButton
+                  onClick={handleRefresh}
+                  size="small"
+                  sx={{ color: 'hsl(var(--muted-foreground))' }}
+                >
+                  <RefreshIcon
+                    size={20}
+                    className={isRefreshing ? 'animate-spin' : ''}
+                    style={{ transition: 'transform 0.6s ease' }}
                 />
               </IconButton>
-            </Tooltip>
+              </Tooltip>
+            )}
           </Box>
         </Box>
         <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.875rem', mb: 2 }}>

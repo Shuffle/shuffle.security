@@ -15,6 +15,7 @@ import {
   type DashboardTab,
 } from '@/Shuffle-Core';
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export interface DashboardHeaderBarProps {
   tab: DashboardTab;
@@ -72,6 +73,7 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
   },
   ref,
 ) {
+  const isMobile = useIsMobile();
   const daysStr = String(days ?? '30');
   const customRangeLabel = customRange ? `${fmtShort(customRange.fromMs)} → ${fmtShort(customRange.toMs)}` : null;
   const isAutomation = tab === 'automation';
@@ -80,9 +82,9 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
   const selectValue = isCustomDashboardTab(tab) && !hasMatchingCustom ? 'security' : tab;
 
   return (
-    <Box ref={ref} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 36 }}>
-        <FormControl size="small" sx={{ minWidth: 210 }}>
+    <Box ref={ref} sx={{ display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'space-between', gap: isMobile ? 1 : 2, flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', minHeight: isMobile ? 32 : 36, minWidth: 0 }}>
+        <FormControl size="small" sx={{ minWidth: isMobile ? 0 : 210, maxWidth: isMobile ? 172 : 'none' }}>
           <Select
             value={selectValue}
             onChange={(e) => {
@@ -95,10 +97,15 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
             }}
             inputProps={{ 'aria-label': 'Dashboard view' }}
             sx={{
-              height: 36,
+              height: isMobile ? 32 : 36,
               borderRadius: '999px',
-              fontSize: '0.85rem',
+              fontSize: isMobile ? '0.78rem' : '0.85rem',
               fontWeight: 600,
+              '& .MuiSelect-select': {
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              },
               '& .MuiOutlinedInput-notchedOutline': { borderColor: 'hsl(var(--border))' },
             }}
             MenuProps={{ PaperProps: { sx: { mt: 0.5, borderRadius: '10px' } } }}
@@ -128,11 +135,12 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
           </Select>
         </FormControl>
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-        <FormControl size="small" sx={{ minWidth: customRangeLabel ? 220 : 130 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: isMobile ? 0.5 : 1.5, flexWrap: isMobile ? 'nowrap' : 'wrap', minWidth: 0 }}>
+        <FormControl size="small" sx={{ minWidth: customRangeLabel ? (isMobile ? 148 : 220) : (isMobile ? 92 : 130) }}>
           <InputLabel>Last</InputLabel>
           <Select
             label="Last"
+            sx={{ height: isMobile ? 32 : 40 }}
             value={customRange ? '__custom__' : daysStr}
             onChange={(e) => {
               const v = String(e.target.value);
@@ -161,7 +169,7 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
             ))}
           </Select>
         </FormControl>
-        {isAutomation && (
+        {isMobile ? null : isAutomation && (
           <Box sx={{ alignSelf: 'flex-end' }}>
             <SegmentedControl
               ariaLabel="Mode"
@@ -174,19 +182,21 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
             />
           </Box>
         )}
-        <Box sx={{ alignSelf: 'flex-end' }}>
-          <SegmentedControl
-            ariaLabel="Granularity"
-            value={gran}
-            onChange={(v) => onGranChange?.(v as 'daily' | 'monthly')}
-            options={[{ value: 'daily', label: 'Daily' }, { value: 'monthly', label: 'Monthly' }]}
-          />
-        </Box>
+        {!isMobile && (
+          <Box sx={{ alignSelf: 'flex-end' }}>
+            <SegmentedControl
+              ariaLabel="Granularity"
+              value={gran}
+              onChange={(v) => onGranChange?.(v as 'daily' | 'monthly')}
+              options={[{ value: 'daily', label: 'Daily' }, { value: 'monthly', label: 'Monthly' }]}
+            />
+          </Box>
+        )}
         <Tooltip title="Refresh">
           <IconButton
             size="small"
             onClick={() => onRefresh?.()}
-            sx={{ color: 'hsl(var(--muted-foreground))', alignSelf: 'flex-end', width: 36, height: 36, borderRadius: '8px' }}
+            sx={{ color: 'hsl(var(--muted-foreground))', alignSelf: 'flex-end', width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, borderRadius: '8px' }}
           >
             <RefreshIcon size={16} />
           </IconButton>
@@ -199,7 +209,7 @@ export const DashboardHeaderBar = forwardRef<HTMLDivElement, DashboardHeaderBarP
                 onClick={() => onExport()}
                 disabled={exporting}
                 aria-label="Export Tenant Report"
-                sx={{ color: 'hsl(var(--muted-foreground))', width: 36, height: 36, borderRadius: '8px' }}
+                sx={{ color: 'hsl(var(--muted-foreground))', width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, borderRadius: '8px' }}
               >
                 {exporting ? <Loader2 size={16} className="animate-spin" /> : <DownloadIcon size={16} />}
               </IconButton>

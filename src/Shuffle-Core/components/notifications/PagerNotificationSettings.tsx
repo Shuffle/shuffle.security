@@ -1498,6 +1498,8 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               </Box>
             </Box>
           )}
+          {criticalAvailable && (
+            <>
           {renderTenantRoutingRow('critical')}
 
           <SettingRow
@@ -1588,6 +1590,8 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               </>
             }
           />
+            </>
+          )}
         </NotificationSection>
 
         {/* Agent Request */}

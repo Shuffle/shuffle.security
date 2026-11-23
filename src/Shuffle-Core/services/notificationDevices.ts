@@ -228,7 +228,11 @@ export const deleteNotificationDevice = async (
     const data = await response.json().catch(() => ({}));
     return { success: false, reason: data?.reason || `HTTP ${response.status}` };
   } catch (error) {
-    return { success: false, reason: error instanceof Error ? error.message : 'Network error' };
+    const raw = error instanceof Error ? error.message : '';
+    return {
+      success: false,
+      reason: `the server could not be reached or rejected the request${raw ? ` (${raw})` : ''}. The delete endpoint may not be available on this server yet.`,
+    };
   }
 };
 

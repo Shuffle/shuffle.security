@@ -402,6 +402,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [savingDevice, setSavingDevice] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<NotificationDevice | null>(null);
+  const [deleteError, setDeleteError] = useState('');
   const [deletingDevice, setDeletingDevice] = useState(false);
   const [inIframe, setInIframe] = useState(false);
   const [confirmCritical, setConfirmCritical] = useState(false);
@@ -716,10 +717,13 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const handleDeleteDevice = async () => {
     if (!deleteTarget) return;
     setDeletingDevice(true);
+    setDeleteError('');
     const result = await deleteNotificationDevice(userInfo?.id || '', deleteTarget.id);
     setDeletingDevice(false);
     if (!result.success) {
-      setPermissionMsg(`Failed to delete the device: ${result.reason || 'unknown error'}`);
+      const message = `Failed to delete the device: ${result.reason || 'unknown error'}`;
+      setDeleteError(message);
+      toast.error(message);
       return;
     }
     setDevices((current) => current.filter((d) => d.id !== deleteTarget.id));
@@ -1800,16 +1804,21 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
         </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(deleteTarget)} onClose={() => !deletingDevice && setDeleteTarget(null)} maxWidth="xs" fullWidth>
+      <Dialog open={Boolean(deleteTarget)} onClose={() => { if (!deletingDevice) { setDeleteTarget(null); setDeleteError(''); } }} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Delete device?</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ fontSize: '0.88rem' }}>
             <strong>{deleteTarget?.device_name || 'This device'}</strong> will no longer receive
             notifications. You can register it again later from that device.
           </DialogContentText>
+          {deleteError && (
+            <Alert severity="error" sx={{ mt: 2, fontSize: '0.82rem' }}>
+              {deleteError}
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button size="small" onClick={() => setDeleteTarget(null)} disabled={deletingDevice} sx={outlinedButtonSx}>
+          <Button size="small" onClick={() => { setDeleteTarget(null); setDeleteError(''); }} disabled={deletingDevice} sx={outlinedButtonSx}>
             Cancel
           </Button>
           <Button

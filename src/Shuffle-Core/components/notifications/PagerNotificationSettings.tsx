@@ -5,6 +5,7 @@ import {
   Paper,
   Switch,
   Button,
+  Checkbox,
   FormControl,
   Select,
   MenuItem,
@@ -721,7 +722,11 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
     return (
       <SettingRow
         label="Allowed tenants"
-        hint={`Choose which organizations can send this page type to ${deviceLabel}. All tenants are selected by default.`}
+        hint={
+          allTenantIds.length > 0 && selectedTenantIds.length === 0
+            ? `No tenants are selected, so this device will not receive this page type until you select at least one. The setting stays enabled so you can change this at any time.`
+            : `Choose which organizations can send this page type to ${deviceLabel}. All tenants are selected by default.`
+        }
         control={
           <FormControl size="small" sx={{ minWidth: 190, maxWidth: 260 }}>
             <Select
@@ -732,13 +737,9 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               onChange={(e) => {
                 const rawVal = e.target.value;
                 const valArray = Array.isArray(rawVal) ? rawVal.map(String) : String(rawVal).split(',');
-                if (valArray.includes('__ALL__')) {
-                  setSectionTenants(type, allSelected ? [] : allTenantIds);
-                  return;
-                }
                 setSectionTenants(
                   type,
-                  valArray.filter((v) => v && v !== '__ALL__'),
+                  valArray.filter((v) => v),
                 );
               }}
               renderValue={() => {
@@ -759,22 +760,55 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                 '& fieldset': { borderColor: 'hsl(var(--border))' },
               }}
             >
-              <MenuItem
-                value="__ALL__"
+              <Box
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
                 sx={{
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
                   display: 'flex',
-                  justifyContent: 'space-between',
+                  justifyContent: 'flex-end',
                   alignItems: 'center',
-                  gap: 1.5,
+                  gap: 0.5,
+                  px: 1,
+                  py: 0.25,
                 }}
               >
-                <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
-                  All tenants
-                </Typography>
-                <Switch size="small" checked={allSelected} color="primary" sx={{ pointerEvents: 'none' }} />
-              </MenuItem>
+                <Button
+                  size="small"
+                  disabled={allSelected}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSectionTenants(type, allTenantIds);
+                  }}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    minWidth: 0,
+                    px: 1,
+                    color: 'hsl(var(--primary))',
+                  }}
+                >
+                  Select all
+                </Button>
+                <Button
+                  size="small"
+                  disabled={selectedTenantIds.length === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSectionTenants(type, []);
+                  }}
+                  sx={{
+                    textTransform: 'none',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    minWidth: 0,
+                    px: 1,
+                    color: 'hsl(var(--muted-foreground))',
+                  }}
+                >
+                  Unselect all
+                </Button>
+              </Box>
               {userTenants.length > 0 && <Divider sx={{ my: 0.5, borderColor: 'hsl(var(--border))' }} />}
               {userTenants.map((tenant) => {
                 const checked = selectedTenantIds.includes(tenant.id);
@@ -803,7 +837,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                       {tenant.name}
                       {isCurrent ? ' (current)' : ''}
                     </Typography>
-                    <Switch size="small" checked={checked} color="primary" sx={{ pointerEvents: 'none' }} />
+                    <Checkbox size="small" checked={checked} color="primary" sx={{ pointerEvents: 'none', p: 0.25 }} />
                   </MenuItem>
                 );
               })}

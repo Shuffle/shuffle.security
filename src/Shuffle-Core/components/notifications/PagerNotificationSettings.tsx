@@ -754,6 +754,9 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
     );
   };
 
+  // The device only counts as set up once the server has it; a failed save keeps the button for retry.
+  const localDeviceSaved = Boolean(localDeviceId && devices.some((d) => d.id === localDeviceId && d.token));
+
   const handleRequestPermissions = async () => {
     setPermissionMsg(null);
     const granted = await requestNotificationPermissions();
@@ -1021,12 +1024,14 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           }}
         >
 
-        {isLocalSelected && (!isGranted || !settings.pushToken) && (
+        {isLocalSelected && (!isGranted || !settings.pushToken || !localDeviceSaved) && (
           <Tooltip
             title={
               isGranted
                 ? inIframe
                   ? 'Permission granted, but the preview iframe blocks token registration. Open this page in its own browser tab to register this device.'
+                  : settings.pushToken
+                  ? 'This device could not be saved to your account. Click to try again.'
                   : 'Permission granted, but no push token is registered for this device yet.'
                 : 'Notifications are not registered on this device yet.'
             }

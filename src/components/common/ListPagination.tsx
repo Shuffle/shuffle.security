@@ -1,11 +1,30 @@
 import { Box, Button, CircularProgress, IconButton, Typography } from '@mui/material';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon } from 'lucide-react';
-import { getListPage } from './listPaginationState';
+import { getListPage, isPaginationSettling } from './listPaginationState';
 
 /**
  * Shared list pagination + server multi-loading, used by /incidents and
  * /vulnerabilities. Fix pagination behaviour here so every list gets it.
  */
+
+const barSx = {
+  position: 'fixed',
+  bottom: 16,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  gap: 1,
+  py: 1,
+  px: 2.5,
+  minHeight: 54,
+  bgcolor: 'hsl(var(--card))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: 2,
+  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+  zIndex: 20,
+} as const;
 
 interface ListPaginationBarProps {
   currentPage: number;
@@ -18,6 +37,10 @@ interface ListPaginationBarProps {
   /** Loads the next server batch. The bar advances one page after it resolves. */
   onLoadMore?: () => Promise<unknown> | void;
   loadMoreTitle?: string;
+  /** Background loading of further server batches is in progress. */
+  isRefreshing?: boolean;
+  /** Page count remembered from the last visit, shown while loading so the bar does not grow page by page. */
+  rememberedTotalPages?: number;
 }
 
 export const ListPaginationBar = ({
@@ -29,10 +52,25 @@ export const ListPaginationBar = ({
   isLoading = false,
   onLoadMore,
   loadMoreTitle = 'Load more',
+  isRefreshing = false,
+  rememberedTotalPages = 0,
 }: ListPaginationBarProps) => {
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
   const currentPage = getListPage(requestedPage, totalItems, itemsPerPage);
+  const settling = isPaginationSettling(totalPages, isRefreshing);
+  if (settling) {
+    if (totalPages <= 1 && rememberedTotalPages <= 1) return null;
+    return (
+      <Box sx={barSx} aria-busy="true">
+        <CircularProgress size={14} sx={{ color: 'hsl(var(--muted-foreground))' }} />
+        <Typography sx={{ fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))', whiteSpace: 'nowrap', px: 0.5 }}>
+          Loading pages
+        </Typography>
+      </Box>
+    );
+  }
   if (totalItems <= itemsPerPage) return null;
+  const moreComing = hasMore || isRefreshing;
 
   const atEnd = currentPage >= totalPages;
   const canLoadMoreFromServer = atEnd && hasMore && !!onLoadMore;
@@ -51,23 +89,7 @@ export const ListPaginationBar = ({
     }, []);
 
   return (
-    <Box sx={{
-      position: 'fixed',
-      bottom: 16,
-      left: '50%',
-      transform: 'translateX(-50%)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: 1,
-      py: 1,
-      px: 2.5,
-      bgcolor: 'hsl(var(--card))',
-      border: '1px solid hsl(var(--border))',
-      borderRadius: 2,
-      boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-      zIndex: 20,
-    }}>
+    <Box sx={barSx}>
       <IconButton
         size="small"
         disabled={currentPage === 1}
@@ -104,7 +126,7 @@ export const ListPaginationBar = ({
               },
             }}
           >
-            {item}
+            {item === totalPages && moreComing ? `${item}+` : item}
           </Button>
         )
       )}

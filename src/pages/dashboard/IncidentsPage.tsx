@@ -1,5 +1,6 @@
 import { readTenantStamp, isTenantGhost, type TenantStamp } from '@/utils/tenantAuthority';
 import { ListPaginationBar, ListLoadMoreButton } from '@/components/common/ListPagination';
+import { getListPage, readStoredListPage, writeStoredListPage } from '@/components/common/listPaginationState';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Search as SearchIcon, X as CloseIcon, Plus as AddIcon, RefreshCw as RefreshIcon, Play as PlayArrowIcon, Rocket as RocketLaunchIcon, EyeOff as VisibilityOffIcon, AlertTriangle as WarningAmberIcon, Download as DownloadIcon, Calendar as CalendarTodayIcon, MoreVertical as MoreVerticalIcon, Users as UsersIcon } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore, useDeferredValue } from 'react';
 import { useSearchParams, useNavigate } from '@/lib/router-compat';
@@ -1858,10 +1859,24 @@ const IncidentsPage = () => {
     return result;
   }, [filteredByAssignee, filters, negatedFilters, deferredSearchQuery, correlatedIncidentIds, extraCorrelatedIncidents, dateFrom, dateTo]);
 
-  // Reset to page 1 when filters or search change
+  // Remember the page per tenant + filter state so coming back lands on the same page.
+  const pageStorageKey = `shuffle-incidents-page:${currentOrgId || 'none'}`;
+  const pageSignature = useMemo(() => JSON.stringify({ filters, negatedFilters, q: deferredSearchQuery, showIrrelevant, dateFrom: dateFrom?.getTime() ?? null, dateTo: dateTo?.getTime() ?? null }), [filters, negatedFilters, deferredSearchQuery, showIrrelevant, dateFrom, dateTo]);
+  const [rememberedTotalPages, setRememberedTotalPages] = useState(0);
+  const restoredSignatureRef = useRef<string | null>(null);
+
+  // Reset to page 1 when filters or search change, unless the stored page belongs to this exact state.
   useEffect(() => {
-    setCurrentPage(1);
-  }, [filters, negatedFilters, deferredSearchQuery, showIrrelevant, dateFrom, dateTo]);
+    const stored = readStoredListPage(pageStorageKey);
+    if (stored && stored.signature === pageSignature) {
+      setCurrentPage(Math.max(1, stored.page));
+      setRememberedTotalPages(stored.totalPages);
+    } else {
+      setCurrentPage(1);
+      setRememberedTotalPages(0);
+    }
+    restoredSignatureRef.current = pageSignature;
+  }, [pageStorageKey, pageSignature]);
 
   // Sort incidents
   const sortedIncidents = useMemo(() => {
@@ -1934,6 +1949,19 @@ const IncidentsPage = () => {
 
     return sorted;
   }, [filteredIncidents, sortBy, sortDirection, demoActive, correlatedIncidentIds]);
+
+  const visiblePage = getListPage(currentPage, sortedIncidents.length, ITEMS_PER_PAGE);
+
+  // Save the page once loading has settled, so the stored page count is the full one.
+  useEffect(() => {
+    if (isRefreshing || !hasFetched || restoredSignatureRef.current !== pageSignature) return;
+    writeStoredListPage(pageStorageKey, {
+      page: currentPage,
+      signature: pageSignature,
+      totalPages: Math.max(1, Math.ceil(sortedIncidents.length / ITEMS_PER_PAGE)),
+      hasMore,
+    });
+  }, [currentPage, isRefreshing, hasFetched, pageSignature, pageStorageKey, sortedIncidents.length, hasMore]);
 
   // Determine if all selected incidents are already resolved
   const selectedIncidentsList = useMemo(() => incidents.filter(i => selectedIds.has(i.id)), [incidents, selectedIds]);
@@ -3466,7 +3494,7 @@ const IncidentsPage = () => {
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               {(() => {
                 const visibleIds = sortedIncidents
-                  .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+                  .slice((visiblePage - 1) * ITEMS_PER_PAGE, visiblePage * ITEMS_PER_PAGE)
                   .map(i => i.id);
                 const visibleSelectedCount = visibleIds.filter(id => selectedIds.has(id)).length;
                 const allVisibleSelected = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
@@ -3822,7 +3850,7 @@ const IncidentsPage = () => {
         {/* Card list */}
         <Box sx={{ maxWidth: '100%', overflowX: 'hidden' }}>
           <IncidentCardView
-            incidents={sortedIncidents.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)}
+            incidents={sortedIncidents.slice((visiblePage - 1) * ITEMS_PER_PAGE, visiblePage * ITEMS_PER_PAGE)}
             getIncidentUrl={getIncidentUrl}
             threadCounts={(() => {
               // Group all loaded incidents by shared email thread_id from
@@ -4247,6 +4275,8 @@ const IncidentsPage = () => {
       {/* Fixed bottom pagination (shared with /vulnerabilities) */}
       <ListPaginationBar
         currentPage={currentPage}
+        isRefreshing={isRefreshing}
+        rememberedTotalPages={rememberedTotalPages}
         totalItems={sortedIncidents.length}
         itemsPerPage={ITEMS_PER_PAGE}
         onPageChange={setCurrentPage}

@@ -404,6 +404,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const [devices, setDevices] = useState<NotificationDevice[]>([]);
   const [localDeviceId, setLocalDeviceId] = useState('');
   const [statsOpen, setStatsOpen] = useState(false);
+  const [statsDeviceId, setStatsDeviceId] = useState<string>('');
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [savingDevice, setSavingDevice] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<NotificationDevice | null>(null);
@@ -1318,19 +1319,39 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           open={statsOpen}
           onClose={() => setStatsOpen(false)}
           title="Notification statistics"
-          series={[
-            { key: 'device_notifications', label: 'All notifications' },
-            { key: 'device_notifications_general', label: 'General' },
-            { key: 'device_notifications_critical', label: 'Critical Pager' },
-            { key: 'device_notifications_agent_request', label: 'Agent requests' },
-            { key: 'device_notifications_webhook', label: 'Webhook' },
-            ...(deviceRegistered && selectedDevice
+          toolbar={
+            devices.length > 0 ? (
+              <Select
+                size="small"
+                value={statsDeviceId}
+                onChange={(e) => setStatsDeviceId(e.target.value)}
+                displayEmpty
+                aria-label="Choose device"
+                sx={{ fontSize: '0.75rem', height: 28, minWidth: 130 }}
+              >
+                <MenuItem value="" sx={{ fontSize: '0.78rem' }}>All devices</MenuItem>
+                {devices.map((d) => (
+                  <MenuItem key={d.id} value={d.id} sx={{ fontSize: '0.78rem' }}>
+                    {d.device_name || d.id}
+                  </MenuItem>
+                ))}
+              </Select>
+            ) : undefined
+          }
+          series={
+            statsDeviceId
               ? (['general', 'critical', 'webhook'] as const).map((t) => ({
-                  key: deviceStatKey(selectedDevice.id, t),
-                  label: `This device: ${t === 'critical' ? 'Critical Pager' : t === 'general' ? 'General' : 'Webhook'}`,
+                  key: deviceStatKey(statsDeviceId, t),
+                  label: t === 'critical' ? 'Critical Pager' : t === 'general' ? 'General' : 'Webhook',
                 }))
-              : []),
-          ]}
+              : [
+                  { key: 'device_notifications', label: 'All notifications' },
+                  { key: 'device_notifications_general', label: 'General' },
+                  { key: 'device_notifications_critical', label: 'Critical Pager' },
+                  { key: 'device_notifications_agent_request', label: 'Agent requests' },
+                  { key: 'device_notifications_webhook', label: 'Webhook' },
+                ]
+          }
         />
 
         <IconButton

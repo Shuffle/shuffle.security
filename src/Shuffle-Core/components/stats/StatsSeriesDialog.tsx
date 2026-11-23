@@ -138,9 +138,11 @@ export interface StatsSeriesDialogProps {
   series: StatsSeries[];
   orgId?: string;
   children?: ReactNode;
+  /** Extra control rendered in the header between the title and the day toggle. */
+  toolbar?: ReactNode;
 }
 
-export function StatsSeriesDialog({ open, onClose, title, series, orgId, children }: StatsSeriesDialogProps) {
+export function StatsSeriesDialog({ open, onClose, title, series, orgId, children, toolbar }: StatsSeriesDialogProps) {
   const [days, setDays] = useState(30);
   const [points, setPoints] = useState<Record<string, StatPoint[] | null>>({});
   const seriesSig = series.map((s) => s.key).join('|');
@@ -162,6 +164,7 @@ export function StatsSeriesDialog({ open, onClose, title, series, orgId, childre
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: { bgcolor: 'hsl(var(--card))', backgroundImage: 'none', borderRadius: 3 } }}>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1.5 }}>
         <Typography sx={{ flex: 1, fontWeight: 700, color: 'hsl(var(--foreground))' }}>{title}</Typography>
+        {toolbar}
         <ToggleButtonGroup size="small" exclusive value={days} onChange={(_, v) => v && setDays(v)}>
           {[7, 30, 90].map((d) => (
             <ToggleButton key={d} value={d} sx={{ px: 1.25, py: 0.25, fontSize: '0.72rem', textTransform: 'none' }}>{d}d</ToggleButton>

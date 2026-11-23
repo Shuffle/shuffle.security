@@ -55,6 +55,8 @@ export interface ApiCallViewerProps extends ShuffleHostProps {
   rawCurl?: string;
   /** Whether to mask the Authorization header value in display (default: true) */
   maskAuth?: boolean;
+  /** Never add an Authorization header, for URLs that carry their own secret (default: false) */
+  noAuth?: boolean;
   /** Initial selected tab mode (default: 'curl') */
   defaultMode?: SnippetLang;
   /** Title displayed in the header (default: 'API Call') */
@@ -612,6 +614,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
   config,
   rawCurl,
   maskAuth = true,
+  noAuth = false,
   defaultMode = 'curl',
   title = 'API Call',
   theme: themeProp,
@@ -766,7 +769,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
       }
     }
 
-    if (!hasAuth && effectiveToken) {
+    if (!hasAuth && effectiveToken && !noAuth) {
       headers['Authorization'] = `Bearer ${effectiveToken}`;
     }
 
@@ -782,7 +785,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
     }
 
     return { method, url, headers, body: bodyObj, parsedJson };
-  }, [config, parsedCurlData, defaultBaseUrl, apiKey, orgId]);
+  }, [config, parsedCurlData, defaultBaseUrl, apiKey, orgId, noAuth]);
 
   const generatedCode = useMemo(() => {
     return {

@@ -1841,7 +1841,8 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           <ApiCallViewer
             title="Webhook example"
             maskAuth={false}
-            rawCurl={`curl -X POST '${selectedDevice?.webhook_url || '<webhook_url>'}' -H 'Content-Type: application/json' -d '{"title": "Ransomware behavior detected on FIN-LAPTOP-042", "body": "EDR flagged mass file encryption by svchost.exe (PID 4412). Host isolation recommended.", "type": "critical", "severity": "critical", "source": "EDR", "reference_url": "https://shuffle.security/incidents"}'`}
+            noAuth
+            rawCurl={`curl -X POST '${selectedDevice?.webhook_url || '<webhook_url>'}' -H 'Content-Type: application/json' -d '{"title": "New login from an unknown location", "body": "A user signed in from a new country. Review the sign-in if this was not expected.", "type": "general", "severity": "low", "source": "Identity provider"}'`}
           />
           <Typography sx={{ mt: 1.5, fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))' }}>
             type: general | critical | agent_request

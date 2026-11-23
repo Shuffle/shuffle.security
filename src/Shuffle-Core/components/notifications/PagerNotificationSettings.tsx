@@ -56,6 +56,8 @@ import {
   NotificationDevice,
   DevicePreferences,
   fetchNotificationDevices,
+  findLocalDevice,
+  adoptLocalDeviceId,
   saveNotificationDevice,
   deleteNotificationDevice,
   resolveDevicePreferences,
@@ -564,6 +566,18 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
     }
   };
 
+
+  // Recognize this browser among registered devices by its push token when the
+  // stored id was lost (cleared storage, other domain), and select it on load.
+  useEffect(() => {
+    if (!localDeviceId || devices.length === 0) return;
+    const match = findLocalDevice(devices, localDeviceId, settings.pushToken || undefined);
+    if (match && match.id !== localDeviceId) {
+      adoptLocalDeviceId(match.id);
+      setSelectedDeviceId((current) => (current === localDeviceId || !current ? match.id : current));
+      setLocalDeviceId(match.id);
+    }
+  }, [devices, localDeviceId, settings.pushToken]);
 
   const deviceList: NotificationDevice[] = localDeviceId
     ? [

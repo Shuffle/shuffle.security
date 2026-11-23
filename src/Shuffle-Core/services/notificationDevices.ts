@@ -53,6 +53,25 @@ export const getLocalDeviceId = (): string => {
   }
 };
 
+/** Adopts an already-registered device id as this browser's id, so it is recognized again. */
+export const adoptLocalDeviceId = (id: string): void => {
+  if (typeof window === 'undefined' || !id) return;
+  try {
+    localStorage.setItem(DEVICE_ID_KEY, id);
+  } catch {
+    // ignore storage failures
+  }
+};
+
+/** Finds the registered device that belongs to this browser: same stored id first, then same push token. */
+export const findLocalDevice = (
+  devices: NotificationDevice[],
+  localId: string,
+  pushToken?: string,
+): NotificationDevice | undefined =>
+  devices.find((d) => d.id === localId) ||
+  (pushToken ? devices.find((d) => d.token && d.token === pushToken) : undefined);
+
 export const getLocalDevicePlatform = (): string => {
   if (typeof window === 'undefined') return 'browser';
   if (isIos()) return 'ios';

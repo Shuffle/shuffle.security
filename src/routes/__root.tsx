@@ -128,7 +128,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { name: "author", content: "Shuffle Security" },
       { name: "robots", content: "index, follow" },
-      { name: "theme-color", content: "#FF6600" },
+      { name: "theme-color", content: "#1a1a1a" },
       { name: "google-site-verification", content: "vLSnl-3IrXafKlglMz1T_LjnYu55mIdalktw88-cEZU" },
       { name: "google-site-verification", content: "XurySgWyZ4XH_J6GfrhvD167TYueG3DgElpwf0NOcXs" },
       { name: "apple-mobile-web-app-capable", content: "yes" },

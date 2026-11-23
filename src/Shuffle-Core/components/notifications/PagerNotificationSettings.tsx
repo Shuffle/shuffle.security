@@ -1809,7 +1809,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
         >
           <TextField
             value={selectedDevice?.webhook_url || ''}
-            placeholder={webhookAvailable ? 'Click Enable to create a webhook URL' : 'Webhooks need a device running the mobile app'}
+            placeholder={selectedDevice?.webhook_enabled ? 'Webhook is on but its URL is missing. Rotate to get a new one.' : webhookAvailable ? 'Click Enable to create a webhook URL' : 'Webhooks need a device running the mobile app'}
             size="small"
             fullWidth
             disabled={!selectedDevice?.webhook_url}
@@ -1837,7 +1837,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                         <IconButton
                           size="small"
                           onClick={() => setConfirmRotate(true)}
-                          disabled={!webhookAvailable || webhookBusy || !selectedDevice?.webhook_url}
+                          disabled={!webhookAvailable || webhookBusy || !(selectedDevice?.webhook_url || selectedDevice?.webhook_enabled)}
                           aria-label="Rotate webhook URL"
                         >
                           <RotateCw size={16} />

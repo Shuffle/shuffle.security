@@ -131,7 +131,6 @@ const NotificationSection = ({
 }: SectionProps) => (
   <Box
     sx={{
-      border: '1px solid hsl(var(--border))',
       borderRadius: 2,
       bgcolor: 'hsl(var(--muted) / 0.15)',
     }}
@@ -674,8 +673,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   };
 
 
-  /** True when the selected device exists on the server and can be deleted. */
-  const webhookAvailable = isMobileDevice && Boolean(selectedDevice && devices.some((d) => d.id === selectedDevice.id));
   const updateWebhook = async (enabled: boolean, regenerate = false) => {
     if (!selectedDevice) return;
     setWebhookBusy(true);
@@ -1656,10 +1653,9 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           )}
         </NotificationSection>
 
-        {/* Webhook notifications: just the URL field and an enable/disable switch */}
+        {/* Webhook notifications: the URL field plus a note that it is set up in the mobile app */}
         <Box
           sx={{
-            border: '1px solid hsl(var(--border))',
             borderRadius: 2,
             bgcolor: 'hsl(var(--muted) / 0.15)',
             ...rowSx,
@@ -1669,18 +1665,10 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
         >
           <TextField
             value={selectedDevice?.webhook_url || ''}
-            placeholder={
-              !isMobileDevice
-                ? 'Only available in the mobile app'
-                : !webhookAvailable
-                  ? 'Register this device to get a webhook URL'
-                  : selectedDevice?.webhook_enabled
-                    ? 'The webhook URL is hidden. Rotate it to get a new one.'
-                    : 'Enable to get a private webhook URL'
-            }
+            placeholder="No webhook URL yet. Turn the webhook on in the mobile app to get one."
             size="small"
             fullWidth
-            disabled={!webhookAvailable || !selectedDevice?.webhook_enabled}
+            disabled={!selectedDevice?.webhook_url}
             aria-label="Webhook URL"
             InputProps={{
               readOnly: true,
@@ -1705,7 +1693,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                         <IconButton
                           size="small"
                           onClick={() => updateWebhook(true, true)}
-                          disabled={!webhookAvailable || !selectedDevice?.webhook_enabled || webhookBusy}
+                          disabled={!selectedDevice?.webhook_url || webhookBusy}
                           aria-label="Rotate webhook URL"
                         >
                           <RotateCw size={16} />
@@ -1717,30 +1705,12 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               ),
             }}
           />
-          <Tooltip
-            title={
-              !webhookAvailable
-                ? isMobileDevice
-                  ? 'Register this device before enabling webhook notifications.'
-                  : 'Webhook notifications are only available for devices running the mobile app.'
-                : selectedDevice?.webhook_enabled
-                  ? 'Webhook notifications are enabled for this device.'
-                  : 'Send notifications to this device from any tool with its private webhook URL.'
-            }
-            placement="top"
-            arrow
+          <Typography
+            variant="caption"
+            sx={{ color: 'hsl(var(--muted-foreground))', textAlign: 'right', lineHeight: 1.35 }}
           >
-            <span>
-              <Switch
-                checked={webhookAvailable && Boolean(selectedDevice?.webhook_enabled)}
-                disabled={!webhookAvailable || webhookBusy}
-                onChange={(e) => updateWebhook(e.target.checked)}
-                color="primary"
-                size="small"
-                aria-label="Enable webhook notifications"
-              />
-            </span>
-          </Tooltip>
+            Webhook available in mobile app
+          </Typography>
         </Box>
 
       </Box>

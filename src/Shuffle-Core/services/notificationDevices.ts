@@ -192,14 +192,13 @@ export const deleteNotificationDevice = async (
   deviceId: string,
 ): Promise<SaveDeviceResult> => {
   try {
-    const response = await fetch(getApiUrl('/api/v1/updateuser'), {
-      method: 'PUT',
+    void userId;
+    const response = await fetch(getApiUrl(`/api/v1/users/devices/${encodeURIComponent(deviceId)}`), {
+      method: 'DELETE',
       credentials: 'include',
       headers: {
-        'Content-Type': 'application/json',
         ...getAuthHeader(),
       },
-      body: JSON.stringify({ user_id: userId, device: { id: deviceId }, remove_device: true }),
     });
     if (response.ok) {
       return { success: true };

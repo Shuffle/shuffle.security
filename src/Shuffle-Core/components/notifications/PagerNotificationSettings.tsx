@@ -1845,11 +1845,12 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                       </span>
                     </Tooltip>
                     <Tooltip
-                      title="How to send to this webhook"
+                      title={selectedDevice?.webhook_url ? 'How to send to this webhook' : 'A webhook URL is needed first.'}
                       arrow
                     >
                       <span>
                         <Button size="small" variant="outlined" onClick={() => setWebhookExampleOpen(true)}
+                          disabled={!selectedDevice?.webhook_url}
                           sx={{ height: 26, minWidth: 0, px: 1.25, fontSize: '0.72rem', textTransform: 'none', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
                           Example
                         </Button>

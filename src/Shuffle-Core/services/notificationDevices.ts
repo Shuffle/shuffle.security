@@ -191,6 +191,19 @@ export const saveNotificationDevice = async (
   device: NotificationDevice,
 ): Promise<SaveDeviceResult> => {
   try {
+    // Saving replaces the stored device, so carry over its webhook when the
+    // caller did not send one. Otherwise re-registering wipes the webhook URL.
+    if (device.webhook_enabled === undefined && device.webhook_token === undefined) {
+      const stored = (await fetchNotificationDevices()).find((d) => d.id === device.id);
+      if (stored?.webhook_enabled || stored?.webhook_token) {
+        device = {
+          ...device,
+          webhook_enabled: stored.webhook_enabled,
+          webhook_token: stored.webhook_token,
+          webhook_url: stored.webhook_url,
+        };
+      }
+    }
     const response = await fetch(getApiUrl('/api/v1/updateuser'), {
       method: 'PUT',
       credentials: 'include',

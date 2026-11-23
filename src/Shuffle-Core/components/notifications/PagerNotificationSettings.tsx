@@ -708,8 +708,9 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           ? {
               ...d,
               webhook_enabled: result.webhook_enabled,
-              webhook_token: result.webhook_enabled ? result.webhook_token || d.webhook_token : undefined,
-              webhook_url: result.webhook_enabled ? result.webhook_url || d.webhook_url : undefined,
+              // Turning the webhook off or on keeps its address; only Rotate replaces it.
+              webhook_token: result.webhook_token || d.webhook_token,
+              webhook_url: result.webhook_url || d.webhook_url,
             }
           : d,
       ),

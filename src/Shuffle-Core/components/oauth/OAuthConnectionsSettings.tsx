@@ -304,14 +304,14 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
       <Box
         sx={{
           display: 'flex',
-          alignItems: 'flex-start',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'flex-start' },
           justifyContent: 'space-between',
-          gap: 2,
-          flexWrap: 'wrap',
+          gap: { xs: 1.5, sm: 2 },
           mb: 2.5,
         }}
       >
-        <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Box sx={{ minWidth: 0, flex: 1, width: { xs: '100%', sm: 'auto' } }}>
           <Typography
             variant="subtitle1"
             sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, mb: 0.5 }}

@@ -7,7 +7,7 @@ export const Route = createFileRoute("/mobile")({
     routeMeta({
       title: 'Mobile App',
       description:
-        'The Shuffle Security mobile app: critical incident paging, AI agent approvals and multi-tenant notifications on Android, with iOS coming soon.',
+        'The Shuffle Security mobile app: critical incident paging, AI agent approvals and multi-tenant notifications on Android, with iOS coming soon. Works with Shuffle Cloud and with self-hosted Shuffle.',
       url: '/mobile',
       breadcrumbs: [{ name: 'Home', path: '/' }],
     }),

@@ -50,6 +50,7 @@ export interface OAuthConnectionItem {
   allowed_tools?: string[];
   app_permissions?: OAuthAppPermission[];
   org_id?: string;
+  org_name?: string;
   user_id?: string;
   created_at?: number | string;
   expires_at?: string | number;
@@ -518,22 +519,7 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                             by {profile.vendor}
                           </Typography>
                         )}
-                        <Box
-                          component="span"
-                          sx={{
-                            px: 0.85,
-                            py: 0.15,
-                            fontSize: '0.68rem',
-                            fontWeight: 600,
-                            borderRadius: 1,
-                            bgcolor: 'rgba(34, 197, 94, 0.12)',
-                            color: '#22C55E',
-                            border: '1px solid rgba(34, 197, 94, 0.25)',
-                          }}
-                        >
-                          Active
-                        </Box>
-                        {hasMixedTenants && (
+                        {hasMixedTenants && !currentTenant && (
                           <Box
                             component="span"
                             sx={{
@@ -542,39 +528,31 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                               fontSize: '0.68rem',
                               fontWeight: 600,
                               borderRadius: 1,
-                              ...(currentTenant
-                                ? {
-                                    bgcolor: 'rgba(255, 102, 0, 0.1)',
-                                    color: 'hsl(var(--primary))',
-                                    border: '1px solid rgba(255, 102, 0, 0.28)',
-                                  }
-                                : {
-                                    bgcolor: 'hsl(var(--muted) / 0.4)',
-                                    color: 'hsl(var(--muted-foreground))',
-                                    border: '1px solid hsl(var(--border))',
-                                  }),
+                              bgcolor: 'hsl(var(--muted) / 0.4)',
+                              color: 'hsl(var(--muted-foreground))',
+                              border: '1px solid hsl(var(--border))',
                             }}
                           >
-                            {currentTenant
-                              ? `This tenant${orgName ? `: ${orgName}` : ''}`
-                              : 'Other tenant'}
+                            {conn.org_name || conn.org_id || 'Other tenant'}
                           </Box>
                         )}
-                        <Box
-                          component="span"
-                          sx={{
-                            px: 0.85,
-                            py: 0.15,
-                            fontSize: '0.68rem',
-                            fontWeight: 600,
-                            borderRadius: 1,
-                            bgcolor: verificationMeta.bgColor,
-                            color: verificationMeta.color,
-                            border: `1px solid ${verificationMeta.borderColor}`,
-                          }}
-                        >
-                          {verificationMeta.label}
-                        </Box>
+                        {profile.verificationStatus !== 'verified' && (
+                          <Box
+                            component="span"
+                            sx={{
+                              px: 0.85,
+                              py: 0.15,
+                              fontSize: '0.68rem',
+                              fontWeight: 600,
+                              borderRadius: 1,
+                              bgcolor: verificationMeta.bgColor,
+                              color: verificationMeta.color,
+                              border: `1px solid ${verificationMeta.borderColor}`,
+                            }}
+                          >
+                            {verificationMeta.label}
+                          </Box>
+                        )}
                       </Box>
 
                       {profile.vendorSpoofWarning && (

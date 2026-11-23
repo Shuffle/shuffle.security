@@ -1206,9 +1206,6 @@ const DashboardPage = () => {
             )}
           </Box>
         </Box>
-        <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.875rem', mb: 2 }}>
-          Get started by completing the setup steps below, then monitor agent activity.
-        </Typography>
 
         {/* ── Demo Mode CTA (shown at top only when no data has been ingested yet) ── */}
         {!hasIngestedData && !isInitialIngestionLoading && (
@@ -1496,7 +1493,7 @@ const DashboardPage = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                mb: setupCollapsed ? 0 : 2,
+                mb: setupCollapsed ? 0 : 0.5,
                 cursor: progressPercent >= 80 ? 'pointer' : 'default',
               }}
               onClick={() => {
@@ -1527,6 +1524,11 @@ const DashboardPage = () => {
               )}
             </Box>
             {!setupCollapsed && (<>
+              {!allComplete && (
+                <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.875rem', mb: 2 }}>
+                  Get started by completing the setup steps below, then monitor agent activity.
+                </Typography>
+              )}
 
               {/* Progress bar */}
               <Box sx={{ mb: 2.5 }}>

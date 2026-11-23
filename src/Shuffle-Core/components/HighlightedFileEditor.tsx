@@ -6,8 +6,11 @@ import {
   Chip,
   CircularProgress,
   Collapse,
+  IconButton,
+  Tooltip,
   useTheme,
 } from '@mui/material';
+import { Copy as CopyIcon } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import {
@@ -1375,23 +1378,24 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
                         px: 0.75,
                         minWidth: 0,
                         maxWidth: 220,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        justifyContent: 'flex-start',
                         '&:hover': {
                           bgcolor: 'hsl(var(--primary) / 0.15)',
                           borderColor: 'hsl(var(--primary) / 0.45)',
                         },
                       }}
                     >
-                      {`Ask about "${responseAskPreview}"`}
+                      <Box component="span" sx={{ display: 'block', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        Ask about response
+                      </Box>
                     </Button>
                   )}
 
                   {responseOutput && (
-                    <Button
+                    <Tooltip title="Copy response" arrow>
+                    <IconButton
                       size="small"
-                      variant="text"
+                      aria-label="Copy response"
                       onClick={() => {
                         try {
                           if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -1402,21 +1406,11 @@ export const HighlightedFileEditor: React.FC<HighlightedFileEditorProps> = ({
                           toast.error('Copy failed');
                         }
                       }}
-                      sx={{
-                        height: 20,
-                        fontSize: '0.62rem',
-                        fontWeight: 500,
-                        textTransform: 'none',
-                        color: 'hsl(var(--muted-foreground))',
-                        px: 0.75,
-                        minWidth: 0,
-                        '&:hover': {
-                          color: 'hsl(var(--foreground))',
-                        },
-                      }}
+                      sx={{ p: 0.5, color: 'hsl(var(--muted-foreground))', '&:hover': { color: 'hsl(var(--foreground))' } }}
                     >
-                      Copy
-                    </Button>
+                      <CopyIcon size={14} />
+                    </IconButton>
+                    </Tooltip>
                   )}
 
                   <Button

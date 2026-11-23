@@ -1247,7 +1247,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
         )}
 
         {deviceList.length > 0 && (
-          <FormControl size="small" sx={{ flex: '1 1 auto', minWidth: 0, maxWidth: { xs: 'none', sm: 160 } }}>
+          <FormControl size="small" sx={{ flex: { xs: '1 1 0', sm: '1 1 auto' }, minWidth: 0, maxWidth: { xs: 'none', sm: 160 } }}>
             <Select
               value={selectedDeviceId}
               onChange={(e) => setSelectedDeviceId(String(e.target.value))}
@@ -1564,7 +1564,8 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
 
       )}
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* On phones, hide the sections until the selected device can get notifications. */}
+      <Box sx={{ display: { xs: controlsAvailable ? 'flex' : 'none', sm: 'flex' }, flexDirection: 'column', gap: 2 }}>
         {/* General Notifications */}
         <NotificationSection
           title="General Notifications"

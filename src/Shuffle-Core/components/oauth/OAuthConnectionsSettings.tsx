@@ -1260,36 +1260,14 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
         onClose={() => setStatsOpen(false)}
         title="OAuth application usage"
         orgId={orgId}
-        series={[{ key: 'oauth_api_usage', label: 'API calls' }]}
+        series={[
+          { key: 'oauth_api_usage', label: 'All applications' },
+          ...sortedConnections.map((c) => ({
+            key: `oauth_api_usage_${String(c.id).toLowerCase().replace(/ /g, '_')}`,
+            label: `${c.client_name || c.client_id} (${c.usage_count || 0} total)`,
+          })),
+        ]}
       >
-        {sortedConnections.length > 0 && (
-          <Box sx={{ mt: 2.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-            {[...sortedConnections]
-              .sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0))
-              .map((c) => {
-                const max = Math.max(1, ...sortedConnections.map((x) => x.usage_count || 0));
-                return (
-                  <Box key={c.id} sx={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) 2fr auto', gap: 1.5, alignItems: 'center' }}>
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography noWrap sx={{ fontSize: '0.8rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
-                        {c.client_name || c.client_id}
-                      </Typography>
-                      <Typography noWrap title={c.last_used_endpoint} sx={{ fontSize: '0.7rem', color: 'hsl(var(--muted-foreground))' }}>
-                        {c.last_used_at ? new Date(c.last_used_at * 1000).toLocaleString() : 'Never used'}
-                        {c.last_used_endpoint ? ` - ${c.last_used_endpoint}` : ''}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ height: 8, borderRadius: 4, bgcolor: 'hsl(var(--muted) / 0.4)', overflow: 'hidden' }}>
-                      <Box sx={{ height: '100%', width: `${((c.usage_count || 0) / max) * 100}%`, bgcolor: '#FF6600' }} />
-                    </Box>
-                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, minWidth: 40, textAlign: 'right', color: 'hsl(var(--foreground))' }}>
-                      {c.usage_count || 0}
-                    </Typography>
-                  </Box>
-                );
-              })}
-          </Box>
-        )}
       </StatsSeriesDialog>
     </Paper>
   );

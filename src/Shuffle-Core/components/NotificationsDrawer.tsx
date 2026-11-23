@@ -641,10 +641,10 @@ const NotificationsDrawer = ({
               </Tooltip>
             )}
 
-            <Tooltip title="Set up mobile devices" arrow>
+            <Tooltip title="Set up paging for notifications" arrow>
               <IconButton
                 size="small"
-                aria-label="Set up mobile devices"
+                aria-label="Set up paging for notifications"
                 onClick={() => setMobileSetupOpen(true)}
                 sx={{ color: 'hsl(var(--muted-foreground))' }}
               >
@@ -1236,8 +1236,7 @@ const NotificationsDrawer = ({
           },
         }}
       >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-          Mobile devices
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'flex-end', p: 1, minWidth: 0 }}>
           <IconButton size="small" aria-label="Close" onClick={() => setMobileSetupOpen(false)} sx={{ color: 'hsl(var(--muted-foreground))' }}>
             <CloseIcon fontSize="small" />
           </IconButton>

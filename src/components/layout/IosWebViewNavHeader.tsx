@@ -267,6 +267,7 @@ const TenantSelector: React.FC<{ maxWidth?: number; fullWidth?: boolean }> = ({
         slotProps={{
           paper: {
             sx: {
+              backgroundImage: 'none',
               mt: 0.5,
               maxHeight: 340,
               minWidth: 220,
@@ -624,8 +625,6 @@ export const MobileNavHeader: React.FC = () => {
               </IconButton>
             </Tooltip>
 
-            <TenantSelector maxWidth={112} />
-
             <Tooltip title="Account & Settings">
               <IconButton
                 size="small"
@@ -664,6 +663,7 @@ export const MobileNavHeader: React.FC = () => {
         slotProps={{
           paper: {
             sx: {
+              backgroundImage: 'none',
               mt: 0.5,
               minWidth: 210,
               bgcolor: 'hsl(var(--card))',
@@ -828,6 +828,7 @@ export const MobileNavHeader: React.FC = () => {
             maxWidth: '86vw',
             boxSizing: 'border-box',
             bgcolor: 'hsl(var(--card))',
+            backgroundImage: 'none',
             color: 'hsl(var(--foreground))',
             borderRight: '1px solid hsl(var(--border))',
             display: 'flex',
@@ -907,6 +908,7 @@ export const MobileNavHeader: React.FC = () => {
           slotProps={{
             paper: {
               sx: {
+                backgroundImage: 'none',
                 mt: 0.5,
                 backgroundColor: 'hsl(var(--card))',
                 border: '1px solid hsl(var(--border))',

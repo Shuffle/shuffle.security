@@ -955,7 +955,11 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       if (token) {
         const next = savePagerSettings({ pushToken: token });
         setSettings(next);
-        setPermissionMsg('This device is now registered for push notifications.');
+        setPermissionMsg(
+          userInfo?.id && localDeviceId
+            ? 'This device is now registered for push notifications.'
+            : 'Sign in to register this device.',
+        );
         if (userInfo?.id && localDeviceId) {
           const existing = devices.find((d) => d.id === localDeviceId);
           const result = await saveNotificationDevice(userInfo.id, {

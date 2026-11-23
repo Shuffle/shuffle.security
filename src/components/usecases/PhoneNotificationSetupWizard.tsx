@@ -154,7 +154,12 @@ export const PhoneNotificationSetupWizard: React.FC<PhoneNotificationSetupWizard
         // The native app registers push itself; if this device already has a token, it worked.
         const already = findLocalDevice(await fetchNotificationDevices(), getLocalDeviceId(), getPagerSettings().pushToken || undefined);
         if (already?.token) {
-          toast.success('This device is registered for push notifications.');
+          const uid = userInfo?.id || (users && users[0]?.id);
+          const res = typeof uid === 'string' && uid
+            ? await saveNotificationDevice(uid, { ...already, preferences: resolveDevicePreferences(already) })
+            : { success: false, reason: 'Sign in to register this device.' };
+          if (res.success) toast.success('This device is registered for push notifications.');
+          else toast.error('Failed to register device', { description: res.reason });
           await loadDevices();
           return;
         }

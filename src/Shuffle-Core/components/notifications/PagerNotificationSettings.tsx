@@ -609,8 +609,16 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const remotePreferences = resolveDevicePreferences(selectedDevice);
 
   const deviceRegistered = Boolean(selectedDevice && devices.some((d) => d.id === selectedDevice.id));
+  const localDeviceRow = localDeviceId ? devices.find((d) => d.id === localDeviceId) || null : null;
+  const isNativeApp = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+  // The mobile app registers its own push token, so a device the server already
+  // knows about counts as registered even when this browser never granted web
+  // notification permission. A failed save keeps the register button for retry.
+  const localDeviceRegistered =
+    Boolean(localDeviceRow && (localDeviceRow.token || localDeviceRow.has_token || localDeviceRow.push_registered)) ||
+    Boolean(isNativeApp && settings.pushToken && localDeviceRow);
   const pushAvailable = isLocalSelected
-    ? settings.permissionStatus === 'granted' && Boolean(settings.pushToken)
+    ? localDeviceRegistered || (settings.permissionStatus === 'granted' && Boolean(settings.pushToken))
     : Boolean(selectedDevice?.token || selectedDevice?.has_token || selectedDevice?.push_registered);
   const controlsAvailable = deviceRegistered && pushAvailable;
 
@@ -896,9 +904,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
     );
   };
 
-  // The device only counts as set up once the server has it; a failed save keeps the button for retry.
-  const localDeviceSaved = Boolean(localDeviceId && devices.some((d) => d.id === localDeviceId && d.token));
-
   const handleRequestPermissions = async () => {
     setPermissionMsg(null);
     const granted = await requestNotificationPermissions();
@@ -1128,6 +1133,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
         backgroundImage: 'none',
         border: 'none',
         boxShadow: 'none',
+        py: 1.25,
         display: 'flex',
         flexDirection: 'column',
         gap: 2.5,
@@ -1185,7 +1191,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           }}
         >
 
-        {isLocalSelected && (!isGranted || !settings.pushToken || !localDeviceSaved) && (
+        {isLocalSelected && !localDeviceRegistered && (
           <Tooltip
             title={
               isGranted
@@ -1575,7 +1581,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           onToggle={(value) => setSectionEnabled('general', value)}
           expanded={expanded === 'general'}
           onExpandToggle={() => toggleExpanded('general')}
-          expandDisabled={!isGranted}
+          expandDisabled={!controlsAvailable}
           onTest={testToken ? () => handleTestRemotePush('general') : undefined}
           testing={sendingType === 'general'}
           testTooltip={`Send a real general push to ${testTargetName} right now, exactly as a routine update would arrive.`}
@@ -1647,7 +1653,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           }}
           expanded={expanded === 'critical'}
           onExpandToggle={() => toggleExpanded('critical')}
-          expandDisabled={!isGranted && criticalAvailable}
           onTest={testToken ? () => requestCriticalTest('push') : undefined}
           testing={sendingType === 'critical'}
           testDisabled={!criticalAvailable}

@@ -5,6 +5,10 @@ import googlePlayBadge from '../assets/google-play-badge.png.asset.json';
 /** Official Google Play listing for the Shuffle Security Android app. */
 export const SHUFFLE_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=shuffle.security';
 
+/** Shown on the unavailable App Store badge: how to get into the iOS beta. */
+export const IOS_BETA_TOOLTIP =
+  'The Shuffle Security iOS app is not available yet. Email support@shuffler.io to join the iOS beta program.';
+
 export interface AppStoreBadgesProps {
   /** Link for the Apple App Store badge. Defaults to the App Store home. */
   iosUrl?: string;
@@ -55,7 +59,7 @@ export function AppStoreBadges({
   );
 
   const iosBadge = iosComingSoon ? (
-    <Tooltip title="The Shuffle Security iOS app is not available yet." placement="top" arrow>
+    <Tooltip title={IOS_BETA_TOOLTIP} placement="top" arrow>
       <Box
         sx={{
           position: 'relative',

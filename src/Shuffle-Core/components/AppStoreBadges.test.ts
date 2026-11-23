@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { AppStoreBadges, SHUFFLE_PLAY_STORE_URL } from './AppStoreBadges';
+import { AppStoreBadges, IOS_BETA_TOOLTIP, SHUFFLE_PLAY_STORE_URL } from './AppStoreBadges';
 
 describe('AppStoreBadges store links', () => {
   it('links the Google Play badge to the Shuffle Security Android listing', () => {
@@ -29,5 +29,10 @@ describe('AppStoreBadges store links', () => {
     expect(soonIndex).toBeGreaterThanOrEqual(0);
     expect(playIndex).toBeLessThan(soonIndex);
     expect(html).not.toContain('apps.apple.com');
+  });
+
+  it('points the unavailable App Store badge at the iOS beta program', () => {
+    expect(IOS_BETA_TOOLTIP).toContain('beta program');
+    expect(IOS_BETA_TOOLTIP).toContain('support@shuffler.io');
   });
 });

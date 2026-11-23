@@ -915,6 +915,13 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
     const next = getPagerSettings();
     setSettings(next);
 
+    // Enable and register in one step: once allowed, register this device
+    // right away (except in the preview frame, where push is blocked).
+    if (granted && typeof window !== 'undefined' && window.top === window.self) {
+      await handleRegisterLocalPush();
+      return;
+    }
+
     if (granted && localDeviceId && userInfo?.id) {
       const existing = devices.find((d) => d.id === localDeviceId);
       const token = next.pushToken || existing?.token || (await ensureLocalPushToken());

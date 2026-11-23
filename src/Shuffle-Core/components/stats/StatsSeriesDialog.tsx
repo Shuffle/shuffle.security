@@ -85,6 +85,52 @@ function SeriesChart({ label, points, days }: { label: string; points: StatPoint
   );
 }
 
+export interface StatsSeriesCardProps {
+  statKey: string;
+  label?: string;
+  orgId?: string;
+}
+
+/** Standalone single-series graph with its own fetch and 7/30/90-day toggle. */
+export function StatsSeriesCard({ statKey, label, orgId }: StatsSeriesCardProps) {
+  const [days, setDays] = useState(30);
+  const [points, setPoints] = useState<StatPoint[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPoints(null);
+    fetchStatSeries(statKey, orgId).then((p) => {
+      if (!cancelled) setPoints(p);
+    });
+    return () => { cancelled = true; };
+  }, [statKey, orgId]);
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+        <Typography
+          variant="caption"
+          sx={{
+            color: 'hsl(var(--muted-foreground))',
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {label || 'Usage'}
+        </Typography>
+        <ToggleButtonGroup size="small" exclusive value={days} onChange={(_, v) => v && setDays(v)}>
+          {[7, 30, 90].map((d) => (
+            <ToggleButton key={d} value={d} sx={{ px: 1, py: 0.1, fontSize: '0.68rem', textTransform: 'none' }}>{d}d</ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      </Box>
+      <SeriesChart label={label || 'Usage'} points={points} days={days} />
+    </Box>
+  );
+}
+
 export interface StatsSeriesDialogProps {
   open: boolean;
   onClose: () => void;

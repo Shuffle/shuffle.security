@@ -16,8 +16,8 @@ import {
   IconButton,
   Tooltip,
 } from '@mui/material';
-import { BarChart3, RefreshCw } from 'lucide-react';
-import { StatsSeriesDialog } from '../stats/StatsSeriesDialog';
+import { RefreshCw } from 'lucide-react';
+import { StatsSeriesCard } from '../stats/StatsSeriesDialog';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { toast } from '@/Shuffle-Core/lib/toast';
 import { ShuffleCompanyLogo } from '@/components/common/ShuffleLogo';
@@ -224,7 +224,6 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
     fetchConnections(false);
   }, [fetchConnections]);
 
-  const [statsOpen, setStatsOpen] = useState(false);
   const isCurrentTenant = useCallback(
     (conn: OAuthConnectionItem) => Boolean(orgId) && conn.org_id === orgId,
     [orgId]
@@ -328,17 +327,6 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <McpSetupButtons globalUrl={globalUrl} size="default" />
-
-          <Tooltip title="Usage statistics">
-            <IconButton
-              size="small"
-              onClick={() => setStatsOpen(true)}
-              aria-label="Usage statistics"
-              sx={{ p: 0.75, borderRadius: 1.5, color: 'hsl(var(--foreground))' }}
-            >
-              <BarChart3 size={18} />
-            </IconButton>
-          </Tooltip>
 
           <Tooltip title="Refresh">
             <span>
@@ -1119,6 +1107,16 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
                       </Box>
                     )}
 
+                    {conn.id && (
+                      <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' }, mt: 0.5 }}>
+                        <StatsSeriesCard
+                          statKey={`oauth_session_${String(conn.id).toLowerCase().replace(/ /g, '_')}`}
+                          label="Usage"
+                          orgId={currentTenant ? orgId : conn.org_id}
+                        />
+                      </Box>
+                    )}
+
                     {allowedApps.length > 0 && appPermissions.length === 0 && (
                       <Box sx={{ gridColumn: { xs: '1', sm: '1 / -1' } }}>
                         <Typography
@@ -1225,20 +1223,6 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
           </Button>
         </DialogActions>
       </Dialog>
-      <StatsSeriesDialog
-        open={statsOpen}
-        onClose={() => setStatsOpen(false)}
-        title="OAuth application usage"
-        orgId={orgId}
-        series={[
-          { key: 'oauth_api_usage', label: 'All applications' },
-          ...sortedConnections.map((c) => ({
-            key: `oauth_session_${String(c.id).toLowerCase().replace(/ /g, '_')}`,
-            label: `${c.client_name || c.client_id} (${c.usage_count || 0} total)`,
-          })),
-        ]}
-      >
-      </StatsSeriesDialog>
     </Paper>
   );
 };

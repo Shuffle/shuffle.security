@@ -3,6 +3,7 @@ import {
   buildCurl,
   buildHttp,
   buildPython,
+  isTestableMode,
   unmaskSnippetCredentials,
 } from './ApiCallViewer';
 
@@ -74,5 +75,16 @@ describe('ApiCallViewer snippet builders', () => {
     const sanitized = unmaskSnippetCredentials(raw, null);
     expect(sanitized).not.toContain('\u2026');
     expect(sanitized).toBe('headers = {"Authorization": "Bearer 2f5bfb7a..."}');
+  });
+});
+
+describe('ApiCallViewer test-runner availability', () => {
+  it('allows testing from the cURL and Python tabs', () => {
+    expect(isTestableMode('curl')).toBe(true);
+    expect(isTestableMode('python')).toBe(true);
+  });
+
+  it('blocks testing from the HTTP tab', () => {
+    expect(isTestableMode('http')).toBe(false);
   });
 });

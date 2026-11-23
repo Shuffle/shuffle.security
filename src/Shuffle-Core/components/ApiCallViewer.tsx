@@ -2,12 +2,12 @@
  * ApiCallViewer — Standardized, compact API call inspector and test runner.
  * Used across App Integrations and Documentation.
  *
- * Supports switching between cURL, Python, HTTP, and JSON payload inspection,
- * live testing via Shuffle HTTP app, and collapsible JSON parsing via JsonView.
+ * Supports switching between cURL, Python and HTTP snippets, live testing via
+ * Shuffle HTTP app, and collapsible JSON parsing via JsonView.
  */
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Box, Typography, Button, Chip, CircularProgress, Collapse, useTheme } from '@mui/material';
+import { Box, Typography, Button, Chip, CircularProgress, Collapse, Tooltip, useTheme } from '@mui/material';
 import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { toast } from '@/Shuffle-Core/toast';
@@ -40,6 +40,13 @@ export interface ParsedCurl {
 }
 
 export type SnippetLang = 'curl' | 'python' | 'http' | 'json';
+
+/**
+ * Testing runs the snippet through the cURL or Python runner, so only those two
+ * tabs can be executed. The HTTP tab is read-only.
+ */
+export const isTestableMode = (mode: SnippetLang): boolean =>
+  mode === 'curl' || mode === 'python';
 
 export interface ApiCallViewerProps extends ShuffleHostProps {
   /** Structured API call configuration */
@@ -777,8 +784,6 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
     return { method, url, headers, body: bodyObj, parsedJson };
   }, [config, parsedCurlData, defaultBaseUrl, apiKey, orgId]);
 
-  const hasJsonBody = requestInfo.parsedJson !== null;
-
   const generatedCode = useMemo(() => {
     return {
       curl: buildCurl(requestInfo.method, requestInfo.url, requestInfo.headers, requestInfo.body, maskAuth),
@@ -1028,7 +1033,7 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
 
         <Box sx={{ flex: 1 }} />
 
-        {/* Compact Segmented Switcher: cURL / Python / HTTP / JSON */}
+        {/* Compact Segmented Switcher: cURL / Python / HTTP */}
         <Box
           sx={{
             display: 'inline-flex',
@@ -1040,9 +1045,9 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
             borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(15, 23, 42, 0.12)',
           }}
         >
-          {((['curl', 'python', 'http', ...(hasJsonBody ? ['json'] : [])] as SnippetLang[])).map((m) => {
+          {(['curl', 'python', 'http'] as SnippetLang[]).map((m) => {
             const active = mode === m;
-            const label = m === 'curl' ? 'cURL' : m === 'python' ? 'Python' : m === 'http' ? 'HTTP' : 'JSON';
+            const label = m === 'curl' ? 'cURL' : m === 'python' ? 'Python' : 'HTTP';
             return (
               <Box
                 key={m}
@@ -1129,40 +1134,47 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
         </Button>
 
         {/* Test runner button */}
-        <Button
-          size="small"
-          variant="contained"
-          disableElevation
-          onClick={handleRun}
-          disabled={isRunning}
-          sx={{
-            height: 22,
-            minWidth: 46,
-            px: 1.25,
-            fontSize: '0.65rem',
-            fontWeight: 600,
-            textTransform: 'none',
-            borderRadius: 1,
-            bgcolor: 'hsl(var(--primary))',
-            color: 'hsl(var(--primary-foreground))',
-            '&:hover': {
-              bgcolor: 'hsl(var(--primary) / 0.9)',
-            },
-            '&.Mui-disabled': {
-              bgcolor: 'hsl(var(--primary) / 0.5)',
-              color: 'hsl(var(--primary-foreground) / 0.8)',
-            },
-          }}
+        <Tooltip
+          title={isTestableMode(mode) ? '' : 'Testing is available for cURL and Python'}
+          disableHoverListener={isTestableMode(mode)}
         >
-          {isRunning ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <CircularProgress size={10} color="inherit" />
-              <span>Running</span>
-            </Box>
-          ) : (
-            'Test'
-          )}
-        </Button>
+          <Box component="span" sx={{ display: 'inline-flex' }}>
+            <Button
+              size="small"
+              variant="contained"
+              disableElevation
+              onClick={handleRun}
+              disabled={isRunning || !isTestableMode(mode)}
+              sx={{
+                height: 22,
+                minWidth: 46,
+                px: 1.25,
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                textTransform: 'none',
+                borderRadius: 1,
+                bgcolor: 'hsl(var(--primary))',
+                color: 'hsl(var(--primary-foreground))',
+                '&:hover': {
+                  bgcolor: 'hsl(var(--primary) / 0.9)',
+                },
+                '&.Mui-disabled': {
+                  bgcolor: 'hsl(var(--primary) / 0.5)',
+                  color: 'hsl(var(--primary-foreground) / 0.8)',
+                },
+              }}
+            >
+              {isRunning ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <CircularProgress size={10} color="inherit" />
+                  <span>Running</span>
+                </Box>
+              ) : (
+                'Test'
+              )}
+            </Button>
+          </Box>
+        </Tooltip>
       </Box>
 
       {/* Main Body: Code or JSON Tree View */}

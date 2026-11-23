@@ -1185,6 +1185,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                   fontSize: '0.75rem',
                   textTransform: 'none',
                   whiteSpace: 'nowrap',
+                  width: { xs: '100%', sm: 'auto' },
                   bgcolor: 'hsl(var(--primary))',
                   color: 'hsl(var(--primary-foreground))',
                   '&:hover': { bgcolor: 'hsl(var(--primary) / 0.9)' },

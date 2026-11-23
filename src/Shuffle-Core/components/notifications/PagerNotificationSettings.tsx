@@ -25,7 +25,7 @@ import {
   TextField,
   InputAdornment,
 } from '@mui/material';
-import { ChevronDown, Smartphone, Monitor, MoreVertical, Bell, BellOff, CalendarClock, PhoneCall, Trash2, Copy } from 'lucide-react';
+import { ChevronDown, Smartphone, Monitor, MoreVertical, Bell, BellOff, CalendarClock, PhoneCall, Trash2, Copy, RotateCw } from 'lucide-react';
 import { toast } from '@/Shuffle-Core/lib/toast';
 import { AppStoreBadges } from '@/Shuffle-Core/components/AppStoreBadges';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
@@ -397,6 +397,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const [copiedPath, setCopiedPath] = useState(false);
   const [expanded, setExpanded] = useState<NotificationType | null>(null);
   const [webhookBusy, setWebhookBusy] = useState(false);
+  const [confirmRotate, setConfirmRotate] = useState(false);
   const [devices, setDevices] = useState<NotificationDevice[]>([]);
   const [localDeviceId, setLocalDeviceId] = useState('');
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
@@ -1687,6 +1688,18 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                         </IconButton>
                       </span>
                     </Tooltip>
+                    <Tooltip title="Rotate the webhook URL. The old URL stops working." arrow>
+                      <span>
+                        <IconButton
+                          size="small"
+                          onClick={() => setConfirmRotate(true)}
+                          disabled={!webhookAvailable || webhookBusy || !selectedDevice?.webhook_url}
+                          aria-label="Rotate webhook URL"
+                        >
+                          <RotateCw size={16} />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                     <Tooltip
                       title={
                         !webhookAvailable
@@ -1727,6 +1740,33 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       </Box>
 
 
+
+      <Dialog open={confirmRotate} onClose={() => setConfirmRotate(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Rotate webhook URL?</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: '0.88rem' }}>
+            A new webhook URL will be created for this device and the current one will stop working
+            immediately. Anything still sending to the old URL will fail until it is updated.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button size="small" onClick={() => setConfirmRotate(false)} sx={outlinedButtonSx}>
+            Cancel
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            color="warning"
+            onClick={() => {
+              setConfirmRotate(false);
+              updateWebhook(true, true);
+            }}
+            sx={{ height: 36, textTransform: 'none' }}
+          >
+            Rotate URL
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={confirmCritical} onClose={() => setConfirmCritical(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Enable Critical Pager?</DialogTitle>

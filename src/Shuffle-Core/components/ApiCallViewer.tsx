@@ -7,7 +7,8 @@
  */
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Box, Typography, Button, Chip, CircularProgress, Collapse, Tooltip, useTheme } from '@mui/material';
+import { Box, Typography, Button, Chip, CircularProgress, Collapse, IconButton, Tooltip, useTheme } from '@mui/material';
+import { Copy as CopyIcon } from 'lucide-react';
 import type { ShuffleHostProps } from '@/Shuffle-Core/host-props';
 import { API_CONFIG, getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { toast } from '@/Shuffle-Core/toast';
@@ -1497,23 +1498,24 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
                     px: 0.75,
                     minWidth: 0,
                     maxWidth: 220,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    justifyContent: 'flex-start',
                     '&:hover': {
                       bgcolor: 'hsl(var(--primary) / 0.15)',
                       borderColor: 'hsl(var(--primary) / 0.45)',
                     },
                   }}
                 >
-                  {`Ask about "${responseAskPreview}"`}
+                  <Box component="span" sx={{ display: 'block', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    Ask about response
+                  </Box>
                 </Button>
               )}
 
               {responseOutput && (
-                <Button
+                <Tooltip title="Copy response" arrow>
+                <IconButton
                   size="small"
-                  variant="text"
+                  aria-label="Copy response"
                   onClick={() => {
                     try {
                       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -1525,20 +1527,14 @@ export const ApiCallViewer: React.FC<ApiCallViewerProps> = ({
                     }
                   }}
                   sx={{
-                    height: 20,
-                    fontSize: '0.62rem',
-                    fontWeight: 500,
-                    textTransform: 'none',
+                    p: 0.5,
                     color: 'hsl(var(--muted-foreground))',
-                    px: 0.75,
-                    minWidth: 0,
-                    '&:hover': {
-                      color: 'hsl(var(--foreground))',
-                    },
+                    '&:hover': { color: 'hsl(var(--foreground))' },
                   }}
                 >
-                  Copy
-                </Button>
+                  <CopyIcon size={14} />
+                </IconButton>
+                </Tooltip>
               )}
 
               <Button

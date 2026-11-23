@@ -25,8 +25,9 @@ import {
   TextField,
   InputAdornment,
 } from '@mui/material';
-import { ChevronDown, Smartphone, Monitor, MoreVertical, Bell, BellOff, CalendarClock, PhoneCall, Trash2, Copy, RotateCw } from 'lucide-react';
+import { ChevronDown, Smartphone, Monitor, MoreVertical, Bell, BellOff, CalendarClock, PhoneCall, Trash2, Copy, RotateCw, BarChart3 } from 'lucide-react';
 import { toast } from '@/Shuffle-Core/lib/toast';
+import { StatsSeriesDialog, deviceStatKey } from '@/Shuffle-Core/components/stats/StatsSeriesDialog';
 import { AppStoreBadges } from '@/Shuffle-Core/components/AppStoreBadges';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@shuffleio/shuffle-mcps';
@@ -400,6 +401,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const [confirmRotate, setConfirmRotate] = useState(false);
   const [devices, setDevices] = useState<NotificationDevice[]>([]);
   const [localDeviceId, setLocalDeviceId] = useState('');
+  const [statsOpen, setStatsOpen] = useState(false);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [savingDevice, setSavingDevice] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<NotificationDevice | null>(null);
@@ -1299,6 +1301,35 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
             </span>
           </Tooltip>
         )}
+
+        <Tooltip title="Notification statistics">
+          <IconButton
+            size="small"
+            onClick={() => setStatsOpen(true)}
+            aria-label="Notification statistics"
+            sx={{ color: 'hsl(var(--muted-foreground))' }}
+          >
+            <BarChart3 size={16} />
+          </IconButton>
+        </Tooltip>
+        <StatsSeriesDialog
+          open={statsOpen}
+          onClose={() => setStatsOpen(false)}
+          title="Notification statistics"
+          series={[
+            { key: 'device_notifications', label: 'All notifications' },
+            { key: 'device_notifications_general', label: 'General' },
+            { key: 'device_notifications_critical', label: 'Critical Pager' },
+            { key: 'device_notifications_agent_request', label: 'Agent requests' },
+            { key: 'device_notifications_webhook', label: 'Webhook' },
+            ...(deviceRegistered && selectedDevice
+              ? (['general', 'critical', 'webhook'] as const).map((t) => ({
+                  key: deviceStatKey(selectedDevice.id, t),
+                  label: `This device: ${t === 'critical' ? 'Critical Pager' : t === 'general' ? 'General' : 'Webhook'}`,
+                }))
+              : []),
+          ]}
+        />
 
         <IconButton
           size="small"

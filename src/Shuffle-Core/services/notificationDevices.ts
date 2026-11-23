@@ -148,7 +148,16 @@ const extractDevices = (payload: unknown): NotificationDevice[] => {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((item): item is NotificationDevice => Boolean(item) && typeof item === 'object')
-    .filter((item) => Boolean(item.id || item.device_name));
+    .filter((item) => Boolean(item.id || item.device_name))
+    .map((item) => ({ ...item, webhook_url: item.webhook_url || buildDeviceWebhookUrl(item.webhook_token) }));
+};
+
+/** Builds a device webhook URL from its token: ${globalUrl}/api/v1/devices/webhook/${token}. */
+export const buildDeviceWebhookUrl = (token?: string): string | undefined => {
+  if (!token) return undefined;
+  const url = getApiUrl(`/api/v1/devices/webhook/${encodeURIComponent(token)}`);
+  if (/^https?:\/\//.test(url) || typeof window === 'undefined') return url;
+  return new URL(url, window.location.origin).toString();
 };
 
 /** Loads the registered notification devices from the current user via /api/v1/getsettings or /api/v1/getinfo. */
@@ -278,7 +287,7 @@ export const setDeviceWebhook = async (
         success: true,
         webhook_enabled: Boolean(data?.webhook_enabled),
         webhook_token: data?.webhook_token,
-        webhook_url: data?.webhook_url,
+        webhook_url: data?.webhook_url || buildDeviceWebhookUrl(data?.webhook_token),
       };
     }
     return { success: false, reason: data?.reason || `HTTP ${response.status}` };

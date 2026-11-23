@@ -369,6 +369,8 @@ export const AppAuthCard = ({
   // Helper to get best default auth: prioritize validated, otherwise last entry
   const getBestDefaultAuth = (entries: ApiAuthEntry[]): string => {
     if (entries.length === 0) return ADD_NEW_AUTH;
+    // Nothing usable yet (only unconfigured placeholders) — open the new-auth form directly.
+    if (!entries.some(e => e.active === true || e.validation?.valid === true)) return ADD_NEW_AUTH;
     
     // First, find a validated entry
     const validatedEntry = entries.find(e => e.validation?.valid === true);
@@ -1480,7 +1482,7 @@ export const AppAuthCard = ({
         </CardContent>
         )}
 
-        <Collapse in={isExpanded}>
+        <Collapse in={isExpanded || !!hideHeader}>
           <Box
             sx={{
               px: borderless ? 0 : { xs: 2, sm: 3 },
@@ -1499,6 +1501,16 @@ export const AppAuthCard = ({
                 <FormControl fullWidth size="small">
                   <Select
                     value={selectedAuthId}
+                    renderValue={(value) => {
+                      if (value === ADD_NEW_AUTH) return 'Add new authentication';
+                      const idx = apiAuthEntries.findIndex((a, i) => (a.id || a.label || i.toString()) === value);
+                      const entry = idx >= 0 ? apiAuthEntries[idx] : undefined;
+                      return (
+                        <Box component="span" sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {entry?.label || `Auth ${idx + 1}`}
+                        </Box>
+                      );
+                    }}
                     onChange={(e) => {
                       const value = e.target.value as string;
                       setSelectedAuthId(value);

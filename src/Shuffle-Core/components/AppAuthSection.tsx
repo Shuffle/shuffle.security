@@ -74,7 +74,7 @@ export default function AppAuthSection({
           <AppAuthCard
             app={algoliaApp}
             authState={authState}
-            isExpanded={expanded}
+            isExpanded
             onToggle={onToggle}
             onAuthChange={onAuthChange}
             onTestConnection={onTestConnection}
@@ -88,6 +88,7 @@ export default function AppAuthSection({
             serverside={serverside}
             theme={theme}
             colorMode={colorMode}
+            hideHeader
           />
         )}
       </Box>

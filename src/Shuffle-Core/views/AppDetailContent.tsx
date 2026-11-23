@@ -1272,6 +1272,14 @@ export default function AppDetailContent({
             flexShrink: 0,
           }}
         >
+          {resolvedImage && !appLoading && (
+            <Box
+              component="img"
+              src={resolvedImage}
+              alt=""
+              sx={{ width: 32, height: 32, borderRadius: 1.5, objectFit: 'contain', bgcolor: 'hsl(var(--muted))', flexShrink: 0 }}
+            />
+          )}
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
               <Typography sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, fontSize: '1rem', lineHeight: 1.2, textTransform: 'capitalize' }}>
@@ -1505,7 +1513,8 @@ export default function AppDetailContent({
               </Alert>
             )}
 
-            {/* App Title Header */}
+            {/* App Title Header (on phones the drawer header already shows icon + name) */}
+            <Box sx={mode === 'drawer' ? { display: { xs: 'none', sm: 'block' } } : undefined}>
             <AppTitleHeader
               name={displayName}
               mcpAppName={canonicalExecutionAppName}
@@ -1537,6 +1546,7 @@ export default function AppDetailContent({
               theme={theme}
               colorMode={colorMode}
             />
+            </Box>
 
             {/* Description (collapsible) */}
             {appInfo?.description && (

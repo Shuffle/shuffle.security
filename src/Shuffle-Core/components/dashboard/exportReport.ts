@@ -21,25 +21,42 @@ export type ReportSectionId =
   | 'vulnerabilities'
   | 'locations';
 
+/** Report groups follow the documentation structure, in this order. */
+export type ReportGroupId = 'tenant' | 'security' | 'automation' | 'infrastructure';
+
+export const REPORT_GROUPS: { id: ReportGroupId; label: string }[] = [
+  { id: 'tenant', label: 'Tenant' },
+  { id: 'security', label: 'Security' },
+  { id: 'automation', label: 'Automation' },
+  { id: 'infrastructure', label: 'Infrastructure' },
+];
+
 export interface ReportSectionDef {
   id: ReportSectionId;
+  group: ReportGroupId;
   label: string;
   description: string;
   /** True when rows are filtered by the chosen time range. */
   rangeScoped: boolean;
 }
 
+/** Ordered by REPORT_GROUPS so the picker and the PDF read like the documentation. */
 export const REPORT_SECTIONS: ReportSectionDef[] = [
-  { id: 'dashboards', label: 'Dashboard charts and stats', description: 'Security Operations and Automation dashboards plus the raw stats summary.', rangeScoped: true },
-  { id: 'tenant', label: 'Tenant details', description: 'Name, ID, region and plan of the current tenant.', rangeScoped: false },
-  { id: 'subtenants', label: 'Sub-tenants', description: 'List of child tenants, when any exist.', rangeScoped: false },
-  { id: 'incidents', label: 'Incidents', description: 'Incidents created in the chosen range.', rangeScoped: true },
-  { id: 'workflows', label: 'Workflows', description: 'All workflows with status, triggers and last edit time.', rangeScoped: false },
-  { id: 'runs', label: 'Workflow runs', description: 'Daily run, finished and failed counts in the chosen range.', rangeScoped: true },
-  { id: 'apps', label: 'Apps', description: 'Authenticated apps and whether their credentials are valid.', rangeScoped: false },
-  { id: 'vulnerabilities', label: 'Vulnerabilities', description: 'Vulnerabilities discovered in the chosen range.', rangeScoped: true },
-  { id: 'locations', label: 'Runtime locations', description: 'Runtime locations with type, queue length and last check-in.', rangeScoped: false },
+  { id: 'tenant', group: 'tenant', label: 'Tenant details', description: 'Name, ID, region and plan of the current tenant.', rangeScoped: false },
+  { id: 'subtenants', group: 'tenant', label: 'Sub-tenants', description: 'List of child tenants, when any exist.', rangeScoped: false },
+  { id: 'dashboards', group: 'tenant', label: 'Dashboard charts and stats', description: 'Security Operations and Automation dashboards plus the raw stats summary.', rangeScoped: true },
+  { id: 'incidents', group: 'security', label: 'Incidents', description: 'Incidents created in the chosen range.', rangeScoped: true },
+  { id: 'vulnerabilities', group: 'security', label: 'Vulnerabilities', description: 'Vulnerabilities discovered in the chosen range.', rangeScoped: true },
+  { id: 'workflows', group: 'automation', label: 'Workflows', description: 'All workflows with status, triggers and last edit time.', rangeScoped: false },
+  { id: 'runs', group: 'automation', label: 'Workflow runs', description: 'Daily run, finished and failed counts in the chosen range.', rangeScoped: true },
+  { id: 'apps', group: 'automation', label: 'Apps', description: 'Authenticated apps and whether their credentials are valid.', rangeScoped: false },
+  { id: 'locations', group: 'infrastructure', label: 'Runtime locations', description: 'Runtime locations with type, queue length and last check-in.', rangeScoped: false },
 ];
+
+export const reportGroupLabel = (sectionTitle: string): string => {
+  const def = REPORT_SECTIONS.find((d) => d.label === sectionTitle);
+  return REPORT_GROUPS.find((g) => g.id === def?.group)?.label || '';
+};
 
 export interface ReportTable {
   title: string;
@@ -341,6 +358,14 @@ export const drawTable = (pdf: jsPDF, table: ReportTable, rangeLabel: string) =>
   const widths = table.columns.map((c) => c.width * usable - 6);
 
   let y = M;
+  const groupLabel = reportGroupLabel(table.title);
+  if (groupLabel) {
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.setTextColor(255, 102, 0);
+    pdf.text(groupLabel.toUpperCase(), M, y);
+    y += 16;
+  }
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(14);
   pdf.setTextColor(20, 20, 20);

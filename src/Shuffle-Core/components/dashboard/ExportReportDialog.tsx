@@ -9,7 +9,7 @@
  */
 import { useState } from 'react';
 import { Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Typography } from '@mui/material';
-import { visibleReportSections, type ReportSectionId } from './exportReport';
+import { REPORT_GROUPS, visibleReportSections, type ReportSectionId } from './exportReport';
 
 export const DEFAULT_REPORT_SECTIONS: ReportSectionId[] = ['dashboards', 'tenant'];
 
@@ -56,26 +56,37 @@ const ExportReportDialog = ({
           </Button>
         </Box>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          {sections.map((s) => (
-            <FormControlLabel
-              key={s.id}
-              sx={{ alignItems: 'flex-start', m: 0, py: 0.75, px: 1, borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
-              control={<Checkbox size="small" checked={selected.includes(s.id)} onChange={() => toggle(s.id)} sx={{ p: 0.5, mr: 1 }} />}
-              label={
-                <Box sx={{ pt: 0.25 }}>
-                  <Typography sx={{ fontSize: '0.875rem', fontWeight: 600 }}>
-                    {s.label}
-                    {s.rangeScoped && (
-                      <Typography component="span" sx={{ fontSize: '0.72rem', fontWeight: 500, color: 'hsl(var(--muted-foreground))', ml: 1 }}>
-                        Uses time range
+          {REPORT_GROUPS.map((g) => {
+            const groupSections = sections.filter((s) => s.group === g.id);
+            if (groupSections.length === 0) return null;
+            return (
+              <Box key={g.id} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 1 }}>
+                <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))', px: 0.5 }}>
+                  {g.label}
+                </Typography>
+                {groupSections.map((s) => (
+                <FormControlLabel
+                  key={s.id}
+                  sx={{ alignItems: 'flex-start', m: 0, py: 0.75, px: 1, borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
+                  control={<Checkbox size="small" checked={selected.includes(s.id)} onChange={() => toggle(s.id)} sx={{ p: 0.5, mr: 1 }} />}
+                  label={
+                    <Box sx={{ pt: 0.25 }}>
+                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                        {s.label}
+                        {s.rangeScoped && (
+                          <Typography component="span" sx={{ fontSize: '0.72rem', fontWeight: 500, color: 'hsl(var(--muted-foreground))', ml: 1 }}>
+                            Uses time range
+                          </Typography>
+                        )}
                       </Typography>
-                    )}
-                  </Typography>
-                  <Typography sx={{ fontSize: '0.78rem', color: 'hsl(var(--muted-foreground))' }}>{s.description}</Typography>
-                </Box>
-              }
-            />
-          ))}
+                      <Typography sx={{ fontSize: '0.78rem', color: 'hsl(var(--muted-foreground))' }}>{s.description}</Typography>
+                    </Box>
+                  }
+                />
+                ))}
+              </Box>
+            );
+          })}
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

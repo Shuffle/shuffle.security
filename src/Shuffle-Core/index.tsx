@@ -273,6 +273,7 @@ export type { ExportReportDialogProps };
 export { DEFAULT_REPORT_SECTIONS } from "./components/dashboard/ExportReportDialog";
 export {
   REPORT_SECTIONS,
+  REPORT_GROUPS,
   visibleReportSections,
   buildSectionTable,
   drawTable,
@@ -282,6 +283,7 @@ export {
 export type {
   ReportSectionId,
   ReportSectionDef,
+  ReportGroupId,
   ReportTable,
   ReportContext,
   ReportPdfOptions,

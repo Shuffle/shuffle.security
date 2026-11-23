@@ -29,3 +29,13 @@ describe('report section picker', () => {
     });
   });
 });
+
+describe('report section order', () => {
+  it('follows the documentation groups: Tenant, Security, Automation, Infrastructure', async () => {
+    const { REPORT_GROUPS } = await import('./exportReport');
+    expect(REPORT_GROUPS.map((g) => g.label)).toEqual(['Tenant', 'Security', 'Automation', 'Infrastructure']);
+    const order = REPORT_GROUPS.map((g) => g.id);
+    const groupIdx = REPORT_SECTIONS.map((s) => order.indexOf(s.group));
+    expect(groupIdx).toEqual([...groupIdx].sort((a, b) => a - b));
+  });
+});

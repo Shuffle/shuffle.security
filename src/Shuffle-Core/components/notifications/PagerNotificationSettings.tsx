@@ -1473,17 +1473,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
             <CalendarClock size={14} color="hsl(var(--muted-foreground))" />
             Team scheduling
           </MenuItem>
-          <MenuItem
-            disabled={!testToken || !controlsAvailable}
-            onClick={() => {
-              testPagerCall();
-              setMenuAnchor(null);
-            }}
-            sx={{ fontSize: '0.82rem', gap: 1 }}
-          >
-            <PhoneCall size={14} color="hsl(var(--muted-foreground))" />
-            Simulate call
-          </MenuItem>
         </Menu>
         </Box>
       </Box>
@@ -1618,30 +1607,9 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           {renderTenantRoutingRow('general')}
 
           <SettingRow
-            label="Sound"
-            hint="Plays a short chime for informational updates."
-            control={
-              <Switch
-                checked={settings.generalSoundEnabled}
-                onChange={(e) => update({ generalSoundEnabled: e.target.checked })}
-                disabled={!controlsAvailable}
-                color="primary"
-                size="small"
-              />
-            }
-          />
-
-          <SettingRow
             label="Test delivery"
             control={
               <>
-                <Tooltip title="Show a general notification locally in this tab. Nothing is sent to any device." placement="left" arrow>
-                  <span>
-                    <Button variant="outlined" size="small" onClick={handleSimulateGeneral} disabled={!testToken || !controlsAvailable} sx={outlinedButtonSx}>
-                      Simulate
-                    </Button>
-                  </span>
-                </Tooltip>
                 {Boolean(testToken) && (
                   <Tooltip title={`Send a real general push through the Shuffle API to ${testTargetName}.`} placement="left" arrow>
                     <span>
@@ -1705,29 +1673,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           {renderTenantRoutingRow('critical')}
 
           <SettingRow
-            label="Emergency siren"
-            hint="Plays escalating siren audio while ringing."
-            control={
-              <>
-                <Tooltip title="Play the siren audio in this browser tab only. No notification is sent." placement="left" arrow>
-                  <span>
-                    <Button variant="outlined" size="small" onClick={handleTestAudio} disabled={isPlayingTestSiren || !criticalAvailable} sx={outlinedButtonSx}>
-                      {isPlayingTestSiren ? 'Playing' : 'Test'}
-                    </Button>
-                  </span>
-                </Tooltip>
-                <Switch
-                  checked={settings.sirenSoundEnabled}
-                  onChange={(e) => update({ sirenSoundEnabled: e.target.checked })}
-                  disabled={!criticalAvailable}
-                  color="primary"
-                  size="small"
-                />
-              </>
-            }
-          />
-
-          <SettingRow
             label="Vibration"
             hint="Continuous haptic pulse while the device is ringing."
             control={
@@ -1770,13 +1715,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
             label="Test delivery"
             control={
               <>
-                <Tooltip title="Preview the incoming pager call screen locally in this tab. Nothing is sent to any device." placement="left" arrow>
-                  <span>
-                    <Button variant="outlined" size="small" onClick={() => requestCriticalTest('simulate')} disabled={!criticalAvailable || !controlsAvailable} sx={outlinedButtonSx}>
-                      Simulate call
-                    </Button>
-                  </span>
-                </Tooltip>
                 {Boolean(testToken) && (
                   <Tooltip title={`Send a real critical pager push through the Shuffle API to ${testTargetName}.`} placement="left" arrow>
                     <span>

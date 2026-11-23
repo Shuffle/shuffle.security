@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useLocation } from '@/lib/router-compat';
-import { getPageTitle } from './IosWebViewNavHeader';
 
 const HIDDEN_ATTR = 'data-mobile-title-hidden';
 
@@ -17,8 +16,6 @@ export const MobilePageTitleHider = () => {
     if (typeof window === 'undefined') return;
 
     const mq = window.matchMedia('(max-width: 599.95px)');
-    const { title } = getPageTitle(location.pathname);
-    const target = (title || '').trim().toLowerCase();
 
     const restore = () => {
       document.querySelectorAll<HTMLElement>(`[${HIDDEN_ATTR}]`).forEach((el) => {
@@ -29,20 +26,28 @@ export const MobilePageTitleHider = () => {
 
     const apply = () => {
       restore();
-      if (!mq.matches || !target) return;
+      if (!mq.matches) return;
       const main = document.querySelector('main');
       if (!main) return;
-      const nodes = main.querySelectorAll<HTMLElement>(
-        'h1, h2, h3, .MuiTypography-h4, .MuiTypography-h5, .MuiTypography-h6'
-      );
-      for (const el of Array.from(nodes)) {
-        const text = (el.textContent || '').trim().toLowerCase();
-        if (!text) continue;
-        if (text === target) {
-          el.style.display = 'none';
-          el.setAttribute(HIDDEN_ATTR, 'true');
-          break;
-        }
+      // The page's main heading is the first large heading in the content.
+      // The top navigation already names the page, so hide it and the short
+      // description right after it on small screens.
+      const heading = main.querySelector<HTMLElement>('h1, .MuiTypography-h4');
+      if (!heading || !(heading.textContent || '').trim()) return;
+      const hide = (el: HTMLElement) => {
+        el.style.display = 'none';
+        el.setAttribute(HIDDEN_ATTR, 'true');
+      };
+      hide(heading);
+      const isDescription = (el: Element | null): el is HTMLElement =>
+        !!el && el instanceof HTMLElement &&
+        (el.matches('p, .MuiTypography-body1, .MuiTypography-body2, .MuiTypography-subtitle1') );
+      const next = heading.nextElementSibling;
+      if (isDescription(next)) {
+        hide(next);
+      } else if (!next || next.matches('.MuiChip-root')) {
+        const parentNext = heading.parentElement?.nextElementSibling ?? null;
+        if (isDescription(parentNext)) hide(parentNext);
       }
     };
 

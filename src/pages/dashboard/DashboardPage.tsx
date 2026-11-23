@@ -1,5 +1,5 @@
 /**
- * Dashboard Page — CTA-focused setup guide + AI Agent notifications.
+ * Dashboard Page — CTA-focused setup guide and dashboard overview.
  */
 
 import { useSlaControls } from '@/hooks/useSlaControls';
@@ -11,7 +11,6 @@ import {
   Chip,
   IconButton,
   Tooltip, Tooltip as MuiTooltip,
-  Button,
   Avatar,
   LinearProgress,
   Autocomplete,
@@ -21,20 +20,11 @@ import {
   Select,
   MenuItem,
   ListSubheader,
-  Collapse,
 } from '@mui/material';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CheckCircle, Loader2, HelpCircle, Clock, MessageSquare, ChevronRight, Plug, KeyRound, ArrowDownToLine, Send, Radar, Monitor, Shield, Sparkles, Check, ArrowRight, ExternalLink, EyeOff, Undo2, ExternalLink as OpenInNewIcon, RefreshCw as RefreshIcon } from 'lucide-react';
-import { Link, useNavigate } from '@/lib/router-compat';
-import AgentQuestionDialog from '@/components/agent/AgentQuestionDialog';
-import AgentQuickViewDrawer, { type QuickViewItem } from '@/components/agent/AgentQuickViewDrawer';
+import { Loader2, Clock, ChevronRight, Plug, KeyRound, ArrowDownToLine, Send, Radar, Monitor, Shield, Sparkles, Check, ArrowRight, EyeOff, Undo2, RefreshCw as RefreshIcon } from 'lucide-react';
+import { useNavigate } from '@/lib/router-compat';
 import InlineMarkdown from '@/components/shared/InlineMarkdown';
-import { useAgentNotifications } from '@/hooks/useNotifications';
-import { isApprovalNotification, approveAgentAction, continueAgentExecution, stripAgentTitlePrefix, type AgentNotification } from '@/services/notifications';
-import { getShuffleCoreFormUrl, isAgentApprovalFormUrl } from '@/Shuffle-Core/api';
-import { navigateToShuffleCore } from '@/lib/authHandoff';
-import { getTimeAgo } from '@/components/agent/AgentRunHeader';
-import { useEntityPreference } from '@/hooks/useEntityLabel';
 import { useAppAuth } from '@/Shuffle-Core/useAppAuth';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { findIngestTicketsWorkflow } from '@/Shuffle-Core/ingestionDetection';
@@ -282,263 +272,7 @@ const SetupStepCard = ({ step, index, ignored, onIgnore, onRestore }: {
   );
 };
 
-// ── Notification row ──────────────────────────────────────────────────────────
-
-interface NotificationRowProps {
-  notification: AgentNotification;
-  entityBasePath: string;
-  onApprove: (n: AgentNotification) => void;
-  onQuickView: (n: AgentNotification) => void;
-  onAnswer: (n: AgentNotification) => void;
-}
-
-const NotificationRow = ({ notification, entityBasePath, onApprove, onQuickView, onAnswer }: NotificationRowProps) => {
-  const isApproval = isApprovalNotification(notification);
-  const timeAgo = notification.created_at
-    ? getTimeAgo(new Date(notification.created_at * 1000).toISOString())
-    : '—';
-
-  return (
-    <Box
-      onClick={() => onQuickView(notification)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onQuickView(notification);
-        }
-      }}
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 2,
-        px: 2.5,
-        py: 2,
-        borderRadius: 2,
-        border: '1px solid hsl(var(--border))',
-        backgroundColor: 'transparent',
-        cursor: 'pointer',
-        transition: 'border-color 0.15s ease, background-color 0.15s ease',
-        '&:hover': {
-          borderColor: 'hsl(var(--primary) / 0.4)',
-          backgroundColor: 'hsl(var(--primary) / 0.04)',
-        },
-        '&:focus-visible': {
-          outline: '2px solid hsl(var(--primary))',
-          outlineOffset: 2,
-        },
-      }}
-    >
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box sx={{
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            color: 'hsl(var(--foreground))',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            minWidth: 0,
-          }}>
-            <InlineMarkdown text={stripAgentTitlePrefix(notification.title)} />
-          </Box>
-          {notification.severity && (
-            <Chip
-              label={notification.severity}
-              size="small"
-              sx={{
-                height: 20,
-                fontSize: '0.68rem',
-                fontWeight: 600,
-                backgroundColor: 'hsl(var(--severity-high) / 0.12)',
-                color: 'hsl(var(--severity-high))',
-              }}
-            />
-          )}
-          {!isApproval && (
-            <Chip
-              icon={<HelpCircle size={12} />}
-              label="Questions"
-              size="small"
-              sx={{
-                height: 20,
-                fontSize: '0.68rem',
-                fontWeight: 600,
-                backgroundColor: 'hsl(var(--severity-medium) / 0.12)',
-                color: 'hsl(var(--severity-medium))',
-                '& .MuiChip-icon': { color: 'inherit' },
-              }}
-            />
-          )}
-        </Box>
-
-        <Typography sx={{
-          fontSize: '0.78rem',
-          color: 'hsl(var(--muted-foreground))',
-          mt: 0.5,
-          lineHeight: 1.5,
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-        }}>
-          {notification.description}
-        </Typography>
-
-        {isApproval && notification.action && notification.action !== notification.description && (
-          <Box sx={{
-            mt: 1,
-            px: 1.5,
-            py: 1,
-            borderRadius: 1.5,
-            background: 'var(--agent-gradient-subtle)',
-          }}>
-            <Typography sx={{
-              fontSize: '0.72rem',
-              fontWeight: 600,
-              background: 'var(--agent-gradient)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              textTransform: 'uppercase',
-              letterSpacing: '0.03em',
-              mb: 0.25,
-            }}>
-              Proposed Action
-            </Typography>
-            <Typography sx={{
-              fontSize: '0.78rem',
-              color: 'hsl(var(--foreground))',
-              lineHeight: 1.5,
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}>
-              {notification.action}
-            </Typography>
-          </Box>
-        )}
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-          <Typography sx={{ fontSize: '0.7rem', color: 'hsl(var(--muted-foreground))', opacity: 0.7 }}>
-            {timeAgo}
-          </Typography>
-        </Box>
-      </Box>
-
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-        {isApproval ? (
-          <Button
-            data-tour="agent-approve-button"
-            onClick={(e) => { e.stopPropagation(); onApprove(notification); }}
-            size="small"
-            variant="contained"
-            startIcon={<CheckCircle size={14} />}
-            sx={{
-              fontSize: '0.75rem',
-              textTransform: 'none',
-              fontWeight: 600,
-              backgroundColor: 'hsl(var(--primary))',
-              color: 'hsl(var(--primary-foreground))',
-              px: 2,
-              py: 0.5,
-              boxShadow: 'none',
-              whiteSpace: 'nowrap',
-              '&:hover': {
-                backgroundColor: 'hsl(var(--primary) / 0.9)',
-                boxShadow: 'none',
-              },
-            }}
-          >
-            Approve
-          </Button>
-        ) : (
-          <Button
-            onClick={(e) => { e.stopPropagation(); onAnswer(notification); }}
-            size="small"
-            variant="contained"
-            startIcon={<MessageSquare size={14} />}
-            sx={{
-              fontSize: '0.75rem',
-              textTransform: 'none',
-              fontWeight: 600,
-              backgroundColor: 'hsl(var(--primary))',
-              color: 'hsl(var(--primary-foreground))',
-              px: 2,
-              py: 0.5,
-              boxShadow: 'none',
-              whiteSpace: 'nowrap',
-              '&:hover': {
-                backgroundColor: 'hsl(var(--primary) / 0.9)',
-                boxShadow: 'none',
-              },
-            }}
-          >
-            Answer Questions
-          </Button>
-        )}
-
-        {notification.incident_id && (
-          <Tooltip title="Open incident">
-            <IconButton
-              component={Link}
-              to={`${entityBasePath}/${notification.incident_id}`}
-              size="small"
-              onClick={(e) => e.stopPropagation()}
-              sx={{
-                color: 'hsl(var(--muted-foreground))',
-                flexShrink: 0,
-                '&:hover': { color: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.08)' },
-              }}
-            >
-              <OpenInNewIcon size={18} />
-            </IconButton>
-          </Tooltip>
-        )}
-        {notification.reference_url && !notification.incident_id && (() => {
-          const isApprovalForm = isAgentApprovalFormUrl(notification.reference_url);
-          const href = isApprovalForm
-            ? getShuffleCoreFormUrl(notification.reference_url)
-            : notification.reference_url;
-          const tooltipLabel = isApprovalForm ? 'Open agent approval' : 'Open incident';
-          // Approval forms live on Shuffle Core (or the configured backend
-          // for self-hosted), so we always open them as an external link in
-          // a new tab — never as an in-app react-router navigation.
-          return (
-            <Tooltip title={tooltipLabel}>
-              <IconButton
-                component="a"
-                href={href}
-                target={isApprovalForm ? '_blank' : undefined}
-                rel={isApprovalForm ? 'noopener noreferrer' : undefined}
-                size="small"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  if (isApprovalForm && href) {
-                    e.preventDefault();
-                    await navigateToShuffleCore(href, { newTab: true });
-                  }
-                }}
-                sx={{
-                  color: 'hsl(var(--muted-foreground))',
-                  flexShrink: 0,
-                  '&:hover': { color: 'hsl(var(--primary))', backgroundColor: 'hsl(var(--primary) / 0.08)' },
-                }}
-              >
-                <OpenInNewIcon size={18} />
-              </IconButton>
-            </Tooltip>
-          );
-        })()}
-      </Box>
-    </Box>
-  );
-};
-
 // ── Page ───────────────────────────────────────────────────────────────────────
-
-const ITEMS_PER_PAGE = 10;
 
 const DashboardPage = () => {
   const { resolvedTheme } = useTheme();
@@ -546,15 +280,13 @@ const DashboardPage = () => {
 
   usePageMeta({
     title: 'Dashboard',
-    description: 'Your Shuffle Security overview: setup progress, notifications, and key incident metrics.',
+    description: 'Your Shuffle Security overview: setup progress and key incident metrics.',
     url: '/dashboard',
   });
   const navigate = useNavigate();
   const { userInfo } = useAuth();
   const isAdmin = useIsAdmin();
   const isSupport = userInfo?.support === true;
-  const { notifications, isLoading, refresh: refreshNotifications } = useAgentNotifications();
-  const { singular: entitySingular, basePath: entityBasePath } = useEntityPreference();
   const { authenticatedApps, loading: authLoading } = useAppAuth();
   const { data: workflows, isLoading: workflowsLoading } = useWorkflows();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -565,26 +297,12 @@ const DashboardPage = () => {
   });
   const [showCompleted, setShowCompleted] = useState(false);
   const [showIgnored, setShowIgnored] = useState(false);
-  const [questionNotification, setQuestionNotification] = useState<AgentNotification | null>(null);
-  const [quickViewItem, setQuickViewItem] = useState<QuickViewItem | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [filter, setFilter] = useState<'all' | 'approval' | 'question'>('all');
   const [hasRunningSensor, setHasRunningSensor] = useState<boolean | null>(null);
   const [runningSensorCount, setRunningSensorCount] = useState<number>(0);
   const [hasHostMonitor, setHasHostMonitor] = useState<boolean | null>(null);
   const [hostMonitorCount, setHostMonitorCount] = useState<number>(0);
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [setupCollapsed, setSetupCollapsed] = useState(false);
-  const [agentNotificationsCollapsed, setAgentNotificationsCollapsed] = useState<boolean>(() => {
-    try {
-      const stored = localStorage.getItem('dashboard-agent-notifications-collapsed');
-      // Default to collapsed when no preference is stored.
-      return stored === null ? true : stored === '1';
-    } catch { return true; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem('dashboard-agent-notifications-collapsed', agentNotificationsCollapsed ? '1' : '0'); } catch { /* ignore */ }
-  }, [agentNotificationsCollapsed]);
   const setupAutoCollapsedRef = useRef(false);
   const [dashboardTab, setDashboardTab] = useState<DashboardTab>(() => {
     try {
@@ -881,7 +599,8 @@ const DashboardPage = () => {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await refreshNotifications();
+    setDashboardRefreshKey(k => k + 1);
+    try { fetchIncidents(); } catch { /* noop */ }
     setTimeout(() => setIsRefreshing(false), 600);
   };
 
@@ -929,79 +648,6 @@ const DashboardPage = () => {
     } finally {
       setExporting(false);
       setExportStatus('');
-    }
-  };
-
-  const handleApprove = async (notification: AgentNotification) => {
-    try {
-      // Resume the agent run with answer=true. Then dismiss the notification.
-      await continueAgentExecution({ notification, approve: true });
-      await approveAgentAction(notification.id).catch(() => { /* non-fatal */ });
-      toast.success('Action approved — the agent will continue.');
-      refreshNotifications();
-    } catch (err) {
-      console.error('[Agent] Approve failed:', err);
-      toast.error('Failed to approve action.');
-    }
-  };
-
-  const handleDeny = async (notification: AgentNotification, note?: string) => {
-    try {
-      await continueAgentExecution({ notification, approve: false, note });
-      await approveAgentAction(notification.id).catch(() => { /* non-fatal */ });
-      toast.success('Action denied — the agent will continue accordingly.');
-      refreshNotifications();
-    } catch (err) {
-      console.error('[Agent] Deny failed:', err);
-      toast.error('Failed to deny action.');
-    }
-  };
-
-  const handleConfigureApprove = async (notificationId: string, modifiedAction?: string) => {
-    const notification = notifications.find(n => n.id === notificationId);
-    if (!notification) {
-      toast.error('Notification no longer available.');
-      return;
-    }
-    try {
-      await continueAgentExecution({
-        notification,
-        approve: true,
-        note: modifiedAction,
-      });
-      await approveAgentAction(notificationId).catch(() => { /* non-fatal */ });
-      toast.success(modifiedAction ? 'Modified action submitted.' : 'Action approved.');
-      refreshNotifications();
-    } catch (err) {
-      console.error('[Agent] Configure approve failed:', err);
-      toast.error('Failed to approve action.');
-    }
-  };
-
-  const handleSubmitAnswers = async (notificationId: string, answers: Record<number, string>) => {
-    const notification = notifications.find(n => n.id === notificationId);
-    if (!notification) {
-      toast.error('Notification no longer available.');
-      return;
-    }
-    try {
-      // Build the same `note={"question_0":"…"}` payload the original
-      // approval form posts back to the agent.
-      const noteMap: Record<string, string> = {};
-      Object.entries(answers).forEach(([idx, value]) => {
-        noteMap[`question_${idx}`] = value;
-      });
-      await continueAgentExecution({
-        notification,
-        approve: true,
-        note: noteMap,
-      });
-      await approveAgentAction(notificationId).catch(() => { /* non-fatal */ });
-      toast.success('Answers submitted — the agent will continue.');
-      refreshNotifications();
-    } catch (err) {
-      console.error('[Agent] Submit answers failed:', err);
-      toast.error('Failed to submit answers.');
     }
   };
 
@@ -1106,22 +752,6 @@ const DashboardPage = () => {
     }
   }, [setupLoading, allComplete, totalSteps]);
 
-  // Notification counts & filter
-  const approvalCount = notifications.filter(n => isApprovalNotification(n)).length;
-  const questionCount = notifications.filter(n => !isApprovalNotification(n)).length;
-  const totalCount = notifications.length;
-
-  const filteredNotifications = useMemo(() => {
-    if (filter === 'all') return notifications;
-    if (filter === 'approval') return notifications.filter(n => isApprovalNotification(n));
-    if (filter === 'question') return notifications.filter(n => !isApprovalNotification(n));
-    return notifications;
-  }, [notifications, filter]);
-
-  const filteredCount = filteredNotifications.length;
-  const totalPages = Math.ceil(filteredCount / ITEMS_PER_PAGE);
-  const paginated = filteredNotifications.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
-
   return (
     <>
       <Box sx={{ maxWidth: 1100, width: '100%', mx: 'auto', p: { xs: 2, sm: 3, md: 4 } }}>
@@ -1131,7 +761,7 @@ const DashboardPage = () => {
             <Typography variant="h4" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
               Dashboard
             </Typography>
-            {(isLoading || setupLoading) && !isRefreshing && (
+            {setupLoading && !isRefreshing && (
               <Loader2 size={18} style={{ color: 'hsl(var(--muted-foreground))', animation: 'spin 1s linear infinite' }} />
             )}
           </Box>
@@ -1214,7 +844,7 @@ const DashboardPage = () => {
 
         {/* Overview is shown to all users. When the Setup Guide is incomplete
           it renders BELOW the guide; once complete it moves to the top. */}
-        {/* ── Agent Notifications + Setup Guide + Overview (order swaps when setup complete) ── */}
+        {/* ── Setup Guide + Overview (order swaps when setup complete) ── */}
         <Box sx={{ display: 'flex', flexDirection: 'column' }}>
           {!setupLoading && (
             <Box sx={{ mb: 2, mt: 3, order: allComplete ? 0 : 2 }}>
@@ -1223,7 +853,6 @@ const DashboardPage = () => {
                   // Bump key so AutomationDashboard re-fetches; also refresh Security data.
                   setDashboardRefreshKey(k => k + 1);
                   try { fetchIncidents(); } catch { /* noop */ }
-                  try { refreshNotifications(); } catch { /* noop */ }
                 };
                 const sharedHeader = (
                   <DashboardHeaderBar
@@ -1335,157 +964,6 @@ const DashboardPage = () => {
               })()}
             </Box>
           )}
-          <Box id="agent-notifications" sx={{ order: 3, scrollMarginTop: 80 }}>
-            <Box
-              onClick={() => setAgentNotificationsCollapsed(c => !c)}
-              sx={{
-                display: 'flex', alignItems: 'center', gap: 1,
-                mb: agentNotificationsCollapsed ? 0 : 2,
-                cursor: 'pointer', userSelect: 'none',
-              }}
-            >
-              <AlertTriangle size={18} style={{ color: 'hsl(var(--severity-high))' }} />
-              <Typography sx={{ fontWeight: 600, fontSize: '1rem', color: 'hsl(var(--foreground))' }}>
-                Agent Notifications
-              </Typography>
-              {totalCount > 0 && (
-                <Chip
-                  label={totalCount}
-                  size="small"
-                  sx={{
-                    height: 22,
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    backgroundColor: 'hsl(var(--severity-high) / 0.15)',
-                    color: 'hsl(var(--severity-high))',
-                  }}
-                />
-              )}
-              <Box sx={{ flex: 1 }} />
-              <IconButton
-                size="small"
-                onClick={(e) => { e.stopPropagation(); setAgentNotificationsCollapsed(c => !c); }}
-                sx={{ color: 'hsl(var(--muted-foreground))' }}
-                aria-label={agentNotificationsCollapsed ? 'Expand agent notifications' : 'Collapse agent notifications'}
-              >
-                {agentNotificationsCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-              </IconButton>
-            </Box>
-
-            <Collapse in={!agentNotificationsCollapsed} timeout="auto" unmountOnExit>
-
-
-              {/* Filter chips */}
-              <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                {([
-                  { key: 'all' as const, label: 'All', count: totalCount },
-                  { key: 'approval' as const, label: 'Needs Approval', count: approvalCount },
-                  { key: 'question' as const, label: 'Pending Question', count: questionCount },
-                ]).map(f => (
-                  <Chip
-                    key={f.key}
-                    label={`${f.label}${f.count > 0 ? ` (${f.count})` : ''}`}
-                    size="small"
-                    variant={filter === f.key ? 'filled' : 'outlined'}
-                    onClick={() => { setFilter(f.key); setCurrentPage(0); }}
-                    sx={{
-                      fontSize: '0.75rem',
-                      height: 28,
-                      borderColor: filter === f.key ? 'hsl(var(--primary))' : 'hsl(var(--border))',
-                      bgcolor: filter === f.key ? 'hsl(var(--primary) / 0.15)' : 'transparent',
-                      color: filter === f.key ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-                      '&:hover': { bgcolor: 'hsl(var(--muted))' },
-                    }}
-                  />
-                ))}
-              </Box>
-
-              {isLoading && filteredCount === 0 ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                  {[0, 1, 2].map(i => (
-                    <Skeleton key={i} variant="rounded" height={72} sx={{ borderRadius: 2, bgcolor: 'hsl(var(--muted) / 0.3)' }} />
-                  ))}
-                </Box>
-              ) : filteredCount === 0 ? (
-                <Box
-                  sx={{
-                    px: 3,
-                    py: 4,
-                    borderRadius: 2,
-                    border: '1px solid hsl(var(--border))',
-                    backgroundColor: 'transparent',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
-                  }}
-                >
-                  <CheckCircle size={28} style={{ color: 'hsl(var(--severity-low))', marginBottom: 8 }} />
-                  <Typography sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.875rem' }}>
-                    All clear — no notifications requiring your attention.
-                  </Typography>
-                </Box>
-              ) : (
-                <>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                    {paginated.map((notification) => (
-                      <motion.div
-                        key={notification.id}
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <NotificationRow
-                          notification={notification}
-                          entityBasePath={entityBasePath}
-                          onApprove={handleApprove}
-                          onQuickView={(n) => setQuickViewItem({ type: 'notification', notification: n })}
-                          onAnswer={(n) => setQuickViewItem({ type: 'notification', notification: n })}
-                        />
-                      </motion.div>
-                    ))}
-                  </Box>
-                  {totalPages > 1 && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mt: 2 }}>
-                      <Button
-                        size="small"
-                        disabled={currentPage === 0}
-                        onClick={() => setCurrentPage(p => p - 1)}
-                        sx={{
-                          fontSize: '0.75rem',
-                          textTransform: 'none',
-                          color: 'hsl(var(--foreground))',
-                          minWidth: 32,
-                          '&.Mui-disabled': { color: 'hsl(var(--muted-foreground) / 0.4)' },
-                        }}
-                      >
-                        Previous
-                      </Button>
-                      <Typography sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
-                        {currentPage + 1} / {totalPages}
-                      </Typography>
-                      <Button
-                        size="small"
-                        disabled={currentPage >= totalPages - 1}
-                        onClick={() => setCurrentPage(p => p + 1)}
-                        sx={{
-                          fontSize: '0.75rem',
-                          textTransform: 'none',
-                          color: 'hsl(var(--foreground))',
-                          minWidth: 32,
-                          '&.Mui-disabled': { color: 'hsl(var(--muted-foreground) / 0.4)' },
-                        }}
-                      >
-                        Next
-                      </Button>
-                    </Box>
-                  )}
-                </>
-              )}
-            </Collapse>
-          </Box>
-
           {/* ── Setup Checklist ──────────────────────────────────────────────────── */}
           <Box sx={{ mt: hasIngestedData && !allComplete ? 2 : 5, mb: allComplete ? 4 : 0, order: allComplete ? 2 : 1 }}>
             <Box
@@ -1617,24 +1095,6 @@ const DashboardPage = () => {
           </Box>
         </Box>
       </Box>
-
-      <AgentQuestionDialog
-        open={!!questionNotification}
-        onClose={() => setQuestionNotification(null)}
-        notification={questionNotification}
-        onSubmitted={refreshNotifications}
-      />
-
-      <AgentQuickViewDrawer
-        open={!!quickViewItem}
-        onClose={() => setQuickViewItem(null)}
-        item={quickViewItem}
-        entityBasePath={entityBasePath}
-        onApprove={handleApprove}
-        onDeny={handleDeny}
-        onConfigureApprove={handleConfigureApprove}
-        onSubmitAnswers={handleSubmitAnswers}
-      />
 
       <ExportReportDialog
         open={exportDialogOpen}

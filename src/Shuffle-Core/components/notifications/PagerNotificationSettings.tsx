@@ -977,8 +977,26 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       const freshDevices = await fetchNotificationDevices();
       setDevices(freshDevices);
       const nativeApp = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
-      if (findLocalDevice(freshDevices, localDeviceId, settings.pushToken || undefined)?.token || (nativeApp && settings.pushToken)) {
-        setPermissionMsg('This device is registered for push notifications.');
+      const knownDevice = findLocalDevice(freshDevices, localDeviceId, settings.pushToken || undefined);
+      const knownToken = knownDevice?.token || (nativeApp ? settings.pushToken : '');
+      if (knownToken) {
+        if (!userInfo?.id || !localDeviceId) {
+          setPermissionMsg('Sign in to register this device.');
+          return;
+        }
+        const result = await saveNotificationDevice(userInfo.id, {
+          id: knownDevice?.id || localDeviceId,
+          token: knownToken,
+          platform: knownDevice?.platform || getLocalDevicePlatform(),
+          device_name: knownDevice?.device_name || getLocalDeviceName(),
+          preferences: resolveDevicePreferences(knownDevice),
+        });
+        setPermissionMsg(
+          result.success
+            ? 'This device is registered for push notifications.'
+            : `Could not register this device: ${result.reason || 'unknown error'}`,
+        );
+        fetchNotificationDevices().then(setDevices);
         return;
       }
       if (typeof window !== 'undefined' && window.top !== window.self) {

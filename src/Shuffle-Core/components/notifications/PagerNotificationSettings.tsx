@@ -46,7 +46,6 @@ import {
   requestNotificationPermissions,
   playTestSiren,
   testPagerCall,
-  triggerAgentRequestLocalAlert,
   triggerGeneralLocalAlert,
   dispatchCriticalPage,
   dispatchAgentRequestNotification,
@@ -1033,16 +1032,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
     }
   };
 
-  const handleSimulateAgentRequest = () => {
-    triggerAgentRequestLocalAlert({
-      title: 'AI Agent - Input Required: Confirm IP Block',
-      body: 'Subagent detected suspicious brute-force activity. Confirmation needed to isolate host.',
-      executionId: `exec-${Date.now()}`,
-      workflowId: 'wf-isolate-host',
-      action: 'approve_containment',
-    });
-  };
-
   const handleSimulateGeneral = () => {
     triggerGeneralLocalAlert({
       title: 'Workflow Completed: Daily SOC Backup',
@@ -1626,65 +1615,6 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           )}
         </NotificationSection>
 
-        {/* Agent Request */}
-        <NotificationSection
-          title="Agent Request"
-          description="Alerts when an AI agent needs your review or approval."
-          enabled={sectionEnabled('agent_request')}
-          disabled={!controlsAvailable}
-          onToggle={(value) => setSectionEnabled('agent_request', value)}
-          expanded={expanded === 'agent_request'}
-          onExpandToggle={() => toggleExpanded('agent_request')}
-          expandDisabled={!isGranted}
-          onTest={testToken ? () => handleTestRemotePush('agent_request') : undefined}
-          testing={sendingType === 'agent_request'}
-          testTooltip={`Send a real agent-request push to ${testTargetName} right now, exactly as an agent approval would arrive.`}
-        >
-          {renderTenantRoutingRow('agent_request')}
-
-          <SettingRow
-            label="Sound"
-            hint="Plays a short chime when an agent asks for input."
-            control={
-              <Switch
-                checked={settings.agentRequestSoundEnabled}
-                onChange={(e) => update({ agentRequestSoundEnabled: e.target.checked })}
-                color="primary"
-                size="small"
-              />
-            }
-          />
-
-          <SettingRow
-            label="Test delivery"
-            control={
-              <>
-                <Tooltip title="Show an agent-request alert locally in this tab. Nothing is sent to any device." placement="left" arrow>
-                  <span>
-                    <Button variant="outlined" size="small" onClick={handleSimulateAgentRequest} disabled={!testToken} sx={outlinedButtonSx}>
-                      Simulate
-                    </Button>
-                  </span>
-                </Tooltip>
-                {Boolean(testToken) && (
-                  <Tooltip title={`Send a real agent-request push through the Shuffle API to ${testTargetName}.`} placement="left" arrow>
-                    <span>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => handleTestRemotePush('agent_request')}
-                        disabled={sendingType === 'agent_request'}
-                        sx={outlinedButtonSx}
-                      >
-                        {sendingType === 'agent_request' ? 'Sending' : 'Send push'}
-                      </Button>
-                    </span>
-                  </Tooltip>
-                )}
-              </>
-            }
-          />
-        </NotificationSection>
       </Box>
 
 

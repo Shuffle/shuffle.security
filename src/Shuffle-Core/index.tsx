@@ -418,6 +418,11 @@ export type {
   CorrelationItem,
 } from "./components/SearchDialog";
 
+// Official App Store / Google Play badges — use anywhere the mobile app is linked.
+import { AppStoreBadges as AppStoreBadgesRaw } from "./components/AppStoreBadges";
+export const AppStoreBadges = withTheme(AppStoreBadgesRaw, "AppStoreBadges");
+export type { AppStoreBadgesProps } from "./components/AppStoreBadges";
+
 // Notification settings (device push, critical pager, agent requests, general
 // alerts) + on-call duty menu — usable anywhere in the platform.
 import {

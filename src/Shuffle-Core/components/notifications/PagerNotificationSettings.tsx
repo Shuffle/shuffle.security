@@ -24,6 +24,7 @@ import {
 } from '@mui/material';
 import { ChevronDown, Smartphone, Monitor, MoreVertical, Bell, BellOff, CalendarClock, PhoneCall, Trash2 } from 'lucide-react';
 import { toast } from '@/Shuffle-Core/lib/toast';
+import { AppStoreBadges } from '@/Shuffle-Core/components/AppStoreBadges';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@shuffleio/shuffle-mcps';
 import {
@@ -1478,24 +1479,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                 Critical Pager requires the Shuffle mobile app. Install it on your phone to receive
                 full-screen critical alerts that override silent mode.
               </Typography>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                <Chip
-                  label="iOS App Store"
-                  component="a"
-                  href="https://apps.apple.com"
-                  target="_blank"
-                  clickable
-                  sx={{ fontSize: '0.75rem', bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}
-                />
-                <Chip
-                  label="Google Play"
-                  component="a"
-                  href="https://play.google.com"
-                  target="_blank"
-                  clickable
-                  sx={{ fontSize: '0.75rem', bgcolor: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}
-                />
-              </Box>
+              <AppStoreBadges height={36} />
             </Box>
           )}
           {criticalAvailable && (

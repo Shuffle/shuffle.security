@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode, Suspense } from 'react';
+import { useState, useEffect, useLayoutEffect, ReactNode, Suspense } from 'react';
 import { Outlet, useLocation } from '@/lib/router-compat';
 import { Box, Alert, Button } from '@mui/material';
 import { AppSidebar } from './AppSidebar';
@@ -34,9 +34,21 @@ export const DashboardLayout = ({ children, defaultCollapsed }: DashboardLayoutP
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     // Always collapse on onboarding page regardless of saved state
     if (isOnboarding || defaultCollapsed) return true;
-    const saved = localStorage.getItem(SIDEBAR_STATE_KEY);
-    return saved === 'true';
+    // Server-safe default. The saved preference is applied in the layout
+    // effect below: reading localStorage during render diverges from the SSR
+    // HTML and forces a full client re-render (hydration error #418).
+    return false;
   });
+
+  // Apply the saved sidebar preference after mount, before paint.
+  const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+  useIsoLayoutEffect(() => {
+    if (isOnboarding || defaultCollapsed) return;
+    try {
+      if (localStorage.getItem(SIDEBAR_STATE_KEY) === 'true') setSidebarCollapsed(true);
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Force collapse when navigating to onboarding
   useEffect(() => {

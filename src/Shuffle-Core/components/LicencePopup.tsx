@@ -75,13 +75,20 @@ const LicencePopup = (props) => {
 
 
   const [billingCycle, setBillingCycle] = useState("annual");
+  // Start from the server-computable default; the ?app_runs deep link is
+  // applied in the effect below so the first client render matches the SSR
+  // HTML (hydration error #418 otherwise).
   const [scaleValue, setScaleValue] = useState(() =>
-    (typeof window === "undefined"
-      ? undefined
-      : new URLSearchParams(window.location.search).get("app_runs")) ||
-      userdata?.app_execution_limit / 1000 + 50 ||
-      10
+    userdata?.app_execution_limit / 1000 + 50 ||
+    10
   );
+
+  useEffect(() => {
+    try {
+      const param = new URLSearchParams(window.location.search).get("app_runs");
+      if (param) setScaleValue(param as any);
+    } catch { /* ignore */ }
+  }, []);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {

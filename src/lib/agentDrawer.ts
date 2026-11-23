@@ -115,7 +115,10 @@ export const isAgentDrawerOpen = (pathname?: string): boolean => {
  * Can be passed an optional route pathname to react immediately on client routing.
  */
 export const useAskAiOpen = (pathname?: string): boolean => {
-  const [isOpen, setIsOpen] = useState(() => isAgentDrawerOpen(pathname));
+  // Start closed so the first client render matches the SSR HTML; the effect
+  // below syncs the real stored state immediately after mount. Reading
+  // storage during render triggers hydration error #418.
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     setIsOpen(isAgentDrawerOpen(pathname));

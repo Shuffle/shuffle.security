@@ -251,9 +251,11 @@ const useAutoDarkClass = (
   anchorRef: React.RefObject<HTMLElement | null>,
   fallbackDark = false,
 ): boolean => {
-  const [isDark, setIsDark] = React.useState<boolean>(() =>
-    enabled ? (typeof document !== "undefined" ? readHtmlDarkClass() : fallbackDark) : false,
-  );
+  // Initialize from fallbackDark (the value the server also uses) so the
+  // first client render matches the SSR HTML. Reading document here would
+  // diverge from the server and trigger a hydration mismatch; the layout
+  // effect below recomputes from the real DOM before paint anyway.
+  const [isDark, setIsDark] = React.useState<boolean>(fallbackDark);
   React.useLayoutEffect(() => {
     if (!enabled || typeof document === "undefined") return;
     const recompute = () => {

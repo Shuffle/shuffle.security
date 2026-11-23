@@ -531,7 +531,15 @@ function usePageDarkMode(
     return fallbackDark;
   }, [resolvedModeProp, themeScope, fallbackDark]);
 
-  const [isDark, setIsDark] = useState<boolean>(compute);
+  // Initialize without DOM reads so the first client render matches the SSR
+  // HTML (hydration); the effect below recomputes from the real DOM after
+  // mount.
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (resolvedModeProp === 'dark') return true;
+    if (resolvedModeProp === 'light') return false;
+    if (themeScope) return themeScope.isDark;
+    return fallbackDark;
+  });
 
   useEffect(() => {
     setIsDark(compute());

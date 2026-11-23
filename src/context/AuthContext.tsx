@@ -72,31 +72,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // (tickets, dashboard, ...) on it means seconds of blank UI even though
   // every other API works. We revalidate in the background and only tear
   // down auth if getinfo actually says the session is gone.
-  const cachedUserInfo: UserInfo | null = (() => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = window.localStorage.getItem('shuffle_user_info');
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed as UserInfo : null;
-    } catch { return null; }
-  })();
-  const cachedToken = (() => {
-    if (typeof window === 'undefined') return null;
-    try { return getSessionToken(); } catch { return null; }
-  })();
-  const [sessionToken, setSessionToken] = useState<string | null>(cachedToken);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(Boolean(cachedToken || cachedUserInfo));
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(cachedUserInfo);
-  const [isLoading, setIsLoading] = useState(!cachedUserInfo && !cachedToken);
+  //
+  // The cache must NOT be read during render: SSR has no window, so a
+  // render-time read makes the first client render differ from the server
+  // HTML (React hydration error #418) and forces a full client re-render.
+  // Start from the server state (logged out, loading) and apply the cached
+  // session in the mount effect below instead.
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [orgMismatchWarning, setOrgMismatchWarning] = useState(false);
   const lastGetInfoTimeRef = useRef<number>(Date.now());
-
-  // Seed the runtime org id from cache synchronously so datastore calls
-  // fired on the very first render don't get "no org" and 401.
-  if (cachedUserInfo?.active_org?.id) {
-    try { setRuntimeOrgId(cachedUserInfo.active_org.id); } catch { /* ignore */ }
-  }
 
   const dismissOrgMismatch = useCallback(() => {
     setOrgMismatchWarning(false);
@@ -275,6 +262,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // tears down auth on an explicit unauthenticated response — transient
   // errors (slow getinfo, 5xx) leave the cached session in place.
   useEffect(() => {
+    // Apply the cached session now that we are on the client. This replaces
+    // the old render-time localStorage read that caused hydration mismatches
+    // (server renders logged-out/loading, client rendered logged-in).
+    let cachedUserInfo: UserInfo | null = null;
+    try {
+      const raw = window.localStorage.getItem('shuffle_user_info');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') cachedUserInfo = parsed as UserInfo;
+      }
+    } catch { /* ignore */ }
+    let cachedToken: string | null = null;
+    try { cachedToken = getSessionToken(); } catch { /* ignore */ }
+
+    // Seed the runtime org id from cache before any datastore calls fire,
+    // so they don't get "no org" and 401.
+    if (cachedUserInfo?.active_org?.id) {
+      try { setRuntimeOrgId(cachedUserInfo.active_org.id); } catch { /* ignore */ }
+    }
+    if (cachedUserInfo) setUserInfo(cachedUserInfo);
+    if (cachedToken || cachedUserInfo) {
+      setIsAuthenticated(true);
+      setIsLoading(false);
+    }
+
     const verifyAuth = async () => {
       const token = getSessionToken();
       if (token !== sessionToken) setSessionToken(token);

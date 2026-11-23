@@ -222,15 +222,10 @@ const TenantManagement = ({ autoOpenCreate }: TenantManagementHostProps = {}) =>
   const [showSubOrgs, setShowSubOrgs] = useState(false);
   const [showAllOrgs, setShowAllOrgs] = useState(false);
 
-  // Create sub-org dialog
-  const [createDialogOpen, setCreateDialogOpen] = useState(() => {
-    if (autoOpenCreate) return true;
-    if (typeof window !== 'undefined') {
-      const search = new URLSearchParams(window.location.search);
-      return search.get('click') === 'add-tenant';
-    }
-    return false;
-  });
+  // Create sub-org dialog. Start closed (the server value); the
+  // ?click=add-tenant deep link is applied in the effect below so the first
+  // client render matches the SSR HTML (hydration error #418 otherwise).
+  const [createDialogOpen, setCreateDialogOpen] = useState(() => Boolean(autoOpenCreate));
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -238,6 +233,14 @@ const TenantManagement = ({ autoOpenCreate }: TenantManagementHostProps = {}) =>
       setCreateDialogOpen(true);
     }
   }, [autoOpenCreate]);
+
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('click') === 'add-tenant') {
+        setCreateDialogOpen(true);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   // Switching org state
   const [switchingOrgId, setSwitchingOrgId] = useState<string | null>(null);

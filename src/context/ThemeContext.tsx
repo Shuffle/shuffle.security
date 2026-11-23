@@ -204,15 +204,36 @@ const getInitialTheme = (): ThemeMode => {
 };
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [theme, setThemeState] = useState<ThemeMode>(getInitialTheme);
-  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(getSystemTheme);
-  const [brandColor, setBrandColor] = useState<string | null>(getCachedBrandColor);
-  const [brandName, setBrandName] = useState<string | null>(getCachedBrandName);
+  // Initialize with the same values the server computes (no window /
+  // localStorage reads during render) so the first client render matches the
+  // SSR HTML. Reading the cached theme during render diverges from the
+  // server and triggers hydration error #418, throwing away the whole
+  // server-rendered tree. The cached values are applied in the layout effect
+  // below, which still runs before the browser paints.
+  const [theme, setThemeState] = useState<ThemeMode>('system');
+  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>('dark');
+  const [brandColor, setBrandColor] = useState<string | null>(null);
+  const [brandName, setBrandName] = useState<string | null>(null);
 
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
-  const activeOrgIdRef = useRef<string | null>(getCachedOrgId());
+  const activeOrgIdRef = useRef<string | null>(null);
+
+  // Hydrate the cached theme from localStorage / matchMedia after mount,
+  // before paint. State updates in a layout effect are applied synchronously
+  // before the browser draws, so there is no visible theme flash.
+  useIsomorphicLayoutEffect(() => {
+    const cachedTheme = getInitialTheme();
+    const sys = getSystemTheme();
+    setSystemTheme(sys);
+    setThemeState(cachedTheme);
+    setBrandColor(getCachedBrandColor());
+    setBrandName(getCachedBrandName());
+    activeOrgIdRef.current = getCachedOrgId();
+    applyDomTheme(cachedTheme === 'system' ? sys : cachedTheme);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keep systemTheme reactive to OS prefers-color-scheme changes
   useEffect(() => {

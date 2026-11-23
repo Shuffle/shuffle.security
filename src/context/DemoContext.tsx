@@ -326,19 +326,16 @@ export const DemoProvider = ({ children }: { children: ReactNode }) => {
   const [isSeeding, setIsSeeding] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [minimized, setMinimized] = useState<boolean>(() => {
-    try { return safeLocalStorage.getItem('shuffle_demo_minimized') === 'true'; } catch { return false; }
-  });
-  const [dock, setDockState] = useState<DemoDock>(() => {
-    try {
-      const v = safeLocalStorage.getItem('shuffle_demo_dock');
-      // Default to bottom-right ("right") so the drawer hugs the corner
-      // instead of stretching full-width across the bottom of the screen.
-      return v === 'bottom' ? 'bottom' : 'right';
-    } catch { return 'right'; }
-  });
+  // Stored demo preferences (minimized, dock, started, resume dismissal,
+  // stats) must start at their server defaults and be applied in the mount
+  // effect below — reading them during render diverges from the SSR HTML and
+  // forces a full client re-render (hydration error #418).
+  const [minimized, setMinimized] = useState<boolean>(false);
+  // Default to bottom-right ("right") so the drawer hugs the corner
+  // instead of stretching full-width across the bottom of the screen.
+  const [dock, setDockState] = useState<DemoDock>('right');
   const [step, setStep] = useState(0);
-  const [stats, setStats] = useState(() => getDemoStats());
+  const [stats, setStats] = useState({ incidents: 0, assets: 0, users: 0 });
   const [completedSteps, setCompletedSteps] = useState<Record<string, boolean>>({});
   const [isForceCreatingIncidents, setIsForceCreatingIncidents] = useState(false);
   const [isForceGeneratingSingle, setIsForceGeneratingSingle] = useState(false);
@@ -346,15 +343,21 @@ export const DemoProvider = ({ children }: { children: ReactNode }) => {
   const [hasDemoIncidents, setHasDemoIncidents] = useState(false);
   const [attentionPulse, setAttentionPulse] = useState(0);
   const [hoveredGoalSelector, setHoveredGoalSelector] = useState<string | null>(null);
-  const [wasStarted, setWasStarted] = useState<boolean>(() => {
-    try { return safeLocalStorage.getItem('shuffle_demo_started') === 'true'; } catch { return false; }
-  });
-  const [resumeDismissed, setResumeDismissed] = useState<boolean>(() => {
-    try { return safeLocalStorage.getItem('shuffle_demo_resume_dismissed') === 'true'; } catch { return false; }
-  });
+  const [wasStarted, setWasStarted] = useState<boolean>(false);
+  const [resumeDismissed, setResumeDismissed] = useState<boolean>(false);
 
   useEffect(() => {
     setActive(isDemoActive());
+    // Apply stored demo preferences now that we are on the client (see the
+    // note at the state declarations for why this cannot happen during
+    // render).
+    try {
+      if (safeLocalStorage.getItem('shuffle_demo_minimized') === 'true') setMinimized(true);
+      if (safeLocalStorage.getItem('shuffle_demo_dock') === 'bottom') setDockState('bottom');
+      if (safeLocalStorage.getItem('shuffle_demo_started') === 'true') setWasStarted(true);
+      if (safeLocalStorage.getItem('shuffle_demo_resume_dismissed') === 'true') setResumeDismissed(true);
+    } catch { /* ignore */ }
+    setStats(getDemoStats());
   }, []);
 
   // GA dedupe: each step view fires at most once per session, each completion

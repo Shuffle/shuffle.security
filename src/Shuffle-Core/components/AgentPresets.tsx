@@ -276,7 +276,19 @@ export const AgentPresets = ({
   }, [resolvedThemeProp, themeScope, anchorEl, muiTheme]);
 
   const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
-  const [isDark, setIsDark] = useState<boolean>(computeIsDark);
+  // Initialize without DOM/window reads so the first client render matches
+  // the SSR HTML (hydration); the layout effect below recomputes from the
+  // real DOM before paint.
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (resolvedThemeProp === 'dark') return true;
+    if (resolvedThemeProp === 'light') return false;
+    if (themeScope) return themeScope.isDark;
+    const muiMode =
+      (muiTheme?.palette as any)?.mode ||
+      (muiTheme?.palette as any)?.type ||
+      (muiTheme?.palette as any)?.theme;
+    return muiMode === 'dark';
+  });
 
   useIsoLayoutEffect(() => {
     setIsDark(computeIsDark());

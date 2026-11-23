@@ -247,14 +247,18 @@ const TenantManagement: React.FC<TenantManagementProps> = (props) => {
   const [showSubOrgs, setShowSubOrgs] = useState(false);
   const [showAllOrgs, setShowAllOrgs] = useState(false);
 
-  const [createDialogOpen, setCreateDialogOpen] = useState(() => {
-    if (props.autoOpenCreate) return true;
-    if (typeof window !== 'undefined') {
-      const search = new URLSearchParams(window.location.search);
-      return search.get('click') === 'add-tenant';
-    }
-    return false;
-  });
+  // Start closed (the server value); the ?click=add-tenant deep link is
+  // applied in the effect below so the first client render matches the SSR
+  // HTML (hydration error #418 otherwise).
+  const [createDialogOpen, setCreateDialogOpen] = useState(() => Boolean(props.autoOpenCreate));
+
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('click') === 'add-tenant') {
+        setCreateDialogOpen(true);
+      }
+    } catch { /* ignore */ }
+  }, []);
   const [creating, setCreating] = useState(false);
 
   const [switchingOrgId, setSwitchingOrgId] = useState<string | null>(null);

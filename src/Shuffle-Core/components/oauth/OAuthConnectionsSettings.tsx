@@ -16,7 +16,7 @@ import {
   IconButton,
   Tooltip,
 } from '@mui/material';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, RefreshCw } from 'lucide-react';
 import { StatsSeriesDialog } from '../stats/StatsSeriesDialog';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { toast } from '@/Shuffle-Core/lib/toast';
@@ -316,13 +316,13 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
             variant="subtitle1"
             sx={{ color: 'hsl(var(--foreground))', fontWeight: 700, mb: 0.5 }}
           >
-            Connected Oauth Applications
+            Connected Applications
           </Typography>
           <Typography
             variant="body2"
             sx={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.8rem' }}
           >
-            External AI assistants, MCP clients, and third-party services authorized to access your Shuffle account.
+            External AI assistants, MCP clients, and third-party services authorized to access your Shuffle account. Applications work for a single tenant.
           </Typography>
         </Box>
 
@@ -334,33 +334,25 @@ export const OAuthConnectionsSettings: React.FC<OAuthConnectionsSettingsProps> =
               size="small"
               onClick={() => setStatsOpen(true)}
               aria-label="Usage statistics"
-              sx={{ p: 0.75, borderRadius: 1.5, border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+              sx={{ p: 0.75, borderRadius: 1.5, color: 'hsl(var(--foreground))' }}
             >
               <BarChart3 size={18} />
             </IconButton>
           </Tooltip>
 
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => fetchConnections(connections.length > 0)}
-            disabled={loading || refreshing}
-            sx={{
-              height: 32,
-              px: 1.75,
-              textTransform: 'none',
-              fontSize: '0.8rem',
-              borderRadius: 1.5,
-              borderColor: 'hsl(var(--border))',
-              color: 'hsl(var(--foreground))',
-              '&:hover': {
-                borderColor: 'hsl(var(--primary))',
-                bgcolor: 'hsl(var(--muted) / 0.4)',
-              },
-            }}
-          >
-            {loading || refreshing ? 'Refreshing...' : 'Refresh'}
-          </Button>
+          <Tooltip title="Refresh">
+            <span>
+              <IconButton
+                size="small"
+                onClick={() => fetchConnections(connections.length > 0)}
+                disabled={loading || refreshing}
+                aria-label="Refresh"
+                sx={{ p: 0.75, borderRadius: 1.5, color: 'hsl(var(--foreground))' }}
+              >
+                <RefreshCw size={18} className={loading || refreshing ? 'animate-spin' : undefined} />
+              </IconButton>
+            </span>
+          </Tooltip>
         </Box>
       </Box>
 

@@ -29,6 +29,9 @@ export interface NotificationDevice {
   platform?: string;
   device_name?: string;
   preferences?: Partial<DevicePreferences>;
+  webhook_enabled?: boolean;
+  webhook_token?: string;
+  webhook_url?: string;
 }
 
 const DEVICE_ID_KEY = 'shuffle_notification_device_id';
@@ -223,6 +226,42 @@ export const deleteNotificationDevice = async (
       return { success: true };
     }
     const data = await response.json().catch(() => ({}));
+    return { success: false, reason: data?.reason || `HTTP ${response.status}` };
+  } catch (error) {
+    return { success: false, reason: error instanceof Error ? error.message : 'Network error' };
+  }
+};
+
+export interface DeviceWebhookResult {
+  success: boolean;
+  webhook_enabled?: boolean;
+  webhook_token?: string;
+  webhook_url?: string;
+  reason?: string;
+}
+
+/** Enables, disables or rotates the incoming notification webhook of a device. Device owner only. */
+export const setDeviceWebhook = async (
+  deviceId: string,
+  enabled: boolean,
+  regenerate = false,
+): Promise<DeviceWebhookResult> => {
+  try {
+    const response = await fetch(getApiUrl(`/api/v1/users/devices/${encodeURIComponent(deviceId)}/webhook`), {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({ enabled, regenerate }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.ok && data?.success !== false) {
+      return {
+        success: true,
+        webhook_enabled: Boolean(data?.webhook_enabled),
+        webhook_token: data?.webhook_token,
+        webhook_url: data?.webhook_url,
+      };
+    }
     return { success: false, reason: data?.reason || `HTTP ${response.status}` };
   } catch (error) {
     return { success: false, reason: error instanceof Error ? error.message : 'Network error' };

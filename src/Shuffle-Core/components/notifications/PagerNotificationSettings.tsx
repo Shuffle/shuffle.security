@@ -60,6 +60,7 @@ import {
   adoptLocalDeviceId,
   saveNotificationDevice,
   deleteNotificationDevice,
+  setDeviceWebhook,
   resolveDevicePreferences,
   getSelectedOrgIdsForDeviceType,
   buildUpdatedOrgPreferences,
@@ -394,6 +395,8 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
   const [permissionMsg, setPermissionMsg] = useState<string | null>(null);
   const [copiedPath, setCopiedPath] = useState(false);
   const [expanded, setExpanded] = useState<NotificationType | null>(null);
+  const [webhookExpanded, setWebhookExpanded] = useState(false);
+  const [webhookBusy, setWebhookBusy] = useState(false);
   const [devices, setDevices] = useState<NotificationDevice[]>([]);
   const [localDeviceId, setLocalDeviceId] = useState('');
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
@@ -672,6 +675,42 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
 
 
   /** True when the selected device exists on the server and can be deleted. */
+  const webhookAvailable = isMobileDevice && Boolean(selectedDevice && devices.some((d) => d.id === selectedDevice.id));
+  const updateWebhook = async (enabled: boolean, regenerate = false) => {
+    if (!selectedDevice) return;
+    setWebhookBusy(true);
+    const result = await setDeviceWebhook(selectedDevice.id, enabled, regenerate);
+    setWebhookBusy(false);
+    if (!result.success) {
+      toast.error(`Could not update the webhook for ${selectedDevice.device_name || 'this device'}: ${result.reason}`);
+      return;
+    }
+    const id = selectedDevice.id;
+    setDevices((current) =>
+      current.map((d) =>
+        d.id === id
+          ? {
+              ...d,
+              webhook_enabled: result.webhook_enabled,
+              webhook_token: result.webhook_enabled ? result.webhook_token || d.webhook_token : undefined,
+              webhook_url: result.webhook_enabled ? result.webhook_url || d.webhook_url : undefined,
+            }
+          : d,
+      ),
+    );
+    if (result.webhook_enabled) setWebhookExpanded(true);
+    toast.success(regenerate ? 'Webhook URL rotated. The old URL no longer works.' : enabled ? 'Webhook notifications enabled.' : 'Webhook notifications disabled.');
+  };
+  const copyWebhookUrl = async () => {
+    if (!selectedDevice?.webhook_url) return;
+    try {
+      await navigator.clipboard.writeText(selectedDevice.webhook_url);
+      toast.success('Webhook URL copied.');
+    } catch {
+      toast.error('Could not copy the webhook URL.');
+    }
+  };
+
   const selectedDeviceSaved = Boolean(selectedDevice && devices.some((d) => d.id === selectedDevice.id));
 
   const handleDeleteDevice = async () => {
@@ -1612,6 +1651,85 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
             }
           />
             </>
+          )}
+        </NotificationSection>
+
+        {/* Webhook notifications */}
+        <NotificationSection
+          title="Webhook Notifications"
+          description={
+            isMobileDevice
+              ? 'Send notifications to this device from any tool with a private webhook URL.'
+              : 'Only available in the mobile app.'
+          }
+          enabled={webhookAvailable && Boolean(selectedDevice?.webhook_enabled)}
+          disabled={!webhookAvailable || webhookBusy}
+          disabledTooltip={isMobileDevice ? 'Register this device before enabling webhook notifications.' : 'Webhook notifications are only available for devices running the mobile app.'}
+          onToggle={(value) => updateWebhook(value)}
+          expanded={webhookExpanded}
+          onExpandToggle={() => setWebhookExpanded((v) => !v)}
+        >
+          {!isMobileDevice && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', lineHeight: 1.4 }}>
+                Webhook notifications require the Shuffle mobile app. Install it on your phone to get a
+                private URL that other tools can send notifications to.
+              </Typography>
+              <AppStoreBadges height={36} iosComingSoon />
+            </Box>
+          )}
+          {isMobileDevice && !selectedDevice?.webhook_enabled && (
+            <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', lineHeight: 1.4 }}>
+              Turn this on to get a private URL. Anyone with the URL can send a notification to this
+              device, so treat it like a password.
+            </Typography>
+          )}
+          {isMobileDevice && selectedDevice?.webhook_enabled && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Box
+                sx={{
+                  fontFamily: 'monospace',
+                  fontSize: '0.8rem',
+                  p: 1.25,
+                  borderRadius: 1.5,
+                  border: '1px solid hsl(var(--border))',
+                  bgcolor: 'hsl(var(--card))',
+                  color: 'hsl(var(--foreground))',
+                  wordBreak: 'break-all',
+                }}
+              >
+                {selectedDevice.webhook_url || 'The webhook URL is hidden. Rotate it to get a new one.'}
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={copyWebhookUrl}
+                  disabled={!selectedDevice.webhook_url}
+                  sx={outlinedButtonSx}
+                >
+                  Copy URL
+                </Button>
+                <Tooltip title="Creates a new URL. The current URL stops working immediately." arrow>
+                  <span>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => updateWebhook(true, true)}
+                      disabled={webhookBusy}
+                      sx={outlinedButtonSx}
+                    >
+                      {webhookBusy ? 'Rotating' : 'Rotate URL'}
+                    </Button>
+                  </span>
+                </Tooltip>
+              </Box>
+              <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>
+                Send a POST request with JSON (title, message, type as general, critical or
+                agent_request, severity, source, reference_url) or plain text. No sign-in is needed,
+                so keep the URL private.
+              </Typography>
+            </Box>
           )}
         </NotificationSection>
 

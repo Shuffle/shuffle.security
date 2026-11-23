@@ -1,3 +1,5 @@
+import { RegionFlagImage } from '@/components/shared/RegionFlagImage';
+import { getRegionFlag } from '@/lib/regionFlag';
 import { useState, useEffect, useCallback, ReactNode } from 'react';
 import {
   Box,
@@ -1245,6 +1247,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                     >
                       {label}
                     </Typography>
+                    {device?.region && <RegionFlagImage code={getRegionFlag(device.region).code} />}
                   </Box>
                 );
               }}
@@ -1282,6 +1285,7 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                     )}
                     {(device.device_name || device.id) +
                       (device.id === localDeviceId ? ' (this device)' : '')}
+                    {device.region && <RegionFlagImage code={getRegionFlag(device.region).code} />}
                   </MenuItem>
                 );
               })}

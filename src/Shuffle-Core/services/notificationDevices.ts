@@ -23,6 +23,8 @@ export interface DevicePreferences {
 
 export interface NotificationDevice {
   id: string;
+  /** Region the device connection lives in (same values as tenant region_url). */
+  region?: string;
   token?: string;
   has_token?: boolean;
   push_registered?: boolean;

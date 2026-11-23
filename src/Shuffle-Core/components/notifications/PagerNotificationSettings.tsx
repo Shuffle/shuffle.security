@@ -28,6 +28,7 @@ import {
 import { ChevronDown, Smartphone, Monitor, MoreVertical, Bell, BellOff, CalendarClock, PhoneCall, Trash2, Copy, RotateCw, BarChart3 } from 'lucide-react';
 import { toast } from '@/Shuffle-Core/lib/toast';
 import { StatsSeriesDialog, deviceStatKey } from '@/Shuffle-Core/components/stats/StatsSeriesDialog';
+import ApiCallViewer from '@/Shuffle-Core/components/ApiCallViewer';
 import { AppStoreBadges } from '@/Shuffle-Core/components/AppStoreBadges';
 import { getApiUrl, getAuthHeader } from '@/Shuffle-Core/api';
 import { getDatastoreItem, setDatastoreItem, DATASTORE_CATEGORIES } from '@shuffleio/shuffle-mcps';
@@ -1813,17 +1814,11 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       <Dialog open={webhookExampleOpen} onClose={() => setWebhookExampleOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700 }}>Webhook example</DialogTitle>
         <DialogContent>
-          <Box component="pre" sx={{ m: 0, p: 2, borderRadius: 2, bgcolor: 'hsl(var(--muted) / 0.3)', fontFamily: 'monospace', fontSize: '0.78rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-{`curl -X POST '${selectedDevice?.webhook_url || '<webhook_url>'}' \\
-  -H 'Content-Type: application/json' \\
-  -d '{
-    "title": "Disk almost full",
-    "body": "server-01 is at 95%",
-    "type": "general",
-    "severity": "high",
-    "source": "monitoring"
-  }'`}
-          </Box>
+          <ApiCallViewer
+            title="Webhook example"
+            maskAuth={false}
+            rawCurl={`curl -X POST '${selectedDevice?.webhook_url || '<webhook_url>'}' -H 'Content-Type: application/json' -d '{"title": "Ransomware behavior detected on FIN-LAPTOP-042", "body": "EDR flagged mass file encryption by svchost.exe (PID 4412). Host isolation recommended.", "type": "critical", "severity": "critical", "source": "EDR", "reference_url": "https://shuffle.security/incidents"}'`}
+          />
           <Typography sx={{ mt: 1.5, fontSize: '0.8rem', color: 'hsl(var(--muted-foreground))' }}>
             type: general | critical | agent_request
           </Typography>

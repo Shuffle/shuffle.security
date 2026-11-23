@@ -1,6 +1,6 @@
 import { RegionFlagImage } from '@/components/shared/RegionFlagImage';
 import { getRegionFlag } from '@/lib/regionFlag';
-import { useState, useEffect, useCallback, ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import {
   Box,
   Typography,
@@ -591,6 +591,19 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
       setLocalDeviceId(match.id);
     }
   }, [devices, localDeviceId, settings.pushToken]);
+
+  // By default, select a device that has notifications turned on instead of an
+  // unregistered local device. Runs once, after devices load.
+  const defaultPickedRef = useRef(false);
+  useEffect(() => {
+    if (defaultPickedRef.current || devices.length === 0 || !localDeviceId) return;
+    defaultPickedRef.current = true;
+    const localRow = devices.find((d) => d.id === localDeviceId);
+    const localEnabled = localRow && Object.values(resolveDevicePreferences(localRow)).some(Boolean);
+    if (localEnabled) return;
+    const enabled = devices.find((d) => Object.values(resolveDevicePreferences(d)).some(Boolean));
+    if (enabled) setSelectedDeviceId((current) => (current === localDeviceId || !current ? enabled.id : current));
+  }, [devices, localDeviceId]);
 
   const deviceList: NotificationDevice[] = localDeviceId
     ? [
@@ -1221,10 +1234,12 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
           }}
         >
 
-        {isLocalSelected && !localDeviceRegistered && (
+        {(
           <Tooltip
             title={
-              isGranted
+              localDeviceRegistered && !inIframe
+                ? 'Register this device again, for example after a reconnect or in another region.'
+                : isGranted
                 ? inIframe
                   ? 'Permission granted, but the preview iframe blocks token registration. Open this page in its own browser tab to register this device.'
                   : settings.pushToken
@@ -1239,13 +1254,13 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
                 size="small"
                 disableElevation
                 disabled={savingDevice}
-                onClick={
-                  isGranted
-                    ? inIframe
-                      ? () => window.open(window.location.href, '_blank')
-                      : handleRegisterLocalPush
-                    : handleRequestPermissions
-                }
+                onClick={() => {
+                  if (localDeviceId) setSelectedDeviceId(localDeviceId);
+                  if (isGranted || localDeviceRegistered) {
+                    if (inIframe) window.open(window.location.href, '_blank');
+                    else handleRegisterLocalPush();
+                  } else handleRequestPermissions();
+                }}
                 sx={{
                   height: 28,
                   px: 1.5,
@@ -1260,9 +1275,11 @@ export const PagerNotificationSettings = ({ userInfo: userInfoProp }: PagerNotif
               >
                 {savingDevice ? (
                   <CircularProgress size={12} sx={{ color: 'hsl(var(--primary-foreground))' }} />
-                ) : isGranted ? (
+                ) : isGranted || localDeviceRegistered ? (
                   inIframe ? (
                     'Open in new tab'
+                  ) : localDeviceRegistered ? (
+                    'Reconnect this device'
                   ) : (
                     'Register this device'
                   )

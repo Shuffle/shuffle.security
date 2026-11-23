@@ -311,6 +311,9 @@ const SettingsPage = () => {
           {/* Paging & Notifications */}
           <PagerNotificationSettings />
 
+          {/* Connected Oauth Applications */}
+          <OAuthConnectionsSettings />
+
           {/* Change Password */}
           <Paper
             elevation={0}
@@ -471,11 +474,9 @@ const SettingsPage = () => {
               >
                 {pwLoading ? 'Updating...' : 'Update Password'}
               </Button>
-            </Paper>
+          </Paper>
 
-            <OAuthConnectionsSettings />
-
-            {isSupport && <DiagnosticsLogsCard />}
+          {isSupport && <DiagnosticsLogsCard />}
         </Box>
       )}
     </Box>

@@ -1596,6 +1596,44 @@ const IncidentRoutingEditorInner = ({
               siblingIndex: number,
             ): JSX.Element => {
               const key = path.join('-') || 'leaf';
+              const validationResult = (() => {
+                    const r = validation[`${rule.id}:${key}`];
+                    if (!r || r.field !== node.field) return null;
+                    const info = sampleInfo;
+                    const muted = 'hsl(var(--muted-foreground))';
+                    const bad = 'hsl(var(--destructive))';
+                    const good = 'hsl(var(--success, 142 70% 45%))';
+                    const scope = info?.status === 'error'
+                      ? `Could not load records from ${entityCategory}: ${info.error}`
+                      : `Checked the ${r.total} latest records in ${entityCategory}${info?.more ? ' (more exist, only the newest page was checked)' : ''}${info && info.fetched !== info.parsed ? `. ${info.fetched - info.parsed} of ${info.fetched} could not be read as objects` : ''}.`;
+                    const Row = ({ label, hits }: { label: string; hits: number }) => (
+                      <Box sx={{ display: 'flex', gap: 1, fontSize: '0.75rem' }}>
+                        <Box component="span" sx={{ color: muted, minWidth: 110 }}>{label}</Box>
+                        <Box component="span" sx={{ color: hits > 0 ? good : bad, fontWeight: 600 }}>
+                          {hits > 0 ? 'Passed' : 'Failed'}
+                        </Box>
+                        <Box component="span" sx={{ color: muted }}>{hits} of {r.total} records</Box>
+                      </Box>
+                    );
+                    return (
+                      <Box sx={{ pl: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                        <Typography variant="caption" sx={{ color: info?.status === 'error' || r.total === 0 ? bad : muted }}>
+                          {r.total === 0 && info?.status !== 'error'
+                            ? `No records found in ${entityCategory}. Fetched ${info?.fetched ?? 0} items, ${info?.parsed ?? 0} readable.`
+                            : scope}
+                        </Typography>
+                        {r.total > 0 && (
+                          <>
+                            <Row label={`Field "${r.field}"`} hits={r.fieldHits} />
+                            <Row label="This condition" hits={r.lineHits} />
+                            <Row label={`Whole rule (${r.ruleLeaves} conditions)`} hits={r.ruleHits} />
+                          </>
+                        )}
+                      </Box>
+                    );
+              })();
+              const vr = validation[`${rule.id}:${key}`];
+              const vrStatus = !vr || vr.field !== node.field ? null : vr.total > 0 && vr.ruleHits > 0 ? 'ok' : vr.total > 0 && vr.fieldHits > 0 ? 'partial' : 'bad';
               return (
                 <Box key={key} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {renderSeparator(parent, siblingIndex)}
@@ -1643,7 +1681,10 @@ const IncidentRoutingEditorInner = ({
                         sx={{ flex: 1.2, minWidth: 200 }}
                       />
                     )}
-                    <Tooltip title={sampleLoading ? 'Loading records from this category' : 'Validate field: check that this field exists and how many records this condition matches'}>
+                    <Tooltip
+                      title={sampleLoading ? 'Loading records from this category' : validationResult || 'Validate field: check the field, this condition and the whole rule against recent records'}
+                      componentsProps={{ tooltip: { sx: { maxWidth: 420 } } }}
+                    >
                       <span>
                         <IconButton
                           size="small"
@@ -1653,9 +1694,9 @@ const IncidentRoutingEditorInner = ({
                           sx={{
                             width: 36,
                             height: 36,
-                            border: '1px solid hsl(var(--border))',
+                            border: `1px solid ${vrStatus === 'ok' ? 'hsl(var(--success, 142 70% 45%))' : vrStatus === 'partial' ? 'hsl(var(--primary))' : vrStatus === 'bad' ? 'hsl(var(--destructive))' : 'hsl(var(--border))'}`,
                             borderRadius: 1.5,
-                            color: 'hsl(var(--muted-foreground))',
+                            color: vrStatus === 'ok' ? 'hsl(var(--success, 142 70% 45%))' : vrStatus === 'partial' ? 'hsl(var(--primary))' : vrStatus === 'bad' ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))',
                             '&:hover': { color: 'hsl(var(--primary))' },
                           }}
                         >
@@ -1678,42 +1719,6 @@ const IncidentRoutingEditorInner = ({
                       </IconButton>
                     </Tooltip>
                   </Box>
-                  {(() => {
-                    const r = validation[`${rule.id}:${key}`];
-                    if (!r || r.field !== node.field) return null;
-                    const info = sampleInfo;
-                    const muted = 'hsl(var(--muted-foreground))';
-                    const bad = 'hsl(var(--destructive))';
-                    const good = 'hsl(var(--success, 142 70% 45%))';
-                    const scope = info?.status === 'error'
-                      ? `Could not load records from ${entityCategory}: ${info.error}`
-                      : `Checked the ${r.total} latest records in ${entityCategory}${info?.more ? ' (more exist, only the newest page was checked)' : ''}${info && info.fetched !== info.parsed ? `. ${info.fetched - info.parsed} of ${info.fetched} could not be read as objects` : ''}.`;
-                    const Row = ({ label, hits }: { label: string; hits: number }) => (
-                      <Box sx={{ display: 'flex', gap: 1, fontSize: '0.75rem' }}>
-                        <Box component="span" sx={{ color: muted, minWidth: 110 }}>{label}</Box>
-                        <Box component="span" sx={{ color: hits > 0 ? good : bad, fontWeight: 600 }}>
-                          {hits > 0 ? 'Passed' : 'Failed'}
-                        </Box>
-                        <Box component="span" sx={{ color: muted }}>{hits} of {r.total} records</Box>
-                      </Box>
-                    );
-                    return (
-                      <Box sx={{ pl: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                        <Typography variant="caption" sx={{ color: info?.status === 'error' || r.total === 0 ? bad : muted }}>
-                          {r.total === 0 && info?.status !== 'error'
-                            ? `No records found in ${entityCategory}. Fetched ${info?.fetched ?? 0} items, ${info?.parsed ?? 0} readable.`
-                            : scope}
-                        </Typography>
-                        {r.total > 0 && (
-                          <>
-                            <Row label={`Field "${r.field}"`} hits={r.fieldHits} />
-                            <Row label="This condition" hits={r.lineHits} />
-                            <Row label={`Whole rule (${r.ruleLeaves} conditions)`} hits={r.ruleHits} />
-                          </>
-                        )}
-                      </Box>
-                    );
-                  })()}
                 </Box>
               );
             };

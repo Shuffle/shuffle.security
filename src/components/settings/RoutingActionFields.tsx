@@ -11,7 +11,7 @@
  *  - `variant="compact"` -> stacked full-width controls for the small popover
  */
 
-import { Autocomplete, Box, Button, CircularProgress, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Autocomplete, Box, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import { Maximize2 } from 'lucide-react';
 import { PopupTextEditor } from '@/Shuffle-Core/components/PopupTextEditor';
 import { useState } from 'react';
@@ -332,6 +332,21 @@ export const RoutingFieldPathInput = ({ value, onChange, labels, extraOptions, l
   );
 };
 
+/** Expand button placed inside a text field, opening the shared popup editor. */
+export const ExpandEditorAdornment = ({ value, onChange, title }: { value: string; onChange: (v: string) => void; title: string }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Tooltip title="Open in editor">
+        <IconButton size="small" onClick={() => setOpen(true)} sx={{ p: 0.5, mr: -0.5, color: 'hsl(var(--muted-foreground))' }}>
+          <Maximize2 size={16} />
+        </IconButton>
+      </Tooltip>
+      <PopupTextEditor renderInline={false} open={open} onOpenChange={setOpen} value={value} onChange={onChange} title={title} mode="multiline" />
+    </>
+  );
+};
+
 export interface RoutingActionFieldsProps {
   action: RoutingAction;
   onChange: (patch: Partial<RoutingAction>) => void;
@@ -351,7 +366,8 @@ export const RoutingActionFields = ({
   menuZIndex,
 }: RoutingActionFieldsProps) => {
   const compact = variant === 'compact';
-  const [editorOpen, setEditorOpen] = useState(false);
+  const valueTitle = action.type === 'set_field' ? `Value for ${action.field || 'field'}` : action.type === 'run_agent' ? 'Agent prompt' : action.type === 'run_python' ? 'Python script' : 'Value';
+  const expand = compact ? null : <ExpandEditorAdornment value={action.value || ''} onChange={(v) => onChange({ value: v })} title={valueTitle} />;
   const valuePresets = action.type === 'set_field' ? routingFieldValuePresets(action.field) : routingActionValuePresets(action.type);
   const multiline = action.type === 'add_comment' || action.type === 'run_agent' || action.type === 'run_python';
 
@@ -373,7 +389,7 @@ export const RoutingActionFields = ({
       flexWrap={compact ? 'nowrap' : 'wrap'}
       useFlexGap
       alignItems={compact ? 'stretch' : 'center'}
-      sx={compact ? { width: '100%' } : undefined}
+      sx={{ width: '100%' }}
     >
       <TextField
         size="small"
@@ -422,7 +438,7 @@ export const RoutingActionFields = ({
             onChange(presets && !presets.includes(String(action.value || '')) ? { field: f, value: presets[0] } : { field: f });
           }}
           placeholder="Pick or type field"
-          sx={compact ? { width: '100%' } : { flex: '3 1 0', minWidth: 0 }}
+          sx={compact ? { width: '100%' } : { flex: '3 1 0', minWidth: 280 }}
           fullWidth={fullWidth}
           label={compact ? undefined : 'Field'}
         />
@@ -444,7 +460,12 @@ export const RoutingActionFields = ({
               <li {...props} key={option} style={{ fontSize: '0.8rem' }}>{option}</li>
             )}
             renderInput={(params) => (
-              <TextField {...params} label={compact ? undefined : 'Value'} placeholder="Pick or type a custom value" />
+              <TextField
+                {...params}
+                label={compact ? undefined : 'Value'}
+                placeholder="Pick or type a custom value"
+                InputProps={{ ...params.InputProps, endAdornment: <>{expand}{params.InputProps.endAdornment}</> }}
+              />
             )}
           />
         ) : (
@@ -457,34 +478,12 @@ export const RoutingActionFields = ({
             fullWidth={fullWidth}
             multiline={multiline}
             maxRows={multiline ? 6 : 1}
+            InputProps={expand ? { endAdornment: <InputAdornment position="end">{expand}</InputAdornment> } : undefined}
             label={compact ? undefined : (action.type === 'run_agent' ? 'Agent prompt' : action.type === 'run_python' ? 'Python script' : 'Value')}
           />
         )
       )}
 
-      {action.type !== 'suggest_move' && !compact && (
-        <>
-          <Tooltip title="Open in editor">
-            <IconButton
-              size="small"
-              onClick={() => setEditorOpen(true)}
-              sx={{ flex: '0 0 auto', p: 0.75, borderRadius: 1.5, border: '1px solid hsl(var(--border))', alignSelf: 'center' }}
-            >
-              <Maximize2 size={18} />
-            </IconButton>
-          </Tooltip>
-          <PopupTextEditor
-            renderInline={false}
-            open={editorOpen}
-            onOpenChange={setEditorOpen}
-            value={action.value || ''}
-            onChange={(v) => onChange({ value: v })}
-            title={action.type === 'set_field' ? `Value for ${action.field || 'field'}` : action.type === 'run_agent' ? 'Agent prompt' : action.type === 'run_python' ? 'Python script' : 'Value'}
-            syntax={action.type === 'run_python' ? 'yaml' : 'plain'}
-            mode="multiline"
-          />
-        </>
-      )}
     </Stack>
   );
 };

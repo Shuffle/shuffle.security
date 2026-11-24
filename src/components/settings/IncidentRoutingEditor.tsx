@@ -40,6 +40,7 @@ import {
 } from '@/Shuffle-Core/components/dashboard/_shared';
 import {
   RoutingActionFields,
+  ExpandEditorAdornment,
   ROUTING_ACTION_TYPE_LABELS,
   ROUTING_SEVERITY_OPTIONS,
   ROUTING_STATUS_OPTIONS,
@@ -60,6 +61,7 @@ import {
   Button,
   TextField,
   IconButton,
+  InputAdornment,
   MenuItem,
   Switch,
   Tooltip,
@@ -2292,6 +2294,7 @@ const IncidentRoutingEditorInner = ({
                       value={action.reason || ''}
                       onChange={(e) => updateAction(rule.id, aIdx, { reason: e.target.value })}
                       placeholder="Shown in the suggestion banner"
+                      InputProps={{ endAdornment: <InputAdornment position="end"><ExpandEditorAdornment value={action.reason || ''} onChange={(v) => updateAction(rule.id, aIdx, { reason: v })} title="Reason" /></InputAdornment> }}
                       sx={{ width: '100%', pr: '46px' }}
                     />
                   </Box>

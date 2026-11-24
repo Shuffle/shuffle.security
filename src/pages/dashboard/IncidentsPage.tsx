@@ -4253,14 +4253,14 @@ const IncidentsPage = () => {
           </Box>
         </DialogContent>
       </Dialog>
-      {/* Fixed bottom pagination (shared with /vulnerabilities) */}
-      <ListPaginationBar
+      {/* Fixed bottom pagination (shared with /vulnerabilities); hidden until the first load finishes */}
+      {hasFetched && !isLoading && <ListPaginationBar
         {...paginationBarProps}
         hasMore={hasMore}
         isLoading={isLoading}
         onLoadMore={fetchNextPage}
         loadMoreTitle="Load older incidents"
-      />
+      />}
 
     </motion.div>
   );

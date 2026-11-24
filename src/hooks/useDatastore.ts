@@ -57,7 +57,7 @@ export const useDatastore = ({ category, orgId: overrideOrgId }: UseDatastoreOpt
   // Without this, each fetch flips hasFetched -> recreates fetchItems -> retriggers caller's effects.
   const hasFetchedRef = useRef(false);
 
-  const fetchItems = useCallback(async (cursorParam?: string) => {
+  const runFetch = useCallback(async (cursorParam?: string) => {
     // Only show full loading spinner on initial fetch to avoid UI flicker
     if (!hasFetchedRef.current) {
       setIsLoading(true);
@@ -183,6 +183,20 @@ export const useDatastore = ({ category, orgId: overrideOrgId }: UseDatastoreOpt
       hasFetchedRef.current = true;
     }
   }, [category, overrideOrgId]);
+
+  // Share one in-flight full fetch per org/category: the page's mount effect and
+  // the org-change reset can both ask for a fresh load at the same moment.
+  const inFlightRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
+  const fetchItems = useCallback((cursorParam?: string) => {
+    if (cursorParam) return runFetch(cursorParam);
+    const key = `${category}|${overrideOrgId || ''}`;
+    if (inFlightRef.current?.key === key) return inFlightRef.current.promise;
+    const promise = runFetch().finally(() => {
+      if (inFlightRef.current?.promise === promise) inFlightRef.current = null;
+    });
+    inFlightRef.current = { key, promise };
+    return promise;
+  }, [category, overrideOrgId, runFetch]);
 
   const fetchNextPage = useCallback(async () => {
     if (cursor && !isLoading) {

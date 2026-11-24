@@ -285,11 +285,9 @@ const TenantManagement: React.FC<TenantManagementProps> = (props) => {
       }
       const data = await response.json();
       const orgs = Array.isArray(data) ? data : (data.child_orgs || data.orgs || data.subOrgs || []);
-      const trueChildren = orgs.filter((org: any) => {
-        if (!org?.id || org.id === currentOrgId) return false;
-        if (org.creator_org) return org.creator_org === currentOrgId;
-        return true;
-      });
+      // Trust the API: it returns the sub-tenants the user has access to
+      // (the parent's children when the active org is itself a sub-tenant).
+      const trueChildren = orgs.filter((org: any) => !!org?.id && org.id !== currentOrgId);
       setSubOrgs(trueChildren.map((org: any) => ({
         id: org.id,
         name: org.name || org.id,

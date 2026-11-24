@@ -4,7 +4,6 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { getApiUrl, getAuthHeader, mapCloudRegionUrl } from '@/Shuffle-Core/api';
-import { useAuth } from '@/context/AuthContext';
 import { registerTenantRegions } from '@/lib/tenantApiUrl';
 
 
@@ -31,11 +30,9 @@ export const useSubOrgs = (currentOrgId: string | undefined): UseSubOrgsReturn =
   const [parentOrg, setParentOrg] = useState<SubOrg | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { userInfo } = useAuth();
-  // When the active org is itself a child tenant, it must never fan out to
-  // other tenants. The /suborgs API can return siblings in some setups, which
-  // would make a child look like a parent and trigger cross-tenant fetching.
-  const isChildTenant = !!userInfo?.active_org?.creator_org && userInfo?.active_org?.id === currentOrgId;
+  // The /suborgs API already scopes its response to what the user may see,
+  // including when the active org is itself a sub-tenant, so the response is
+  // trusted as-is.
 
   const fetchSubOrgs = useCallback(async () => {
     if (!currentOrgId) return;
@@ -64,18 +61,11 @@ export const useSubOrgs = (currentOrgId: string | undefined): UseSubOrgsReturn =
       if (data.success !== false) {
         // Handle both { subOrgs: [...] } and direct array formats
         const orgs = Array.isArray(data) ? data : (data.child_orgs || data.orgs || data.subOrgs || []);
-        // Only keep TRUE descendants of the current org. The API can return
-        // peers/siblings in some configurations, which would otherwise make a
-        // sub-tenant look like a parent and pull in data from other tenants.
-        // Multi-tenant fan-out must always distribute downwards only.
-        const trueChildren = orgs.filter((org: any) => {
-          if (!org?.id || org.id === currentOrgId) return false;
-          // If creator_org is present, it must point to the current org.
-          // If absent, fall back to accepting it (older API responses).
-          if (org.creator_org) return org.creator_org === currentOrgId;
-          return true;
-        });
-        setSubOrgs(isChildTenant ? [] : trueChildren.map((org: any) => ({
+        // Trust the API: it returns the sub-tenants the user has access to.
+        // When the active org is itself a sub-tenant, the API returns the
+        // parent's children, so do not filter them by creator_org here.
+        const trueChildren = orgs.filter((org: any) => !!org?.id && org.id !== currentOrgId);
+        setSubOrgs(trueChildren.map((org: any) => ({
           id: org.id,
           name: org.name || org.id,
           image: org.image,
@@ -109,7 +99,7 @@ export const useSubOrgs = (currentOrgId: string | undefined): UseSubOrgsReturn =
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrgId, isChildTenant]);
+  }, [currentOrgId]);
 
   useEffect(() => {
     fetchSubOrgs();

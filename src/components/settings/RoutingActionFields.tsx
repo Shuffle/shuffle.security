@@ -11,7 +11,9 @@
  *  - `variant="compact"` -> stacked full-width controls for the small popover
  */
 
-import { Autocomplete, Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Autocomplete, Box, Button, CircularProgress, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Maximize2 } from 'lucide-react';
+import { PopupTextEditor } from '@/Shuffle-Core/components/PopupTextEditor';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthenticatedApps, AUTHENTICATED_APPS_QUERY_KEY } from '@/Shuffle-Core/useAuthenticatedApps';
@@ -349,6 +351,7 @@ export const RoutingActionFields = ({
   menuZIndex,
 }: RoutingActionFieldsProps) => {
   const compact = variant === 'compact';
+  const [editorOpen, setEditorOpen] = useState(false);
   const valuePresets = action.type === 'set_field' ? routingFieldValuePresets(action.field) : routingActionValuePresets(action.type);
   const multiline = action.type === 'add_comment' || action.type === 'run_agent' || action.type === 'run_python';
 
@@ -377,7 +380,7 @@ export const RoutingActionFields = ({
         select
         value={ROUTING_MAIN_ACTION_TYPES.includes(action.type) ? action.type : 'set_field'}
         onChange={(e) => onTypeChange(e.target.value as RoutingActionType)}
-        sx={compact ? undefined : { minWidth: 200 }}
+        sx={compact ? undefined : { flex: '0 0 200px' }}
         fullWidth={fullWidth}
         label={compact ? undefined : 'Action'}
         SelectProps={selectProps}
@@ -419,7 +422,7 @@ export const RoutingActionFields = ({
             onChange(presets && !presets.includes(String(action.value || '')) ? { field: f, value: presets[0] } : { field: f });
           }}
           placeholder="Pick or type field"
-          sx={compact ? { width: '100%' } : { flex: '2 1 280px', minWidth: 260 }}
+          sx={compact ? { width: '100%' } : { flex: '3 1 0', minWidth: 0 }}
           fullWidth={fullWidth}
           label={compact ? undefined : 'Field'}
         />
@@ -435,7 +438,7 @@ export const RoutingActionFields = ({
             value={action.value || null}
             onChange={(_, v) => onChange({ value: typeof v === 'string' ? v : '' })}
             onInputChange={(_, v, reason) => { if (reason === 'input') onChange({ value: v }); }}
-            sx={compact ? { width: '100%' } : { flex: '1 1 180px', minWidth: 180, maxWidth: 260 }}
+            sx={compact ? { width: '100%' } : { flex: '2 1 0', minWidth: 0 }}
             slotProps={{ popper: { sx: { zIndex: menuZIndex || 9999 } } }}
             renderOption={(props, option) => (
               <li {...props} key={option} style={{ fontSize: '0.8rem' }}>{option}</li>
@@ -450,13 +453,37 @@ export const RoutingActionFields = ({
             value={action.value || ''}
             onChange={(e) => onChange({ value: e.target.value })}
             placeholder={routingActionValuePlaceholder(action.type)}
-            sx={compact ? undefined : { flex: 1, minWidth: 200 }}
+            sx={compact ? undefined : { flex: '2 1 0', minWidth: 0 }}
             fullWidth={fullWidth}
             multiline={multiline}
             maxRows={multiline ? 6 : 1}
             label={compact ? undefined : (action.type === 'run_agent' ? 'Agent prompt' : action.type === 'run_python' ? 'Python script' : 'Value')}
           />
         )
+      )}
+
+      {action.type !== 'suggest_move' && !compact && (
+        <>
+          <Tooltip title="Open in editor">
+            <IconButton
+              size="small"
+              onClick={() => setEditorOpen(true)}
+              sx={{ flex: '0 0 auto', p: 0.75, borderRadius: 1.5, border: '1px solid hsl(var(--border))', alignSelf: 'center' }}
+            >
+              <Maximize2 size={18} />
+            </IconButton>
+          </Tooltip>
+          <PopupTextEditor
+            renderInline={false}
+            open={editorOpen}
+            onOpenChange={setEditorOpen}
+            value={action.value || ''}
+            onChange={(v) => onChange({ value: v })}
+            title={action.type === 'set_field' ? `Value for ${action.field || 'field'}` : action.type === 'run_agent' ? 'Agent prompt' : action.type === 'run_python' ? 'Python script' : 'Value'}
+            syntax={action.type === 'run_python' ? 'yaml' : 'plain'}
+            mode="multiline"
+          />
+        </>
       )}
     </Stack>
   );

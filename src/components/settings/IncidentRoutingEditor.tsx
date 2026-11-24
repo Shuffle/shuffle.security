@@ -855,12 +855,17 @@ const IncidentRoutingEditorInner = ({
         try { return evaluateCondition(r, { field: l.field, op: l.op, value: l.value } as any); } catch { return false; }
       };
       const matching = recs.find((r) => evaluateTree(ruleTree, leafEval(r)));
-      const sample = matching || recs[0] || {};
-      const sampleSource = matching
-        ? 'a recent record that matches this rule'
-        : recs[0]
-          ? 'a recent record (none matched this rule)'
-          : 'an empty sample (no records in this category)';
+      let sample: any = matching;
+      let sampleSource = 'a recent record that matches this rule';
+      if (!sample) {
+        // No recent record matches the rule: generate one that does,
+        // based on a recent record when there is one so the rest looks real.
+        const generated = generateRuleSample(ruleTree, recs[0] || {});
+        sample = generated.sample;
+        sampleSource = generated.matches
+          ? 'a generated sample that matches this rule (no recent record did)'
+          : 'a generated sample (no recent record matched; some conditions could not be filled in, so it may not match)';
+      }
       push({ sample: 'ok', start: 'running' }, { sampleSource });
       const resp = await fetch(getApiUrl(`/api/v1/workflows/${wf.id}/execute`), {
         method: 'POST',

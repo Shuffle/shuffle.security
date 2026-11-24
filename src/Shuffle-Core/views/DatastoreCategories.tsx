@@ -58,6 +58,7 @@ import { useLocation, useNavigate } from '@/lib/router-compat';
 import { DATASTORE_CATEGORIES, RBACConfig, filterItemsByCategory } from '@/Shuffle-Core/datastore';
 import { CategoryAutomationsDialog } from '@/Shuffle-Core/components/CategoryAutomationsDialog';
 import { HighlightedFileEditor } from '@/Shuffle-Core/components/HighlightedFileEditor';
+import { DatastoreEntryEditDialog } from '@/Shuffle-Core/components/DatastoreEntryEditDialog';
 import { ShareAccessModal } from '@/components/common/ShareAccessModal';
 import { useSubOrgs } from '@/hooks/useSubOrgs';
 
@@ -774,60 +775,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
     }
   };
 
-  // Save Edit Item
-  const handleSaveEdit = async () => {
-    if (!activeItem) return;
 
-    let finalValue: any = formValue;
-    try {
-      finalValue = JSON.parse(formValue);
-    } catch {
-      finalValue = formValue;
-    }
-
-    setSavingItem(true);
-    try {
-      if (!orgId) {
-        setItems((prev) =>
-          prev.map((i) => (i.key === activeItem.key ? { ...i, value: finalValue } : i))
-        );
-        toast.success(`Entry "${activeItem.key}" updated`);
-        setEditDialogOpen(false);
-        return;
-      }
-
-      const payload = {
-        org_id: orgId,
-        key: activeItem.key,
-        value: toStringValue(finalValue),
-        category: activeItem.category || (selectedCategory === 'default' ? '' : selectedCategory),
-      };
-
-      const response = await fetch(getApiUrl(`/api/v1/orgs/${orgId}/set_cache`), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          ...getAuthHeader(orgId),
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to update entry: ${response.status}`);
-      }
-
-      toast.success(`Entry "${activeItem.key}" updated successfully`);
-      setEditDialogOpen(false);
-      fetchCache(selectedCategory, page, pageSize);
-    } catch (err) {
-      console.error('[Datastore] update entry error:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to update entry');
-    } finally {
-      setSavingItem(false);
-    }
-  };
 
   // Delete initiation
   const handleInitiateDelete = (keys: string[]) => {
@@ -2036,133 +1984,18 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
       </Dialog>
 
       {/* Edit Entry Dialog */}
-      <Dialog
+      <DatastoreEntryEditDialog
         open={editDialogOpen}
+        item={activeItem}
+        orgId={orgId}
+        fallbackCategory={selectedCategory}
+        isDark={isDark}
         onClose={() => setEditDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: 'hsl(var(--card))',
-            border: '1px solid hsl(var(--border))',
-            borderRadius: 2,
-          },
+        onSaved={(saved, value) => {
+          if (!orgId) setItems((prev) => prev.map((i) => (i.key === saved.key ? { ...i, value } : i)));
+          else fetchCache(selectedCategory, page, pageSize);
         }}
-      >
-        <DialogTitle sx={{ fontWeight: 600, fontSize: '1rem' }}>
-          Edit Datastore Entry
-        </DialogTitle>
-        <DialogContent sx={{ py: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <TextField
-            label="Key"
-            size="small"
-            fullWidth
-            disabled
-            value={formKey}
-            sx={{ mt: 1, '& input': { fontFamily: 'monospace', fontSize: '0.88rem' } }}
-          />
-
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>
-              Value (JSON or String)
-            </Typography>
-            <Button
-              size="small"
-              variant="text"
-              onClick={handleFormatJson}
-              sx={{ textTransform: 'none', fontSize: '0.75rem' }}
-            >
-              Format JSON
-            </Button>
-          </Box>
-
-          <HighlightedFileEditor
-            value={formValue}
-            onChange={(nextVal) => handleValueChange(nextVal)}
-            validateJson={false}
-            language="json"
-            minHeight={220}
-            maxHeight={360}
-          />
-          {!isJsonValid && (
-            <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))', px: 0.5 }}>
-              Value is not valid JSON (will be saved as raw string if submitted)
-            </Typography>
-          )}
-
-          {/* Raw record details: what the entry looks like on the server */}
-          <Box
-            sx={{
-              mt: 0.5,
-              p: 1.5,
-              borderRadius: 1.5,
-              border: '1px solid hsl(var(--border))',
-              bgcolor: isDark ? 'hsl(var(--card) / 0.6)' : 'hsl(var(--muted) / 0.35)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 1.25,
-            }}
-          >
-            <Box
-              sx={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 2.5,
-                fontSize: '0.78rem',
-                fontFamily: 'monospace',
-                color: 'hsl(var(--muted-foreground))',
-              }}
-            >
-              <span>Created: {formatTs(recordCreated(activeItem))}</span>
-              <span>Updated: {formatTs(recordEdited(activeItem))}</span>
-              <span>Category: {activeItem?.category || selectedCategory || '-'}</span>
-              {activeItem?.updated_by ? <span>Updated by: {activeItem.updated_by}</span> : null}
-              {activeItem?.revision_id ? <span>Revision: {activeItem.revision_id}</span> : null}
-              {Array.isArray(activeItem?.suborg_distribution) && activeItem!.suborg_distribution!.length > 0 ? (
-                <span>Shared with: {activeItem!.suborg_distribution!.length} sub-tenant(s)</span>
-              ) : null}
-            </Box>
-
-            {editTags.length > 0 && (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
-                <Typography
-                  variant="caption"
-                  sx={{ color: 'hsl(var(--muted-foreground))', fontWeight: 600, letterSpacing: '0.02em' }}
-                >
-                  Tags
-                </Typography>
-                {editTags.map((tag) => (
-                  <Chip
-                    key={tag}
-                    label={tag}
-                    size="small"
-                    variant="outlined"
-                    sx={{ fontFamily: 'monospace', fontSize: '0.72rem', height: 22 }}
-                  />
-                ))}
-              </Box>
-            )}
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 1.5, borderTop: '1px solid hsl(var(--border))' }}>
-          <Button
-            size="small"
-            onClick={() => setEditDialogOpen(false)}
-            sx={{ textTransform: 'none' }}
-          >
-            Cancel
-          </Button>
-          <Button
-            size="small"
-            variant="contained"
-            onClick={handleSaveEdit}
-            disabled={savingItem}
-            sx={{ textTransform: 'none', fontWeight: 600 }}
-          >
-            {savingItem ? 'Saving...' : 'Update Entry'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog

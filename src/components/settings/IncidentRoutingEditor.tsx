@@ -86,6 +86,7 @@ import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { generateRuleSample, findRuleTestSample } from '@/utils/routingSampleGenerator';
 import { deleteDatastoreItem, getDatastoreByCategory, getDatastoreItem, setDatastoreItem } from '@/Shuffle-Core/datastore';
 import { AgentExecutionDrawer } from '@/Shuffle-MCPs';
+import { DatastoreEntryEditDialog, type DatastoreEntryRecord } from '@/Shuffle-Core/components/DatastoreEntryEditDialog';
 import type { AgentRun } from '@/Shuffle-MCPs/agentActivity';
 import { verifyRoutingActions, type ActionCheck } from '@/utils/routingResponseVerifier';
 import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from '@/Shuffle-Core/components/DatastoreCategorySelect';
@@ -1006,6 +1007,13 @@ const IncidentRoutingEditorInner = ({
   // first — the routing workflow can move, assign or comment for real.
   const ruleTestKey = (ruleId: string) => `${ruleId}:rule`;
   const [openAgentRun, setOpenAgentRun] = useState<AgentRun | null>(null);
+  // The injected sample opens in the same editor as the datastore page.
+  const [sampleEntry, setSampleEntry] = useState<DatastoreEntryRecord | null>(null);
+  const openSampleEntry = async (key: string) => {
+    const got: any = await getDatastoreItem(key, entityCategory, currentOrgId || undefined);
+    if (!got?.success || !got?.item) { toast.error('Could not load the injected sample'); return; }
+    setSampleEntry({ ...got.item, key: got.item.key || key, category: got.item.category || entityCategory });
+  };
   // Demo records are removed when the test popup closes. A run still in
   // progress removes its record when it finishes.
   const cleanupOnDone = useRef<Record<string, boolean>>({});
@@ -2536,16 +2544,16 @@ const IncidentRoutingEditorInner = ({
                   {rv.steps.sample === 'running' ? <CircularProgress size={11} /> : rv.steps.sample === 'ok' ? 'Passed' : rv.steps.sample === 'fail' ? 'Failed' : 'Waiting'}
                 </Box>
                 {rv.sampleKey && rv.sampleRemoved ? (
-                  <Box component="span" sx={{ minWidth: 120 }}>Injected sample (removed)</Box>
+                  <Box component="span" sx={{ minWidth: 120 }}>Injected sample {entityCategory} (removed)</Box>
                 ) : rv.sampleKey ? (
-                  <a
-                    href={`/admin/datastore?category=${encodeURIComponent(entityCategory)}&key=${encodeURIComponent(rv.sampleKey)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: '#FF6600', minWidth: 120, textDecoration: 'none', fontWeight: 500 }}
+                  <Box
+                    component="button"
+                    type="button"
+                    onClick={() => openSampleEntry(rv.sampleKey!)}
+                    sx={{ all: 'unset', cursor: 'pointer', color: '#FF6600', minWidth: 120, fontWeight: 500, '&:hover': { textDecoration: 'underline' } }}
                   >
-                    Injected sample
-                  </a>
+                    Injected sample {entityCategory}
+                  </Box>
                 ) : (
                   <Box component="span" sx={{ minWidth: 120 }}>Added sample</Box>
                 )}
@@ -2938,6 +2946,13 @@ const IncidentRoutingEditorInner = ({
           </Box>
         </DialogContent>
       </Dialog>
+      <DatastoreEntryEditDialog
+        open={!!sampleEntry}
+        item={sampleEntry}
+        orgId={currentOrgId}
+        fallbackCategory={entityCategory}
+        onClose={() => setSampleEntry(null)}
+      />
       <AgentExecutionDrawer open={!!openAgentRun} onClose={() => setOpenAgentRun(null)} run={openAgentRun} />
     </Box>
   );

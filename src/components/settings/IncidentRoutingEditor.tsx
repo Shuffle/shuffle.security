@@ -44,6 +44,7 @@ import {
   ROUTING_STATUS_OPTIONS,
   ROUTING_PRIORITY_OPTIONS,
   ROUTING_FIELD_SUGGESTIONS,
+  RoutingFieldPathInput,
   defaultRoutingAction,
   validateRoutingAction,
   resolveTenantRegionPatch,
@@ -1515,28 +1516,16 @@ const IncidentRoutingEditorInner = ({
                 <Box key={key} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {renderSeparator(parent, siblingIndex)}
                   <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <TextField
-                      size="small"
+                    <RoutingFieldPathInput
                       value={node.field}
-                      onChange={(e) =>
+                      onChange={(f) =>
                         patchNode(path, (n) =>
-                          n.kind === 'condition' ? { ...n, field: e.target.value } : n,
+                          n.kind === 'condition' ? { ...n, field: f } : n,
                         )
                       }
-                      placeholder="Field path"
-                      select
-                      SelectProps={{ native: false, renderValue: (v) => v as string }}
+                      labels={FIELD_LABELS}
                       sx={{ minWidth: 220, flex: 1 }}
-                    >
-                      {FIELD_SUGGESTIONS.map((f) => (
-                        <MenuItem key={f} value={f} sx={{ fontSize: '0.8rem' }}>
-                          {FIELD_LABELS[f] || f}
-                        </MenuItem>
-                      ))}
-                      {!FIELD_SUGGESTIONS.includes(node.field) && node.field && (
-                        <MenuItem value={node.field}>{node.field}</MenuItem>
-                      )}
-                    </TextField>
+                    />
                     <TextField
                       size="small"
                       select

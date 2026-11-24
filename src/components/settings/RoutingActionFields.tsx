@@ -11,7 +11,7 @@
  *  - `variant="compact"` -> stacked full-width controls for the small popover
  */
 
-import { Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Autocomplete, Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthenticatedApps, AUTHENTICATED_APPS_QUERY_KEY } from '@/Shuffle-Core/useAuthenticatedApps';
@@ -237,6 +237,63 @@ export const resolveTenantRegionPatch = (
   };
 };
 
+
+const CUSTOM_FIELDS_KEY = 'shuffle-security_routing_custom_fields';
+const readCustomFields = (): string[] => {
+  try {
+    const raw = typeof window !== 'undefined' ? window.localStorage.getItem(CUSTOM_FIELDS_KEY) : null;
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string' && x.trim()) : [];
+  } catch { return []; }
+};
+const saveCustomField = (field: string) => {
+  const f = field.trim();
+  if (!f || ROUTING_FIELD_SUGGESTIONS.includes(f)) return;
+  try {
+    const list = readCustomFields().filter((x) => x !== f);
+    window.localStorage.setItem(CUSTOM_FIELDS_KEY, JSON.stringify([f, ...list].slice(0, 50)));
+  } catch { /* ignore */ }
+};
+
+export interface RoutingFieldPathInputProps {
+  value: string;
+  onChange: (field: string) => void;
+  labels?: Record<string, string>;
+  label?: string;
+  placeholder?: string;
+  sx?: any;
+  fullWidth?: boolean;
+}
+
+/** Field path picker: pick a suggestion or type your own path. Typed paths are remembered locally. */
+export const RoutingFieldPathInput = ({ value, onChange, labels, label, placeholder = 'Field path', sx, fullWidth }: RoutingFieldPathInputProps) => {
+  const [custom, setCustom] = useState<string[]>(() => readCustomFields());
+  const options = Array.from(new Set([...ROUTING_FIELD_SUGGESTIONS, ...custom, ...(value ? [value] : [])]));
+  const commit = (v: string) => {
+    const f = v.trim();
+    if (f !== value) onChange(f);
+    if (f) { saveCustomField(f); setCustom(readCustomFields()); }
+  };
+  return (
+    <Autocomplete
+      freeSolo
+      autoSelect
+      size="small"
+      options={options}
+      value={value || null}
+      onChange={(_, v) => commit(typeof v === 'string' ? v : '')}
+      onInputChange={(_, v, reason) => { if (reason === 'input') onChange(v); }}
+      renderOption={(props, option) => (
+        <li {...props} key={option} style={{ fontSize: '0.8rem' }}>{labels?.[option] || option}</li>
+      )}
+      sx={sx}
+      fullWidth={fullWidth}
+      slotProps={{ popper: { sx: { zIndex: 9999 } } }}
+      renderInput={(params) => <TextField {...params} label={label} placeholder={placeholder} />}
+    />
+  );
+};
+
 export interface RoutingActionFieldsProps {
   action: RoutingAction;
   onChange: (patch: Partial<RoutingAction>) => void;
@@ -319,23 +376,14 @@ export const RoutingActionFields = ({
       {action.type === 'suggest_move' && <MoveActionAuthNotice />}
 
       {action.type === 'set_field' && (
-        <TextField
-          size="small"
-          select
+        <RoutingFieldPathInput
           value={action.field || ''}
-          onChange={(e) => onChange({ field: e.target.value })}
-          SelectProps={{ ...(selectProps || {}), renderValue: (v) => (v as string) || 'Pick field…' }}
+          onChange={(f) => onChange({ field: f })}
+          placeholder="Pick or type field"
           sx={compact ? undefined : { minWidth: 220 }}
           fullWidth={fullWidth}
           label={compact ? undefined : 'Field'}
-        >
-          {ROUTING_FIELD_SUGGESTIONS.map((f) => (
-            <MenuItem key={f} value={f} sx={{ fontSize: '0.8rem' }}>{f}</MenuItem>
-          ))}
-          {action.field && !ROUTING_FIELD_SUGGESTIONS.includes(action.field) && (
-            <MenuItem value={action.field}>{action.field}</MenuItem>
-          )}
-        </TextField>
+        />
       )}
 
       {action.type !== 'suggest_move' && (

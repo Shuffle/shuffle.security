@@ -771,9 +771,23 @@ const IncidentRoutingEditorInner = ({
   // can check that a field exists and how many records a condition matches.
   const [sampleRecords, setSampleRecords] = useState<any[] | null>(null);
   const [sampleLoading, setSampleLoading] = useState(false);
+  // Validation tooltips open as soon as Validate is clicked, so you can see
+  // what is being checked while each part loads.
+  const [tipOpen, setTipOpen] = useState<Record<string, boolean>>({});
+  const setTip = (k: string, open: boolean) => setTipOpen((t) => (t[k] === open ? t : { ...t, [k]: open }));
+  const renderStep = (label: string, state: 'pending' | 'running' | 'ok' | 'fail', detail?: string) => (
+    <Box key={label} sx={{ display: 'flex', gap: 1, alignItems: 'center', fontSize: '0.75rem' }}>
+      <Box component="span" sx={{ width: 52, display: 'inline-flex', fontWeight: 600, color: state === 'ok' ? 'hsl(var(--success, 142 70% 45%))' : state === 'fail' ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>
+        {state === 'running' ? <CircularProgress size={11} /> : state === 'ok' ? 'Passed' : state === 'fail' ? 'Failed' : 'Waiting'}
+      </Box>
+      <Box component="span" sx={{ minWidth: 120 }}>{label}</Box>
+      {detail && <Box component="span" sx={{ color: 'hsl(var(--muted-foreground))' }}>{detail}</Box>}
+    </Box>
+  );
   const [sampleInfo, setSampleInfo] = useState<{ status: 'ok' | 'error'; fetched: number; parsed: number; error?: string; more: boolean } | null>(null);
   const [validation, setValidation] = useState<Record<string, {
-    field: string; total: number; fieldHits: number; lineHits: number; ruleHits: number; ruleLeaves: number;
+    field: string; total: number; fieldHits: number; lineHits: number; ruleHits: number; ruleLeaves: number; loading?: boolean;
+    op?: string; value?: string;
   }>>({});
   const loadSampleRecords = useCallback(async (): Promise<any[]> => {
     if (!currentOrgId) {
@@ -808,6 +822,7 @@ const IncidentRoutingEditorInner = ({
   }, [loadSampleRecords]);
   // "Validate response": runs a sample record through the real routing
   // workflow and reports how the run went. Only possible when the workflow exists.
+  type StepState = 'pending' | 'running' | 'ok' | 'fail';
   const [responseValidation, setResponseValidation] = useState<Record<string, {
     state: 'running' | 'done' | 'error';
     message: string;
@@ -816,11 +831,18 @@ const IncidentRoutingEditorInner = ({
     actionsRun?: number;
     failed?: number;
     sampleSource?: string;
+    steps?: { sample: StepState; start: StepState; wait: StepState };
   }>>({});
   const validateResponse = async (key: string, rule: RoutingRule, ruleTree: ConditionGroup) => {
     const wf: any = matchedWorkflow;
     if (!wf?.id) return;
-    setResponseValidation((v) => ({ ...v, [key]: { state: 'running', message: 'Running a sample through the routing workflow' } }));
+    setTip(key, true);
+    const steps = { sample: 'running' as StepState, start: 'pending' as StepState, wait: 'pending' as StepState };
+    const push = (patch: Partial<typeof steps>, extra: Record<string, any> = {}) => {
+      Object.assign(steps, patch);
+      setResponseValidation((v) => ({ ...v, [key]: { ...(v[key] || { state: 'running', message: '' }), ...extra, steps: { ...steps } } }));
+    };
+    setResponseValidation((v) => ({ ...v, [key]: { state: 'running', message: 'Running a sample through the routing workflow', steps: { ...steps } } }));
     try {
       const recs = sampleRecords ?? (await loadSampleRecords());
       const leafEval = (r: any) => (l: ConditionLeaf) => {
@@ -833,6 +855,7 @@ const IncidentRoutingEditorInner = ({
         : recs[0]
           ? 'a recent record (none matched this rule)'
           : 'an empty sample (no records in this category)';
+      push({ sample: 'ok', start: 'running' }, { sampleSource });
       const resp = await fetch(getApiUrl(`/api/v1/workflows/${wf.id}/execute`), {
         method: 'POST',
         credentials: 'include',
@@ -856,6 +879,7 @@ const IncidentRoutingEditorInner = ({
       const executionId: string = body?.execution_id || body?.id || '';
       const authorization: string = body?.authorization || executionId;
       if (!executionId) throw new Error('Workflow started but returned no execution ID');
+      push({ start: 'ok', wait: 'running' }, { executionId });
       let last: any = null;
       for (let i = 0; i < 15; i++) {
         await new Promise((r) => setTimeout(r, 2000));
@@ -873,9 +897,11 @@ const IncidentRoutingEditorInner = ({
       const results: any[] = Array.isArray(last?.results) ? last.results : [];
       const failed = results.filter((r) => ['FAILURE', 'ABORTED'].includes(String(r?.status || '').toUpperCase())).length;
       const status = String(last?.status || 'UNKNOWN').toUpperCase();
+      Object.assign(steps, { wait: status === 'FINISHED' && failed === 0 ? 'ok' : 'fail' });
       setResponseValidation((v) => ({
         ...v,
         [key]: {
+          steps: { ...steps },
           state: status === 'FINISHED' && failed === 0 ? 'done' : 'error',
           status,
           executionId,
@@ -890,7 +916,8 @@ const IncidentRoutingEditorInner = ({
         },
       }));
     } catch (e: any) {
-      setResponseValidation((v) => ({ ...v, [key]: { state: 'error', message: e?.message || 'Validation failed' } }));
+      for (const k of ['sample', 'start', 'wait'] as const) if (steps[k] === 'running') steps[k] = 'fail';
+      setResponseValidation((v) => ({ ...v, [key]: { ...(v[key] || {}), state: 'error', message: e?.message || 'Validation failed', steps: { ...steps } } }));
     }
   };
   const sampleKeys = useMemo(() => {
@@ -912,6 +939,11 @@ const IncidentRoutingEditorInner = ({
     leaf: { field: string; op: RoutingConditionOp; value?: string },
     ruleTree: ConditionGroup,
   ) => {
+    setTip(key, true);
+    setValidation((v) => ({
+      ...v,
+      [key]: { field: leaf.field, op: leaf.op, value: leaf.value, total: 0, fieldHits: 0, lineHits: 0, ruleHits: 0, ruleLeaves: collectLeaves(ruleTree).length, loading: true },
+    }));
     const recs = await loadSampleRecords();
     const present = (v: any) => v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0) && v !== '';
     const leafEval = (r: any) => (l: ConditionLeaf) => {
@@ -925,7 +957,7 @@ const IncidentRoutingEditorInner = ({
     }
     setValidation((v) => ({
       ...v,
-      [key]: { field: leaf.field, total: recs.length, fieldHits, lineHits, ruleHits, ruleLeaves: collectLeaves(ruleTree).length },
+      [key]: { field: leaf.field, op: leaf.op, value: leaf.value, total: recs.length, fieldHits, lineHits, ruleHits, ruleLeaves: collectLeaves(ruleTree).length },
     }));
   };
   const [loadingTestRecords, setLoadingTestRecords] = useState(false);
@@ -1737,6 +1769,18 @@ const IncidentRoutingEditorInner = ({
                     const r = validation[`${rule.id}:${key}`];
                     if (!r || r.field !== node.field) return null;
                     const info = sampleInfo;
+                    const what = `Validating: ${r.field} ${OP_LABELS[(r.op as RoutingConditionOp) || 'contains'] || r.op || ''}${r.op !== 'exists' && r.value ? ` "${r.value}"` : ''}`;
+                    if (r.loading) {
+                      return (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 600 }}>{what}</Typography>
+                          {renderStep('Load records', 'running', `latest records in ${entityCategory}`)}
+                          {renderStep(`Field "${r.field}"`, 'pending')}
+                          {renderStep('This condition', 'pending')}
+                          {renderStep(`Whole rule (${r.ruleLeaves} conditions)`, 'pending')}
+                        </Box>
+                      );
+                    }
                     const muted = 'hsl(var(--muted-foreground))';
                     const bad = 'hsl(var(--destructive))';
                     const good = 'hsl(var(--success, 142 70% 45%))';
@@ -1754,6 +1798,7 @@ const IncidentRoutingEditorInner = ({
                     );
                     return (
                       <Box sx={{ pl: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 600 }}>{what}</Typography>
                         <Typography variant="caption" sx={{ color: info?.status === 'error' || r.total === 0 ? bad : muted }}>
                           {r.total === 0 && info?.status !== 'error'
                             ? `No records found in ${entityCategory}. Fetched ${info?.fetched ?? 0} items, ${info?.parsed ?? 0} readable.`
@@ -1770,7 +1815,7 @@ const IncidentRoutingEditorInner = ({
                     );
               })();
               const vr = validation[`${rule.id}:${key}`];
-              const vrStatus = !vr || vr.field !== node.field ? null : vr.total > 0 && vr.ruleHits > 0 ? 'ok' : vr.total > 0 && vr.fieldHits > 0 ? 'partial' : 'bad';
+              const vrStatus = !vr || vr.field !== node.field ? null : vr.loading ? null : vr.total > 0 && vr.ruleHits > 0 ? 'ok' : vr.total > 0 && vr.fieldHits > 0 ? 'partial' : 'bad';
               return (
                 <Box key={key} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {renderSeparator(parent, siblingIndex)}
@@ -1819,14 +1864,17 @@ const IncidentRoutingEditorInner = ({
                       />
                     )}
                     <Tooltip
-                      title={sampleLoading ? 'Loading records from this category' : validationResult || 'Validate field: check the field, this condition and the whole rule against recent records'}
+                      open={!!tipOpen[`${rule.id}:${key}`]}
+                      onOpen={() => setTip(`${rule.id}:${key}`, true)}
+                      onClose={() => setTip(`${rule.id}:${key}`, false)}
+                      title={validationResult || 'Validate field: check the field, this condition and the whole rule against recent records'}
                       componentsProps={{ tooltip: { sx: { maxWidth: 420 } } }}
                     >
                       <span>
                         <IconButton
                           size="small"
                           aria-label="Validate field"
-                          disabled={!node.field || sampleLoading}
+                          disabled={!node.field || !!vr?.loading}
                           onClick={() => validateLeaf(`${rule.id}:${key}`, node, tree)}
                           sx={{
                             width: 36,
@@ -1837,7 +1885,7 @@ const IncidentRoutingEditorInner = ({
                             '&:hover': { color: 'hsl(var(--primary))' },
                           }}
                         >
-                          {sampleLoading ? <CircularProgress size={14} /> : <ValidateIcon size={16} />}
+                          {vr?.loading ? <CircularProgress size={14} /> : <ValidateIcon size={16} />}
                         </IconButton>
                       </span>
                     </Tooltip>
@@ -2073,21 +2121,23 @@ const IncidentRoutingEditorInner = ({
                         const color = rv?.state === 'done' ? 'hsl(var(--success, 142 70% 45%))' : rv?.state === 'error' ? 'hsl(var(--destructive))' : undefined;
                         const title = !hasWf
                           ? 'Validate response: needs the routing workflow. Create the routing workflow first, then a sample can be run through it.'
-                          : rv?.state === 'running'
-                            ? 'Running a sample through the routing workflow'
-                            : rv
-                              ? (
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, fontSize: '0.75rem' }}>
-                                  <Box sx={{ fontWeight: 600 }}>{rv.state === 'done' ? 'Passed' : 'Failed'}: {rv.message}</Box>
-                                  {rv.sampleSource && <Box>Sample: {rv.sampleSource}</Box>}
-                                  {rv.status && <Box>Run status: {rv.status}</Box>}
+                          : rv
+                            ? (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, fontSize: '0.75rem' }}>
+                                  <Box sx={{ fontWeight: 600 }}>
+                                    Validating: {summarizeAction(action)} through {(matchedWorkflow as any)?.name || 'the routing workflow'}
+                                  </Box>
+                                  {rv.steps && renderStep('Pick sample', rv.steps.sample, rv.sampleSource)}
+                                  {rv.steps && renderStep('Start workflow', rv.steps.start, rv.executionId ? `execution ${rv.executionId.slice(0, 8)}` : undefined)}
+                                  {rv.steps && renderStep('Wait for result', rv.steps.wait, rv.steps.wait === 'running' ? 'up to 30 seconds' : rv.status ? `status ${rv.status}` : undefined)}
+                                  {rv.state !== 'running' && <Box>{rv.state === 'done' ? 'Passed' : 'Failed'}: {rv.message}</Box>}
                                   {typeof rv.actionsRun === 'number' && <Box>Steps run: {rv.actionsRun}, failed: {rv.failed}</Box>}
-                                  {rv.executionId && <Box sx={{ wordBreak: 'break-all' }}>Execution: {rv.executionId}</Box>}
+                                  {rv.executionId && rv.state !== 'running' && <Box sx={{ wordBreak: 'break-all' }}>Execution: {rv.executionId}</Box>}
                                 </Box>
                               )
                               : 'Validate response: run a real sample from this category through the routing workflow and check the result';
                         return (
-                          <Tooltip title={title} componentsProps={{ tooltip: { sx: { maxWidth: 420 } } }}>
+                          <Tooltip open={!!tipOpen[rk]} onOpen={() => setTip(rk, true)} onClose={() => setTip(rk, false)} title={title} componentsProps={{ tooltip: { sx: { maxWidth: 420 } } }}>
                             <span>
                               <IconButton
                                 size="small"

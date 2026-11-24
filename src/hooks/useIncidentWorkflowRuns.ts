@@ -16,6 +16,14 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { searchAgentActivity, AgentRun } from '@/services/agentActivity';
 import { collectRunText, parseDatastoreReference, isIncidentReference } from '@/lib/agentParsers';
 
+const runMatchesIncident = (run: AgentRun, incidentKey?: string): boolean => {
+  if (!incidentKey) return false;
+  const ref = parseDatastoreReference(run);
+  if (ref && isIncidentReference(ref) && ref.key === incidentKey) return true;
+  const haystack = collectRunText(run).toLowerCase();
+  return !!haystack && haystack.includes(incidentKey.toLowerCase());
+};
+
 const WORKFLOW_RUNS_QUERY_KEY = ['workflow-activity-incidents'];
 
 export interface IncidentRunsWindow {
@@ -51,7 +59,10 @@ export const useIncidentWorkflowRuns = (
     refetchInterval: isDetailContext
       ? (query) => {
           if (hasInFlight) return 5_000;
-          const runs = (query.state.data as AgentRun[] | undefined) || [];
+          // Only this incident's runs decide fast polling.
+          const runs = ((query.state.data as AgentRun[] | undefined) || []).filter((run) =>
+            runMatchesIncident(run, incidentKey),
+          );
           const anyRunning = runs.some((r) => {
             const s = (r.status || '').toUpperCase();
             return s === 'EXECUTING' || s === 'WAITING' || s === 'RUNNING';
@@ -64,16 +75,7 @@ export const useIncidentWorkflowRuns = (
     placeholderData: keepPreviousData,
   });
 
-  const runsForIncident = (() => {
-    if (!incidentKey) return [] as AgentRun[];
-    const needle = incidentKey.toLowerCase();
-    return allRuns.filter((run) => {
-      const ref = parseDatastoreReference(run);
-      if (ref && isIncidentReference(ref) && ref.key === incidentKey) return true;
-      const haystack = collectRunText(run).toLowerCase();
-      return !!haystack && haystack.includes(needle);
-    });
-  })();
+  const runsForIncident = allRuns.filter((run) => runMatchesIncident(run, incidentKey));
 
   return { allRuns, runsForIncident, isLoading, error, refetch };
 };

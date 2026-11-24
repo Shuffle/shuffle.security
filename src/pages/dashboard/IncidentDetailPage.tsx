@@ -544,8 +544,8 @@ const stepVerbLabel = (label: string, hasActor: boolean): string => {
 };
 
 /**
- * Universal styling for timeline text items that must occupy at most 1 line
- * by default, expanding to full wrapped text when hovered.
+ * Universal styling for timeline text items that must occupy at most 1 line.
+ * They never expand on hover; clicking the row jumps to the full text instead.
  */
 const timelineClampSingleLineSx = {
   whiteSpace: "nowrap",
@@ -555,12 +555,6 @@ const timelineClampSingleLineSx = {
   boxSizing: "border-box",
   cursor: "inherit",
   transition: "all 0.12s ease",
-  "&:hover, .timeline-hover-row:hover &": {
-    whiteSpace: "pre-wrap",
-    overflow: "hidden",
-    wordBreak: "break-word",
-    overflowWrap: "anywhere",
-  },
 } as const;
 
 const formatDuration = (ms: number): string => {
@@ -1873,6 +1867,64 @@ const IncidentDetailPage = () => {
         /* ignore */
       }
     }, 220);
+  };
+
+  // Clicking a simple-timeline row scrolls to the matching text in the
+  // center view and highlights it briefly.
+  const focusHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const focusSimpleTimelineTarget = (target: {
+    section?:
+      | "overview"
+      | "narrative"
+      | "tasks"
+      | "customFields"
+      | "observables"
+      | "correlations"
+      | "emailThread"
+      | null;
+    taskId?: string | null;
+    obsKey?: string | null;
+    attrField?: string | null;
+  }) => {
+    setHoveredSimpleTimelineTarget(target as any);
+    try {
+      let el: HTMLElement | null = null;
+      if (target.taskId) {
+        const escaped =
+          typeof CSS !== "undefined" && CSS.escape
+            ? CSS.escape(target.taskId)
+            : target.taskId;
+        el = document.querySelector(
+          `[data-simple-task-id="${escaped}"]`,
+        ) as HTMLElement | null;
+      }
+      if (!el && target.obsKey) {
+        const escaped =
+          typeof CSS !== "undefined" && CSS.escape
+            ? CSS.escape(target.obsKey)
+            : target.obsKey;
+        el = document.querySelector(
+          `[data-simple-obs-key="${escaped}"]`,
+        ) as HTMLElement | null;
+      }
+      if (!el && target.section) {
+        el = document.getElementById(
+          `simple-case-${target.section}`,
+        ) as HTMLElement | null;
+      }
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch {
+      /* ignore */
+    }
+    if (focusHighlightTimerRef.current) {
+      clearTimeout(focusHighlightTimerRef.current);
+    }
+    focusHighlightTimerRef.current = setTimeout(() => {
+      setHoveredSimpleTimelineTarget(null);
+      focusHighlightTimerRef.current = null;
+    }, 2500);
   };
 
   const cancelGentleScroll = () => {
@@ -10703,7 +10755,6 @@ const IncidentDetailPage = () => {
               data-simple-timeline-feed="true"
               onMouseLeave={() => {
                 cancelGentleScroll();
-                setHoveredSimpleTimelineTarget(null);
               }}
               sx={{
                 flex: 1,
@@ -15589,8 +15640,15 @@ const IncidentDetailPage = () => {
                     : "rgba(255,255,255,0.08)",
             }}
           >
-            {avatarInfo.src ? null : isStatusActivity ? (
+            {/* Always pass the icon: MUI shows it when there is no image or
+                the image fails to load, instead of a blank person shape. */}
+            {isStatusActivity ? (
               <CheckCircleIcon size={14} />
+            ) : isSimple && isComment ? (
+              <MessageSquare
+                size={12}
+                style={{ color: "hsl(var(--muted-foreground))" }}
+              />
             ) : (
               getActivityIcon(actItem.type)
             )}
@@ -16037,6 +16095,12 @@ const IncidentDetailPage = () => {
                 alignItems: "center",
                 gap: isSimple ? 0.75 : 1,
                 mb: 0.25,
+                ...(isSimple && {
+                  flexWrap: "nowrap",
+                  minWidth: 0,
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                }),
               }}
             >
               {isSimple && avatarNode}
@@ -17067,17 +17131,13 @@ const IncidentDetailPage = () => {
       const interactiveNode =
         isSimple && React.isValidElement(node)
           ? React.cloneElement(node as React.ReactElement<any>, {
-              onMouseEnter: (e: React.MouseEvent) => {
-                (node as any).props?.onMouseEnter?.(e);
-                if (target) {
-                  setHoveredSimpleTimelineTarget(target);
-                  scheduleGentleScroll(target);
-                }
+              onClick: (e: React.MouseEvent) => {
+                (node as any).props?.onClick?.(e);
+                if (target) focusSimpleTimelineTarget(target);
               },
-              onMouseLeave: (e: React.MouseEvent) => {
-                (node as any).props?.onMouseLeave?.(e);
-                cancelGentleScroll();
-                setHoveredSimpleTimelineTarget(null);
+              style: {
+                ...((node as any).props?.style || {}),
+                ...(target ? { cursor: "pointer" } : {}),
               },
             })
           : node;

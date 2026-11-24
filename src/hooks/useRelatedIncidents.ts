@@ -110,12 +110,15 @@ export const useRelatedIncidents = (
   const [tick, setTick] = useState(0);
   const cancelled = useRef(false);
 
-  const primaryPtr = useMemo(() => getPrimaryPointer(raw), [raw]);
-  const linkedPtrs = useMemo(() => getLinkedPointers(raw), [raw]);
-  const pointerKey = useMemo(
-    () => [primaryPtr?.id, ...linkedPtrs.map(p => p.id)].filter(Boolean).join('|'),
-    [primaryPtr, linkedPtrs],
-  );
+  const freshPrimary = getPrimaryPointer(raw);
+  const freshLinked = getLinkedPointers(raw);
+  const pointerKey = [freshPrimary?.id, ...freshLinked.map(p => p.id)].filter(Boolean).join('|');
+  // Only swap pointer objects when the pointed-to ids change, so routine
+  // incident refreshes do not re-fetch every linked incident.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const primaryPtr = useMemo(() => freshPrimary, [pointerKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const linkedPtrs = useMemo(() => freshLinked, [pointerKey]);
 
   useEffect(() => {
     if (!incidentId) return;

@@ -128,7 +128,7 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars, children
         variant="caption"
         className={className}
         title={username}
-        sx={{ fontWeight: 600, fontSize: '0.75rem' }}
+        sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap', flexShrink: 0 }}
       >
         {shortenName(username, maxChars)}
       </Typography>
@@ -144,6 +144,8 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars, children
           sx={{
             display: 'inline-flex',
             alignItems: 'center',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
             cursor: 'pointer',
             borderRadius: children ? undefined : 0.75,
             px: children ? 0 : 0.4,
@@ -165,6 +167,7 @@ export const UserHoverCard = ({ username, isAgent, className, maxChars, children
                 fontWeight: 600,
                 fontSize: '0.75rem',
                 color: 'text.primary',
+                whiteSpace: 'nowrap',
               }}
               title={displayName}
             >

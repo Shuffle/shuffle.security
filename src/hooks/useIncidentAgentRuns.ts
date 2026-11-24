@@ -57,7 +57,10 @@ export const useIncidentAgentRuns = (
     refetchInterval: isDetailContext
       ? (query) => {
           if (hasPendingAgentMention) return 5_000;
-          const runs = (query.state.data as AgentRun[] | undefined) || [];
+          // Only this incident's runs decide fast polling; busy runs
+          // elsewhere in the org must not keep this page polling every 5s.
+          const allData = (query.state.data as AgentRun[] | undefined) || [];
+          const runs = incidentKey ? getAgentRunsForIncident(allData, incidentKey) : [];
           const hasInFlight = runs.some((r) => {
             const s = (r.status || '').toUpperCase();
             return s === 'EXECUTING' || s === 'WAITING' || s === 'RUNNING';

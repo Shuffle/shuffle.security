@@ -191,6 +191,7 @@ const [exec, setExec] = useState<WorkflowExecution | null>(null);
   const debugModalZIndex = useOverlayLayer(debugModalOpen);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showSkipped, setShowSkipped] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelledRef = useRef(false);
 
@@ -635,9 +636,25 @@ const openInShuffle = async () => {
 
           <Divider sx={{ my: 2, bgcolor: 'hsl(var(--border))' }} />
 
-          <Typography variant="subtitle2" sx={{ mb: 1, color: 'hsl(var(--muted-foreground))' }}>
-            Results {exec.results ? `(${exec.results.length})` : ''}
-          </Typography>
+          {(() => {
+            const skippedCount = (exec.results || []).filter((r: any) => String(r?.status || '').toUpperCase() === 'SKIPPED').length;
+            return (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="subtitle2" sx={{ color: 'hsl(var(--muted-foreground))' }}>
+                  Results {exec.results ? `(${exec.results.length - (showSkipped ? 0 : skippedCount)})` : ''}
+                </Typography>
+                {skippedCount > 0 && (
+                  <Button
+                    size="small"
+                    onClick={() => setShowSkipped((v) => !v)}
+                    sx={{ textTransform: 'none', height: 28, color: 'hsl(var(--muted-foreground))', '&:hover': { color: 'hsl(var(--primary))' } }}
+                  >
+                    {showSkipped ? `Hide skipped (${skippedCount})` : `Show skipped (${skippedCount})`}
+                  </Button>
+                )}
+              </Box>
+            );
+          })()}
           {(!exec.results || exec.results.length === 0) && isRunning(exec.status) && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 2 }}>
               <CircularProgress size={16} />
@@ -647,6 +664,7 @@ const openInShuffle = async () => {
             </Box>
           )}
           {exec.results?.map((r, idx) => {
+            if (!showSkipped && String(r?.status || '').toUpperCase() === 'SKIPPED') return null;
             const wfAction = exec.workflow?.actions?.find((a: any) =>
               (r?.action?.id && a?.id === r.action.id) ||
               (r?.action?.app_name && a?.app_name === r.action.app_name) ||

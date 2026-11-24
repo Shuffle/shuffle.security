@@ -864,6 +864,19 @@ const IncidentRoutingEditorInner = ({
           ? 'a generated sample that matches this rule (no recent record did)'
           : 'a generated sample (no recent record matched; some conditions could not be filled in, so it may not match)';
       }
+      // Real records can carry unresolved workflow references (e.g. "$.parts.#0.body.data");
+      // drop those so the demo record only contains real values.
+      const stripRefs = (v: any): any => {
+        if (typeof v === 'string') return /^\s*\$[\w.#-]*\.[\w#]/.test(v) ? undefined : v;
+        if (Array.isArray(v)) return v.map(stripRefs).filter((x) => x !== undefined);
+        if (v && typeof v === 'object') {
+          const o: any = {};
+          for (const [k, x] of Object.entries(v)) { const c = stripRefs(x); if (c !== undefined) o[k] = c; }
+          return o;
+        }
+        return v;
+      };
+      sample = stripRefs(sample);
       // Always test on a real, clearly labelled demo record so the result can be opened.
       const sampleKey = `demo-routing-${rule.id}-${Date.now()}`;
       const baseTitle = String(sample?.title || sample?.name || rule.name || 'Routing test');

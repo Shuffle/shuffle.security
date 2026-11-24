@@ -67,6 +67,12 @@ export interface DatastoreItemRecord {
   category: string;
   created_at?: number;
   edited_at?: number;
+  // The API reports these as 'created' / 'edited' on some endpoints.
+  created?: number;
+  edited?: number;
+  tags?: string[];
+  updated_by?: string;
+  revision_id?: string;
   suborg_distribution?: string[];
   public_authorization?: string;
   rbac?: RBACConfig;
@@ -1009,9 +1015,22 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
     }
   };
 
+  // Raw record details. The API reports timestamps as created_at/edited_at on some
+  // endpoints and created/edited on others, so read whichever one is present.
+  const recordCreated = (item?: DatastoreItemRecord | null) => item?.created_at ?? item?.created;
+  const recordEdited = (item?: DatastoreItemRecord | null) => item?.edited_at ?? item?.edited;
+  const recordTags = (item?: DatastoreItemRecord | null): string[] => {
+    const tags = item?.tags;
+    if (!Array.isArray(tags)) return [];
+    return tags.filter((tag) => typeof tag === 'string' && tag.trim().length > 0).map((tag) => tag.trim());
+  };
+
   // Category column only shown when looking at default category (query is empty, "default", or "all")
   const isDefaultCategory = !selectedCategory || selectedCategory === 'default' || selectedCategory === '' || selectedCategory === 'all';
   const totalColumns = (readOnly ? 2 : 4) + (isDefaultCategory ? 1 : 0);
+
+  const editTags = recordTags(activeItem);
+  const editSuborgs = Array.isArray(activeItem?.suborg_distribution) ? activeItem.suborg_distribution : [];
 
   return (
     <Box sx={{ width: '100%', p: embedded ? 0 : { xs: 1.5, md: 2.5 }, pb: categoryLocked ? 0 : '200px' }}>
@@ -2030,7 +2049,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
           },
         }}
       >
-        <DialogTitle sx={{ fontWeight: 600, fontSize: '1rem', borderBottom: '1px solid hsl(var(--border))' }}>
+        <DialogTitle sx={{ fontWeight: 600, fontSize: '1rem' }}>
           Edit Datastore Entry
         </DialogTitle>
         <DialogContent sx={{ py: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -2070,6 +2089,60 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
               Value is not valid JSON (will be saved as raw string if submitted)
             </Typography>
           )}
+
+          {/* Raw record details: what the entry looks like on the server */}
+          <Box
+            sx={{
+              mt: 0.5,
+              p: 1.5,
+              borderRadius: 1.5,
+              border: '1px solid hsl(var(--border))',
+              bgcolor: isDark ? 'hsl(var(--card) / 0.6)' : 'hsl(var(--muted) / 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1.25,
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 2.5,
+                fontSize: '0.78rem',
+                fontFamily: 'monospace',
+                color: 'hsl(var(--muted-foreground))',
+              }}
+            >
+              <span>Created: {formatTs(recordCreated(activeItem))}</span>
+              <span>Updated: {formatTs(recordEdited(activeItem))}</span>
+              <span>Category: {activeItem?.category || selectedCategory || '-'}</span>
+              {activeItem?.updated_by ? <span>Updated by: {activeItem.updated_by}</span> : null}
+              {activeItem?.revision_id ? <span>Revision: {activeItem.revision_id}</span> : null}
+              {Array.isArray(activeItem?.suborg_distribution) && activeItem!.suborg_distribution!.length > 0 ? (
+                <span>Shared with: {activeItem!.suborg_distribution!.length} sub-tenant(s)</span>
+              ) : null}
+            </Box>
+
+            {editTags.length > 0 && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: 'hsl(var(--muted-foreground))', fontWeight: 600, letterSpacing: '0.02em' }}
+                >
+                  Tags
+                </Typography>
+                {editTags.map((tag) => (
+                  <Chip
+                    key={tag}
+                    label={tag}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontFamily: 'monospace', fontSize: '0.72rem', height: 22 }}
+                  />
+                ))}
+              </Box>
+            )}
+          </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 1.5, borderTop: '1px solid hsl(var(--border))' }}>
           <Button

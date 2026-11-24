@@ -2230,7 +2230,6 @@ const IncidentRoutingEditorInner = ({
               }}
             >
               {rule.actions.map((action, aIdx) => {
-                const isMultilineAction = action.type === 'add_comment' || action.type === 'run_agent';
                 return (
                   <Box
                     key={aIdx}
@@ -2243,8 +2242,8 @@ const IncidentRoutingEditorInner = ({
                         : {}),
                     }}
                   >
-                    <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                      <Box sx={{ flex: 1.5, minWidth: 280 }}>
+                    <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
                         <RoutingActionFields
                           action={action}
                           variant="editor"
@@ -2253,16 +2252,6 @@ const IncidentRoutingEditorInner = ({
                           onTypeChange={(t) => changeActionType(rule.id, aIdx, t)}
                         />
                       </Box>
-                      {!isMultilineAction && (
-                        <TextField
-                          size="small"
-                          label="Reason (optional)"
-                          value={action.reason || ''}
-                          onChange={(e) => updateAction(rule.id, aIdx, { reason: e.target.value })}
-                          placeholder="Shown in suggestion banner"
-                          sx={{ flex: 1, minWidth: 200 }}
-                        />
-                      )}
                       <Tooltip title="Remove action">
                         <span>
                           <IconButton
@@ -2282,16 +2271,14 @@ const IncidentRoutingEditorInner = ({
                       </Tooltip>
                     </Box>
 
-                    {isMultilineAction && (
-                      <TextField
-                        size="small"
-                        label="Reason (optional)"
-                        value={action.reason || ''}
-                        onChange={(e) => updateAction(rule.id, aIdx, { reason: e.target.value })}
-                        placeholder="Reason shown to user (optional)"
-                        sx={{ width: '100%' }}
-                      />
-                    )}
+                    <TextField
+                      size="small"
+                      label="Reason (optional)"
+                      value={action.reason || ''}
+                      onChange={(e) => updateAction(rule.id, aIdx, { reason: e.target.value })}
+                      placeholder="Shown in the suggestion banner"
+                      sx={{ width: '100%', pr: '46px' }}
+                    />
                   </Box>
                 );
               })}

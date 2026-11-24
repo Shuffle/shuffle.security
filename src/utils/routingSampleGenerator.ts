@@ -67,3 +67,26 @@ export const generateRuleSample = (tree: ConditionGroup, base: any = {}): { samp
   });
   return { sample, matches };
 };
+
+/**
+ * Picks the record a rule test should run through the routing workflow: the
+ * first recent record that already satisfies the rule. Returns null when no
+ * record does, so the caller knows to generate a matching sample instead.
+ */
+export const findRuleTestSample = (
+  tree: ConditionGroup,
+  records: any[] | null | undefined,
+): any | null => {
+  if (!Array.isArray(records)) return null;
+  return (
+    records.find((r) => {
+      try {
+        return evaluateTree(tree, (l) =>
+          evaluateCondition(r, { field: l.field, op: l.op, value: l.value } as any),
+        );
+      } catch {
+        return false;
+      }
+    }) || null
+  );
+};

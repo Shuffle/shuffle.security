@@ -81,7 +81,7 @@ import { useSubOrgs } from '@/hooks/useSubOrgs';
 import { useAuth } from '@/context/AuthContext';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
-import { generateRuleSample } from '@/utils/routingSampleGenerator';
+import { generateRuleSample, findRuleTestSample } from '@/utils/routingSampleGenerator';
 import { getDatastoreByCategory } from '@/Shuffle-Core/datastore';
 import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from '@/Shuffle-Core/components/DatastoreCategorySelect';
 import {
@@ -851,10 +851,7 @@ const IncidentRoutingEditorInner = ({
     setResponseValidation((v) => ({ ...v, [key]: { state: 'running', message: 'Running a sample through the routing workflow', steps: { ...steps } } }));
     try {
       const recs = sampleRecords ?? (await loadSampleRecords());
-      const leafEval = (r: any) => (l: ConditionLeaf) => {
-        try { return evaluateCondition(r, { field: l.field, op: l.op, value: l.value } as any); } catch { return false; }
-      };
-      const matching = recs.find((r) => evaluateTree(ruleTree, leafEval(r)));
+      const matching = findRuleTestSample(ruleTree, recs);
       let sample: any = matching;
       let sampleSource = 'a recent record that matches this rule';
       if (!sample) {
@@ -930,6 +927,18 @@ const IncidentRoutingEditorInner = ({
       for (const k of ['sample', 'start', 'wait'] as const) if (steps[k] === 'running') steps[k] = 'fail';
       setResponseValidation((v) => ({ ...v, [key]: { ...(v[key] || {}), state: 'error', message: e?.message || 'Validation failed', steps: { ...steps } } }));
     }
+  };
+  // Rule-level "Test": the run is real, so it goes through a confirmation
+  // first — the routing workflow can move, assign or comment for real.
+  const ruleTestKey = (ruleId: string) => `${ruleId}:rule`;
+  const [pendingTest, setPendingTest] = useState<RoutingRule | null>(null);
+  const runRuleTest = (rule: RoutingRule) => {
+    setPendingTest(null);
+    void validateResponse(
+      ruleTestKey(rule.id),
+      rule,
+      rule.conditionTree || migrateLegacyConditions(rule),
+    );
   };
   const sampleKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -1656,6 +1665,66 @@ const IncidentRoutingEditorInner = ({
                 size="small"
               />
             </Tooltip>
+            {(() => {
+              const rk = ruleTestKey(rule.id);
+              const rv = responseValidation[rk];
+              const hasWf = !!(matchedWorkflow as any)?.id;
+              const wfName = (matchedWorkflow as any)?.name || 'the routing workflow';
+              const color =
+                rv?.state === 'done'
+                  ? 'hsl(var(--success, 142 70% 45%))'
+                  : rv?.state === 'error'
+                    ? 'hsl(var(--destructive))'
+                    : undefined;
+              const title = !hasWf
+                ? 'Testing needs the routing workflow. Create the routing workflow first, then a sample can be run through it.'
+                : rv
+                  ? (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, fontSize: '0.75rem' }}>
+                        <Box sx={{ fontWeight: 600 }}>
+                          Validating: rule "{rule.name || 'Untitled rule'}" through {wfName}
+                        </Box>
+                        {rv.steps && renderStep('Pick sample', rv.steps.sample, rv.sampleSource)}
+                        {rv.steps && renderStep('Start workflow', rv.steps.start, rv.executionId ? `execution ${rv.executionId.slice(0, 8)}` : undefined)}
+                        {rv.steps && renderStep('Wait for result', rv.steps.wait, rv.steps.wait === 'running' ? 'up to 30 seconds' : rv.status ? `status ${rv.status}` : undefined)}
+                        {rv.state !== 'running' && <Box>{rv.state === 'done' ? 'Passed' : 'Failed'}: {rv.message}</Box>}
+                        {typeof rv.actionsRun === 'number' && <Box>Steps run: {rv.actionsRun}, failed: {rv.failed}</Box>}
+                        {rv.executionId && rv.state !== 'running' && <Box sx={{ wordBreak: 'break-all' }}>Execution: {rv.executionId}</Box>}
+                        <Box sx={{ color: 'hsl(var(--severity-medium, 38 92% 50%))' }}>
+                          This was a real run of {wfName}. Nothing it did is undone.
+                        </Box>
+                      </Box>
+                    )
+                  : `Test this rule. It runs ${wfName} for real on a sample record, and everything the workflow does — moving to another tenant, assigning, commenting — actually happens.`;
+              return (
+                <Tooltip
+                  open={!!tipOpen[rk]}
+                  onOpen={() => setTip(rk, true)}
+                  onClose={() => setTip(rk, false)}
+                  title={title}
+                  componentsProps={{ tooltip: { sx: { maxWidth: 420 } } }}
+                >
+                  <span>
+                    <IconButton
+                      size="small"
+                      aria-label="Test rule"
+                      disabled={!hasWf || rv?.state === 'running'}
+                      onClick={() => setPendingTest(rule)}
+                      sx={{
+                        width: 36,
+                        height: 36,
+                        border: `1px solid ${color || 'hsl(var(--border))'}`,
+                        borderRadius: 1.5,
+                        color: color || 'hsl(var(--muted-foreground))',
+                        '&:hover': { color: color || 'hsl(var(--primary))' },
+                      }}
+                    >
+                      {rv?.state === 'running' ? <CircularProgress size={14} /> : <ValidateIcon size={16} />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              );
+            })()}
             <Tooltip title="Duplicate">
               <IconButton size="small" onClick={() => handleDuplicate(rule)} sx={{ width: 36, height: 36 }}>
                 <ContentCopyIcon size={16} />
@@ -2140,51 +2209,6 @@ const IncidentRoutingEditorInner = ({
                           sx={{ flex: 1, minWidth: 200 }}
                         />
                       )}
-                      {(() => {
-                        const rk = `${rule.id}:action:${aIdx}`;
-                        const rv = responseValidation[rk];
-                        const hasWf = !!(matchedWorkflow as any)?.id;
-                        const color = rv?.state === 'done' ? 'hsl(var(--success, 142 70% 45%))' : rv?.state === 'error' ? 'hsl(var(--destructive))' : undefined;
-                        const title = !hasWf
-                          ? 'Validate response: needs the routing workflow. Create the routing workflow first, then a sample can be run through it.'
-                          : rv
-                            ? (
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, fontSize: '0.75rem' }}>
-                                  <Box sx={{ fontWeight: 600 }}>
-                                    Validating: {summarizeAction(action)} through {(matchedWorkflow as any)?.name || 'the routing workflow'}
-                                  </Box>
-                                  {rv.steps && renderStep('Pick sample', rv.steps.sample, rv.sampleSource)}
-                                  {rv.steps && renderStep('Start workflow', rv.steps.start, rv.executionId ? `execution ${rv.executionId.slice(0, 8)}` : undefined)}
-                                  {rv.steps && renderStep('Wait for result', rv.steps.wait, rv.steps.wait === 'running' ? 'up to 30 seconds' : rv.status ? `status ${rv.status}` : undefined)}
-                                  {rv.state !== 'running' && <Box>{rv.state === 'done' ? 'Passed' : 'Failed'}: {rv.message}</Box>}
-                                  {typeof rv.actionsRun === 'number' && <Box>Steps run: {rv.actionsRun}, failed: {rv.failed}</Box>}
-                                  {rv.executionId && rv.state !== 'running' && <Box sx={{ wordBreak: 'break-all' }}>Execution: {rv.executionId}</Box>}
-                                </Box>
-                              )
-                              : 'Validate response: run a real sample from this category through the routing workflow and check the result';
-                        return (
-                          <Tooltip open={!!tipOpen[rk]} onOpen={() => setTip(rk, true)} onClose={() => setTip(rk, false)} title={title} componentsProps={{ tooltip: { sx: { maxWidth: 420 } } }}>
-                            <span>
-                              <IconButton
-                                size="small"
-                                aria-label="Validate response"
-                                disabled={!hasWf || rv?.state === 'running'}
-                                onClick={() => validateResponse(rk, rule, rule.conditionTree || migrateLegacyConditions(rule))}
-                                sx={{
-                                  width: 36,
-                                  height: 36,
-                                  border: `1px solid ${color || 'hsl(var(--border))'}`,
-                                  borderRadius: 1.5,
-                                  color: color || 'hsl(var(--muted-foreground))',
-                                  '&:hover': { color: color || 'hsl(var(--primary))' },
-                                }}
-                              >
-                                {rv?.state === 'running' ? <CircularProgress size={14} /> : <ValidateIcon size={16} />}
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                        );
-                      })()}
                       <Tooltip title="Remove action">
                         <span>
                           <IconButton
@@ -2423,6 +2447,85 @@ const IncidentRoutingEditorInner = ({
             }}
           >
             {deleting ? 'Deleting...' : 'Delete rule'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Rule test confirmation: the run is real, so ask first. */}
+      <Dialog
+        open={!!pendingTest}
+        onClose={() => setPendingTest(null)}
+        PaperProps={{
+          sx: {
+            bgcolor: 'hsl(var(--card))',
+            border: '1px solid hsl(var(--border))',
+            color: 'hsl(var(--foreground))',
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: 'hsl(var(--foreground))' }}>
+          Run "{pendingTest?.name || 'this rule'}" through the routing workflow?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: 'hsl(var(--muted-foreground))' }}>
+            This is not a dry run. A sample record is sent to{' '}
+            <strong style={{ color: 'hsl(var(--foreground))' }}>
+              {(matchedWorkflow as any)?.name || 'the routing workflow'}
+            </strong>
+            , and everything the workflow does with it — moving to another
+            tenant, assigning an owner, adding a comment — really happens and is
+            not undone afterwards.
+          </DialogContentText>
+          {pendingTest && (
+            <Box
+              sx={{
+                mt: 2,
+                p: 1.5,
+                borderRadius: 1.5,
+                border: '1px solid hsl(var(--border))',
+                bgcolor: 'hsl(var(--muted) / 0.15)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0.5,
+                fontSize: '0.78rem',
+                color: 'hsl(var(--muted-foreground))',
+              }}
+            >
+              <Box>
+                Sample:{' '}
+                {findRuleTestSample(
+                  pendingTest.conditionTree || migrateLegacyConditions(pendingTest),
+                  sampleRecords,
+                )
+                  ? 'a recent record that matches this rule'
+                  : 'a generated record that matches this rule (no recent record does)'}
+              </Box>
+              <Box>
+                Actions: {pendingTest.actions.map((a) => summarizeAction(a)).join(', ')}
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setPendingTest(null)}
+            sx={{ height: 36, textTransform: 'none', color: 'hsl(var(--muted-foreground))' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => pendingTest && runRuleTest(pendingTest)}
+            variant="contained"
+            sx={{
+              height: 36,
+              textTransform: 'none',
+              bgcolor: 'hsl(var(--primary))',
+              color: 'hsl(var(--primary-foreground))',
+              fontWeight: 500,
+              '&:hover': { bgcolor: 'hsl(var(--primary) / 0.9)' },
+            }}
+          >
+            Run test
           </Button>
         </DialogActions>
       </Dialog>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateRuleSample } from './routingSampleGenerator';
+import { generateRuleSample, findRuleTestSample } from './routingSampleGenerator';
 import { emptyGroup, emptyLeaf } from './routingConditionTree';
 
 describe('generateRuleSample', () => {
@@ -20,5 +20,35 @@ describe('generateRuleSample', () => {
     const { sample, matches } = generateRuleSample(tree);
     expect(matches).toBe(true);
     expect(sample.source).toBeUndefined();
+  });
+});
+
+describe('findRuleTestSample', () => {
+  const tree = emptyGroup('and', [
+    emptyLeaf({ field: 'severity', op: 'equals', value: 'high' }),
+    emptyLeaf({ field: 'source', op: 'equals', value: 'CrowdStrike' }),
+  ]);
+
+  it('picks the first recent record that already matches the rule', () => {
+    const records = [
+      { title: 'other', severity: 'low', source: 'CrowdStrike' },
+      { title: 'Suspicious PowerShell', severity: 'high', source: 'CrowdStrike' },
+      { title: 'second match', severity: 'high', source: 'CrowdStrike' },
+    ];
+    expect(findRuleTestSample(tree, records)).toEqual(records[1]);
+  });
+
+  it('returns null when no recent record matches the rule', () => {
+    const records = [
+      { title: 'a', severity: 'low', source: 'CrowdStrike' },
+      { title: 'b', severity: 'high', source: 'Defender' },
+    ];
+    expect(findRuleTestSample(tree, records)).toBeNull();
+  });
+
+  it('returns null when there are no records to check', () => {
+    expect(findRuleTestSample(tree, [])).toBeNull();
+    expect(findRuleTestSample(tree, null)).toBeNull();
+    expect(findRuleTestSample(tree, undefined)).toBeNull();
   });
 });

@@ -33,6 +33,10 @@ describe('verifyRoutingActions', () => {
     expect(c?.ok).toBe(true);
     expect(c?.agentExecutionId).toBe('e1');
   });
+  it('agent that is only queued, with no run started, does not pass', () => {
+    const r = run({ ...base, modified_fields: { agent_prompt: { to: 'triage' } } });
+    expect(verifyRoutingActions([{ type: 'run_agent', value: 'triage' }], r, 'r1', { activity: [] })[0]?.ok).toBe(false);
+  });
   it('fails every response when the rule did not match', () => {
     const r = run({ matched: false, matched_rules: [], unmatched_rules: [{ rule_id: 'r1', reason: 'no' }] });
     expect(verifyRoutingActions([{ type: 'set_field', field: 'a', value: 'b' }], r, 'r1')[0]?.ok).toBe(false);

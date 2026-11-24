@@ -83,6 +83,8 @@ import { useWorkflows } from '@/hooks/useWorkflows';
 import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { generateRuleSample, findRuleTestSample } from '@/utils/routingSampleGenerator';
 import { deleteDatastoreItem, getDatastoreByCategory, getDatastoreItem, setDatastoreItem } from '@/Shuffle-Core/datastore';
+import { AgentExecutionDrawer } from '@/Shuffle-MCPs';
+import type { AgentRun } from '@/Shuffle-MCPs/agentActivity';
 import { verifyRoutingActions, type ActionCheck } from '@/utils/routingResponseVerifier';
 import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from '@/Shuffle-Core/components/DatastoreCategorySelect';
 import {
@@ -989,6 +991,7 @@ const IncidentRoutingEditorInner = ({
   // Rule-level "Test": the run is real, so it goes through a confirmation
   // first — the routing workflow can move, assign or comment for real.
   const ruleTestKey = (ruleId: string) => `${ruleId}:rule`;
+  const [openAgentRun, setOpenAgentRun] = useState<AgentRun | null>(null);
   // Demo records are removed when the test popup closes. A run still in
   // progress removes its record when it finishes.
   const cleanupOnDone = useRef<Record<string, boolean>>({});
@@ -2580,7 +2583,24 @@ const IncidentRoutingEditorInner = ({
                   {waitStep}
                   {rv.steps?.wait && renderStep('Do responses', rv.state === 'done' ? 'ok' : 'fail', rv.message)}
                   {(rv.checks || []).map((c: ActionCheck, i: number) => (
-                    <Box key={i} sx={{ pl: 2 }}>{renderStep(summarizeAction(pendingTest.actions[i] as any), c.ok ? 'ok' : 'fail', c.detail)}</Box>
+                    <Box key={i} sx={{ pl: 2 }}>
+                      {c.agentExecutionId ? (
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', fontSize: '0.75rem' }}>
+                          <Box component="span" sx={{ width: 52, fontWeight: 600, color: c.ok ? 'hsl(var(--success, 142 70% 45%))' : 'hsl(var(--destructive))' }}>{c.ok ? 'Passed' : 'Failed'}</Box>
+                          <Box component="span" sx={{ minWidth: 120 }}>{summarizeAction(pendingTest.actions[i] as any)}</Box>
+                          <Tooltip title="Open the agent run">
+                            <Box
+                              component="button"
+                              type="button"
+                              onClick={() => setOpenAgentRun({ execution_id: c.agentExecutionId!, authorization: c.agentAuthorization, status: '', workflow_id: '', started_at: '' } as AgentRun)}
+                              sx={{ p: 0, border: 0, bgcolor: 'transparent', cursor: 'pointer', color: '#FF6600', font: 'inherit', fontWeight: 500 }}
+                            >
+                              {c.detail}
+                            </Box>
+                          </Tooltip>
+                        </Box>
+                      ) : renderStep(summarizeAction(pendingTest.actions[i] as any), c.ok ? 'ok' : 'fail', c.detail)}
+                    </Box>
                   ))}
                 </Box>
               );
@@ -2903,6 +2923,7 @@ const IncidentRoutingEditorInner = ({
           </Box>
         </DialogContent>
       </Dialog>
+      <AgentExecutionDrawer open={!!openAgentRun} onClose={() => setOpenAgentRun(null)} run={openAgentRun} />
     </Box>
   );
 };

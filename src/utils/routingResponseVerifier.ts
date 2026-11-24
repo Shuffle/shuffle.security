@@ -15,6 +15,27 @@ export interface VerifiableAction {
 export interface ActionCheck {
   ok: boolean;
   detail: string;
+  /** Agent run started by a "Run AI Agent" response, when found in the run. */
+  agentExecutionId?: string;
+  agentAuthorization?: string;
+}
+
+const parseMaybe = (v: unknown): any => {
+  if (typeof v !== 'string') return v;
+  try { return JSON.parse(v); } catch { return v; }
+};
+
+/** Finds the agent run started by the agent step of a routing workflow run. */
+export function findAgentRun(results: any[]): { executionId: string; authorization?: string } | null {
+  for (const r of results || []) {
+    if (isSkipped(r)) continue;
+    const label = norm([r?.action?.label, r?.action?.name, r?.action?.app_name]);
+    if (!label.includes('agent')) continue;
+    const res = parseMaybe(r?.result);
+    const id = res?.execution_id || res?.executionId || res?.id;
+    if (typeof id === 'string' && id) return { executionId: id, authorization: res?.authorization };
+  }
+  return null;
 }
 
 const norm = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v ?? '')).trim().toLowerCase();
@@ -55,7 +76,12 @@ export function verifyRoutingActions(
       }
       case 'run_agent': {
         const ok = inRun('agent');
-        return { ok, detail: ok ? 'agent step ran' : 'no agent step ran' };
+        const run = findAgentRun(results);
+        return {
+          ok,
+          detail: ok ? 'agent step ran' : 'no agent step ran',
+          ...(run ? { agentExecutionId: run.executionId, ...(run.authorization ? { agentAuthorization: run.authorization } : {}) } : {}),
+        };
       }
       case 'run_python': {
         const ok = inRun('python') || inRun('execute_python');

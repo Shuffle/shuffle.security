@@ -419,7 +419,7 @@ export const RoutingActionFields = ({
             onChange(presets && !presets.includes(String(action.value || '')) ? { field: f, value: presets[0] } : { field: f });
           }}
           placeholder="Pick or type field"
-          sx={compact ? undefined : { minWidth: 220 }}
+          sx={compact ? { width: '100%' } : { flex: '1 1 220px', minWidth: 220, maxWidth: 320 }}
           fullWidth={fullWidth}
           label={compact ? undefined : 'Field'}
         />
@@ -427,20 +427,23 @@ export const RoutingActionFields = ({
 
       {action.type !== 'suggest_move' && (
         valuePresets ? (
-          <TextField
+          <Autocomplete
+            freeSolo
+            autoSelect
             size="small"
-            select
-            value={action.value || ''}
-            onChange={(e) => onChange({ value: e.target.value })}
-            sx={compact ? undefined : { minWidth: 180 }}
-            fullWidth={fullWidth}
-            label={compact ? undefined : 'Value'}
-            SelectProps={selectProps}
-          >
-            {valuePresets.map((v) => (
-              <MenuItem key={v} value={v} sx={{ fontSize: '0.8rem' }}>{v}</MenuItem>
-            ))}
-          </TextField>
+            options={valuePresets}
+            value={action.value || null}
+            onChange={(_, v) => onChange({ value: typeof v === 'string' ? v : '' })}
+            onInputChange={(_, v, reason) => { if (reason === 'input') onChange({ value: v }); }}
+            sx={compact ? { width: '100%' } : { flex: '1 1 180px', minWidth: 180, maxWidth: 260 }}
+            slotProps={{ popper: { sx: { zIndex: menuZIndex || 9999 } } }}
+            renderOption={(props, option) => (
+              <li {...props} key={option} style={{ fontSize: '0.8rem' }}>{option}</li>
+            )}
+            renderInput={(params) => (
+              <TextField {...params} label={compact ? undefined : 'Value'} placeholder="Pick or type a custom value" />
+            )}
+          />
         ) : (
           <TextField
             size="small"

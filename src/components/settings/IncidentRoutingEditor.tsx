@@ -953,10 +953,22 @@ const IncidentRoutingEditorInner = ({
       // action happened in the workflow. Nothing is executed here.
       let checks: ActionCheck[] = [];
       try {
-        const got: any = await getDatastoreItem(sampleKey, entityCategory, currentOrgId || undefined);
-        let rec: any = got?.item?.value ?? got?.item ?? {};
-        if (typeof rec === 'string') { try { rec = JSON.parse(rec); } catch { rec = {}; } }
-        checks = verifyRoutingActions(rule.actions as any, rec, results);
+        const readRecord = async () => {
+          const got: any = await getDatastoreItem(sampleKey, entityCategory, currentOrgId || undefined);
+          let rec: any = got?.item?.value ?? got?.item ?? {};
+          if (typeof rec === 'string') { try { rec = JSON.parse(rec); } catch { rec = {}; } }
+          return rec;
+        };
+        const hasAgent = rule.actions.some((a) => a.type === 'run_agent');
+        let rec: any = hasAgent ? await readRecord() : undefined;
+        checks = verifyRoutingActions(rule.actions as any, results, rule.id, rec);
+        // The agent is queued on the record and picked up afterwards: re-read
+        // the record a few times so the agent run can be linked.
+        for (let i = 0; hasAgent && i < 5 && checks.some((c, j) => rule.actions[j]?.type === 'run_agent' && c.ok && !c.agentExecutionId); i++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          rec = await readRecord();
+          checks = verifyRoutingActions(rule.actions as any, results, rule.id, rec);
+        }
       } catch { checks = []; }
       const doOk = checks.length > 0 && checks.every((c) => c.ok);
       setResponseValidation((v) => ({

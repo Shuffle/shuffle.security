@@ -1,9 +1,10 @@
-import { resolveField } from '@/utils/routingRuleEvaluator';
-
 /**
  * Checks whether a routing rule's "Do" responses actually happened in the
  * routing workflow run. Nothing is executed here: the workflow is the
- * response, this only reads back the record and the run results.
+ * response, this only reads its results.
+ *
+ * The routing workflow reports what it did in the result of the
+ * "Execute_rule_automation_for_found_rules" node, under `message`.
  */
 export interface VerifiableAction {
   type: string;
@@ -15,77 +16,123 @@ export interface VerifiableAction {
 export interface ActionCheck {
   ok: boolean;
   detail: string;
-  /** Agent run started by a "Run AI Agent" response, when found in the run. */
+  /** Agent run picked up for a "Run AI Agent" response, when known. */
   agentExecutionId?: string;
   agentAuthorization?: string;
 }
+
+export const ROUTING_RESULT_NODE = 'Execute_rule_automation_for_found_rules';
+export const TARGET_TENANT_NODE = 'Set_key_in_target_tenant';
 
 const parseMaybe = (v: unknown): any => {
   if (typeof v !== 'string') return v;
   try { return JSON.parse(v); } catch { return v; }
 };
 
-/** Finds the agent run started by the agent step of a routing workflow run. */
-export function findAgentRun(results: any[]): { executionId: string; authorization?: string } | null {
-  for (const r of results || []) {
-    if (isSkipped(r)) continue;
-    const label = norm([r?.action?.label, r?.action?.name, r?.action?.app_name]);
-    if (!label.includes('agent')) continue;
-    const res = parseMaybe(r?.result);
-    const id = res?.execution_id || res?.executionId || res?.id;
-    if (typeof id === 'string' && id) return { executionId: id, authorization: res?.authorization };
+const labelOf = (r: any) => String(r?.action?.label || '');
+
+/** The `message` payload of the routing node, or null when it did not run. */
+export function getRoutingMessage(results: any[]): any | null {
+  const node = (results || []).find((r) => labelOf(r) === ROUTING_RESULT_NODE);
+  if (!node) return null;
+  const res = parseMaybe(node.result);
+  const msg = parseMaybe(res?.message ?? res);
+  return msg && typeof msg === 'object' ? msg : null;
+}
+
+/** Finds the @AIAgent activity entry on the record once it has been picked up. */
+export function findAgentActivity(record: any, prompt?: string): { executionId: string; authorization?: string } | null {
+  const list = Array.isArray(record?.activity) ? record.activity : [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const a = list[i];
+    const text = typeof a === 'string' ? a : JSON.stringify(a);
+    if (!/@AIAgent/i.test(text)) continue;
+    if (prompt && !text.includes(prompt)) continue;
+    const id = a?.execution_id;
+    if (typeof id === 'string' && id) return { executionId: id, ...(a?.authorization ? { authorization: String(a.authorization) } : {}) };
   }
   return null;
 }
 
-const norm = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v ?? '')).trim().toLowerCase();
-
-const isSkipped = (r: any) => String(r?.status || '').toUpperCase() === 'SKIPPED';
+const forRule = (list: any, ruleId?: string): any[] =>
+  (Array.isArray(list) ? list : []).filter((x) => !ruleId || !x?.rule_id || x.rule_id === ruleId);
 
 export function verifyRoutingActions(
   actions: VerifiableAction[],
-  record: any,
   results: any[],
+  ruleId?: string,
+  record?: any,
 ): ActionCheck[] {
-  const recordText = norm(record);
-  const ran = (results || []).filter((r) => !isSkipped(r));
-  const runText = norm(ran.map((r) => [r?.action?.label, r?.action?.name, r?.action?.app_name, r?.result]));
-  const inRun = (needle: string) => !!needle && runText.includes(needle.toLowerCase());
+  const msg = getRoutingMessage(results);
+  if (!msg) return actions.map(() => ({ ok: false, detail: `${ROUTING_RESULT_NODE} did not run` }));
+  const mod = msg.modified_fields && typeof msg.modified_fields === 'object' ? msg.modified_fields : {};
+  const did: string[] = forRule(msg.matched_rules, ruleId).flatMap((m: any) => (Array.isArray(m?.did) ? m.did.map(String) : []));
+  const matched = forRule(msg.matched_rules, ruleId).length > 0;
+  if (!matched) {
+    const why = forRule(msg.unmatched_rules, ruleId)[0]?.reason;
+    return actions.map(() => ({ ok: false, detail: `rule did not match${why ? `: ${why}` : ''}` }));
+  }
+
+  const fieldCheck = (field: string, expected?: string, startsWith?: string): ActionCheck => {
+    const m = mod[field];
+    if (m) {
+      const to = String(m.to ?? '');
+      const ok = startsWith ? to.startsWith(startsWith) : expected === undefined || to.toLowerCase() === String(expected).toLowerCase();
+      return { ok: ok && msg.db_updated === true, detail: ok ? (msg.db_updated ? `${field}: ${String(m.from ?? '') || 'empty'} -> ${to}` : `${field} changed but not saved`) : `${field} set to ${to}` };
+    }
+    if (did.some((d) => d.includes('(no change)') && d.includes(field))) return { ok: true, detail: `${field} already had this value (no change)` };
+    return { ok: false, detail: `${field} was not changed` };
+  };
 
   return actions.map((a) => {
-    const value = String(a.value ?? '').trim();
+    const value = String(a.value ?? '');
     switch (a.type) {
-      case 'set_field': {
-        const got = a.field ? resolveField(record, a.field) : undefined;
-        const ok = got !== undefined && norm(got) === value.toLowerCase();
-        return { ok, detail: ok ? `${a.field} is ${value}` : `${a.field || 'field'} is ${got === undefined ? 'not set' : String(got)}, expected ${value}` };
-      }
-      case 'assign_to': {
-        const got = record?.assignee ?? record?.assigned_to ?? record?.owner;
-        const ok = !!value && norm(got).includes(value.toLowerCase());
-        return { ok, detail: ok ? `assigned to ${value}` : `not assigned to ${value || 'anyone'}` };
-      }
-      case 'add_comment': {
-        const ok = !!value && recordText.includes(value.toLowerCase());
-        return { ok, detail: ok ? 'comment added' : 'comment not found on the record' };
-      }
+      case 'set_field':
+        return fieldCheck(a.field || '', value);
+      case 'set_severity': return fieldCheck('severity', value);
+      case 'set_status': return fieldCheck('status', value);
+      case 'set_priority': return fieldCheck('priority', value);
+      case 'add_label': return fieldCheck('labels');
+      case 'assign_to':
+        return fieldCheck('assignee', value);
+      case 'add_comment':
+        return fieldCheck('activity', undefined, 'added comment: ');
       case 'suggest_move': {
-        const id = a.targetOrgId || '';
-        const ok = !!id && (recordText.includes(id.toLowerCase()) || inRun(id));
-        return { ok, detail: ok ? 'move to tenant registered' : 'no move to the target tenant found' };
-      }
-      case 'run_agent': {
-        const ok = inRun('agent');
-        const run = findAgentRun(results);
+        const tenant = (results || []).find((r) => labelOf(r) === TARGET_TENANT_NODE);
+        const tenantOk = String(tenant?.status || '').toUpperCase() === 'SUCCESS';
+        const idOk = !a.targetOrgId || msg.target_org_id === a.targetOrgId;
+        const ok = msg.move_to_org === true && idOk && !!mod.target_org_id && tenantOk;
         return {
           ok,
-          detail: ok ? 'agent step ran' : 'no agent step ran',
-          ...(run ? { agentExecutionId: run.executionId, ...(run.authorization ? { agentAuthorization: run.authorization } : {}) } : {}),
+          detail: msg.move_to_org !== true ? 'move was not requested'
+            : !idOk ? `moved to ${msg.target_org_id || 'another tenant'}`
+            : !tenantOk ? `write to target tenant ${tenant ? String(tenant.status || 'unknown').toLowerCase() : 'did not run'}`
+            : `moved to ${msg.target_org_id}${msg.target_region ? ` (${msg.target_region})` : ''}`,
         };
       }
       case 'run_python': {
-        const ok = inRun('python') || inRun('execute_python');
-        return { ok, detail: ok ? 'python step ran' : 'no python step ran' };
+        const runs = forRule(msg.scripts_run, ruleId);
+        if (runs.length === 0) return { ok: false, detail: 'no script ran' };
+        const bad = runs.find((r: any) => r?.success !== true);
+        return { ok: !bad, detail: bad ? `script failed${bad.error ? `: ${bad.error}` : ''}` : 'script ran' };
+      }
+      case 'send_notification': {
+        const sent = forRule(msg.notifications_sent, ruleId);
+        if (sent.length === 0) return { ok: false, detail: 'no notification sent' };
+        const bad = sent.find((n: any) => n?.success !== true);
+        const r = sent[0]?.response;
+        const count = r?.dispatched_to !== undefined ? ` to ${Array.isArray(r.dispatched_to) ? r.dispatched_to.length : r.dispatched_to}${r?.total_targets !== undefined ? ` of ${r.total_targets}` : ''}` : '';
+        return { ok: !bad, detail: bad ? `notification failed${bad.error ? `: ${bad.error}` : ''}` : `notification sent${count}` };
+      }
+      case 'run_agent': {
+        const queued = String(mod.agent_prompt?.to ?? '') === value || did.some((d) => d.includes('queued @AIAgent:'));
+        const ok = queued && msg.db_updated === true;
+        const run = record ? findAgentActivity(record, value || undefined) : null;
+        return {
+          ok,
+          detail: !ok ? 'agent was not queued' : run ? 'agent run started' : 'agent queued, not picked up yet',
+          ...(run ? { agentExecutionId: run.executionId, ...(run.authorization ? { agentAuthorization: run.authorization } : {}) } : {}),
+        };
       }
       default:
         return { ok: false, detail: 'cannot be checked' };

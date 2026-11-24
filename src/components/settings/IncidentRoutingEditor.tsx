@@ -839,18 +839,29 @@ const IncidentRoutingEditorInner = ({
     actionsRun?: number;
     failed?: number;
     sampleSource?: string;
-    steps?: { sample: StepState; start: StepState; wait: StepState };
+    steps?: { setup?: StepState; sample: StepState; start: StepState; wait: StepState };
   }>>({});
   const validateResponse = async (key: string, rule: RoutingRule, ruleTree: ConditionGroup) => {
-    const wf: any = matchedWorkflow;
-    if (!wf?.id) return;
-    const steps = { sample: 'running' as StepState, start: 'pending' as StepState, wait: 'pending' as StepState };
+    let wf: any = matchedWorkflow;
+    const steps = { setup: (wf?.id ? 'ok' : 'running') as StepState, sample: (wf?.id ? 'running' : 'pending') as StepState, start: 'pending' as StepState, wait: 'pending' as StepState };
     const push = (patch: Partial<typeof steps>, extra: Record<string, any> = {}) => {
       Object.assign(steps, patch);
       setResponseValidation((v) => ({ ...v, [key]: { ...(v[key] || { state: 'running', message: '' }), ...extra, steps: { ...steps } } }));
     };
     setResponseValidation((v) => ({ ...v, [key]: { state: 'running', message: 'Running a sample through the routing workflow', steps: { ...steps } } }));
     try {
+      if (!wf?.id) {
+        // No routing workflow yet: create it so the test can always run.
+        await handleGenerateWorkflow();
+        const lr = await fetch(getApiUrl('/api/v1/workflows'), {
+          credentials: 'include',
+          headers: { ...getAuthHeader(currentOrgId) },
+        });
+        const list: any = await lr.json().catch(() => []);
+        wf = findRoutingWorkflow(Array.isArray(list) ? list : list?.workflows || [], entityLabel, entityCategory);
+        if (!wf?.id) throw new Error('Could not create the routing workflow');
+        push({ setup: 'ok', sample: 'running' });
+      }
       const recs = sampleRecords ?? (await loadSampleRecords());
       const matching = findRuleTestSample(ruleTree, recs);
       let sample: any = matching;
@@ -951,7 +962,7 @@ const IncidentRoutingEditorInner = ({
         },
       }));
     } catch (e: any) {
-      for (const k of ['sample', 'start', 'wait'] as const) if (steps[k] === 'running') steps[k] = 'fail';
+      for (const k of ['setup', 'sample', 'start', 'wait'] as const) if (steps[k] === 'running') steps[k] = 'fail';
       setResponseValidation((v) => ({ ...v, [key]: { ...(v[key] || {}), state: 'error', message: e?.message || 'Validation failed', steps: { ...steps } } }));
     }
   };
@@ -1701,22 +1712,20 @@ const IncidentRoutingEditorInner = ({
                   : rv?.state === 'error'
                     ? 'hsl(var(--destructive))'
                     : undefined;
-              const title = !hasWf
-                ? 'Create the routing workflow first'
-                : rv?.state === 'done'
+              const title = rv?.state === 'done'
                   ? `Passed: ${rv.message}`
                   : rv?.state === 'error'
                     ? `Failed: ${rv.message}`
                     : rv?.state === 'running'
                       ? 'Test running…'
-                      : 'Test this rule (real run)';
+                      : hasWf ? 'Test this rule (real run)' : 'Test this rule (creates the routing workflow, then runs it)';
               return (
                 <Tooltip title={title}>
                   <span>
                     <IconButton
                       size="small"
                       aria-label="Test rule"
-                      disabled={!hasWf || rv?.state === 'running'}
+                      disabled={rv?.state === 'running'}
                       onClick={() => setPendingTest(rule)}
                       sx={{
                         width: 36,
@@ -2525,6 +2534,7 @@ const IncidentRoutingEditorInner = ({
             if (rv?.state === 'running') {
               return (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, minWidth: 300 }}>
+                  {rv.steps?.setup && rv.steps.setup !== 'ok' || (rv.steps?.setup === 'ok' && !(matchedWorkflow as any)?.id) ? renderStep('Create workflow', rv.steps!.setup!) : null}
                   {sampleStep}
                   {rv.steps && renderStep('Start workflow', rv.steps.start)}
                   {waitStep}
@@ -2542,6 +2552,7 @@ const IncidentRoutingEditorInner = ({
                   >
                     {rv.state === 'done' ? 'Passed' : 'Failed'}: {rv.message}
                   </Box>
+                  {rv.steps?.setup && rv.steps.setup !== 'ok' || (rv.steps?.setup === 'ok' && !(matchedWorkflow as any)?.id) ? renderStep('Create workflow', rv.steps!.setup!) : null}
                   {sampleStep}
                   {rv.steps && renderStep('Start workflow', rv.steps.start)}
                   {waitStep}

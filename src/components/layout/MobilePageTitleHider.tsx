@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from '@/lib/router-compat';
+import { getPageTitle } from '@/components/layout/IosWebViewNavHeader';
 
 const HIDDEN_ATTR = 'data-mobile-title-hidden';
 
@@ -37,6 +38,12 @@ export const MobilePageTitleHider = () => {
       // A heading inside a form belongs to the prompt area (for example the
       // agent page's "What do you want to do?"), not a repeated page title.
       if (heading.closest('form')) return;
+      // Only hide the heading when it repeats the page title already shown
+      // in the top navigation. On detail pages the heading is the item's own
+      // name (a hostname, a vulnerability title), which is shown nowhere else.
+      const pageTitle = getPageTitle(location.pathname).title.trim().toLowerCase();
+      const headingText = (heading.textContent || '').trim().toLowerCase();
+      if (!pageTitle || headingText !== pageTitle) return;
       const hide = (el: HTMLElement) => {
         el.style.display = 'none';
         el.setAttribute(HIDDEN_ATTR, 'true');

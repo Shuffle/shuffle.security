@@ -21,7 +21,7 @@ import * as React from 'react';
  *   Only meaningful on a parent org (tenants exist). The hosting page
  *   should hide this card when there are no sub-orgs.
  */
-import { Plus as AddIcon, Trash as DeleteOutlineIcon, Copy as ContentCopyIcon, ChevronDown as ExpandMoreIcon, ChevronUp as ExpandLessIcon, ScanSearch as ValidateIcon } from 'lucide-react';
+import { Plus as AddIcon, Trash as DeleteOutlineIcon, Copy as ContentCopyIcon, ChevronDown as ExpandMoreIcon, ChevronUp as ExpandLessIcon, ScanSearch as ValidateIcon, PanelRightOpen as PanelRightOpenIcon } from 'lucide-react';
 import { useEffect, useMemo, useState, useCallback, type JSX } from 'react';
 import {
   ResponsiveContainer,
@@ -2466,37 +2466,55 @@ const IncidentRoutingEditorInner = ({
         <DialogContent>
           {pendingTest && (() => {
             const rv = responseValidation[ruleTestKey(pendingTest.id)];
-            const recordLink = rv?.sampleKey ? (
-              <Box sx={{ fontSize: '0.8rem' }}>
-                {entityCategory === 'shuffle-security_incidents' ? (
-                  <a href={`/incidents/${encodeURIComponent(rv.sampleKey)}`} target="_blank" rel="noreferrer" style={{ color: 'hsl(var(--primary))' }}>
-                    Open demo record
+            const sampleStep = rv?.steps ? (
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', fontSize: '0.75rem' }}>
+                <Box component="span" sx={{ width: 52, display: 'inline-flex', fontWeight: 600, color: rv.steps.sample === 'ok' ? 'hsl(var(--success, 142 70% 45%))' : rv.steps.sample === 'fail' ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>
+                  {rv.steps.sample === 'running' ? <CircularProgress size={11} /> : rv.steps.sample === 'ok' ? 'Passed' : rv.steps.sample === 'fail' ? 'Failed' : 'Waiting'}
+                </Box>
+                {rv.sampleKey ? (
+                  <a
+                    href={`/admin/datastore?category=${encodeURIComponent(entityCategory)}&key=${encodeURIComponent(rv.sampleKey)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: 'hsl(var(--primary))', minWidth: 120 }}
+                  >
+                    Injected sample
                   </a>
                 ) : (
-                  <span style={{ color: 'hsl(var(--muted-foreground))' }}>Demo record: {rv.sampleKey}</span>
+                  <Box component="span" sx={{ minWidth: 120 }}>Added sample</Box>
                 )}
               </Box>
             ) : null;
-            const explorer = rv?.executionId ? (
-              <Box>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => window.dispatchEvent(new CustomEvent('workflow-run:open', { detail: { executionId: rv.executionId, authorization: rv.authorization } }))}
-                  sx={{ height: 32, textTransform: 'none', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                >
-                  Open execution
-                </Button>
+            const waitStep = rv?.steps ? (
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  {renderStep(
+                    'Wait for result',
+                    rv.steps.wait,
+                    rv.state === 'running'
+                      ? (rv.steps.wait === 'running' ? 'up to 30s' : undefined)
+                      : [rv.status ? `status ${rv.status}` : '', typeof rv.actionsRun === 'number' ? `Steps run: ${rv.actionsRun}, failed: ${rv.failed}` : ''].filter(Boolean).join(' · ') || undefined,
+                  )}
+                </Box>
+                {rv.executionId && (
+                  <Tooltip title="View full execution">
+                    <IconButton
+                      size="small"
+                      onClick={() => window.dispatchEvent(new CustomEvent('workflow-run:open', { detail: { executionId: rv.executionId, authorization: rv.authorization } }))}
+                      sx={{ color: 'hsl(var(--muted-foreground))', '&:hover': { color: 'hsl(var(--primary))', bgcolor: 'hsl(var(--muted))' } }}
+                    >
+                      <PanelRightOpenIcon size={18} />
+                    </IconButton>
+                  </Tooltip>
+                )}
               </Box>
             ) : null;
             if (rv?.state === 'running') {
               return (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, minWidth: 300 }}>
-                  {rv.steps && renderStep('Pick sample', rv.steps.sample, rv.sampleSource)}
+                  {sampleStep}
                   {rv.steps && renderStep('Start workflow', rv.steps.start)}
-                  {rv.steps && renderStep('Wait for result', rv.steps.wait, rv.steps.wait === 'running' ? 'up to 30s' : undefined)}
-                  {recordLink}
-                  {explorer}
+                  {waitStep}
                 </Box>
               );
             }
@@ -2511,16 +2529,9 @@ const IncidentRoutingEditorInner = ({
                   >
                     {rv.state === 'done' ? 'Passed' : 'Failed'}: {rv.message}
                   </Box>
-                  {rv.steps && renderStep('Pick sample', rv.steps.sample, rv.sampleSource)}
+                  {sampleStep}
                   {rv.steps && renderStep('Start workflow', rv.steps.start)}
-                  {rv.steps && renderStep('Wait for result', rv.steps.wait, rv.status ? `status ${rv.status}` : undefined)}
-                  {typeof rv.actionsRun === 'number' && (
-                    <Box sx={{ fontSize: '0.75rem', color: 'hsl(var(--muted-foreground))' }}>
-                      Steps run: {rv.actionsRun}, failed: {rv.failed}
-                    </Box>
-                  )}
-                  {recordLink}
-                  {explorer}
+                  {waitStep}
                 </Box>
               );
             }

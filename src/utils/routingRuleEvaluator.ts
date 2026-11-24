@@ -140,7 +140,7 @@ const collectAllStrings = (root: any): string[] => {
  * expands to every string in the normalized context AND every string
  * reachable from `rawOCSF`.
  */
-const resolveField = (ctx: IncidentEvaluationContext, field: string): any => {
+export const resolveField = (ctx: IncidentEvaluationContext, field: string): any => {
   if (!field) return undefined;
 
   // Whole-object match — collect every string from the context so operators
@@ -234,7 +234,7 @@ export const isSafeRoutingRegex = (pattern: string): boolean => {
   return true;
 };
 
-const evaluateCondition = (ctx: IncidentEvaluationContext, c: RoutingCondition): boolean => {
+export const evaluateCondition = (ctx: IncidentEvaluationContext, c: RoutingCondition): boolean => {
   const raw = resolveField(ctx, c.field);
   const rawStrings = asStringArray(raw);
   // Auto-decode any base64/base64url blobs on the fly so a rule like

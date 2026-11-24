@@ -259,6 +259,8 @@ export interface RoutingFieldPathInputProps {
   value: string;
   onChange: (field: string) => void;
   labels?: Record<string, string>;
+  /** Extra suggestions, e.g. keys found in real records of the selected category. */
+  extraOptions?: string[];
   label?: string;
   placeholder?: string;
   sx?: any;
@@ -266,9 +268,9 @@ export interface RoutingFieldPathInputProps {
 }
 
 /** Field path picker: pick a suggestion or type your own path. Typed paths are remembered locally. */
-export const RoutingFieldPathInput = ({ value, onChange, labels, label, placeholder = 'Field path', sx, fullWidth }: RoutingFieldPathInputProps) => {
+export const RoutingFieldPathInput = ({ value, onChange, labels, extraOptions, label, placeholder = 'Field path', sx, fullWidth }: RoutingFieldPathInputProps) => {
   const [custom, setCustom] = useState<string[]>(() => readCustomFields());
-  const options = Array.from(new Set([...ROUTING_FIELD_SUGGESTIONS, ...custom, ...(value ? [value] : [])]));
+  const options = Array.from(new Set([...ROUTING_FIELD_SUGGESTIONS, ...custom, ...(extraOptions || []), ...(value ? [value] : [])]));
   const commit = (v: string) => {
     const f = v.trim();
     if (f !== value) onChange(f);

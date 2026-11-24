@@ -20,7 +20,7 @@
  *   Only meaningful on a parent org (tenants exist). The hosting page
  *   should hide this card when there are no sub-orgs.
  */
-import { Plus as AddIcon, Trash as DeleteOutlineIcon, Copy as ContentCopyIcon, ChevronDown as ExpandMoreIcon, ChevronUp as ExpandLessIcon } from 'lucide-react';
+import { Plus as AddIcon, Trash as DeleteOutlineIcon, Copy as ContentCopyIcon, ChevronDown as ExpandMoreIcon, ChevronUp as ExpandLessIcon, ScanSearch as ValidateIcon } from 'lucide-react';
 import { useEffect, useMemo, useState, useCallback, type JSX } from 'react';
 import {
   ResponsiveContainer,
@@ -90,6 +90,8 @@ import {
 } from '@/utils/routingWorkflowUtils';
 import {
   evaluateRoutingRules,
+  evaluateCondition,
+  resolveField,
 } from '@/utils/routingRuleEvaluator';
 import {
   MAX_GROUP_DEPTH,
@@ -718,6 +720,60 @@ const IncidentRoutingEditorInner = ({
   // Test modal state
   const [testModalOpen, setTestModalOpen] = useState(false);
   const [testRecords, setTestRecords] = useState<any[]>([]);
+  // Sample records from the selected category, preloaded so "Validate field"
+  // can check that a field exists and how many records a condition matches.
+  const [sampleRecords, setSampleRecords] = useState<any[] | null>(null);
+  const [sampleLoading, setSampleLoading] = useState(false);
+  const [validation, setValidation] = useState<Record<string, { fieldHits: number; matchHits: number; total: number; field: string }>>({});
+  const loadSampleRecords = useCallback(async (): Promise<any[]> => {
+    if (!currentOrgId) return [];
+    setSampleLoading(true);
+    try {
+      const res: any = await getDatastoreByCategory(entityCategory, undefined, 100, currentOrgId).catch(() => null);
+      const list = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+      const ctxs = list.map((r: any) => {
+        const d = r?.data ?? r;
+        if (typeof d === 'string') { try { return JSON.parse(d); } catch { return { value: d }; } }
+        return d;
+      }).filter((d: any) => d && typeof d === 'object');
+      setSampleRecords(ctxs);
+      return ctxs;
+    } finally {
+      setSampleLoading(false);
+    }
+  }, [currentOrgId, entityCategory]);
+  useEffect(() => {
+    setSampleRecords(null);
+    setValidation({});
+    void loadSampleRecords();
+  }, [loadSampleRecords]);
+  const sampleKeys = useMemo(() => {
+    const keys = new Set<string>();
+    const walk = (o: any, prefix: string, depth: number) => {
+      if (!o || typeof o !== 'object' || depth > 4 || keys.size > 400) return;
+      if (Array.isArray(o)) { if (o.length) walk(o[0], prefix, depth + 1); return; }
+      for (const k of Object.keys(o)) {
+        const p = prefix ? `${prefix}.${k}` : k;
+        keys.add(p);
+        walk(o[k], p, depth + 1);
+      }
+    };
+    (sampleRecords || []).forEach((r) => walk(r, '', 0));
+    return Array.from(keys).sort();
+  }, [sampleRecords]);
+  const validateLeaf = async (key: string, leaf: { field: string; op: RoutingConditionOp; value?: string }) => {
+    const recs = sampleRecords ?? (await loadSampleRecords());
+    const present = (v: any) => v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0) && v !== '';
+    let fieldHits = 0;
+    let matchHits = 0;
+    for (const r of recs) {
+      try {
+        if (present(resolveField(r, leaf.field))) fieldHits++;
+        if (evaluateCondition(r, { field: leaf.field, op: leaf.op, value: leaf.value } as any)) matchHits++;
+      } catch { /* skip bad record */ }
+    }
+    setValidation((v) => ({ ...v, [key]: { fieldHits, matchHits, total: recs.length, field: leaf.field } }));
+  };
   const [loadingTestRecords, setLoadingTestRecords] = useState(false);
   const [selectedRecordId, setSelectedRecordId] = useState<string>('manual');
   const [customRecordJson, setCustomRecordJson] = useState<string>(
@@ -1524,6 +1580,7 @@ const IncidentRoutingEditorInner = ({
                         )
                       }
                       labels={FIELD_LABELS}
+                      extraOptions={sampleKeys}
                       sx={{ minWidth: 220, flex: 1 }}
                     />
                     <TextField
@@ -1558,6 +1615,26 @@ const IncidentRoutingEditorInner = ({
                         sx={{ flex: 1.2, minWidth: 200 }}
                       />
                     )}
+                    <Tooltip title={sampleLoading ? 'Loading records from this category' : 'Validate field: check that this field exists and how many records this condition matches'}>
+                      <span>
+                        <IconButton
+                          size="small"
+                          aria-label="Validate field"
+                          disabled={!node.field || sampleLoading}
+                          onClick={() => validateLeaf(key, node)}
+                          sx={{
+                            width: 36,
+                            height: 36,
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: 1.5,
+                            color: 'hsl(var(--muted-foreground))',
+                            '&:hover': { color: 'hsl(var(--primary))' },
+                          }}
+                        >
+                          {sampleLoading ? <CircularProgress size={14} /> : <ValidateIcon size={16} />}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                     <Tooltip title="Remove condition">
                       <IconButton
                         size="small"
@@ -1573,6 +1650,22 @@ const IncidentRoutingEditorInner = ({
                       </IconButton>
                     </Tooltip>
                   </Box>
+                  {validation[key] && validation[key].field === node.field && (() => {
+                    const r = validation[key];
+                    const missing = r.total > 0 && r.fieldHits === 0;
+                    return (
+                      <Typography
+                        variant="caption"
+                        sx={{ color: missing ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))', pl: 0.5 }}
+                      >
+                        {r.total === 0
+                          ? 'No records found in this category to validate against.'
+                          : missing
+                            ? `Field "${r.field}" was not found in any of the ${r.total} latest records.`
+                            : `Field found in ${r.fieldHits} of ${r.total} latest records. This condition matches ${r.matchHits} of ${r.total}.`}
+                      </Typography>
+                    );
+                  })()}
                 </Box>
               );
             };

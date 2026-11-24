@@ -327,7 +327,7 @@ export const RoutingFieldPathInput = ({ value, onChange, labels, extraOptions, l
       sx={sx}
       fullWidth={fullWidth}
       slotProps={{ popper: { sx: { zIndex: 9999 } } }}
-      renderInput={(params) => <TextField {...params} label={label} placeholder={placeholder} />}
+      renderInput={(params) => <TextField {...params} fullWidth label={label} placeholder={placeholder} />}
     />
   );
 };
@@ -450,8 +450,9 @@ export const RoutingActionFields = ({
             freeSolo
             autoSelect
             size="small"
+            disableClearable
             options={valuePresets}
-            value={action.value || null}
+            value={action.value || ''}
             onChange={(_, v) => onChange({ value: typeof v === 'string' ? v : '' })}
             onInputChange={(_, v, reason) => { if (reason === 'input') onChange({ value: v }); }}
             sx={compact ? { width: '100%' } : { flex: '2 1 0', minWidth: 0 }}
@@ -464,7 +465,8 @@ export const RoutingActionFields = ({
                 {...params}
                 label={compact ? undefined : 'Value'}
                 placeholder="Pick or type a custom value"
-                InputProps={{ ...params.InputProps, endAdornment: <>{expand}{params.InputProps.endAdornment}</> }}
+                fullWidth
+                InputProps={{ ...params.InputProps, endAdornment: expand ? <InputAdornment position="end" sx={{ ml: 'auto' }}>{expand}</InputAdornment> : null }}
               />
             )}
           />

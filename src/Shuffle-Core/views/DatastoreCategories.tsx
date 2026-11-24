@@ -474,28 +474,6 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
     [location.pathname, location.search, navigate, categoryLocked]
   );
 
-  // Fetch categories
-  const fetchCategories = useCallback(async () => {
-    if (!orgId) return;
-    try {
-      const response = await fetch(getApiUrl(`/api/v1/orgs/${orgId}/get_categories`), {
-        headers: { Accept: 'application/json', ...getAuthHeader(orgId) },
-        credentials: 'include',
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const list: string[] = Array.isArray(data) ? data : data.categories || [];
-        setCategories((prev) => Array.from(new Set([...STATIC_CATEGORIES, ...DEFAULT_CATEGORIES, ...list, ...prev])));
-      }
-    } catch {
-      // Fallback to defaults
-    }
-  }, [orgId]);
-
-  useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
-
   // Fetch cache items
   const fetchCache = useCallback(
     async (

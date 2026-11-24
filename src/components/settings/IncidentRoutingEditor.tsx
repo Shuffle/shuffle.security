@@ -793,7 +793,7 @@ const IncidentRoutingEditorInner = ({
         {state === 'running' ? <CircularProgress size={11} /> : state === 'ok' ? 'Passed' : state === 'fail' ? 'Failed' : 'Waiting'}
       </Box>
       <Box component="span" sx={{ minWidth: 120 }}>{label}</Box>
-      {detail && <Box component="span" sx={{ color: 'hsl(var(--muted-foreground))' }}>{detail}</Box>}
+      {detail && <Box component="span" sx={{ color: 'hsl(var(--muted-foreground))', maxHeight: 80, overflowY: 'auto', minWidth: 0, wordBreak: 'break-word' }}>{detail}</Box>}
     </Box>
   );
   const [sampleInfo, setSampleInfo] = useState<{ status: 'ok' | 'error'; fetched: number; parsed: number; error?: string; more: boolean } | null>(null);
@@ -2522,10 +2522,11 @@ const IncidentRoutingEditorInner = ({
       <Dialog
         open={!!pendingTest}
         onClose={closeTest}
-        maxWidth="sm"
+        maxWidth={false}
         fullWidth
         PaperProps={{
           sx: {
+            maxWidth: 650,
             bgcolor: 'hsl(var(--card))',
             border: '1px solid hsl(var(--border))',
             color: 'hsl(var(--foreground))',

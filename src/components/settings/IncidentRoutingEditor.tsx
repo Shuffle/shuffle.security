@@ -81,6 +81,7 @@ import { useSubOrgs } from '@/hooks/useSubOrgs';
 import { useAuth } from '@/context/AuthContext';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
+import { generateRuleSample } from '@/utils/routingSampleGenerator';
 import { getDatastoreByCategory } from '@/Shuffle-Core/datastore';
 import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from '@/Shuffle-Core/components/DatastoreCategorySelect';
 import {
@@ -1013,9 +1014,24 @@ const IncidentRoutingEditorInner = ({
     }
   };
 
+  const [generatedSampleNote, setGeneratedSampleNote] = useState<string | null>(null);
   const handleSelectRecord = (id: string) => {
     setSelectedRecordId(id);
+    setGeneratedSampleNote(null);
     if (id === 'manual') return;
+    if (id.startsWith('gen:')) {
+      const rule = drafts[id.slice(4)];
+      if (!rule) return;
+      const base = testRecords[0] ? (testRecords[0].data || testRecords[0]) : {};
+      const { sample, matches } = generateRuleSample(rule.conditionTree || migrateLegacyConditions(rule), base);
+      setCustomRecordJson(JSON.stringify(sample, null, 2));
+      setGeneratedSampleNote(
+        matches
+          ? `Generated from "${rule.name}"${testRecords[0] ? ', starting from a recent record' : ''}. It matches the rule.`
+          : `Generated from "${rule.name}", but it does not fully match (for example a complex regex). Edit the JSON below to finish it.`,
+      );
+      return;
+    }
     const found = testRecords.find((r) => (r.id || r.key) === id);
     if (found) {
       setCustomRecordJson(JSON.stringify(found.data || found, null, 2));
@@ -2474,6 +2490,11 @@ const IncidentRoutingEditorInner = ({
               <MenuItem value="manual" sx={{ fontSize: '0.8rem' }}>
                 Custom JSON payload
               </MenuItem>
+              {sortedRules.map((r) => (
+                <MenuItem key={`gen:${r.id}`} value={`gen:${r.id}`} sx={{ fontSize: '0.8rem' }}>
+                  Generate sample for rule: {r.name}
+                </MenuItem>
+              ))}
               {testRecords.map((rec) => {
                 const recId = rec.id || rec.key || 'unknown';
                 const recData = rec.data || rec;
@@ -2491,6 +2512,11 @@ const IncidentRoutingEditorInner = ({
             <Typography variant="caption" sx={{ fontWeight: 600, color: 'hsl(var(--foreground))' }}>
               Record Payload (JSON)
             </Typography>
+            {generatedSampleNote && (
+              <Typography variant="caption" sx={{ color: 'hsl(var(--muted-foreground))' }}>
+                {generatedSampleNote}
+              </Typography>
+            )}
             <TextField
               multiline
               rows={6}
@@ -2498,6 +2524,7 @@ const IncidentRoutingEditorInner = ({
               onChange={(e) => {
                 setCustomRecordJson(e.target.value);
                 setSelectedRecordId('manual');
+                setGeneratedSampleNote(null);
               }}
               error={!parsedTestContext}
               helperText={!parsedTestContext ? 'Invalid JSON format' : undefined}

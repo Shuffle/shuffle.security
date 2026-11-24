@@ -1823,7 +1823,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
           },
         }}
       >
-        <DialogTitle sx={{ pb: 1, borderBottom: '1px solid hsl(var(--border))' }}>
+        <DialogTitle sx={{ pb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flexWrap: 'wrap' }}>
               <Typography variant="h6" sx={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '1rem', overflowWrap: 'anywhere' }}>
@@ -1972,7 +1972,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
           },
         }}
       >
-        <DialogTitle sx={{ fontWeight: 600, fontSize: '1rem', borderBottom: '1px solid hsl(var(--border))' }}>
+        <DialogTitle sx={{ fontWeight: 600, fontSize: '1rem' }}>
           Add Datastore Entry
         </DialogTitle>
         <DialogContent sx={{ py: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -2225,7 +2225,7 @@ const DatastoreCategories: React.FC<DatastoreCategoriesProps> = ({
           },
         }}
       >
-        <DialogTitle sx={{ fontWeight: 600, fontSize: '1rem', borderBottom: '1px solid hsl(var(--border))' }}>
+        <DialogTitle sx={{ fontWeight: 600, fontSize: '1rem' }}>
           Add New Category
         </DialogTitle>
         <DialogContent sx={{ pt: 2.5, pb: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>

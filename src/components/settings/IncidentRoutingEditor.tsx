@@ -82,7 +82,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { generateRuleSample, findRuleTestSample } from '@/utils/routingSampleGenerator';
-import { getDatastoreByCategory } from '@/Shuffle-Core/datastore';
+import { getDatastoreByCategory, setDatastoreItem } from '@/Shuffle-Core/datastore';
+import { WorkflowRunExplorer } from '@/Shuffle-Core/components/WorkflowRunExplorer';
 import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from '@/Shuffle-Core/components/DatastoreCategorySelect';
 import {
   findRoutingWorkflow,
@@ -834,6 +835,8 @@ const IncidentRoutingEditorInner = ({
     message: string;
     status?: string;
     executionId?: string;
+    authorization?: string;
+    sampleKey?: string;
     actionsRun?: number;
     failed?: number;
     sampleSource?: string;
@@ -862,7 +865,18 @@ const IncidentRoutingEditorInner = ({
           ? 'a generated sample that matches this rule (no recent record did)'
           : 'a generated sample (no recent record matched; some conditions could not be filled in, so it may not match)';
       }
-      push({ sample: 'ok', start: 'running' }, { sampleSource });
+      // Always test on a real, clearly labelled demo record so the result can be opened.
+      const sampleKey = `demo-routing-${rule.id}-${Date.now()}`;
+      const baseTitle = String(sample?.title || sample?.name || rule.name || 'Routing test');
+      sample = {
+        ...(sample || {}),
+        id: sampleKey,
+        title: baseTitle.startsWith('Demo: ') ? baseTitle : `Demo: ${baseTitle}`,
+        ...(sample?.name !== undefined ? { name: `Demo: ${String(sample.name).replace(/^Demo: /, '')}` } : {}),
+      };
+      const saved: any = await setDatastoreItem(sampleKey, sample, entityCategory, currentOrgId || undefined);
+      if (saved && saved.success === false) throw new Error(saved.error || 'Could not save the demo record');
+      push({ sample: 'ok', start: 'running' }, { sampleSource, sampleKey });
       const resp = await fetch(getApiUrl(`/api/v1/workflows/${wf.id}/execute`), {
         method: 'POST',
         credentials: 'include',
@@ -872,7 +886,7 @@ const IncidentRoutingEditorInner = ({
           start: '',
           execution_argument: JSON.stringify({
             category: entityCategory,
-            key: sample?.id || 'routing-validation-sample',
+            key: sampleKey,
             value: sample,
             routing_validation: true,
             rule_id: rule.id,
@@ -886,7 +900,7 @@ const IncidentRoutingEditorInner = ({
       const executionId: string = body?.execution_id || body?.id || '';
       const authorization: string = body?.authorization || executionId;
       if (!executionId) throw new Error('Workflow started but returned no execution ID');
-      push({ start: 'ok', wait: 'running' }, { executionId });
+      push({ start: 'ok', wait: 'running' }, { executionId, authorization });
       let last: any = null;
       for (let i = 0; i < 15; i++) {
         await new Promise((r) => setTimeout(r, 2000));
@@ -912,6 +926,8 @@ const IncidentRoutingEditorInner = ({
           state: status === 'FINISHED' && failed === 0 ? 'done' : 'error',
           status,
           executionId,
+          authorization,
+          sampleKey,
           actionsRun: results.length,
           failed,
           sampleSource,
@@ -2435,6 +2451,8 @@ const IncidentRoutingEditorInner = ({
       <Dialog
         open={!!pendingTest}
         onClose={() => setPendingTest(null)}
+        maxWidth={pendingTest && responseValidation[ruleTestKey(pendingTest.id)]?.executionId ? 'lg' : 'sm'}
+        fullWidth
         PaperProps={{
           sx: {
             bgcolor: 'hsl(var(--card))',
@@ -2449,12 +2467,30 @@ const IncidentRoutingEditorInner = ({
         <DialogContent>
           {pendingTest && (() => {
             const rv = responseValidation[ruleTestKey(pendingTest.id)];
+            const recordLink = rv?.sampleKey ? (
+              <Box sx={{ fontSize: '0.8rem' }}>
+                {entityCategory === 'shuffle-security_incidents' ? (
+                  <a href={`/incidents/${encodeURIComponent(rv.sampleKey)}`} target="_blank" rel="noreferrer" style={{ color: 'hsl(var(--primary))' }}>
+                    Open demo record
+                  </a>
+                ) : (
+                  <span style={{ color: 'hsl(var(--muted-foreground))' }}>Demo record: {rv.sampleKey}</span>
+                )}
+              </Box>
+            ) : null;
+            const explorer = rv?.executionId ? (
+              <Box sx={{ mt: 1, height: 520, border: '1px solid hsl(var(--border))', borderRadius: 1.5, overflow: 'hidden' }}>
+                <WorkflowRunExplorer executionId={rv.executionId} authorization={rv.authorization} />
+              </Box>
+            ) : null;
             if (rv?.state === 'running') {
               return (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, minWidth: 300 }}>
                   {rv.steps && renderStep('Pick sample', rv.steps.sample, rv.sampleSource)}
                   {rv.steps && renderStep('Start workflow', rv.steps.start)}
                   {rv.steps && renderStep('Wait for result', rv.steps.wait, rv.steps.wait === 'running' ? 'up to 30s' : undefined)}
+                  {recordLink}
+                  {explorer}
                 </Box>
               );
             }
@@ -2477,12 +2513,14 @@ const IncidentRoutingEditorInner = ({
                       Steps run: {rv.actionsRun}, failed: {rv.failed}
                     </Box>
                   )}
+                  {recordLink}
+                  {explorer}
                 </Box>
               );
             }
             return (
               <DialogContentText sx={{ color: 'hsl(var(--muted-foreground))' }}>
-                Real run, not a dry run. A sample record goes through{' '}
+                Real run, not a dry run. A new "Demo:" record goes through{' '}
                 <strong style={{ color: 'hsl(var(--foreground))' }}>
                   {(matchedWorkflow as any)?.name || 'the routing workflow'}
                 </strong>{' '}

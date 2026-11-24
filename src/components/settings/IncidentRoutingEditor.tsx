@@ -83,7 +83,6 @@ import { useWorkflows } from '@/hooks/useWorkflows';
 import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { generateRuleSample, findRuleTestSample } from '@/utils/routingSampleGenerator';
 import { getDatastoreByCategory, setDatastoreItem } from '@/Shuffle-Core/datastore';
-import { WorkflowRunExplorer } from '@/Shuffle-Core/components/WorkflowRunExplorer';
 import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from '@/Shuffle-Core/components/DatastoreCategorySelect';
 import {
   findRoutingWorkflow,
@@ -2451,7 +2450,7 @@ const IncidentRoutingEditorInner = ({
       <Dialog
         open={!!pendingTest}
         onClose={() => setPendingTest(null)}
-        maxWidth={pendingTest && responseValidation[ruleTestKey(pendingTest.id)]?.executionId ? 'lg' : 'sm'}
+        maxWidth="sm"
         fullWidth
         PaperProps={{
           sx: {
@@ -2479,8 +2478,15 @@ const IncidentRoutingEditorInner = ({
               </Box>
             ) : null;
             const explorer = rv?.executionId ? (
-              <Box sx={{ mt: 1, height: 520, border: '1px solid hsl(var(--border))', borderRadius: 1.5, overflow: 'hidden' }}>
-                <WorkflowRunExplorer executionId={rv.executionId} authorization={rv.authorization} />
+              <Box>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => window.dispatchEvent(new CustomEvent('workflow-run:open', { detail: { executionId: rv.executionId, authorization: rv.authorization } }))}
+                  sx={{ height: 32, textTransform: 'none', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                >
+                  Open execution
+                </Button>
               </Box>
             ) : null;
             if (rv?.state === 'running') {

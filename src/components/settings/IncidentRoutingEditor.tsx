@@ -82,7 +82,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { generateRuleSample, findRuleTestSample } from '@/utils/routingSampleGenerator';
-import { getDatastoreByCategory, setDatastoreItem } from '@/Shuffle-Core/datastore';
+import { getDatastoreByCategory, getDatastoreItem, setDatastoreItem } from '@/Shuffle-Core/datastore';
+import { verifyRoutingActions, type ActionCheck } from '@/utils/routingResponseVerifier';
 import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from '@/Shuffle-Core/components/DatastoreCategorySelect';
 import {
   findRoutingWorkflow,
@@ -840,6 +841,7 @@ const IncidentRoutingEditorInner = ({
     failed?: number;
     sampleSource?: string;
     steps?: { setup?: StepState; sample: StepState; start: StepState; wait: StepState };
+    checks?: ActionCheck[];
   }>>({});
   const validateResponse = async (key: string, rule: RoutingRule, ruleTree: ConditionGroup) => {
     let wf: any = matchedWorkflow;
@@ -942,11 +944,22 @@ const IncidentRoutingEditorInner = ({
       const failed = results.filter((r) => ['FAILURE', 'ABORTED'].includes(String(r?.status || '').toUpperCase())).length;
       const status = String(last?.status || 'UNKNOWN').toUpperCase();
       Object.assign(steps, { wait: status === 'FINISHED' && failed === 0 ? 'ok' : 'fail' });
+      // Do responses: read back the demo record and the run, and check each
+      // action happened in the workflow. Nothing is executed here.
+      let checks: ActionCheck[] = [];
+      try {
+        const got: any = await getDatastoreItem(sampleKey, entityCategory, currentOrgId || undefined);
+        let rec: any = got?.item?.value ?? got?.item ?? {};
+        if (typeof rec === 'string') { try { rec = JSON.parse(rec); } catch { rec = {}; } }
+        checks = verifyRoutingActions(rule.actions as any, rec, results);
+      } catch { checks = []; }
+      const doOk = checks.length > 0 && checks.every((c) => c.ok);
       setResponseValidation((v) => ({
         ...v,
         [key]: {
           steps: { ...steps },
-          state: status === 'FINISHED' && failed === 0 ? 'done' : 'error',
+          state: status === 'FINISHED' && failed === 0 && doOk ? 'done' : 'error',
+          checks,
           status,
           executionId,
           authorization,
@@ -956,9 +969,9 @@ const IncidentRoutingEditorInner = ({
           sampleSource,
           message: status === 'EXECUTING' || status === 'UNKNOWN'
             ? 'The run did not finish within 30 seconds'
-            : status === 'FINISHED' && failed === 0
-              ? 'All Do responses ran'
-              : `${failed} Do response${failed === 1 ? '' : 's'} failed`,
+            : doOk
+              ? 'All Do responses happened in the workflow'
+              : `${checks.filter((c) => !c.ok).length || checks.length || 1} of ${checks.length || 1} Do responses not found`,
         },
       }));
     } catch (e: any) {
@@ -2550,6 +2563,9 @@ const IncidentRoutingEditorInner = ({
                   {rv.steps && renderStep('Start workflow', rv.steps.start)}
                   {waitStep}
                   {rv.steps?.wait && renderStep('Do responses', rv.state === 'done' ? 'ok' : 'fail', rv.message)}
+                  {(rv.checks || []).map((c: ActionCheck, i: number) => (
+                    <Box key={i} sx={{ pl: 2 }}>{renderStep(summarizeAction(pendingTest.actions[i] as any), c.ok ? 'ok' : 'fail', c.detail)}</Box>
+                  ))}
                 </Box>
               );
             }

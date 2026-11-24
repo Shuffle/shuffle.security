@@ -22,7 +22,7 @@ import * as React from 'react';
  *   should hide this card when there are no sub-orgs.
  */
 import { Plus as AddIcon, Trash as DeleteOutlineIcon, Copy as ContentCopyIcon, ChevronDown as ExpandMoreIcon, ChevronUp as ExpandLessIcon, ScanSearch as ValidateIcon, PanelRightOpen as PanelRightOpenIcon } from 'lucide-react';
-import { useEffect, useMemo, useState, useCallback, type JSX } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef, type JSX } from 'react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -82,7 +82,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { invalidateWorkflowsCache } from '@/Shuffle-Core/views/appsFetchCache';
 import { generateRuleSample, findRuleTestSample } from '@/utils/routingSampleGenerator';
-import { getDatastoreByCategory, getDatastoreItem, setDatastoreItem } from '@/Shuffle-Core/datastore';
+import { deleteDatastoreItem, getDatastoreByCategory, getDatastoreItem, setDatastoreItem } from '@/Shuffle-Core/datastore';
 import { verifyRoutingActions, type ActionCheck } from '@/utils/routingResponseVerifier';
 import { DatastoreCategorySelect, DATASTORE_CATEGORY_OPTIONS } from '@/Shuffle-Core/components/DatastoreCategorySelect';
 import {
@@ -842,8 +842,10 @@ const IncidentRoutingEditorInner = ({
     sampleSource?: string;
     steps?: { setup?: StepState; sample: StepState; start: StepState; wait: StepState };
     checks?: ActionCheck[];
+    sampleRemoved?: boolean;
   }>>({});
   const validateResponse = async (key: string, rule: RoutingRule, ruleTree: ConditionGroup) => {
+    let demoKey: string | undefined;
     let wf: any = matchedWorkflow;
     const steps = { setup: (wf?.id ? 'ok' : 'running') as StepState, sample: (wf?.id ? 'running' : 'pending') as StepState, start: 'pending' as StepState, wait: 'pending' as StepState };
     const push = (patch: Partial<typeof steps>, extra: Record<string, any> = {}) => {
@@ -892,6 +894,7 @@ const IncidentRoutingEditorInner = ({
       sample = stripRefs(sample);
       // Always test on a real, clearly labelled demo record so the result can be opened.
       const sampleKey = `demo-routing-${rule.id}-${Date.now()}`;
+      demoKey = sampleKey;
       const baseTitle = String(sample?.title || sample?.name || rule.name || 'Routing test');
       sample = {
         ...(sample || {}),
@@ -978,10 +981,31 @@ const IncidentRoutingEditorInner = ({
       for (const k of ['setup', 'sample', 'start', 'wait'] as const) if (steps[k] === 'running') steps[k] = 'fail';
       setResponseValidation((v) => ({ ...v, [key]: { ...(v[key] || {}), state: 'error', message: e?.message || 'Validation failed', steps: { ...steps } } }));
     }
+    if (cleanupOnDone.current[key]) {
+      delete cleanupOnDone.current[key];
+      await removeDemoRecord(key, demoKey);
+    }
   };
   // Rule-level "Test": the run is real, so it goes through a confirmation
   // first — the routing workflow can move, assign or comment for real.
   const ruleTestKey = (ruleId: string) => `${ruleId}:rule`;
+  // Demo records are removed when the test popup closes. A run still in
+  // progress removes its record when it finishes.
+  const cleanupOnDone = useRef<Record<string, boolean>>({});
+  const removeDemoRecord = async (key: string, sampleKey?: string) => {
+    if (!sampleKey) return;
+    try { await deleteDatastoreItem(sampleKey, entityCategory, currentOrgId || undefined); } catch { /* best effort */ }
+    setResponseValidation((v) => (v[key] ? { ...v, [key]: { ...v[key], sampleRemoved: true } } : v));
+  };
+  const closeTest = () => {
+    if (pendingTest) {
+      const key = ruleTestKey(pendingTest.id);
+      const rv = responseValidation[key];
+      if (rv?.state === 'running') cleanupOnDone.current[key] = true;
+      else if (rv?.sampleKey && !rv.sampleRemoved) void removeDemoRecord(key, rv.sampleKey);
+    }
+    setPendingTest(null);
+  };
   const [pendingTest, setPendingTest] = useState<RoutingRule | null>(null);
   const runRuleTest = (rule: RoutingRule) => {
     void validateResponse(
@@ -2484,7 +2508,7 @@ const IncidentRoutingEditorInner = ({
       {/* Rule test confirmation: the run is real, so ask first. */}
       <Dialog
         open={!!pendingTest}
-        onClose={() => setPendingTest(null)}
+        onClose={closeTest}
         maxWidth="sm"
         fullWidth
         PaperProps={{
@@ -2506,7 +2530,9 @@ const IncidentRoutingEditorInner = ({
                 <Box component="span" sx={{ width: 52, display: 'inline-flex', fontWeight: 600, color: rv.steps.sample === 'ok' ? 'hsl(var(--success, 142 70% 45%))' : rv.steps.sample === 'fail' ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>
                   {rv.steps.sample === 'running' ? <CircularProgress size={11} /> : rv.steps.sample === 'ok' ? 'Passed' : rv.steps.sample === 'fail' ? 'Failed' : 'Waiting'}
                 </Box>
-                {rv.sampleKey ? (
+                {rv.sampleKey && rv.sampleRemoved ? (
+                  <Box component="span" sx={{ minWidth: 120 }}>Injected sample (removed)</Box>
+                ) : rv.sampleKey ? (
                   <a
                     href={`/admin/datastore?category=${encodeURIComponent(entityCategory)}&key=${encodeURIComponent(rv.sampleKey)}`}
                     target="_blank"
@@ -2552,6 +2578,9 @@ const IncidentRoutingEditorInner = ({
                   {rv.steps && renderStep('Start workflow', rv.steps.start)}
                   {waitStep}
                   {rv.steps && renderStep('Do responses', 'pending')}
+                  {rv.steps && pendingTest.actions.map((a, i) => (
+                    <Box key={i} sx={{ pl: 2 }}>{renderStep(summarizeAction(a as any), 'pending')}</Box>
+                  ))}
                 </Box>
               );
             }
@@ -2582,7 +2611,7 @@ const IncidentRoutingEditorInner = ({
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button
-            onClick={() => setPendingTest(null)}
+            onClick={closeTest}
             sx={{ height: 36, textTransform: 'none', color: 'hsl(var(--muted-foreground))' }}
           >
             Close

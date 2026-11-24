@@ -6596,17 +6596,8 @@ const IncidentDetailPage = () => {
     }
   }, [usersLoading, users, editedAssignee]);
 
-  // Auto-refresh every 30 seconds to keep incident up-to-date
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      // Only refresh if not currently saving
-      if (!pendingSaveRef.current && !isSaving) {
-        loadIncident(false);
-      }
-    }, 30000);
-
-    return () => clearInterval(intervalId);
-  }, [loadIncident, isSaving]);
+  // Live updates come from the single background incident poll below; a
+  // second full reload timer here doubled every datastore request.
 
   // Refresh when the tab becomes visible again so the user always sees the
   // latest content after switching away and back.

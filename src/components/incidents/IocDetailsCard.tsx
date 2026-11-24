@@ -79,6 +79,20 @@ interface IocDetailsCardProps {
  * dedupe across correlations. Errors are silently ignored per ref so a single
  * missing entry never blocks the rest.
  */
+// Shared across every IOC card on the page: one request per IOC (in flight
+// or answered within the last 5 minutes), so opening cards does not refetch.
+const IOC_CACHE_TTL_MS = 5 * 60 * 1000;
+const iocItemCache = new Map<string, { at: number; promise: ReturnType<typeof getDatastoreItem> }>();
+const loadIocItem = (category: string, key: string) => {
+  const id = `${category}|${key}`;
+  const hit = iocItemCache.get(id);
+  if (hit && Date.now() - hit.at < IOC_CACHE_TTL_MS) return hit.promise;
+  const promise = getDatastoreItem(key, category);
+  iocItemCache.set(id, { at: Date.now(), promise });
+  promise.then((r) => { if (!r.success) iocItemCache.delete(id); }, () => iocItemCache.delete(id));
+  return promise;
+};
+
 export const IocDetailsCard = ({ correlations, compact = false }: IocDetailsCardProps) => {
   const [items, setItems] = useState<Array<{ category: string; key: string; stix?: ParsedStix; raw?: string; loading: boolean; error?: string }>>([]);
   const [feeds, setFeeds] = useState<ThreatFeed[]>(threatFeedsCache || []);
@@ -118,7 +132,7 @@ export const IocDetailsCard = ({ correlations, compact = false }: IocDetailsCard
     Promise.all(
       iocRefs.map(async (r) => {
         try {
-          const result = await getDatastoreItem(r.key, r.category);
+          const result = await loadIocItem(r.category, r.key);
           const raw = typeof result.item?.value === 'string' ? result.item.value : JSON.stringify(result.item?.value || '');
           let stix: ParsedStix | undefined;
           try { stix = raw ? JSON.parse(raw) : undefined; } catch { /* not JSON */ }
@@ -132,7 +146,7 @@ export const IocDetailsCard = ({ correlations, compact = false }: IocDetailsCard
     // We intentionally key this on the serialised refs so we refetch when the
     // underlying correlation set changes, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [iocRefs.map((r) => `${r.category}|${r.key}`).join(',')]);
+  }, [iocRefs.map((r) => `${r.category}|${r.key}`).sort().join(',')]);
 
   if (iocRefs.length === 0) return null;
 

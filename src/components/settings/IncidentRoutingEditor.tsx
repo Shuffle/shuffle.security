@@ -957,8 +957,8 @@ const IncidentRoutingEditorInner = ({
           message: status === 'EXECUTING' || status === 'UNKNOWN'
             ? 'The run did not finish within 30 seconds'
             : status === 'FINISHED' && failed === 0
-              ? 'The routing workflow handled the sample without errors'
-              : 'The routing workflow reported problems with the sample',
+              ? 'All Do responses ran'
+              : `${failed} Do response${failed === 1 ? '' : 's'} failed`,
         },
       }));
     } catch (e: any) {
@@ -2498,7 +2498,7 @@ const IncidentRoutingEditorInner = ({
                     href={`/admin/datastore?category=${encodeURIComponent(entityCategory)}&key=${encodeURIComponent(rv.sampleKey)}`}
                     target="_blank"
                     rel="noreferrer"
-                    style={{ color: 'hsl(var(--primary))', minWidth: 120 }}
+                    style={{ color: '#FF6600', minWidth: 120, textDecoration: 'none', fontWeight: 500 }}
                   >
                     Injected sample
                   </a>
@@ -2534,28 +2534,22 @@ const IncidentRoutingEditorInner = ({
             if (rv?.state === 'running') {
               return (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, minWidth: 300 }}>
-                  {rv.steps?.setup && rv.steps.setup !== 'ok' || (rv.steps?.setup === 'ok' && !(matchedWorkflow as any)?.id) ? renderStep('Create workflow', rv.steps!.setup!) : null}
+                  {rv.steps?.setup && rv.steps.setup !== 'ok' || (rv.steps?.setup === 'ok' && !(matchedWorkflow as any)?.id) ? renderStep('Enable Routing Rule usecase', rv.steps!.setup!) : null}
                   {sampleStep}
                   {rv.steps && renderStep('Start workflow', rv.steps.start)}
                   {waitStep}
+                  {rv.steps && renderStep('Do responses', 'pending')}
                 </Box>
               );
             }
             if (rv) {
               return (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, minWidth: 300 }}>
-                  <Box
-                    sx={{
-                      fontWeight: 600,
-                      color: rv.state === 'done' ? 'hsl(var(--success, 142 70% 45%))' : 'hsl(var(--destructive))',
-                    }}
-                  >
-                    {rv.state === 'done' ? 'Passed' : 'Failed'}: {rv.message}
-                  </Box>
-                  {rv.steps?.setup && rv.steps.setup !== 'ok' || (rv.steps?.setup === 'ok' && !(matchedWorkflow as any)?.id) ? renderStep('Create workflow', rv.steps!.setup!) : null}
+                  {rv.steps?.setup && rv.steps.setup !== 'ok' || (rv.steps?.setup === 'ok' && !(matchedWorkflow as any)?.id) ? renderStep('Enable Routing Rule usecase', rv.steps!.setup!) : null}
                   {sampleStep}
                   {rv.steps && renderStep('Start workflow', rv.steps.start)}
                   {waitStep}
+                  {rv.steps?.wait && renderStep('Do responses', rv.state === 'done' ? 'ok' : 'fail', rv.message)}
                 </Box>
               );
             }

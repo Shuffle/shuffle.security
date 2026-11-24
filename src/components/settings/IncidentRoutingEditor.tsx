@@ -105,6 +105,8 @@ import {
   treeDepth,
   type ConditionGroup,
   type ConditionLeaf,
+  evaluateTree,
+  collectLeaves,
   type ConditionNode,
   type NodePath,
 } from '@/utils/routingConditionTree';
@@ -724,19 +726,30 @@ const IncidentRoutingEditorInner = ({
   // can check that a field exists and how many records a condition matches.
   const [sampleRecords, setSampleRecords] = useState<any[] | null>(null);
   const [sampleLoading, setSampleLoading] = useState(false);
-  const [validation, setValidation] = useState<Record<string, { fieldHits: number; matchHits: number; total: number; field: string }>>({});
+  const [sampleInfo, setSampleInfo] = useState<{ status: 'ok' | 'error'; fetched: number; parsed: number; error?: string; more: boolean } | null>(null);
+  const [validation, setValidation] = useState<Record<string, {
+    field: string; total: number; fieldHits: number; lineHits: number; ruleHits: number; ruleLeaves: number;
+  }>>({});
   const loadSampleRecords = useCallback(async (): Promise<any[]> => {
-    if (!currentOrgId) return [];
+    if (!currentOrgId) {
+      setSampleInfo({ status: 'error', fetched: 0, parsed: 0, error: 'No organization selected yet', more: false });
+      return [];
+    }
     setSampleLoading(true);
     try {
-      const res: any = await getDatastoreByCategory(entityCategory, undefined, 100, currentOrgId).catch(() => null);
-      const list = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+      const res: any = await getDatastoreByCategory(entityCategory, undefined, 100, currentOrgId).catch((e: any) => ({ success: false, error: e?.message }));
+      const list: any[] = Array.isArray(res?.data) ? res.data : Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
       const ctxs = list.map((r: any) => {
-        const d = r?.data ?? r;
-        if (typeof d === 'string') { try { return JSON.parse(d); } catch { return { value: d }; } }
+        let d = r?.value ?? r?.data ?? r;
+        if (typeof d === 'string') { try { d = JSON.parse(d); } catch { return { value: d }; } }
         return d;
       }).filter((d: any) => d && typeof d === 'object');
       setSampleRecords(ctxs);
+      setSampleInfo(
+        res && res.success === false
+          ? { status: 'error', fetched: 0, parsed: 0, error: res.error || 'Request failed', more: false }
+          : { status: 'ok', fetched: list.length, parsed: ctxs.length, more: !!res?.cursor },
+      );
       return ctxs;
     } finally {
       setSampleLoading(false);
@@ -744,6 +757,7 @@ const IncidentRoutingEditorInner = ({
   }, [currentOrgId, entityCategory]);
   useEffect(() => {
     setSampleRecords(null);
+    setSampleInfo(null);
     setValidation({});
     void loadSampleRecords();
   }, [loadSampleRecords]);
@@ -761,18 +775,26 @@ const IncidentRoutingEditorInner = ({
     (sampleRecords || []).forEach((r) => walk(r, '', 0));
     return Array.from(keys).sort();
   }, [sampleRecords]);
-  const validateLeaf = async (key: string, leaf: { field: string; op: RoutingConditionOp; value?: string }) => {
-    const recs = sampleRecords ?? (await loadSampleRecords());
+  const validateLeaf = async (
+    key: string,
+    leaf: { field: string; op: RoutingConditionOp; value?: string },
+    ruleTree: ConditionGroup,
+  ) => {
+    const recs = await loadSampleRecords();
     const present = (v: any) => v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0) && v !== '';
-    let fieldHits = 0;
-    let matchHits = 0;
+    const leafEval = (r: any) => (l: ConditionLeaf) => {
+      try { return evaluateCondition(r, { field: l.field, op: l.op, value: l.value } as any); } catch { return false; }
+    };
+    let fieldHits = 0, lineHits = 0, ruleHits = 0;
     for (const r of recs) {
-      try {
-        if (present(resolveField(r, leaf.field))) fieldHits++;
-        if (evaluateCondition(r, { field: leaf.field, op: leaf.op, value: leaf.value } as any)) matchHits++;
-      } catch { /* skip bad record */ }
+      try { if (present(resolveField(r, leaf.field))) fieldHits++; } catch { /* skip */ }
+      if (leafEval(r)(leaf as ConditionLeaf)) lineHits++;
+      if (evaluateTree(ruleTree, leafEval(r))) ruleHits++;
     }
-    setValidation((v) => ({ ...v, [key]: { fieldHits, matchHits, total: recs.length, field: leaf.field } }));
+    setValidation((v) => ({
+      ...v,
+      [key]: { field: leaf.field, total: recs.length, fieldHits, lineHits, ruleHits, ruleLeaves: collectLeaves(ruleTree).length },
+    }));
   };
   const [loadingTestRecords, setLoadingTestRecords] = useState(false);
   const [selectedRecordId, setSelectedRecordId] = useState<string>('manual');
@@ -801,7 +823,13 @@ const IncidentRoutingEditorInner = ({
     setLoadingTestRecords(true);
     try {
       const res: any = await getDatastoreByCategory(entityCategory, undefined, 5, currentOrgId).catch(() => null);
-      const itemsList = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+      const rawList = Array.isArray(res?.data) ? res.data : Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+      const itemsList = rawList.map((it: any) => {
+        if (it && it.data === undefined && typeof it.value === 'string') {
+          try { return { ...it, data: JSON.parse(it.value) }; } catch { return it; }
+        }
+        return it;
+      });
       setTestRecords(itemsList);
       if (itemsList.length > 0) {
         const first = itemsList[0];
@@ -1621,7 +1649,7 @@ const IncidentRoutingEditorInner = ({
                           size="small"
                           aria-label="Validate field"
                           disabled={!node.field || sampleLoading}
-                          onClick={() => validateLeaf(key, node)}
+                          onClick={() => validateLeaf(`${rule.id}:${key}`, node, tree)}
                           sx={{
                             width: 36,
                             height: 36,
@@ -1650,20 +1678,40 @@ const IncidentRoutingEditorInner = ({
                       </IconButton>
                     </Tooltip>
                   </Box>
-                  {validation[key] && validation[key].field === node.field && (() => {
-                    const r = validation[key];
-                    const missing = r.total > 0 && r.fieldHits === 0;
+                  {(() => {
+                    const r = validation[`${rule.id}:${key}`];
+                    if (!r || r.field !== node.field) return null;
+                    const info = sampleInfo;
+                    const muted = 'hsl(var(--muted-foreground))';
+                    const bad = 'hsl(var(--destructive))';
+                    const good = 'hsl(var(--success, 142 70% 45%))';
+                    const scope = info?.status === 'error'
+                      ? `Could not load records from ${entityCategory}: ${info.error}`
+                      : `Checked the ${r.total} latest records in ${entityCategory}${info?.more ? ' (more exist, only the newest page was checked)' : ''}${info && info.fetched !== info.parsed ? `. ${info.fetched - info.parsed} of ${info.fetched} could not be read as objects` : ''}.`;
+                    const Row = ({ label, hits }: { label: string; hits: number }) => (
+                      <Box sx={{ display: 'flex', gap: 1, fontSize: '0.75rem' }}>
+                        <Box component="span" sx={{ color: muted, minWidth: 110 }}>{label}</Box>
+                        <Box component="span" sx={{ color: hits > 0 ? good : bad, fontWeight: 600 }}>
+                          {hits > 0 ? 'Passed' : 'Failed'}
+                        </Box>
+                        <Box component="span" sx={{ color: muted }}>{hits} of {r.total} records</Box>
+                      </Box>
+                    );
                     return (
-                      <Typography
-                        variant="caption"
-                        sx={{ color: missing ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))', pl: 0.5 }}
-                      >
-                        {r.total === 0
-                          ? 'No records found in this category to validate against.'
-                          : missing
-                            ? `Field "${r.field}" was not found in any of the ${r.total} latest records.`
-                            : `Field found in ${r.fieldHits} of ${r.total} latest records. This condition matches ${r.matchHits} of ${r.total}.`}
-                      </Typography>
+                      <Box sx={{ pl: 0.5, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                        <Typography variant="caption" sx={{ color: info?.status === 'error' || r.total === 0 ? bad : muted }}>
+                          {r.total === 0 && info?.status !== 'error'
+                            ? `No records found in ${entityCategory}. Fetched ${info?.fetched ?? 0} items, ${info?.parsed ?? 0} readable.`
+                            : scope}
+                        </Typography>
+                        {r.total > 0 && (
+                          <>
+                            <Row label={`Field "${r.field}"`} hits={r.fieldHits} />
+                            <Row label="This condition" hits={r.lineHits} />
+                            <Row label={`Whole rule (${r.ruleLeaves} conditions)`} hits={r.ruleHits} />
+                          </>
+                        )}
+                      </Box>
                     );
                   })()}
                 </Box>

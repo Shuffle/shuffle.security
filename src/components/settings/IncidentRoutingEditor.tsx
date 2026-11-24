@@ -806,6 +806,93 @@ const IncidentRoutingEditorInner = ({
     setValidation({});
     void loadSampleRecords();
   }, [loadSampleRecords]);
+  // "Validate response": runs a sample record through the real routing
+  // workflow and reports how the run went. Only possible when the workflow exists.
+  const [responseValidation, setResponseValidation] = useState<Record<string, {
+    state: 'running' | 'done' | 'error';
+    message: string;
+    status?: string;
+    executionId?: string;
+    actionsRun?: number;
+    failed?: number;
+    sampleSource?: string;
+  }>>({});
+  const validateResponse = async (key: string, rule: RoutingRule, ruleTree: ConditionGroup) => {
+    const wf: any = matchedWorkflow;
+    if (!wf?.id) return;
+    setResponseValidation((v) => ({ ...v, [key]: { state: 'running', message: 'Running a sample through the routing workflow' } }));
+    try {
+      const recs = sampleRecords ?? (await loadSampleRecords());
+      const leafEval = (r: any) => (l: ConditionLeaf) => {
+        try { return evaluateCondition(r, { field: l.field, op: l.op, value: l.value } as any); } catch { return false; }
+      };
+      const matching = recs.find((r) => evaluateTree(ruleTree, leafEval(r)));
+      const sample = matching || recs[0] || {};
+      const sampleSource = matching
+        ? 'a recent record that matches this rule'
+        : recs[0]
+          ? 'a recent record (none matched this rule)'
+          : 'an empty sample (no records in this category)';
+      const resp = await fetch(getApiUrl(`/api/v1/workflows/${wf.id}/execute`), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({
+          execution_source: 'routing_validation',
+          start: '',
+          execution_argument: JSON.stringify({
+            category: entityCategory,
+            key: sample?.id || 'routing-validation-sample',
+            value: sample,
+            routing_validation: true,
+            rule_id: rule.id,
+          }),
+        }),
+      });
+      const body: any = await resp.json().catch(() => ({}));
+      if (!resp.ok || body?.success === false) {
+        throw new Error(body?.reason || `Workflow could not start (status ${resp.status})`);
+      }
+      const executionId: string = body?.execution_id || body?.id || '';
+      const authorization: string = body?.authorization || executionId;
+      if (!executionId) throw new Error('Workflow started but returned no execution ID');
+      let last: any = null;
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const rr = await fetch(getApiUrl('/api/v1/streams/results'), {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+          body: JSON.stringify({ execution_id: executionId, authorization }),
+        });
+        if (!rr.ok) continue;
+        last = await rr.json().catch(() => null);
+        const st = String(last?.status || '').toUpperCase();
+        if (st === 'FINISHED' || st === 'ABORTED' || st === 'FAILURE') break;
+      }
+      const results: any[] = Array.isArray(last?.results) ? last.results : [];
+      const failed = results.filter((r) => ['FAILURE', 'ABORTED'].includes(String(r?.status || '').toUpperCase())).length;
+      const status = String(last?.status || 'UNKNOWN').toUpperCase();
+      setResponseValidation((v) => ({
+        ...v,
+        [key]: {
+          state: status === 'FINISHED' && failed === 0 ? 'done' : 'error',
+          status,
+          executionId,
+          actionsRun: results.length,
+          failed,
+          sampleSource,
+          message: status === 'EXECUTING' || status === 'UNKNOWN'
+            ? 'The run did not finish within 30 seconds'
+            : status === 'FINISHED' && failed === 0
+              ? 'The routing workflow handled the sample without errors'
+              : 'The routing workflow reported problems with the sample',
+        },
+      }));
+    } catch (e: any) {
+      setResponseValidation((v) => ({ ...v, [key]: { state: 'error', message: e?.message || 'Validation failed' } }));
+    }
+  };
   const sampleKeys = useMemo(() => {
     const keys = new Set<string>();
     const walk = (o: any, prefix: string, depth: number) => {
@@ -1979,6 +2066,49 @@ const IncidentRoutingEditorInner = ({
                           sx={{ flex: 1, minWidth: 200 }}
                         />
                       )}
+                      {(() => {
+                        const rk = `${rule.id}:action:${aIdx}`;
+                        const rv = responseValidation[rk];
+                        const hasWf = !!(matchedWorkflow as any)?.id;
+                        const color = rv?.state === 'done' ? 'hsl(var(--success, 142 70% 45%))' : rv?.state === 'error' ? 'hsl(var(--destructive))' : undefined;
+                        const title = !hasWf
+                          ? 'Validate response: needs the routing workflow. Create the routing workflow first, then a sample can be run through it.'
+                          : rv?.state === 'running'
+                            ? 'Running a sample through the routing workflow'
+                            : rv
+                              ? (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, fontSize: '0.75rem' }}>
+                                  <Box sx={{ fontWeight: 600 }}>{rv.state === 'done' ? 'Passed' : 'Failed'}: {rv.message}</Box>
+                                  {rv.sampleSource && <Box>Sample: {rv.sampleSource}</Box>}
+                                  {rv.status && <Box>Run status: {rv.status}</Box>}
+                                  {typeof rv.actionsRun === 'number' && <Box>Steps run: {rv.actionsRun}, failed: {rv.failed}</Box>}
+                                  {rv.executionId && <Box sx={{ wordBreak: 'break-all' }}>Execution: {rv.executionId}</Box>}
+                                </Box>
+                              )
+                              : 'Validate response: run a real sample from this category through the routing workflow and check the result';
+                        return (
+                          <Tooltip title={title} componentsProps={{ tooltip: { sx: { maxWidth: 420 } } }}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                aria-label="Validate response"
+                                disabled={!hasWf || rv?.state === 'running'}
+                                onClick={() => validateResponse(rk, rule, rule.conditionTree || migrateLegacyConditions(rule))}
+                                sx={{
+                                  width: 36,
+                                  height: 36,
+                                  border: `1px solid ${color || 'hsl(var(--border))'}`,
+                                  borderRadius: 1.5,
+                                  color: color || 'hsl(var(--muted-foreground))',
+                                  '&:hover': { color: color || 'hsl(var(--primary))' },
+                                }}
+                              >
+                                {rv?.state === 'running' ? <CircularProgress size={14} /> : <ValidateIcon size={16} />}
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        );
+                      })()}
                       <Tooltip title="Remove action">
                         <span>
                           <IconButton

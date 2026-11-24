@@ -126,11 +126,12 @@ export function verifyRoutingActions(
       }
       case 'run_agent': {
         const queued = String(mod.agent_prompt?.to ?? '') === value || did.some((d) => d.includes('queued @AIAgent:'));
-        const ok = queued && msg.db_updated === true;
         const run = record ? findAgentActivity(record, value || undefined) : null;
+        // Queued is not enough: the response only passes once the agent run started.
+        const ok = queued && msg.db_updated === true && !!run;
         return {
           ok,
-          detail: !ok ? 'agent was not queued' : run ? 'agent run started' : 'agent queued, not picked up yet',
+          detail: !(queued && msg.db_updated === true) ? 'agent was not queued' : run ? 'agent run started' : 'agent was queued but did not start within 60 seconds',
           ...(run ? { agentExecutionId: run.executionId, ...(run.authorization ? { agentAuthorization: run.authorization } : {}) } : {}),
         };
       }

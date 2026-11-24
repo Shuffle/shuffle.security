@@ -966,7 +966,7 @@ const IncidentRoutingEditorInner = ({
         checks = verifyRoutingActions(rule.actions as any, results, rule.id, rec);
         // The agent is queued on the record and picked up afterwards: re-read
         // the record a few times so the agent run can be linked.
-        for (let i = 0; hasAgent && i < 5 && checks.some((c, j) => rule.actions[j]?.type === 'run_agent' && c.ok && !c.agentExecutionId); i++) {
+        for (let i = 0; hasAgent && i < 20 && checks.some((c, j) => rule.actions[j]?.type === 'run_agent' && !c.agentExecutionId && c.detail !== 'agent was not queued'); i++) {
           await new Promise((r) => setTimeout(r, 3000));
           rec = await readRecord();
           checks = verifyRoutingActions(rule.actions as any, results, rule.id, rec);

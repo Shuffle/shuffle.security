@@ -312,6 +312,7 @@ export const RoutingRulePreviewBanner = ({
         case 'assign_to': return `Assign to ${a.value || '?'}`;
         case 'add_comment': return 'Add comment';
         case 'run_agent': return 'Run AI agent';
+        case 'run_python': return 'Run Python script';
         case 'set_field': return `Set ${a.field || '?'} → ${a.value || '?'}`;
         default: return `${ACTION_TYPE_LABELS[a.type]}${a.value ? `: ${a.value}` : ''}`;
       }

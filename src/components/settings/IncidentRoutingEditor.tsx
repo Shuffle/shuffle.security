@@ -45,6 +45,7 @@ import {
   ROUTING_STATUS_OPTIONS,
   ROUTING_PRIORITY_OPTIONS,
   ROUTING_FIELD_SUGGESTIONS,
+  normalizeLegacyRoutingAction,
   RoutingFieldPathInput,
   defaultRoutingAction,
   validateRoutingAction,
@@ -144,7 +145,8 @@ export type RoutingActionType =
   | 'assign_to'
   | 'add_comment'
   | 'run_agent'
-  | 'set_field';
+  | 'set_field'
+  | 'run_python';
 
 export interface RoutingAction {
   type: RoutingActionType;
@@ -232,7 +234,7 @@ const emptyRule = (defaults: Partial<RoutingRule> = {}): RoutingRule => ({
   conditionTree: emptyGroup('and', [
     emptyLeaf({ field: 'rawOCSF.unmapped_original.to', op: 'contains', value: '' }),
   ]),
-  actions: [defaultActionFor('set_severity')],
+  actions: [defaultActionFor('set_field')],
   createdTs: Date.now(),
   updatedTs: Date.now(),
   matchCount: 0,
@@ -287,6 +289,8 @@ const parseRule = (key: string, value: string): RoutingRule | null => {
       }];
     }
     if (actions.length === 0) actions = [defaultActionFor('suggest_move')];
+    // Legacy shortcuts are now plain "Set field" actions with a predefined field.
+    actions = actions.map(normalizeLegacyRoutingAction);
     return {
       id: parsed.id || key,
       name: typeof parsed.name === 'string' ? parsed.name : 'Untitled rule',
@@ -326,6 +330,7 @@ const summarizeAction = (a: RoutingAction, orgName?: string): string => {
     case 'assign_to': return `assign to ${a.value || '?'}`;
     case 'add_comment': return `add comment`;
     case 'run_agent': return `run AI agent`;
+    case 'run_python': return `run Python script`;
     case 'set_field': return `set ${a.field || '?'} = "${a.value || ''}"`;
   }
 };
@@ -1314,7 +1319,7 @@ const IncidentRoutingEditorInner = ({
       return;
     }
     const fresh = emptyRule({
-      actions: [defaultActionFor('set_severity')],
+      actions: [defaultActionFor('set_field')],
       entityCategory,
     });
     setDrafts((prev) => ({ ...prev, [fresh.id]: fresh }));
@@ -1355,7 +1360,7 @@ const IncidentRoutingEditorInner = ({
     setDrafts((prev) => {
       const r = prev[ruleId];
       if (!r) return prev;
-      return { ...prev, [ruleId]: { ...r, actions: [...r.actions, defaultActionFor('set_severity')], updatedTs: Date.now() } };
+      return { ...prev, [ruleId]: { ...r, actions: [...r.actions, defaultActionFor('set_field')], updatedTs: Date.now() } };
     });
   };
 

@@ -21,20 +21,49 @@ import { getShuffleOpenApiAuthState, SHUFFLE_OPENAPI_APP_ID } from './moveAction
 import type { RoutingAction, RoutingActionType } from './IncidentRoutingEditor';
 
 export const ROUTING_ACTION_TYPE_LABELS: Record<RoutingActionType, string> = {
+  set_field: 'Set field',
   suggest_move: 'Move to tenant',
+  assign_to: 'Assign to',
+  add_comment: 'Add comment',
+  run_agent: 'Run AI Agent',
+  run_python: 'Run Python script',
+  // Legacy shortcuts, shown as "Set field" in the picker.
   set_severity: 'Set severity',
   set_status: 'Set status',
   set_priority: 'Set priority',
   add_label: 'Add label',
-  assign_to: 'Assign to',
-  add_comment: 'Add comment',
-  run_agent: 'Run AI Agent',
-  set_field: 'Set custom field',
+};
+
+/** Action types offered in the picker, in order. */
+export const ROUTING_MAIN_ACTION_TYPES: RoutingActionType[] = [
+  'set_field', 'suggest_move', 'assign_to', 'add_comment', 'run_agent', 'run_python',
+];
+
+const LEGACY_FIELD_FOR_TYPE: Partial<Record<RoutingActionType, string>> = {
+  set_severity: 'severity',
+  set_status: 'status',
+  set_priority: 'priority',
+  add_label: 'labels',
+};
+
+/** Turns legacy set_severity / set_status / set_priority / add_label into set_field. */
+export const normalizeLegacyRoutingAction = (a: RoutingAction): RoutingAction => {
+  const field = LEGACY_FIELD_FOR_TYPE[a.type];
+  return field ? { ...a, type: 'set_field', field, value: a.value ?? '' } : a;
 };
 
 export const ROUTING_SEVERITY_OPTIONS = ['Informational', 'Low', 'Medium', 'High', 'Critical'];
 export const ROUTING_STATUS_OPTIONS = ['New', 'In Progress', 'On Hold', 'Resolved', 'Closed'];
 export const ROUTING_PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Urgent'];
+
+/** Value choices for a "Set field" action targeting a well-known field. */
+export const routingFieldValuePresets = (field?: string): string[] | null => {
+  const f = String(field || '').replace(/^rawOCSF\./, '');
+  return f === 'severity' ? ROUTING_SEVERITY_OPTIONS
+    : f === 'status' ? ROUTING_STATUS_OPTIONS
+    : f === 'priority' ? ROUTING_PRIORITY_OPTIONS
+    : null;
+};
 
 export const ROUTING_FIELD_SUGGESTIONS = [
   '*', // whole-object match: scans every string in the incident (auto base64-decoded)
@@ -42,6 +71,8 @@ export const ROUTING_FIELD_SUGGESTIONS = [
   'description',
   'source',
   'severity',
+  'status',
+  'priority',
   'labels',
   'observables.email',
   'observables.domain',
@@ -64,7 +95,8 @@ export const defaultRoutingAction = (type: RoutingActionType): RoutingAction => 
     case 'assign_to': return { type, value: '' };
     case 'add_comment': return { type, value: '' };
     case 'run_agent': return { type, value: '' };
-    case 'set_field': return { type, field: '', value: '' };
+    case 'set_field': return { type, field: 'severity', value: 'High' };
+    case 'run_python': return { type, value: '' };
   }
 };
 
@@ -74,11 +106,13 @@ export const routingActionValuePresets = (type: RoutingActionType): string[] | n
   : type === 'set_priority' ? ROUTING_PRIORITY_OPTIONS
   : null;
 
+
 export const routingActionValuePlaceholder = (type: RoutingActionType): string =>
   type === 'add_label' ? 'label name'
   : type === 'assign_to' ? 'user email or AI Agent'
   : type === 'add_comment' ? 'comment text'
   : type === 'run_agent' ? 'What should the AI agent do with this incident?'
+  : type === 'run_python' ? 'Python code to run with the record as input'
   : 'value';
 
 /** Returns an error string when the action is incomplete, otherwise null. */
@@ -315,8 +349,8 @@ export const RoutingActionFields = ({
   menuZIndex,
 }: RoutingActionFieldsProps) => {
   const compact = variant === 'compact';
-  const valuePresets = routingActionValuePresets(action.type);
-  const multiline = action.type === 'add_comment' || action.type === 'run_agent';
+  const valuePresets = action.type === 'set_field' ? routingFieldValuePresets(action.field) : routingActionValuePresets(action.type);
+  const multiline = action.type === 'add_comment' || action.type === 'run_agent' || action.type === 'run_python';
 
   const menuProps = menuZIndex
     ? {
@@ -341,14 +375,14 @@ export const RoutingActionFields = ({
       <TextField
         size="small"
         select
-        value={action.type}
+        value={ROUTING_MAIN_ACTION_TYPES.includes(action.type) ? action.type : 'set_field'}
         onChange={(e) => onTypeChange(e.target.value as RoutingActionType)}
         sx={compact ? undefined : { minWidth: 200 }}
         fullWidth={fullWidth}
         label={compact ? undefined : 'Action'}
         SelectProps={selectProps}
       >
-        {(Object.keys(ROUTING_ACTION_TYPE_LABELS) as RoutingActionType[]).map((t) => (
+        {ROUTING_MAIN_ACTION_TYPES.map((t) => (
           <MenuItem key={t} value={t} sx={{ fontSize: '0.8rem' }}>
             {ROUTING_ACTION_TYPE_LABELS[t]}
           </MenuItem>
@@ -380,7 +414,10 @@ export const RoutingActionFields = ({
       {action.type === 'set_field' && (
         <RoutingFieldPathInput
           value={action.field || ''}
-          onChange={(f) => onChange({ field: f })}
+          onChange={(f) => {
+            const presets = routingFieldValuePresets(f);
+            onChange(presets && !presets.includes(String(action.value || '')) ? { field: f, value: presets[0] } : { field: f });
+          }}
           placeholder="Pick or type field"
           sx={compact ? undefined : { minWidth: 220 }}
           fullWidth={fullWidth}
@@ -414,7 +451,7 @@ export const RoutingActionFields = ({
             fullWidth={fullWidth}
             multiline={multiline}
             maxRows={multiline ? 6 : 1}
-            label={compact ? undefined : (action.type === 'run_agent' ? 'Agent prompt' : 'Value')}
+            label={compact ? undefined : (action.type === 'run_agent' ? 'Agent prompt' : action.type === 'run_python' ? 'Python script' : 'Value')}
           />
         )
       )}

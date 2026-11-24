@@ -1,3 +1,4 @@
+import * as React from 'react';
 /**
  * IncidentRoutingEditor — multi-tenant incident routing rules.
  *
@@ -480,6 +481,50 @@ const IncidentRoutingEditorInner = ({
     () => findRoutingWorkflow(workflows, entityLabel, entityCategory),
     [workflows, entityLabel, entityCategory],
   );
+
+  // Per-category routing status for the category dropdown dots: green when
+  // the category has at least one enabled rule AND its routing workflow exists.
+  const categoryRoutingStatus = useMemo(() => {
+    const out: Record<string, { total: number; enabled: number; workflow: string | null }> = {};
+    for (const opt of DATASTORE_CATEGORY_OPTIONS) {
+      const label = opt.category === DEFAULT_ROUTING_ENTITY_CATEGORY
+        ? { singular: 'incident', plural: 'incidents' }
+        : { singular: opt.singular, plural: opt.plural };
+      const wf = findRoutingWorkflow(workflows, label, opt.category) as any;
+      out[opt.category] = { total: 0, enabled: 0, workflow: wf ? (wf.name || wf.id || 'workflow') : null };
+    }
+    for (const it of items) {
+      const rule = parseRule(it.key, typeof it.value === 'string' ? it.value : JSON.stringify(it.value));
+      if (!rule) continue;
+      const cat = rule.entityCategory || DEFAULT_ROUTING_ENTITY_CATEGORY;
+      const entry = out[cat];
+      if (!entry) continue;
+      entry.total++;
+      if (rule.enabled) entry.enabled++;
+    }
+    return out;
+  }, [items, workflows]);
+  const categoryDotActive = (cat: string) => {
+    const st = categoryRoutingStatus[cat];
+    return !!st && st.enabled > 0 && !!st.workflow;
+  };
+  const categoryDotTooltip = (cat: string) => {
+    const st = categoryRoutingStatus[cat];
+    if (!hasFetched || workflowsLoading) return 'Loading routing status';
+    if (!st) return 'Unknown category';
+    const rulesText = st.total === 0
+      ? 'No routing rules'
+      : `${st.enabled} of ${st.total} rule${st.total === 1 ? '' : 's'} enabled`;
+    const wfText = st.workflow ? `Routing workflow: ${st.workflow}` : 'No routing workflow found';
+    const state = categoryDotActive(cat)
+      ? 'Active'
+      : st.enabled === 0 && !st.workflow
+        ? 'Not active: needs an enabled rule and a routing workflow'
+        : st.enabled === 0
+          ? 'Not active: needs at least one enabled rule'
+          : 'Not active: needs a routing workflow';
+    return `${state}. ${rulesText}. ${wfText}.`;
+  };
 
   const [categoryConfig, setCategoryConfig] = useState<any>(null);
   const [lastExecution, setLastExecution] = useState<RoutingWorkflowExecutionSummary | null>(null);
@@ -1234,7 +1279,12 @@ const IncidentRoutingEditorInner = ({
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {categorySelect}
+          {React.isValidElement(categorySelect) && categorySelect.type === DatastoreCategorySelect
+            ? React.cloneElement(categorySelect as React.ReactElement<any>, {
+                isActive: (categorySelect.props as any).isActive || categoryDotActive,
+                getDotTooltip: (categorySelect.props as any).getDotTooltip || categoryDotTooltip,
+              })
+            : categorySelect}
           <Tooltip title={unsavedDraftId ? 'Save or delete the unfinished rule before adding another.' : ''}>
           <span>
           <Button

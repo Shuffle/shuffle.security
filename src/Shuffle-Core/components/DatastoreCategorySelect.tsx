@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Box, FormControl, MenuItem, Select, Typography } from '@mui/material';
+import { Box, FormControl, MenuItem, Select, Tooltip, Typography } from '@mui/material';
 import { DATASTORE_CATEGORIES } from '@/Shuffle-Core/datastore';
 
 /**
@@ -32,6 +32,8 @@ export interface DatastoreCategorySelectProps {
   getStatus?: (category: string) => string;
   /** Whether the option's dot is lit. */
   isActive?: (category: string) => boolean;
+  /** Explains what the option's dot means (shown when hovering the dot). */
+  getDotTooltip?: (category: string) => string;
   /** Inline label rendered inside the control (compact mode) instead of above it. */
   label?: string;
   /**
@@ -51,6 +53,7 @@ export const DatastoreCategorySelect: React.FC<DatastoreCategorySelectProps> = (
   labelMode = 'category',
   getStatus,
   isActive,
+  getDotTooltip,
   label,
   compact = false,
 }) => {
@@ -66,15 +69,20 @@ export const DatastoreCategorySelect: React.FC<DatastoreCategorySelectProps> = (
     return (
       <MenuItem key={opt.category} value={opt.category}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-          <Box
-            sx={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              flexShrink: 0,
-              bgcolor: active ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground) / 0.5)',
-            }}
-          />
+          <Tooltip
+            title={(getDotTooltip ? getDotTooltip(opt.category) : '') || (active ? 'Active' : 'Not active')}
+            placement="left"
+          >
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                flexShrink: 0,
+                bgcolor: active ? 'hsl(var(--severity-low))' : 'hsl(var(--muted-foreground) / 0.5)',
+              }}
+            />
+          </Tooltip>
           <Typography sx={{ fontSize: '0.95rem', flex: 1 }}>
             {labelMode === 'when'
               ? `A${/^[aeiou]/i.test(opt.singular) ? 'n' : ''} ${opt.singular} is edited`

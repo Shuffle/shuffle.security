@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, forwardRef, useLayoutEffect } from "react";
 import shuffleInfraLogo from "@/assets/shuffle-infrastructure-logo.png";
+import { useBrandLogo, useBrandFavicon } from "@/hooks/useBrandLogo";
 import { ShuffleLogo } from "@/components/common/ShuffleLogo";
 import { useLocation, Link, useNavigate } from "@/lib/router-compat";
 import { prefetchRoute } from "@/lib/routePrefetch";
@@ -376,6 +377,8 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
   const navigate = useNavigate();
   const { userInfo, setActiveOrg, logout } = useAuth();
   const { theme: currentTheme, setTheme, brandColor, brandName } = useTheme();
+  const brandLogo = useBrandLogo();
+  useBrandFavicon(brandLogo);
   const primaryColor = brandColor || "#FF6600";
   const { plural: entityPlural, basePath: entityBasePath } =
     useEntityPreference();
@@ -857,7 +860,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                 },
               }}
             >
-              <ShuffleLogo size={32} color={primaryColor} />
+              {brandLogo ? <img src={brandLogo} alt="" width={32} height={32} style={{ borderRadius: 4, objectFit: "contain" }} /> : <ShuffleLogo size={32} color={primaryColor} />}
               {!visuallyCollapsed && (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                   <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
@@ -950,7 +953,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                 }
               }}
             >
-              <ShuffleLogo size={24} color={primaryColor} />
+              {brandLogo ? <img src={brandLogo} alt="" width={24} height={24} style={{ borderRadius: 4, objectFit: "contain" }} /> : <ShuffleLogo size={24} color={primaryColor} />}
               <Typography
                 sx={{
                   fontSize: "0.875rem",
@@ -958,7 +961,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
                   fontWeight: 600,
                 }}
               >
-                <span style={{ color: primaryColor }}>Shuffle</span> Security
+                {brandLogo ? "Security" : <><span style={{ color: primaryColor }}>Shuffle</span> Security</>}
               </Typography>
             </MenuItem>
             <MenuItem
@@ -983,8 +986,8 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
               }}
             >
               <img
-                src={shuffleInfraLogo}
-                alt="Shuffle Automation"
+                src={brandLogo || shuffleInfraLogo}
+                alt="Automation"
                 width={24}
                 height={24}
                 style={{ borderRadius: 4 }}
@@ -992,7 +995,7 @@ export const AppSidebar = ({ collapsed, onToggle }: AppSidebarProps) => {
               <Typography
                 sx={{ fontSize: "0.875rem", color: "hsl(var(--foreground))" }}
               >
-                <span style={{ color: primaryColor }}>Shuffle</span> Automation
+                {brandLogo ? "Automation" : <><span style={{ color: primaryColor }}>Shuffle</span> Automation</>}
               </Typography>
             </MenuItem>
           </Menu>

@@ -34,6 +34,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { ShuffleLogo } from '@/components/common/ShuffleLogo';
 import shuffleInfraLogo from '@/assets/shuffle-infrastructure-logo.png';
+import { useBrandLogo, useBrandFavicon } from '@/hooks/useBrandLogo';
 import { isCapacitorNative, getPlatform } from '@/lib/platform';
 import { useEntityPreference, useSidebarTabs } from '@/hooks/useEntityLabel';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
@@ -346,6 +347,8 @@ export const MobileNavHeader: React.FC = () => {
   const navigate = useNavigate();
   const { userInfo, logout } = useAuth();
   const { theme: currentTheme, setTheme, brandColor, brandName } = useTheme();
+  const brandLogo = useBrandLogo();
+  useBrandFavicon(brandLogo);
   const primaryColor = brandColor || '#FF6600';
   const { plural: entityPlural, basePath: entityBasePath } = useEntityPreference();
   const sidebarTabs = useSidebarTabs();
@@ -554,7 +557,7 @@ export const MobileNavHeader: React.FC = () => {
                   minWidth: 0,
                 }}
               >
-                <ShuffleLogo size={22} color={primaryColor} />
+                {brandLogo ? <img src={brandLogo} alt="" width={22} height={22} style={{ borderRadius: 4, objectFit: "contain" }} /> : <ShuffleLogo size={22} color={primaryColor} />}
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.4, minWidth: 0 }}>
                   {brandName ? (
                     <Typography
@@ -936,9 +939,9 @@ export const MobileNavHeader: React.FC = () => {
               mx: 0.5,
             }}
           >
-            <ShuffleLogo size={22} color={primaryColor} />
+            {brandLogo ? <img src={brandLogo} alt="" width={22} height={22} style={{ borderRadius: 4, objectFit: "contain" }} /> : <ShuffleLogo size={22} color={primaryColor} />}
             <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: 'hsl(var(--foreground))' }}>
-              <span style={{ color: primaryColor }}>Shuffle</span> Security
+              {brandLogo ? "Security" : <><span style={{ color: primaryColor }}>Shuffle</span> Security</>}
             </Typography>
           </MenuItem>
           <MenuItem
@@ -961,14 +964,14 @@ export const MobileNavHeader: React.FC = () => {
             }}
           >
             <img
-              src={shuffleInfraLogo}
-              alt="Shuffle Automation"
+              src={brandLogo || shuffleInfraLogo}
+              alt="Automation"
               width={22}
               height={22}
               style={{ borderRadius: 4 }}
             />
             <Typography sx={{ fontSize: '0.875rem', color: 'hsl(var(--foreground))' }}>
-              <span style={{ color: primaryColor }}>Shuffle</span> Automation
+              {brandLogo ? "Automation" : <><span style={{ color: primaryColor }}>Shuffle</span> Automation</>}
             </Typography>
           </MenuItem>
         </Menu>

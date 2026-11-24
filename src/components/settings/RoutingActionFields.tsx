@@ -419,7 +419,7 @@ export const RoutingActionFields = ({
             onChange(presets && !presets.includes(String(action.value || '')) ? { field: f, value: presets[0] } : { field: f });
           }}
           placeholder="Pick or type field"
-          sx={compact ? { width: '100%' } : { flex: '1 1 220px', minWidth: 220, maxWidth: 320 }}
+          sx={compact ? { width: '100%' } : { flex: '2 1 280px', minWidth: 260 }}
           fullWidth={fullWidth}
           label={compact ? undefined : 'Field'}
         />
